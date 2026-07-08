@@ -7,44 +7,52 @@ faster, and what's safe to click on the review grid without losing work.
 
 ---
 
-## 1. Pointing the LLM at a GPU host (faster enrichment)
+## 1. Using the local GPU Ollama (the standard CSCU lab setup)
 
-By default the app calls **Ollama on the machine it runs on**. On the CSCU lab VM that's
-CPU-only, so you're limited to small models and it's slow. If you have a machine with
-GPUs on the same network (e.g. the Windows bare-metal host with dual RTX 3060s), point
-the app at *that* Ollama instead — the enrichment runs on the GPUs and you can use larger
-models.
+In the CSCU lab the app runs **on the Windows 11 bare-metal host** — the same
+machine as the GPUs (dual RTX 3060, 12 GB each) — so the fast setup is simply
+the **local** Ollama. No network hop, no firewall rule, and the enriched text
+never leaves the machine.
 
-### On the GPU host (Windows)
+### Configure the app for local GPU Ollama
 
-1. Make Ollama listen on the network, not just localhost. Add a **system** environment
-   variable `OLLAMA_HOST = 0.0.0.0:11434`, then **restart Ollama** (quit from the tray
-   and relaunch, or restart the service). By default it binds `127.0.0.1:11434`, which
-   rejects connections from the VM.
-2. Allow inbound `TCP 11434` through **Windows Firewall** (an inbound rule; Private
-   network scope is enough if the VM is on a private adapter). Blocked port 11434 is the
-   most common failure.
-3. Pull the model you want to use there: `ollama pull <model>`. With 12 GB per GPU a
-   12–14B model (or a larger quantised one) runs comfortably.
+1. Install/run Ollama on Windows and pull a model sized to your VRAM — with
+   12 GB per card a 12–14B model runs fully on GPU (Ollama can also split a
+   model across both cards):
 
-### On the VM (the app)
+   ```
+   ollama pull qwen2.5:14b-instruct
+   ```
 
-1. Confirm the host is reachable: `curl http://<host-ip>:11434/api/tags` — you should get
-   JSON listing the models. If it hangs/refuses, it's the firewall or the wrong address.
-2. In the app's **Settings → LLM**, change the Ollama base URL from
-   `http://localhost:11434` to `http://<host-ip>:11434`, and select a model that's pulled
-   on that host.
+2. Point the app at the **IPv4 loopback** in `glossary_generator/.env`:
 
-**Finding `<host-ip>`** depends on the VM networking:
-- **Bridged** VM → the Windows machine's LAN IP (`ipconfig` on Windows).
-- **NAT** → the host is usually a gateway address (e.g. VirtualBox `10.0.2.2`); `ip route`
-  on the VM shows the default gateway.
-- **Host-only adapter** → the host's IP on that adapter.
+   ```
+   OLLAMA_URL=http://127.0.0.1:11434
+   LLM_MODEL=qwen2.5:14b-instruct
+   ```
 
-**Trade-offs (call out in courseware):** this makes the app depend on the GPU host being
-up and reachable, and it sends the text to be enriched over the network. Fine on a lab
-LAN; for a self-contained VM demo, keep the local CPU model. Leave the small local model
-configured as a fallback.
+   Use `127.0.0.1`, **not** `localhost` — on Windows `localhost` can resolve to
+   IPv6 `::1` and miss Ollama's IPv4 bind, which makes the header pill show
+   Ollama as offline even though it's running.
+
+3. Verify: the app's header pill should read something like
+   `Ollama · qwen2.5:14b-instruct · 100% GPU` (the placement comes from
+   Ollama's `/api/ps`, the same data as `ollama ps`). A `xx%/yy% CPU/GPU`
+   split means the model is too big for VRAM — pick a smaller one or accept
+   the slower split.
+
+Do **not** point the app at an Ollama inside the Ubuntu VM — the VM is
+CPU-only, and enrichment there is an order of magnitude slower.
+
+### Variant: app running elsewhere, GPUs on this host
+
+If the app ever runs on another machine (e.g. inside the VM), it can still use
+this host's GPUs remotely: set a **system** environment variable
+`OLLAMA_HOST = 0.0.0.0:11434` on Windows and restart Ollama (it binds only
+`127.0.0.1` by default), allow inbound `TCP 11434` through Windows Firewall,
+then set the app's Ollama base URL to `http://<windows-host-ip>:11434`.
+Trade-offs: the app now depends on this host being up, and the text to be
+enriched crosses the network — fine on a lab LAN.
 
 ---
 
