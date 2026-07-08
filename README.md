@@ -21,10 +21,31 @@ hard to defend in an audit.
 This app maintains **one governed answer per concept**: a controlled two-layer
 **Term & Tag dictionary** (generic baseline + steward-approved company layer),
 and a **Classification Registry** written at export time
-(`registries/registry.<glossary>.json`). A separate **Policy Generator** app
-reads that Registry to build PDC's Data Identification methods, keeping tagging
-consistent end-to-end. The full rationale is in
-[CHALLENGE-AND-GOAL.md](glossary_generator/CHALLENGE-AND-GOAL.md).
+(`registries/registry.<glossary>.json`).
+
+![Two apps, one handoff — Glossary Generator writes the Registry, Policy Generator reads it](glossary_generator/diagrams/two-apps.png)
+
+The Registry is the **contract between two separate apps**, used in order —
+mirroring PDC's own split between the Business Glossary and Data
+Identification:
+
+1. **Glossary Generator** (this repo) builds the business glossary: it scans
+   sources, proposes concepts, lets the steward review them, and produces the
+   JSONL you import into PDC (which mints the term ids). As a by-product of
+   export it **authors the Registry** — one row per concept with the business
+   term, governed tags (from a controlled allow-list), rule-based sensitivity,
+   and category.
+2. **Policy Generator** (a separate app, shipped independently) **reads the
+   Registry** — with the term ids reconciled after import — and emits PDC's
+   Data Identification methods: dictionaries (ZIP) and patterns (JSON), each
+   bound to its term and stamping the Registry's tags. It also drift-checks
+   deployed methods against the Registry.
+
+Because both apps draw from the same row, the glossary term, the tags a method
+stamps, and the sensitivity can no longer quietly diverge. The full rationale
+is in [CHALLENGE-AND-GOAL.md](glossary_generator/CHALLENGE-AND-GOAL.md), and
+the other workshop figures are in
+[diagrams/](glossary_generator/diagrams/).
 
 ## What it does
 
