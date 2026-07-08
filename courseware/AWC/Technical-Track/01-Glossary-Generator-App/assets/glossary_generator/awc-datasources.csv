@@ -1,0 +1,3 @@
+kind,resourceName,host,port,databaseName,userName,password,schemaNames,endpoint,region,accessKey,secretKey,container,path,includePatterns,excludePatterns,databaseType,fqdnId,description
+postgres,Arizona_Water_Operations,az-water-postgres,5432,awc_operations,pdc_user,catalog123!,awc_operations,,,,,,,,,,,AWC operational database - customers; meters; billing; water-quality readings
+minio,Arizona_Water_Documents,,,,,,,http://192.168.1.200:9000,us-east-1,awc_minio_user,minio_secret_123!,awc-documents,/,,*.md,,,AWC document store - EPA compliance; inspections; correspondence; SCADA; GIS

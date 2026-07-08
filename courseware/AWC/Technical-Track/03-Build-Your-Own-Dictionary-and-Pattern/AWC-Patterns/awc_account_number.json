@@ -1,0 +1,91 @@
+[
+  {
+    "__typename": "patternsRules",
+    "type": "Pattern",
+    "name": "AWC Account Number",
+    "category": "AWC_Reference",
+    "status": "enabled",
+    "columnNameRegex": [
+      {
+        "regex": "(?i)(account|acct)_?(no|num|number|id)?",
+        "score": 1.0
+      }
+    ],
+    "columnNameWeight": 0.3,
+    "contentPatterns": [
+      {
+        "pattern": "AAA-AA-nnnnnn"
+      },
+      {
+        "pattern": "AAA-AAA-nnnnnn"
+      },
+      {
+        "pattern": "AAA-AAAA-nnnnnn"
+      }
+    ],
+    "contentPatternWeight": 0.4,
+    "contentRegex": [
+      {
+        "regex": "^AWC-[A-Z]{2,4}-\\d{6}$"
+      }
+    ],
+    "contentRegexWeight": 0.3,
+    "confidenceScore": {
+      "+": [
+        {
+          "*": [
+            {
+              "var": "metadataScore"
+            },
+            0.3
+          ]
+        },
+        {
+          "*": [
+            {
+              "var": "patternScore"
+            },
+            0.4
+          ]
+        },
+        {
+          "*": [
+            {
+              "var": "regexScore"
+            },
+            0.3
+          ]
+        }
+      ]
+    },
+    "condition": {
+      "and": [
+        {
+          ">=": [
+            {
+              "var": "confidenceScore"
+            },
+            "0.7"
+          ]
+        }
+      ]
+    },
+    "actions": [
+      {
+        "applyTags": [
+          {
+            "k": "Account Number"
+          },
+          {
+            "k": "Sensitive"
+          }
+        ]
+      }
+    ],
+    "assignBusinessTerm": [
+      {
+        "k": "Customer Account"
+      }
+    ]
+  }
+]

@@ -1,0 +1,106 @@
+{
+  "export_metadata": {
+    "source": "AWC SCADA Historian",
+    "export_date": "2026-05-15T08:00:00Z",
+    "snapshot_type": "all_systems_current",
+    "classification": "Internal - Operational"
+  },
+  "systems": [
+    {
+      "system_id": "PINAL-VALLEY",
+      "site_name": "Casa Grande",
+      "population_served": 88000,
+      "pressure_psi": 65.3,
+      "flow_gpm": 599.2,
+      "reservoir_level_pct": 67.0,
+      "turbidity_ntu": 0.59,
+      "chlorine_residual_ppm": 1.78,
+      "pump_status": "RUNNING",
+      "last_maintenance": "2026-04-22"
+    },
+    {
+      "system_id": "SEDONA",
+      "site_name": "Sedona",
+      "population_served": 10500,
+      "pressure_psi": 59.4,
+      "flow_gpm": 1108.2,
+      "reservoir_level_pct": 84.1,
+      "turbidity_ntu": 0.22,
+      "chlorine_residual_ppm": 0.94,
+      "pump_status": "RUNNING",
+      "last_maintenance": "2026-02-10"
+    },
+    {
+      "system_id": "APACHE-JUNCTION",
+      "site_name": "Apache Junction",
+      "population_served": 38000,
+      "pressure_psi": 60.8,
+      "flow_gpm": 1057.4,
+      "reservoir_level_pct": 74.1,
+      "turbidity_ntu": 0.26,
+      "chlorine_residual_ppm": 0.81,
+      "pump_status": "RUNNING",
+      "last_maintenance": "2026-02-22"
+    },
+    {
+      "system_id": "SIERRA-VISTA",
+      "site_name": "Sierra Vista",
+      "population_served": 43000,
+      "pressure_psi": 65.9,
+      "flow_gpm": 1137.6,
+      "reservoir_level_pct": 83.5,
+      "turbidity_ntu": 0.29,
+      "chlorine_residual_ppm": 1.21,
+      "pump_status": "STANDBY",
+      "last_maintenance": "2026-02-17"
+    },
+    {
+      "system_id": "BISBEE",
+      "site_name": "Bisbee",
+      "population_served": 5200,
+      "pressure_psi": 65.2,
+      "flow_gpm": 1241.6,
+      "reservoir_level_pct": 90.1,
+      "turbidity_ntu": 0.61,
+      "chlorine_residual_ppm": 1.67,
+      "pump_status": "RUNNING",
+      "last_maintenance": "2026-03-15"
+    },
+    {
+      "system_id": "ORACLE",
+      "site_name": "Oracle",
+      "population_served": 3800,
+      "pressure_psi": 64.8,
+      "flow_gpm": 2076.5,
+      "reservoir_level_pct": 94.3,
+      "turbidity_ntu": 0.55,
+      "chlorine_residual_ppm": 1.27,
+      "pump_status": "STANDBY",
+      "last_maintenance": "2026-04-04"
+    },
+    {
+      "system_id": "LAKESIDE",
+      "site_name": "Lakeside",
+      "population_served": 9200,
+      "pressure_psi": 66.9,
+      "flow_gpm": 987.6,
+      "reservoir_level_pct": 59.3,
+      "turbidity_ntu": 0.5,
+      "chlorine_residual_ppm": 0.62,
+      "pump_status": "RUNNING",
+      "last_maintenance": "2026-02-11"
+    },
+    {
+      "system_id": "WHITE-TANK",
+      "site_name": "White Tank",
+      "population_served": 12000,
+      "pressure_psi": 63.2,
+      "flow_gpm": 2092.2,
+      "reservoir_level_pct": 86.2,
+      "turbidity_ntu": 0.46,
+      "chlorine_residual_ppm": 0.83,
+      "pump_status": "RUNNING",
+      "last_maintenance": "2026-01-26"
+    }
+  ]
+}

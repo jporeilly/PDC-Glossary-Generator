@@ -1,0 +1,36 @@
+network:
+  version: 2
+  ethernets:
+    ens33:
+      dhcp4: no
+      addresses:
+        - 192.168.187.10/24
+      routes:
+        - to: default
+          via: 192.168.187.2
+      nameservers:
+        addresses: [192.168.187.2, 8.8.8.8]
+
+
+
+
+ip a              # should show 192.168.187.10 on your interface
+ping -c3 192.168.187.2   # gateway reachable
+ping -c3 8.8.8.8         # internet reachable (NAT working)
+ping -c3 google.com      # DNS resolving
+
+
+sudo netplan apply
+ip a                          # interface should now show 192.168.187.10
+ping -c3 192.168.187.2        # gateway
+ping -c3 8.8.8.8              # internet (NAT working)
+ping -c3 google.com          # DNS resolving
+
+
+sudo mv /etc/netplan/50-cloud-init.yaml /etc/netplan/50-cloud-init.yaml.bak   # use the real extra filename
+sudo netplan apply
+
+echo 'network: {config: disabled}' | sudo tee /etc/cloud/cloud.cfg.d/99-disable-network-config.cfg
+
+2-rme75U+q21Vb7VZ0GWKNdKDBEeWhvaYKJPFVgnG3p8b+Y9aOUzsKz64Z79mXZKH197cCfS7r6Q==
+

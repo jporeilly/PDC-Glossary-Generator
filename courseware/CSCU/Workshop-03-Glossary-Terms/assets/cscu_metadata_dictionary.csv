@@ -1,0 +1,109 @@
+schema,table,column,data_type,is_pk,is_fk,comment
+cscu_core,branches,br_id,INT,Y,,
+cscu_core,branches,br_name,VARCHAR(100),,,
+cscu_core,branches,br_addr,VARCHAR(200),,,
+cscu_core,branches,br_city,VARCHAR(50),,,
+cscu_core,branches,br_county,VARCHAR(30),,,
+cscu_core,branches,br_zip,VARCHAR(10),,,
+cscu_core,branches,br_phone,VARCHAR(20),,,
+cscu_core,branches,mgr_emp_id,INT,,,manager (FK added after employees)
+cscu_core,branches,open_dt,DATE,,,
+cscu_core,branches,br_status,VARCHAR(20),,,"Open, Closed, Relocating"
+cscu_core,employees,emp_id,INT,Y,,
+cscu_core,employees,first_nm,VARCHAR(50),,,
+cscu_core,employees,last_nm,VARCHAR(50),,,
+cscu_core,employees,email,VARCHAR(100),,,
+cscu_core,employees,br_id,INT,,Y,
+cscu_core,employees,role_cd,VARCHAR(30),,,"TELLER, MSR, LOAN_OFFICER, BR_MGR, COMPLIANCE"
+cscu_core,employees,hire_dt,DATE,,,
+cscu_core,employees,emp_status,VARCHAR(20),,,
+cscu_core,members,mbr_id,INT,Y,,
+cscu_core,members,mbr_no,VARCHAR(20),,,member number CSCU-NNNNNN
+cscu_core,members,first_nm,VARCHAR(50),,,
+cscu_core,members,last_nm,VARCHAR(50),,,
+cscu_core,members,ssn,VARCHAR(11),,,fictional 000-xx-xxxx values only
+cscu_core,members,dob,DATE,,,
+cscu_core,members,email,VARCHAR(100),,,
+cscu_core,members,phone,VARCHAR(20),,,
+cscu_core,members,addr_1,VARCHAR(200),,,
+cscu_core,members,city,VARCHAR(50),,,
+cscu_core,members,st,VARCHAR(2),,,
+cscu_core,members,zip,VARCHAR(10),,,
+cscu_core,members,br_id,INT,,Y,
+cscu_core,members,mbr_since_dt,DATE,,,
+cscu_core,members,mbr_status,VARCHAR(20),,,"Active, Dormant, Closed"
+cscu_core,members,opted_out_marketing,BOOLEAN,,,
+cscu_core,accounts,acct_id,INT,Y,,
+cscu_core,accounts,acct_no,VARCHAR(20),,,ACC-NNNNNNNN
+cscu_core,accounts,mbr_id,INT,,Y,
+cscu_core,accounts,br_id,INT,,Y,
+cscu_core,accounts,acct_type_cd,VARCHAR(20),,,"SHARE, CHECKING, MONEY_MKT, CERT_12MO, CERT_36MO"
+cscu_core,accounts,open_dt,DATE,,,
+cscu_core,accounts,close_dt,DATE,,,
+cscu_core,accounts,acct_status,VARCHAR(20),,,"Open, Frozen, Closed"
+cscu_core,accounts,bal_amt,"DECIMAL(12,2)",,,
+cscu_core,accounts,avail_bal_amt,"DECIMAL(12,2)",,,
+cscu_core,accounts,int_rt,"DECIMAL(6,4)",,,dividend/interest rate (APY basis)
+cscu_core,cards,card_id,INT,Y,,
+cscu_core,cards,acct_id,INT,,Y,
+cscu_core,cards,card_no,VARCHAR(19),,,fictional 4111... test PANs only
+cscu_core,cards,card_type_cd,VARCHAR(15),,,"DEBIT, CREDIT"
+cscu_core,cards,exp_dt,DATE,,,
+cscu_core,cards,cvv_cd,VARCHAR(4),,,MUST NOT EXIST: see table comment
+cscu_core,cards,issued_dt,DATE,,,
+cscu_core,cards,card_status,VARCHAR(20),,,"Active, Blocked, Expired, Reported"
+cscu_core,transactions,txn_id,BIGINT,Y,,
+cscu_core,transactions,acct_id,INT,,Y,
+cscu_core,transactions,txn_dt,TIMESTAMP,,,
+cscu_core,transactions,post_dt,DATE,,,
+cscu_core,transactions,txn_amt,"DECIMAL(12,2)",,,"negative = debit, positive = credit"
+cscu_core,transactions,txn_type_cd,VARCHAR(20),,,"POS, ATM, ACH_CR, ACH_DR, XFER, FEE, DIVIDEND, CHECK"
+cscu_core,transactions,merch_nm,VARCHAR(100),,,
+cscu_core,transactions,mcc_cd,VARCHAR(4),,,merchant category code
+cscu_core,transactions,memo_txt,VARCHAR(200),,,
+cscu_core,loans,ln_id,INT,Y,,
+cscu_core,loans,ln_no,VARCHAR(20),,,LN-NNNNNN
+cscu_core,loans,mbr_id,INT,,Y,
+cscu_core,loans,ln_type_cd,VARCHAR(20),,,"AUTO, PERSONAL, HELOC, MORTGAGE, CREDIT_CARD"
+cscu_core,loans,orig_amt,"DECIMAL(12,2)",,,
+cscu_core,loans,prin_bal_amt,"DECIMAL(12,2)",,,
+cscu_core,loans,apr_rt,"DECIMAL(6,4)",,,
+cscu_core,loans,term_mo,INT,,,
+cscu_core,loans,orig_dt,DATE,,,
+cscu_core,loans,maturity_dt,DATE,,,
+cscu_core,loans,collateral_desc,VARCHAR(200),,,
+cscu_core,loans,ln_status,VARCHAR(20),,,"Current, Delinquent30, Delinquent60, ChargedOff, PaidOff"
+cscu_core,ach_payments,ach_id,INT,Y,,
+cscu_core,ach_payments,acct_id,INT,,Y,
+cscu_core,ach_payments,ach_rte_no,VARCHAR(9),,,external ABA routing number (fictional)
+cscu_core,ach_payments,ext_acct_no,VARCHAR(20),,,external account (fictional)
+cscu_core,ach_payments,dir_cd,VARCHAR(6),,,CREDIT (incoming) / DEBIT (outgoing)
+cscu_core,ach_payments,ach_amt,"DECIMAL(12,2)",,,
+cscu_core,ach_payments,eff_dt,DATE,,,
+cscu_core,ach_payments,ach_status,VARCHAR(20),,,"Pending, Settled, Returned"
+cscu_core,ach_payments,return_cd,VARCHAR(4),,,NACHA return reason (R01 = NSF ...)
+cscu_core,kyc_reviews,kyc_id,INT,Y,,
+cscu_core,kyc_reviews,mbr_id,INT,,Y,
+cscu_core,kyc_reviews,review_dt,DATE,,,
+cscu_core,kyc_reviews,risk_rating_cd,VARCHAR(10),,,"LOW, MEDIUM, HIGH"
+cscu_core,kyc_reviews,id_doc_type_cd,VARCHAR(20),,,"DRIVERS_LICENSE, PASSPORT, STATE_ID"
+cscu_core,kyc_reviews,id_doc_no,VARCHAR(30),,,fictional document numbers
+cscu_core,kyc_reviews,reviewer_emp_id,INT,,Y,
+cscu_core,kyc_reviews,kyc_status,VARCHAR(20),,,"Complete, Pending, Escalated"
+cscu_core,kyc_reviews,notes,VARCHAR(500),,,
+cscu_core,suspicious_activity,sar_id,INT,Y,,
+cscu_core,suspicious_activity,mbr_id,INT,,Y,
+cscu_core,suspicious_activity,acct_id,INT,,Y,
+cscu_core,suspicious_activity,filed_dt,DATE,,,
+cscu_core,suspicious_activity,activity_type_cd,VARCHAR(30),,,"STRUCTURING, FRAUD, IDENTITY_THEFT, ELDER_ABUSE"
+cscu_core,suspicious_activity,sar_amt,"DECIMAL(12,2)",,,
+cscu_core,suspicious_activity,narrative_txt,VARCHAR(1000),,,
+cscu_core,suspicious_activity,filed_by_emp_id,INT,,Y,
+cscu_core,suspicious_activity,sar_status,VARCHAR(20),,,"Draft, Filed, Closed"
+cscu_core,gl_entries,gl_id,BIGINT,Y,,
+cscu_core,gl_entries,gl_acct_no,VARCHAR(10),,,"1xxx assets, 2xxx liabilities, 4xxx income, 5xxx expense"
+cscu_core,gl_entries,post_dt,DATE,,,
+cscu_core,gl_entries,dr_amt,"DECIMAL(14,2)",,,
+cscu_core,gl_entries,cr_amt,"DECIMAL(14,2)",,,
+cscu_core,gl_entries,br_id,INT,,Y,
+cscu_core,gl_entries,desc_txt,VARCHAR(200),,,

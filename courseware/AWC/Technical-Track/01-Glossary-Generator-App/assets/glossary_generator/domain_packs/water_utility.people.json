@@ -1,0 +1,96 @@
+{
+  "people": [
+    {
+      "community": "Data Operations; Glossary Stewards",
+      "display_name": "David Chen",
+      "email": "david.chen@azwater.gov",
+      "expertise": "Usage, billing, customer accounts, operations",
+      "id": "43bd6886-d97a-40d7-bbaf-dac9b2391c00",
+      "name": "david.chen",
+      "owns": "Connects sources, profiles, runs identification, curates collections; owns Usage / Operations terms",
+      "roles": [
+        "Data Steward",
+        "Business Steward"
+      ],
+      "stakeholder_role": "Steward"
+    },
+    {
+      "community": "Glossary Stewards",
+      "display_name": "Maria Garcia",
+      "email": "maria.garcia@azwater.gov",
+      "expertise": "Customer accounts, governance, policy, alerts, compliance",
+      "id": "ab476553-878b-4d95-a70c-9236320cd512",
+      "name": "maria.garcia",
+      "owns": "Owns Customer + Governance terms; can create/import/edit glossary and policies",
+      "roles": [
+        "Business Steward"
+      ],
+      "stakeholder_role": "Steward"
+    },
+    {
+      "community": "Glossary Stewards",
+      "display_name": "Robert Hayes",
+      "email": "robert.hayes@azwater.gov",
+      "expertise": "Billing, rates, invoicing, account numbers, finance",
+      "id": "eaaea628-b7ea-4521-9c03-afc72c3c4f4f",
+      "name": "robert.hayes",
+      "owns": "Owns Billing & Rates terms incl. Customer Account Number",
+      "roles": [
+        "Business Steward"
+      ],
+      "stakeholder_role": "Steward"
+    },
+    {
+      "community": "Glossary Stewards",
+      "display_name": "Susan Park",
+      "email": "susan.park@azwater.gov",
+      "expertise": "Data quality, audits, compliance, governance",
+      "id": "eadc1b5f-6723-465c-991e-41fb85f430d1",
+      "name": "susan.park",
+      "owns": "Displayed as Dr. Susan Park; owns the Compliance & Governance terms (CDE)",
+      "roles": [
+        "Business Steward"
+      ],
+      "stakeholder_role": "Steward"
+    },
+    {
+      "community": "Analysts",
+      "display_name": "Business Analyst",
+      "email": "business.analyst@azwater.gov",
+      "expertise": "",
+      "id": "",
+      "name": "business.analyst",
+      "owns": "Optional persona: reads metadata (W2), searches (W6), Galaxy View (W11)",
+      "roles": [
+        "Data User"
+      ],
+      "stakeholder_role": "Steward"
+    },
+    {
+      "community": "",
+      "display_name": "Catalog Admin",
+      "email": "catalog.admin@azwater.gov",
+      "expertise": "",
+      "id": "",
+      "name": "catalog.admin",
+      "owns": "Creates users, defines custom properties, manages workers and licence",
+      "roles": [
+        "Admin"
+      ],
+      "stakeholder_role": "Steward"
+    },
+    {
+      "community": "Data Operations",
+      "display_name": "Data Analyst",
+      "email": "data.analyst@azwater.gov",
+      "expertise": "",
+      "id": "",
+      "name": "data.analyst",
+      "owns": "Optional persona: profiling (W4), lineage (W8), discovery (W6)",
+      "roles": [
+        "Data Steward"
+      ],
+      "stakeholder_role": "Steward"
+    }
+  ]
+}

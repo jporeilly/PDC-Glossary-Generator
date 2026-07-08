@@ -88,7 +88,7 @@ sources. On the review grid:
 ### Step 5 — Govern
 
 The roster is pre-seeded with four stewards. **Auto-assign all slots** and
-verify it puts *Priya Nair* (BSA/AML) on **Compliance & Risk**, *Marcus Webb*
+verify it puts *Nadia Flores* (BSA/AML) on **Compliance & Risk**, *Marcus Webb*
 on **Lending**, *Tom Callahan* on **Cards & Payments**, *Elena Ramirez* on
 **Transactions / Accounts & Deposits**. Set ratings (Auto/DQ), review date,
 and status.

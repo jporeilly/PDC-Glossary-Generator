@@ -1,0 +1,29 @@
+From: sofia.reyes@email.com
+To: memberservices@copperstatecu.org
+Date: 2026-06-03 16:22
+Subject: Outgoing wire vs ACH for a property purchase
+
+Hi - I need to send $85,000 to a title company next month for a property
+closing. Should I use a wire or ACH? What are the cutoffs and fees, and
+what information do you need (routing number, account number)?
+
+Sofia Reyes, member CSCU-100504
+
+---
+From: memberservices@copperstatecu.org
+To: sofia.reyes@email.com
+Date: 2026-06-04 08:50
+Subject: RE: Outgoing wire vs ACH for a property purchase
+
+Dear Ms. Reyes,
+
+For a time-critical closing we recommend a domestic wire (same-day before
+the 2:00 PM cutoff, $25 fee). We will need the receiving bank's ABA
+routing number, the account number, and the exact beneficiary name from
+the title company. Because the amount exceeds $10,000 the transfer is
+reported on a Currency Transaction Report as required - this is routine.
+
+Please visit the Tempe University branch with photo ID to initiate.
+
+Member Services - Copper State Credit Union
+All Copper State Credit Union data is fictional and generated for training.

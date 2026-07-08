@@ -1,0 +1,8 @@
+First_Name,Last_Name,Email,PDC_Roles,Tier,Community,Notes
+Elena,Ramirez,elena.ramirez@copperstatecu.org,Data Steward; Business Steward,Expert,CSCU Data Operations; CSCU Glossary Stewards,"Connects sources, profiles, runs identification, curates collections; owns Transactions / Accounts & Deposits terms"
+Marcus,Webb,marcus.webb@copperstatecu.org,Business Steward,Expert,CSCU Glossary Stewards,Owns Lending terms incl. Loan Number and APR
+Nadia,Flores,nadia.flores@copperstatecu.org,Business Steward,Expert,CSCU Glossary Stewards,BSA/AML officer; owns the Compliance & Risk terms (all CDE) incl. Risk Rating and SAR
+Tom,Callahan,tom.callahan@copperstatecu.org,Business Steward,Expert,CSCU Glossary Stewards,Owns Cards & Payments terms incl. Card Number and Routing Number
+Catalog,Admin,catalog.admin@copperstatecu.org,Admin,Expert,,"Creates users, defines custom properties, manages workers and licence"
+Jordan,Blake,jordan.blake@copperstatecu.org,Data User,Business,CSCU Analysts,"Business Analyst persona (Business tier). Reads technical/business/operational metadata, runs Search & Saved Searches, views the glossary, policies and Galaxy View. Consumes data — cannot edit the glossary or connect sources."
+Dana,Ortiz,dana.ortiz@copperstatecu.org,Data Steward,Expert,CSCU Data Operations,"Data Analyst persona (Expert tier). Profiles tables, runs Data Identification / PII, curates Collections. Hands-on prep — but cannot edit the glossary (that needs Business Steward)."

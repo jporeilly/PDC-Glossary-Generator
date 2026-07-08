@@ -1,0 +1,49 @@
+From: tom.wilson@example.com
+To: conservation@azwater.example.com
+Date: Wed, 06 May 2026 16:30:00 -0700
+Subject: Question about tiered rates and conservation
+
+Hi,
+
+I received a notice that my usage put me into a higher rate tier last month.
+I'd like to understand the conservation-oriented rate structure better so I can
+lower my bill.
+
+Account holder: Thomas Wilson
+Service Address: 88 Sedona Vista Drive, Sedona, AZ 86336
+Account: AWC-SE-100092
+
+I'm a residential customer. Last month I used about 14,000 gallons. Can you
+explain which tiers that crosses and what I'd pay?
+
+Thanks,
+Tom Wilson
+
+------------------------------------------------------------------------
+From: conservation@azwater.example.com
+To: tom.wilson@example.com
+Date: Thu, 07 May 2026 10:05:00 -0700
+Subject: RE: Question about tiered rates and conservation
+
+Dear Mr. Wilson,
+
+Great question. Arizona Water Company uses a conservation-oriented tiered rate
+so that essential use stays affordable while discretionary use carries a higher
+price. For a residential account in the Sedona system:
+
+  Base charge:                 $35.50 / month
+  Tier 1 (0-10,000 gal):       $3.50 per 1,000 gal
+  Tier 2 (10,001-25,000 gal):  $5.25 per 1,000 gal
+  Tier 3 (25,001-50,000 gal):  $7.50 per 1,000 gal
+  Tier 4 (50,001+ gal):        $9.75 per 1,000 gal
+
+At 14,000 gallons you'd pay the base charge, the full Tier 1 rate on the first
+10,000 gallons, and the Tier 2 rate on the remaining 4,000 gallons. Shifting
+about 4,000 gallons of outdoor watering to cooler hours could keep you closer
+to Tier 1.
+
+We're happy to schedule a free home water-use review. Just reply to this email.
+
+Best regards,
+Conservation Team
+Arizona Water Company

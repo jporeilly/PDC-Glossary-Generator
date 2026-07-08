@@ -45,7 +45,7 @@ table->category map and curated terms are empty and categories are derived gener
 A scenario is installed from its pack zip — for CSCU, unzip
 `data_sources/CSCU/cscu-domain-pack.zip` into `glossary_generator/` (drops
 `domain_pack.json` + the `people.json` roster: Elena Ramirez / Marcus Webb /
-Priya Nair / Tom Callahan, with `expertise` seeded), or set in `.env`:
+Nadia Flores / Tom Callahan, with `expertise` seeded), or set in `.env`:
 
     GLOSSARY_DOMAIN_PACK=../data_sources/CSCU/domain_pack/credit_union.example.json
 

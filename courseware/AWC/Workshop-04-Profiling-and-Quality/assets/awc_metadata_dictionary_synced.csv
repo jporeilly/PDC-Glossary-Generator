@@ -1,0 +1,114 @@
+schema_name,table_name,column_name,entity_type,description,sensitivity,tags,business_terms
+awc_operations,,,SCHEMA,"Arizona Water Company operational schema: customers, water systems, tiered rates, monthly usage/billing, water-quality reports, and account alerts. Contains PII and regulated water-quality data.",HIGH,Domain:Operations|Contains_Personal_Data,
+awc_operations,customers,,TABLE,"Arizona Water Company customer master file across 27 communities in 8 Arizona counties. Holds residential, commercial, agricultural and industrial accounts. Contains direct PII (names, service and billing addresses, email, phone).",HIGH,Domain:Customer|PII|Contains_Personal_Data,Customer Record
+awc_operations,customers,customer_id,COLUMN,Surrogate primary key uniquely identifying each customer account.,LOW,Key|Reference,
+awc_operations,customers,account_number,COLUMN,Unique AWC account number in format AWC-[City Code]-[Sequential]. Primary billing/service identifier. Confidential PII.,HIGH,PII|Billing|Reference,Customer Account Number
+awc_operations,customers,customer_name,COLUMN,Full name of the customer (person or organisation). Direct PII.,HIGH,PII|Contact,Customer Name
+awc_operations,customers,service_address,COLUMN,Street address where water service is delivered. Direct PII / location.,HIGH,PII|Contact|Location,Service Address
+awc_operations,customers,service_city,COLUMN,City of the service location. Quasi-identifier.,MEDIUM,Location,
+awc_operations,customers,service_county,COLUMN,Arizona county of the service location (one of 8 served counties).,LOW,Location|Reference,
+awc_operations,customers,service_zip,COLUMN,ZIP code of the service location. Quasi-identifier.,MEDIUM,Location,
+awc_operations,customers,customer_type,COLUMN,"Customer classification: Residential, Commercial, Industrial, Agriculture. Drives rate structure and conservation programs.",LOW,Domain:Customer|Reference,Customer Type
+awc_operations,customers,service_area_system,COLUMN,"AWC water system serving this customer (e.g. Pinal Valley, Sedona). Determines applicable rates and water quality.",LOW,Domain:Operations|Reference,Service Area
+awc_operations,customers,email,COLUMN,Customer email address. Direct PII and a marketing-contact channel.,HIGH,PII|Contact,Email Address
+awc_operations,customers,phone,COLUMN,Customer telephone number. Direct PII.,HIGH,PII|Contact,Phone Number
+awc_operations,customers,account_status,COLUMN,"Account state: Active, Suspended, Closed, Pending.",LOW,Status|Reference,Customer Status
+awc_operations,customers,billing_name,COLUMN,Name on the billing account; may differ from the service customer. PII.,HIGH,PII|Billing|Contact,
+awc_operations,customers,billing_address,COLUMN,Mailing address for billing. Direct PII / location.,HIGH,PII|Billing|Location,Mailing Address
+awc_operations,customers,billing_city,COLUMN,City portion of the billing address.,MEDIUM,Billing|Location,
+awc_operations,customers,billing_zip,COLUMN,ZIP code portion of the billing address.,MEDIUM,Billing|Location,
+awc_operations,customers,service_start_date,COLUMN,Date water service began for the account.,LOW,Temporal,Account Open Date
+awc_operations,customers,last_updated,COLUMN,Timestamp of the most recent change to the customer record.,LOW,Temporal|Operational,
+awc_operations,customers,opted_out_marketing,COLUMN,GDPR/CCPA marketing-consent flag. TRUE = opted OUT and must not receive marketing email. Critical compliance control.,HIGH,Compliance|Consent|Regulatory,Marketing Consent
+awc_operations,water_systems,,TABLE,"AWC's 24 water systems serving 27 Arizona communities. Each system has a distinct water source, rate structure and conservation focus. Operational reference data, largely public.",LOW,Domain:Operations|Reference,Water System Record
+awc_operations,water_systems,system_id,COLUMN,Surrogate primary key identifying each water system.,LOW,Key|Reference,Water System
+awc_operations,water_systems,system_name,COLUMN,Unique water system name (e.g. Pinal Valley System).,LOW,Reference,
+awc_operations,water_systems,service_cities,COLUMN,Communities served by this system.,LOW,Location|Reference,
+awc_operations,water_systems,county,COLUMN,Primary Arizona county served by this system.,LOW,Location|Reference,
+awc_operations,water_systems,system_type,COLUMN,"Water system type: Groundwater, Surface Water, or Mixed.",LOW,Reference,
+awc_operations,water_systems,source_type,COLUMN,"Water source description (Wells, Colorado River, Local Rivers, Mixed). Drives supply vulnerability.",LOW,Reference|Operational,Source Type
+awc_operations,water_systems,primary_source,COLUMN,Primary physical water source for the system.,LOW,Reference|Operational,
+awc_operations,water_systems,number_of_customers,COLUMN,Count of customers served by the system.,LOW,Operational,
+awc_operations,water_systems,population_served,COLUMN,Estimated population served by the system.,LOW,Operational,Population Served
+awc_operations,water_systems,total_annual_usage_acre_feet,COLUMN,"Total annual water usage for the system, in acre-feet.",LOW,Usage|Operational,
+awc_operations,water_systems,conservation_focus,COLUMN,AWC conservation priorities for this system.,LOW,Operational,
+awc_operations,water_systems,last_compliance_check,COLUMN,Date of the most recent regulatory compliance check.,LOW,Temporal|Compliance,
+awc_operations,water_systems,system_status,COLUMN,Operational status of the system (e.g. Active).,LOW,Status,
+awc_operations,water_systems,capacity,COLUMN,Rated/permitted annual system capacity in acre-feet. Compare against total_annual_usage_acre_feet for utilization.,LOW,Operational|Reference,System Capacity
+awc_operations,tiered_rates,,TABLE,"Conservation-oriented tiered rate structure. Tier 1 (essential use) is the lowest rate; Tier 4 (discretionary use) the highest. Rates vary by system, customer type and year. Public rate schedule.",LOW,Domain:Billing|Reference,Rate Plan
+awc_operations,tiered_rates,rate_id,COLUMN,Surrogate primary key for the rate row.,LOW,Key|Reference,
+awc_operations,tiered_rates,system_id,COLUMN,Foreign key to water_systems; the system this rate applies to.,LOW,ForeignKey|Reference,
+awc_operations,tiered_rates,rate_period,COLUMN,Rate year/period (e.g. 2026).,MEDIUM,Temporal|Reference,Rate Schedule
+awc_operations,tiered_rates,customer_type,COLUMN,"Customer class the rate applies to: Residential, Commercial, Agricultural.",LOW,Reference,
+awc_operations,tiered_rates,base_charge,COLUMN,Fixed monthly base charge before usage tiers.,LOW,Financial|Billing,Base Charge
+awc_operations,tiered_rates,tier1_from_gallons,COLUMN,Lower bound (gallons) of Tier 1 usage band.,LOW,Billing|Usage,
+awc_operations,tiered_rates,tier1_to_gallons,COLUMN,Upper bound (gallons) of Tier 1 usage band (essential use).,LOW,Billing|Usage,
+awc_operations,tiered_rates,tier1_rate_per_1000gal,COLUMN,"Tier 1 rate per 1,000 gallons (lifeline/essential, lowest).",LOW,Financial|Billing,
+awc_operations,tiered_rates,tier2_from_gallons,COLUMN,Lower bound (gallons) of Tier 2 usage band.,LOW,Billing|Usage,
+awc_operations,tiered_rates,tier2_to_gallons,COLUMN,Upper bound (gallons) of Tier 2 usage band.,LOW,Billing|Usage,
+awc_operations,tiered_rates,tier2_rate_per_1000gal,COLUMN,"Tier 2 rate per 1,000 gallons (moderate use).",LOW,Financial|Billing,
+awc_operations,tiered_rates,tier3_from_gallons,COLUMN,Lower bound (gallons) of Tier 3 usage band.,LOW,Billing|Usage,
+awc_operations,tiered_rates,tier3_to_gallons,COLUMN,Upper bound (gallons) of Tier 3 usage band.,LOW,Billing|Usage,
+awc_operations,tiered_rates,tier3_rate_per_1000gal,COLUMN,"Tier 3 rate per 1,000 gallons (higher use).",LOW,Financial|Billing,
+awc_operations,tiered_rates,tier4_from_gallons,COLUMN,Lower bound (gallons) of Tier 4 usage band.,LOW,Billing|Usage,
+awc_operations,tiered_rates,tier4_to_gallons,COLUMN,Upper bound (gallons) of Tier 4 usage band.,LOW,Billing|Usage,
+awc_operations,tiered_rates,tier4_rate_per_1000gal,COLUMN,"Tier 4 rate per 1,000 gallons (discretionary, highest).",LOW,Financial|Billing,
+awc_operations,tiered_rates,wastewater_charge,COLUMN,Wastewater charge applied where applicable.,LOW,Financial|Billing,
+awc_operations,tiered_rates,effective_date,COLUMN,Date the rate row becomes effective.,LOW,Temporal,
+awc_operations,tiered_rates,status,COLUMN,Status of the rate row (e.g. Active).,LOW,Status,
+awc_operations,tiered_rates,tier_rate,COLUMN,"Representative published tiered rate (Tier 1 lifeline rate per 1,000 gallons). The full ladder remains in tier1..tier4_rate_per_1000gal.",MEDIUM,Financial|Billing,Tiered Rate
+awc_operations,monthly_usage,,TABLE,Customer monthly water usage and billing records. Tracks usage by tier and the charges derived from the conservation rate structure. Confidential for payment processing; combines consumption behaviour and financial data.,MEDIUM,Domain:Billing|Financial|Usage,Monthly Usage Record
+awc_operations,monthly_usage,usage_id,COLUMN,Surrogate primary key for the monthly usage/billing record.,LOW,Key|Reference,
+awc_operations,monthly_usage,customer_id,COLUMN,Foreign key to customers; the account billed.,LOW,ForeignKey|Reference,
+awc_operations,monthly_usage,system_id,COLUMN,Foreign key to water_systems; the serving system.,LOW,ForeignKey|Reference,
+awc_operations,monthly_usage,billing_month,COLUMN,First day of the billing month for this record.,LOW,Temporal,Billing Cycle
+awc_operations,monthly_usage,usage_gallons,COLUMN,Total water used by the customer in the billing month. Consumption behaviour.,LOW,Usage,Usage Gallons
+awc_operations,monthly_usage,usage_tier_1_gallons,COLUMN,Gallons billed in Tier 1 for the month.,MEDIUM,Usage,
+awc_operations,monthly_usage,usage_tier_2_gallons,COLUMN,Gallons billed in Tier 2 for the month.,MEDIUM,Usage,
+awc_operations,monthly_usage,usage_tier_3_gallons,COLUMN,Gallons billed in Tier 3 for the month.,MEDIUM,Usage,
+awc_operations,monthly_usage,usage_tier_4_gallons,COLUMN,Gallons billed in Tier 4 for the month.,MEDIUM,Usage,
+awc_operations,monthly_usage,base_charge,COLUMN,Fixed base charge applied this month.,MEDIUM,Financial|Billing,
+awc_operations,monthly_usage,tier_1_charge,COLUMN,Charge for Tier 1 usage this month.,MEDIUM,Financial|Billing,
+awc_operations,monthly_usage,tier_2_charge,COLUMN,Charge for Tier 2 usage this month.,MEDIUM,Financial|Billing,
+awc_operations,monthly_usage,tier_3_charge,COLUMN,Charge for Tier 3 usage this month.,MEDIUM,Financial|Billing,
+awc_operations,monthly_usage,tier_4_charge,COLUMN,Charge for Tier 4 usage this month.,MEDIUM,Financial|Billing,
+awc_operations,monthly_usage,wastewater_charge,COLUMN,Wastewater charge applied this month.,MEDIUM,Financial|Billing,
+awc_operations,monthly_usage,total_before_tax,COLUMN,Total charges before tax.,MEDIUM,Financial|Billing,
+awc_operations,monthly_usage,tax_amount,COLUMN,Tax applied to the bill.,MEDIUM,Financial|Billing,
+awc_operations,monthly_usage,total_due,COLUMN,Total amount due for the billing month.,MEDIUM,Financial|Billing,Total Due
+awc_operations,monthly_usage,due_date,COLUMN,Payment due date for the bill.,LOW,Temporal|Billing,
+awc_operations,monthly_usage,payment_status,COLUMN,"Billing payment status: Paid, Unpaid, Overdue, Disputed. Triggers collection workflows.",MEDIUM,Status|Financial,Payment Status
+awc_operations,monthly_usage,payment_date,COLUMN,"Date payment was received, if any. Behavioural/financial.",MEDIUM,Temporal|Financial,
+awc_operations,monthly_usage,amount_paid,COLUMN,Amount paid against the bill.,MEDIUM,Financial|Billing,
+awc_operations,monthly_usage,created_date,COLUMN,Date the usage/billing record was created.,LOW,Temporal|Operational,
+awc_operations,monthly_usage,meter_reading,COLUMN,Cumulative meter register reading in gallons at the end of the billing month. Month usage = current reading minus prior reading.,LOW,Usage|Operational,Meter Reading
+awc_operations,monthly_usage,meter_id,COLUMN,Service meter identifier for the customer connection (format MTR-NNNNNN). Stable across billing months.,LOW,Reference|Operational,Meter ID
+awc_operations,water_quality_reports,,TABLE,"Monthly water-quality monitoring for all AWC systems, tested under the EPA Safe Drinking Water Act and published in Consumer Confidence Reports. Regulated readings; critical for public health and compliance.",MEDIUM,Domain:Compliance|Regulatory|WaterQuality,Water Quality Report
+awc_operations,water_quality_reports,report_id,COLUMN,Surrogate primary key for the quality report.,LOW,Key|Reference,
+awc_operations,water_quality_reports,system_id,COLUMN,Foreign key to water_systems; the system tested.,LOW,ForeignKey|Reference,
+awc_operations,water_quality_reports,report_month,COLUMN,Month the quality report covers.,LOW,Temporal,Test Date
+awc_operations,water_quality_reports,pH_level,COLUMN,Measured pH level of the water sample.,MEDIUM,WaterQuality|Regulatory,
+awc_operations,water_quality_reports,turbidity_NTU,COLUMN,Turbidity in NTU (cloudiness). Regulated quality metric.,MEDIUM,WaterQuality|Regulatory,
+awc_operations,water_quality_reports,chlorine_residual,COLUMN,Residual chlorine concentration.,MEDIUM,WaterQuality|Regulatory,
+awc_operations,water_quality_reports,bacteria_present,COLUMN,Whether bacteria were detected in the sample.,MEDIUM,WaterQuality|Regulatory|Compliance,
+awc_operations,water_quality_reports,lead_ppb,COLUMN,Lead concentration in parts per billion. EPA-regulated contaminant.,MEDIUM,WaterQuality|Regulatory|Compliance,Lead Level
+awc_operations,water_quality_reports,copper_ppm,COLUMN,Copper concentration in parts per million. EPA-regulated contaminant.,MEDIUM,WaterQuality|Regulatory|Compliance,
+awc_operations,water_quality_reports,hardness_ppm,COLUMN,Water hardness in parts per million.,MEDIUM,WaterQuality,
+awc_operations,water_quality_reports,total_dissolved_solids_ppm,COLUMN,Total dissolved solids in parts per million.,MEDIUM,WaterQuality,
+awc_operations,water_quality_reports,quality_rating,COLUMN,"Overall quality rating: Excellent, Good, Fair, Poor.",LOW,WaterQuality|Status,
+awc_operations,water_quality_reports,compliance_status,COLUMN,"Regulatory compliance status: Compliant, Warning, Violation. Critical for reporting.",MEDIUM,Compliance|Regulatory|Status,EPA Compliance Status
+awc_operations,water_quality_reports,notes,COLUMN,Free-text notes on the system's quality for the period.,LOW,WaterQuality,
+awc_operations,water_quality_reports,created_date,COLUMN,Date the quality report record was created.,LOW,Temporal|Operational,
+awc_operations,water_quality_reports,contaminant_level,COLUMN,"Summary contaminant level derived from the regulated readings and compliance status: Low, Moderate, Elevated, High.",MEDIUM,WaterQuality|Regulatory|Compliance,Contaminant Level
+awc_operations,account_alerts,,TABLE,"Service alerts and flags for customer accounts (payment overdue, high usage, low pressure, quality issue, leak suspected, conservation notice). Routes to different operational and compliance workflows.",MEDIUM,Domain:Operations|Status,Account Alert Record
+awc_operations,account_alerts,alert_id,COLUMN,Surrogate primary key for the alert.,LOW,Key|Reference,
+awc_operations,account_alerts,customer_id,COLUMN,Foreign key to customers; the account the alert concerns.,LOW,ForeignKey|Reference,
+awc_operations,account_alerts,system_id,COLUMN,Foreign key to water_systems; the system involved.,LOW,ForeignKey|Reference,
+awc_operations,account_alerts,alert_type,COLUMN,"Type of alert: High Usage, Payment Overdue, Low Pressure, Quality Issue, Leak Suspected, Conservation Notice, Service Suspension.",LOW,Reference|Operational,Account Alert
+awc_operations,account_alerts,severity,COLUMN,"Alert severity: Critical, High, Medium, Low.",LOW,Status|Operational,
+awc_operations,account_alerts,alert_date,COLUMN,Date the alert was raised.,LOW,Temporal,
+awc_operations,account_alerts,description,COLUMN,Free-text alert detail; may reference account balances or usage figures.,MEDIUM,Operational|Financial,
+awc_operations,account_alerts,recommended_action,COLUMN,Recommended follow-up action for the alert.,LOW,Operational,
+awc_operations,account_alerts,status,COLUMN,"Alert workflow status: Open, Acknowledged, Resolved.",LOW,Status,
+awc_operations,account_alerts,resolved_date,COLUMN,"Date the alert was resolved, if applicable.",LOW,Temporal,
+awc_operations,account_alerts,created_date,COLUMN,Date the alert record was created.,LOW,Temporal|Operational,
