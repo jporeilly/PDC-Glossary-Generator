@@ -123,6 +123,91 @@ Run `make console` any time to reprint these.
 Use the in-container values if PDC runs as a container on the `awc-net`
 network; use the host values if PDC runs on your machine.
 
+## Topology: app on Windows 11, sources + PDC in an Ubuntu VM
+
+In the standard lab the **Glossary Generator app runs on the Windows 11 bare-metal
+host**, while this stack (PostgreSQL + MinIO) **and PDC itself run inside an
+Ubuntu 24.04 VM** with the static IP **`192.168.1.200`**. PDC is served at
+**`https://pentaho.io`**. Three different vantage points connect to the same
+two sources — use the right value for each:
+
+| Who connects | PostgreSQL | MinIO (S3 API) |
+| --- | --- | --- |
+| **The app** (Windows host) | Host `192.168.1.200` : `5432` | Endpoint `http://192.168.1.200:9000` |
+| **PDC** (containers in the VM) | `192.168.1.200:5432` (published port) — or `az-water-postgres:5432` only if PDC shares this stack's Docker network | `http://192.168.1.200:9000` — or `http://az-water-minio:9000` on a shared network |
+| **Shell on the VM** | `localhost:5432` | `http://localhost:9000` |
+
+Never use `localhost` from Windows — that's the Windows machine, not the VM.
+Container names (`az-water-postgres`, `az-water-minio`) resolve **only inside the
+VM's Docker network**; from Windows they fail with *name resolution* errors. The
+IP endpoint also forces S3 **path-style** addressing, which MinIO requires.
+
+### One-time setup on the VM (Ubuntu 24.04)
+
+Docker publishes 5432/9000/9001 to the VM's interfaces (the compose `ports:`
+mappings), so from the VM side you only need the firewall open if `ufw` is on:
+
+```sh
+sudo ufw allow 5432/tcp   # PostgreSQL  (app + PDC)
+sudo ufw allow 9000/tcp   # MinIO S3 API (app + PDC)
+sudo ufw allow 9001/tcp   # MinIO console (optional, browser only)
+sudo ufw allow 443/tcp    # PDC (https://pentaho.io)
+```
+
+Give the VM its static IP (192.168.1.200) with a **bridged** network adapter so
+the Windows host and the VM sit on the same LAN segment.
+
+### One-time setup on the Windows 11 host
+
+`pentaho.io` is a lab hostname, not public DNS — map it to the VM in the hosts
+file. In an **elevated** PowerShell:
+
+```powershell
+Add-Content C:\Windows\System32\drivers\etc\hosts "192.168.1.200  pentaho.io"
+```
+
+Then verify everything is reachable from Windows:
+
+```powershell
+Test-NetConnection 192.168.1.200 -Port 5432                      # PostgreSQL
+curl.exe http://192.168.1.200:9000/minio/health/live -i          # MinIO -> 200
+curl.exe -k https://pentaho.io/ -I                               # PDC UI
+```
+
+### Values to enter in the Glossary Generator (on Windows)
+
+**Database connection (Connections → Database, live scan)**
+
+| Field | Value |
+| --- | --- |
+| Host | `192.168.1.200` (plain hostname/IP — never a URL) |
+| Port | `5432` |
+| Database | `awc_operations` |
+| Schema | `awc_operations` |
+| User / Password | `pdc_user` / `catalog123!` (read-only) |
+
+**Document store connection (Connections → Document store, MinIO/S3)**
+
+| Field | Value |
+| --- | --- |
+| Endpoint | `http://192.168.1.200:9000` (`9001` is the web console, not the API) |
+| Access key / Secret | `awc_minio_user` / `minio_secret_123!` (read-only) |
+| Bucket | `awc-documents` |
+
+**PDC connection (Apply / Harvest / bulk-load panels)**
+
+| Field | Value |
+| --- | --- |
+| Base URL | `https://pentaho.io` (server root — the app adds `/api/public/...` itself) |
+| Verify TLS | **off** for the lab's self-signed certificate |
+| Account | an admin or Business Steward PDC account |
+
+The shipped **`awc-datasources.csv`** already uses `192.168.1.200` for both rows, so the
+bulk loader registers sources PDC can reach with no edits. If you instead run
+PDC *on this stack's Docker network*, container names work too — the app's
+**App reachability remap** on the CSV import panel rewrites hosts for the app's
+own copies (e.g. `az-water-postgres=192.168.1.200`).
+
 ## Notes
 - Changing database credentials in `.env` after first start has no effect
   until you `make pg-reset` (or `make destroy`), because PostgreSQL — like
