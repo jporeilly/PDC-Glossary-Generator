@@ -1,0 +1,85 @@
+[
+  {
+    "__typename": "patternsRules",
+    "type": "Pattern",
+    "name": "CSCU Loan Number",
+    "category": "CSCU_Identifier",
+    "status": "enabled",
+    "columnNameRegex": [
+      {
+        "regex": "(?i)ln_?(no|num)|loan_?(no|number)",
+        "score": 1.0
+      }
+    ],
+    "columnNameWeight": 0.3,
+    "contentPatterns": [
+      {
+        "pattern": "AA-nnnnnn"
+      }
+    ],
+    "contentPatternWeight": 0.4,
+    "contentRegex": [
+      {
+        "regex": "^LN-\\d{6}$"
+      }
+    ],
+    "contentRegexWeight": 0.3,
+    "confidenceScore": {
+      "+": [
+        {
+          "*": [
+            {
+              "var": "metadataScore"
+            },
+            0.3
+          ]
+        },
+        {
+          "*": [
+            {
+              "var": "patternScore"
+            },
+            0.4
+          ]
+        },
+        {
+          "*": [
+            {
+              "var": "regexScore"
+            },
+            0.3
+          ]
+        }
+      ]
+    },
+    "condition": {
+      "and": [
+        {
+          ">=": [
+            {
+              "var": "confidenceScore"
+            },
+            "0.7"
+          ]
+        }
+      ]
+    },
+    "actions": [
+      {
+        "applyTags": [
+          {
+            "k": "Loan Number"
+          },
+          {
+            "k": "Lending"
+          }
+        ]
+      }
+    ],
+    "assignBusinessTerm": [
+      {
+        "k": "Loan Number"
+      }
+    ]
+  }
+]

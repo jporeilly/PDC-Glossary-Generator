@@ -19,6 +19,14 @@ Each workshop folder carries a README (package + assets list) and a
 `[SCREENSHOT]` markers where captures from the CSCU lab go. Decks and .docx
 builds are pending; generate them from the guides.
 
+## Technical Track
+
+[`Technical-Track/`](Technical-Track/) — the hands-on track for technical
+staff (recommended order 02 → 03 → 01 → 04 → 05): the Data Identification
+deep-dive, the build-your-own dictionary & pattern lab (18 CSCU dictionaries +
+7 patterns ship ready-made, generated from the `cscu_core` schema), the
+Glossary Generator app module, Similarity & ML inference, and PDC Insights.
+
 ## Glossary Generator (Technical Track) notes
 
 | File | What it is |

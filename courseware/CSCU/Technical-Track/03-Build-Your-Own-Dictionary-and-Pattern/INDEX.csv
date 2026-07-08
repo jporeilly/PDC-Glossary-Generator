@@ -1,24 +1,26 @@
 Method type,Name,Matches (column / source),Format or size,Tags / term applied
-Dictionary,AWC Account Status,customers.account_status,4 values,Account Status
-Dictionary,AWC Payment Status,monthly_usage.payment_status,4 values,Payment Status
-Dictionary,AWC Customer Type,customers.customer_type,5 values,Customer Type
-Dictionary,AWC Arizona Counties,customers.service_county / water_systems.county,15 values,"Location, Arizona County + term County"
-Dictionary,AWC Water System Names,water_systems.system_name / customers.service_area_system,16 values,Water System + term Water System
-Dictionary,AWC System Type,water_systems.system_type,3 values,System Type
-Dictionary,AWC Water Source,water_systems.source_type / primary_source,8 values,Water Source
-Dictionary,AWC Compliance Status,water_quality_reports.compliance_status,3 values,"Compliance, Compliance Status + term Compliance Status"
-Dictionary,AWC Quality Rating,water_quality_reports.quality_rating,4 values,Quality Rating
-Dictionary,AWC Contaminant Level,water_quality_reports.contaminant_level,4 values,Contaminant Level
-Dictionary,AWC Alert Type,account_alerts.alert_type,7 values,Alert Type
-Dictionary,AWC Severity,account_alerts.severity,4 values,Severity
-Dictionary,AWC Workflow Status,account_alerts.status,3 values,Workflow Status
-Dictionary,AWC Asset Type,asset_inventory.asset_type,11 values,Asset Type
-Dictionary,AWC Asset Criticality,asset_inventory.criticality,4 values,Criticality
-Dictionary,AWC Pipe Material,pipe_network_segments.material,9 values,Pipe Material
-Dictionary,AWC Pipe Status,pipe_network_segments.status,4 values,Asset Status
-Dictionary,AWC Drinking Water Contaminants,water_quality_reports.* / awc-documents,46 values,"Regulated Analyte, Compliance + term Drinking Water Contaminant"
-Pattern,AWC Account Number,customers.account_number,"^AWC-[A-Z]{2,4}-\d{6}$","Account Number, Sensitive + term Customer Account"
-Pattern,AWC Meter ID,monthly_usage.meter_id,^MTR-\d{6}$,Meter ID + term Meter ID
-Pattern,AWC Asset ID,asset_inventory.asset_id,^AST-\d{4}$,Asset ID
-Pattern,AWC Pipe Segment ID,pipe_network_segments.segment_id,^SEG-\d{5}$,Segment ID
-Pattern,AWC Equipment Tag,"inspection documents (PS-012, T-03, BS-04)","^(PS|BS|WL|PRV|LS|TK|T)-\d{2,3}$",Equipment Tag
+Dictionary,CSCU Account Types,accounts.acct_type_cd,5 values,Account Type
+Dictionary,CSCU Account Status,accounts.acct_status,3 values,Account Status
+Dictionary,CSCU Member Status,members.mbr_status,3 values,Member Status
+Dictionary,CSCU Transaction Types,transactions.txn_type_cd,8 values,Transaction Type + term Transaction Type Code
+Dictionary,CSCU Card Types,cards.card_type_cd,2 values,Card Type
+Dictionary,CSCU Card Status,cards.card_status,4 values,Card Status
+Dictionary,CSCU Loan Types,loans.ln_type_cd,5 values,"Loan Type, Lending"
+Dictionary,CSCU Loan Status,loans.ln_status,5 values,"Loan Status, Lending"
+Dictionary,CSCU Risk Ratings,kyc_reviews.risk_rating_cd,3 values,"Risk Rating, Compliance + term Risk Rating Code"
+Dictionary,CSCU KYC Status,kyc_reviews.kyc_status,3 values,"KYC Status, Compliance"
+Dictionary,CSCU SAR Activity Types,suspicious_activity.activity_type_cd,4 values,"SAR Activity, Compliance + term Suspicious Activity Report"
+Dictionary,CSCU SAR Status,suspicious_activity.sar_status,3 values,"SAR Status, Compliance"
+Dictionary,CSCU ACH Status,ach_payments.ach_status,3 values,"ACH Status, Payments"
+Dictionary,CSCU NACHA Return Codes,ach_payments.return_cd,10 values,"NACHA Return Code, Payments"
+Dictionary,CSCU Branch Names,branches.br_name,6 values,Branch Name + term Branch Record
+Dictionary,CSCU Service Cities,members.city / branches.br_city + correspondence documents,16 values,"Location, Service City"
+Dictionary,CSCU Employee Roles,employees.role_cd,5 values,Employee Role
+Dictionary,CSCU Identity Document Types,kyc_reviews.id_doc_type_cd,3 values,"Identity Document, Compliance"
+Pattern,CSCU Member Number,members.mbr_no,^CSCU-\d{6}$,"Member Number, Sensitive + term Member Number"
+Pattern,CSCU Account Number,accounts.acct_no,^ACC-\d{8}$,"Account Number, Sensitive + term Account Number"
+Pattern,CSCU Loan Number,loans.ln_no,^LN-\d{6}$,"Loan Number, Lending + term Loan Number"
+Pattern,CSCU ABA Routing Number,ach_payments.ach_rte_no,^\d{9}$,"Routing Number, Payments, Sensitive + term ACH Routing Number"
+Pattern,CSCU Payment Card Number,cards.card_no,^4\d{3}-\d{4}-\d{4}-\d{4}$,"Card Number, PCI, Sensitive + term Card Number"
+Pattern,CSCU Contact Email,members.email / employees.email + correspondence,"^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$","Email, PII"
+Pattern,CSCU GL Account Number,gl_entries.gl_acct_no,^[1245]\d{3}$,"GL Account, Ledger"

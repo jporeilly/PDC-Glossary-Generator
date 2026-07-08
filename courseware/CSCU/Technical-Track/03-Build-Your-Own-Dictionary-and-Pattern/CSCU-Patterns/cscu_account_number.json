@@ -1,0 +1,85 @@
+[
+  {
+    "__typename": "patternsRules",
+    "type": "Pattern",
+    "name": "CSCU Account Number",
+    "category": "CSCU_Identifier",
+    "status": "enabled",
+    "columnNameRegex": [
+      {
+        "regex": "(?i)acct_?(no|num|number)|account_?number",
+        "score": 1.0
+      }
+    ],
+    "columnNameWeight": 0.3,
+    "contentPatterns": [
+      {
+        "pattern": "AAA-nnnnnnnn"
+      }
+    ],
+    "contentPatternWeight": 0.4,
+    "contentRegex": [
+      {
+        "regex": "^ACC-\\d{8}$"
+      }
+    ],
+    "contentRegexWeight": 0.3,
+    "confidenceScore": {
+      "+": [
+        {
+          "*": [
+            {
+              "var": "metadataScore"
+            },
+            0.3
+          ]
+        },
+        {
+          "*": [
+            {
+              "var": "patternScore"
+            },
+            0.4
+          ]
+        },
+        {
+          "*": [
+            {
+              "var": "regexScore"
+            },
+            0.3
+          ]
+        }
+      ]
+    },
+    "condition": {
+      "and": [
+        {
+          ">=": [
+            {
+              "var": "confidenceScore"
+            },
+            "0.7"
+          ]
+        }
+      ]
+    },
+    "actions": [
+      {
+        "applyTags": [
+          {
+            "k": "Account Number"
+          },
+          {
+            "k": "Sensitive"
+          }
+        ]
+      }
+    ],
+    "assignBusinessTerm": [
+      {
+        "k": "Account Number"
+      }
+    ]
+  }
+]

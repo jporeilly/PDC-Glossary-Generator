@@ -1,35 +1,39 @@
-# Technical Track — Data Identification & the Glossary Generator
+# Technical Track — Data Identification & the Glossary Generator (CSCU)
 
-A short, hands-on track for the **technical audience** — Data Stewards, Data
+A hands-on track for the **technical audience** — Data Stewards, Data
 Developers, Solution Architects, and Administrators. It goes underneath the
-Business-Analyst course and explains (and lets you build) the engine that powers
-**Workshop 5 — Protect Sensitive Data**: PDC's **Data Identification**.
+Business-Analyst course and explains (and lets you build) the engine that
+powers **Workshop 5 — Data Identification**, then applies it with the
+**Glossary Generator** app.
 
-It is *not* part of the 11-workshop BA path. Run it with technical staff after
-they have seen Connect → Metadata Ingest → Profiling, i.e. once there is profiled
-data to identify.
+It is *not* part of the BA path. Run it with technical staff after they have
+seen Connect → Metadata Ingest → Profiling (BA Workshops 1, 2 and 4), i.e.
+once there is profiled CSCU data to identify.
 
-## The three modules, in order
+## The modules
 
-| # | Module | Format | What you do |
-|---|--------|--------|-------------|
-| 01 | **Data Identification** | deck + guide | Understand the engine: Dictionaries (match by content) + Data Patterns (match by shape) → Policies → Tags & Business Terms. |
-| 02 | **Build Your Own AWC Dictionary & Pattern** | deck + guide (lab) | Hands-on: author a custom dictionary and a custom pattern, combine them into a policy, and run it on AWC data. |
-| 03 | **Glossary Generator App** | deck + guide + app | Apply the result: an app that rides on the identification tags to build AWC's governed glossary over the PDC API. |
+| Folder | Module | What you do |
+| --- | --- | --- |
+| `02-Data-Identification` | **Data Identification (deep dive)** | Understand the engine: Dictionaries (content) + Patterns (shape) → Policies → Tags & Terms |
+| `03-Build-Your-Own-Dictionary-and-Pattern` | **Build Your Own (lab)** | Author a CSCU dictionary + pattern, combine into a policy, run it — 18 dictionaries and 7 patterns ship ready-made |
+| `01-Glossary-Generator-App` | **Glossary Generator App** | Apply the result: build CSCU's governed glossary over the PDC API (app + guide live in the repo) |
+| `04-Similarity & ML` | **Similarity & ML Inference** | Propagate curation to similar columns; Find similar in the app |
+| `05-Visualizations` | **PDC Insights** | Dashboards over the app's governance-summary API |
 
-## How it maps to the BA course
+**Recommended order:** 02 → 03 → 01 → 04 → 05.
 
-- **Prerequisite:** profiled data — so BA Workshops 1, 2 and 4 (Connect, Metadata,
-  Profiling) should be done first.
-- **Pairs with:** BA **Workshop 5 — Protect Sensitive Data**. Module 01 is the
-  deep-dive behind that workshop; module 02 is the hands-on extension.
-- **Alternative to:** BA **Workshop 3 — Build the Business Glossary** (manual).
-  Module 03 (the app) is the app-driven way to produce the same governed glossary.
+## Status
+
+The markdown guide masters are authoritative; decks and Word builds for the
+CSCU edition are pending (produce from the guides, capture screenshots on the
+CSCU lab). Module 03's dictionaries/patterns are generated from the live
+`cscu_core` schema and ready to upload.
 
 ## Audience & roles
 
-Authoring dictionaries, patterns and metadata rules requires the **Data Steward**
-or **Data Storage Administrator** role. If the Data Operations → Data Identification
-Methods area is not visible, that is a permissions matter, not a missing feature.
+Authoring dictionaries, patterns and metadata rules requires the **Data
+Steward** or **Data Storage Administrator** role. If Data Operations → Data
+Identification Methods is not visible, that is a permissions matter, not a
+missing feature.
 
-All data is fictional and generated for training.
+All Copper State Credit Union data is fictional and generated for training.

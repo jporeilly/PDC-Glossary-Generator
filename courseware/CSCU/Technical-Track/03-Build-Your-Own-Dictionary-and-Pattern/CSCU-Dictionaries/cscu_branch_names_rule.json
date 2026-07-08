@@ -1,0 +1,69 @@
+[
+  {
+    "__typename": "dictionariesRules",
+    "type": "Dictionary",
+    "name": "CSCU Branch Names",
+    "category": "CSCU_Reference",
+    "minSamples": 1,
+    "confidenceScore": {
+      "+": [
+        {
+          "*": [
+            {
+              "var": "similarity"
+            },
+            0.8
+          ]
+        },
+        {
+          "*": [
+            {
+              "var": "metadataScore"
+            },
+            0.2
+          ]
+        }
+      ]
+    },
+    "columnNameRegex": [
+      {
+        "regex": "(?i)br(anch)?_?(name|nm)",
+        "score": 0.9
+      }
+    ],
+    "condition": {
+      "or": [
+        {
+          ">=": [
+            {
+              "var": "confidenceScore"
+            },
+            "0.6"
+          ]
+        },
+        {
+          ">=": [
+            {
+              "var": "metadataScore"
+            },
+            "0.7"
+          ]
+        }
+      ]
+    },
+    "actions": [
+      {
+        "applyTags": [
+          {
+            "k": "Branch Name"
+          }
+        ]
+      }
+    ],
+    "assignBusinessTerm": [
+      {
+        "k": "Branch Record"
+      }
+    ]
+  }
+]

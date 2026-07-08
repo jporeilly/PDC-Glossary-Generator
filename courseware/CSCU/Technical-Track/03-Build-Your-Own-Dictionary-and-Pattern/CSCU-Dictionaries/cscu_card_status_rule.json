@@ -1,0 +1,64 @@
+[
+  {
+    "__typename": "dictionariesRules",
+    "type": "Dictionary",
+    "name": "CSCU Card Status",
+    "category": "CSCU_Status",
+    "minSamples": 1,
+    "confidenceScore": {
+      "+": [
+        {
+          "*": [
+            {
+              "var": "similarity"
+            },
+            0.8
+          ]
+        },
+        {
+          "*": [
+            {
+              "var": "metadataScore"
+            },
+            0.2
+          ]
+        }
+      ]
+    },
+    "columnNameRegex": [
+      {
+        "regex": "(?i)card_?status",
+        "score": 0.9
+      }
+    ],
+    "condition": {
+      "or": [
+        {
+          ">=": [
+            {
+              "var": "confidenceScore"
+            },
+            "0.6"
+          ]
+        },
+        {
+          ">=": [
+            {
+              "var": "metadataScore"
+            },
+            "0.7"
+          ]
+        }
+      ]
+    },
+    "actions": [
+      {
+        "applyTags": [
+          {
+            "k": "Card Status"
+          }
+        ]
+      }
+    ]
+  }
+]

@@ -1,0 +1,67 @@
+[
+  {
+    "__typename": "dictionariesRules",
+    "type": "Dictionary",
+    "name": "CSCU KYC Status",
+    "category": "CSCU_Compliance",
+    "minSamples": 1,
+    "confidenceScore": {
+      "+": [
+        {
+          "*": [
+            {
+              "var": "similarity"
+            },
+            0.8
+          ]
+        },
+        {
+          "*": [
+            {
+              "var": "metadataScore"
+            },
+            0.2
+          ]
+        }
+      ]
+    },
+    "columnNameRegex": [
+      {
+        "regex": "(?i)kyc_?status",
+        "score": 0.9
+      }
+    ],
+    "condition": {
+      "or": [
+        {
+          ">=": [
+            {
+              "var": "confidenceScore"
+            },
+            "0.6"
+          ]
+        },
+        {
+          ">=": [
+            {
+              "var": "metadataScore"
+            },
+            "0.7"
+          ]
+        }
+      ]
+    },
+    "actions": [
+      {
+        "applyTags": [
+          {
+            "k": "KYC Status"
+          },
+          {
+            "k": "Compliance"
+          }
+        ]
+      }
+    ]
+  }
+]

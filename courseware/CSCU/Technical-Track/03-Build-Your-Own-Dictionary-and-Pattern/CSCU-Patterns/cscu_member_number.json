@@ -1,0 +1,85 @@
+[
+  {
+    "__typename": "patternsRules",
+    "type": "Pattern",
+    "name": "CSCU Member Number",
+    "category": "CSCU_Identifier",
+    "status": "enabled",
+    "columnNameRegex": [
+      {
+        "regex": "(?i)(mbr|member)_?(no|num|number)",
+        "score": 1.0
+      }
+    ],
+    "columnNameWeight": 0.3,
+    "contentPatterns": [
+      {
+        "pattern": "AAAA-nnnnnn"
+      }
+    ],
+    "contentPatternWeight": 0.4,
+    "contentRegex": [
+      {
+        "regex": "^CSCU-\\d{6}$"
+      }
+    ],
+    "contentRegexWeight": 0.3,
+    "confidenceScore": {
+      "+": [
+        {
+          "*": [
+            {
+              "var": "metadataScore"
+            },
+            0.3
+          ]
+        },
+        {
+          "*": [
+            {
+              "var": "patternScore"
+            },
+            0.4
+          ]
+        },
+        {
+          "*": [
+            {
+              "var": "regexScore"
+            },
+            0.3
+          ]
+        }
+      ]
+    },
+    "condition": {
+      "and": [
+        {
+          ">=": [
+            {
+              "var": "confidenceScore"
+            },
+            "0.7"
+          ]
+        }
+      ]
+    },
+    "actions": [
+      {
+        "applyTags": [
+          {
+            "k": "Member Number"
+          },
+          {
+            "k": "Sensitive"
+          }
+        ]
+      }
+    ],
+    "assignBusinessTerm": [
+      {
+        "k": "Member Number"
+      }
+    ]
+  }
+]
