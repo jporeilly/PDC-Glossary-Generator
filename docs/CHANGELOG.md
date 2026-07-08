@@ -25,8 +25,9 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   counts — scenarios coexist with no port conflicts, and every documented
   connection value is unchanged. Scenario discovery is data-driven from
   each folder's `scenario.json` (extended with database/schema/bucket keys),
-  so new scenarios need no script changes. Per-scenario standalone stacks
-  remain as the isolation option.
+  so new scenarios need no script changes. The per-scenario standalone
+  stacks were **removed** — scenario folders are data-only; the shared lab
+  is the single way to stand the sources up.
 - **CSCU courseware Workshops 00–05** under `courseware/CSCU/` (Preflight →
   Data Identification): per-workshop READMEs, markdown guide masters with
   `[SCREENSHOT]` markers, and generated assets — users, glossary JSONL

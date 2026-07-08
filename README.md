@@ -8,9 +8,10 @@ for **Pentaho Data Catalog → Business Glossary → Import** — so the glossar
 its tags stay governed instead of drifting.
 
 The app is **scenario-generic**; two complete, fully separated training
-scenarios ship with it, each with its own lab stack, domain pack and courseware:
+scenarios ship with it — each with its own data kit, domain pack and
+courseware, all served by one shared lab stack:
 
-| Scenario | Industry | Lab kit | Courseware |
+| Scenario | Industry | Data kit | Courseware |
 | --- | --- | --- | --- |
 | **CSCU** — Copper State Credit Union | Financial services | [data_sources/CSCU/](data_sources/CSCU/) | [courseware/CSCU/](courseware/CSCU/) |
 | **AWC** — Arizona Water Company | Water utility | [data_sources/AWC/](data_sources/AWC/) | [courseware/AWC/](courseware/AWC/) |
@@ -75,9 +76,8 @@ docs/                   all documentation (reference, guide, install, changelog,
 data_sources/           scenario data + the shared lab
   lab/                  ONE PostgreSQL + ONE MinIO for all scenarios; make load
                         SCENARIO=<ID> creates that scenario's db + bucket
-  AWC/, CSCU/           per-scenario data: sample DB SQL, MinIO documents,
-                        domain pack + install zip, bulk-load CSV (+ optional
-                        standalone stack for single-scenario isolation)
+  AWC/, CSCU/           per-scenario data only: sample DB SQL, MinIO
+                        documents, domain pack + install zip, bulk-load CSV
 courseware/             two complete workshop sets — AWC and CSCU
 install-scenario.sh     scenario picker/installer (install-scenario.ps1 on Windows)
 reset-scenario.sh       remove the installed scenario / reset the app to generic
@@ -152,7 +152,7 @@ optional.
 | [SUPPLEMENT.md](docs/SUPPLEMENT.md) | Operating notes for a real PDC instance |
 | [MANIFEST.md](docs/MANIFEST.md) | Full repository layout and packaging |
 | [CHANGELOG.md](docs/CHANGELOG.md) | Release history |
-| [data_sources/](data_sources/) | The two lab kits (AWC · CSCU) |
+| [data_sources/](data_sources/) | The shared lab + the two scenario data kits |
 | [courseware/](courseware/) | The two workshop sets (AWC · CSCU) |
 
 *All scenario data — Arizona Water Company and Copper State Credit Union — is

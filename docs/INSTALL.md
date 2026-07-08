@@ -1,6 +1,6 @@
 # Installation & Setup — Run the Glossary Generator on Your Own PDC Instance
 
-*App version **1.7.0** · validated against **Pentaho Data Catalog 10.2.11**.*
+*App version **1.7.1** · validated against **Pentaho Data Catalog 10.2.11**.*
 
 This guide stands the **Glossary Generator** app up against *your* Pentaho Data
 Catalog (PDC) instance — your data sources, your accounts, your network. The app
@@ -215,7 +215,7 @@ pre-filled with the two CSCU lab connections, ready to load:
 
 | kind | resourceName | reaches |
 | --- | --- | --- |
-| `postgres` | `CopperState_Core_Banking` | `cscu-postgres:5432` · db `cscu_core` · user `pdc_user` · schema `cscu_core` |
+| `postgres` | `CopperState_Core_Banking` | `192.168.1.200:5432` (shared `demo-postgres`) · db `cscu_core` · user `pdc_user` · schema `cscu_core` |
 | `minio` | `CopperState_Documents` | `http://192.168.1.200:9000` · bucket `cscu-documents` · path `/` |
 
 The credentials in it are the **lab values** (`catalog123!`, `minio_secret_123!`) — change

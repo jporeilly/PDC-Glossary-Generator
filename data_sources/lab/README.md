@@ -67,12 +67,4 @@ documented connection value still holds — only the container names changed
   `make console`. Full topology notes (hosts file, ufw, `https://pentaho.io`)
   are in each scenario's README.
 
-## The per-scenario stacks
-
-`../AWC/` and `../CSCU/` still carry their own standalone
-`docker-compose.yml`/`Makefile` — use those only if you want a single
-scenario in **isolation** (they bind the same ports, so never run them and
-this shared stack at the same time). The shared lab is the recommended
-default.
-
 *All scenario data is fictional and generated for training.*

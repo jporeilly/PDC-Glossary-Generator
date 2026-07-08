@@ -3,7 +3,7 @@
 **Primary role:** Data Steward / Solution Architect
 **Estimated time:** 60 min
 **Track:** Technical / app-driven — an *alternative* to the manual glossary in Workshop 3
-**App version:** 1.7.0 · validated against **PDC 10.2.11**
+**App version:** 1.7.1 · validated against **PDC 10.2.11**
 
 ## What this is
 

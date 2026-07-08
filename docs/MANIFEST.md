@@ -48,12 +48,12 @@ PDC-Glossary/
     lab/                        SHARED stack: one PostgreSQL + one MinIO for all
                                 scenarios (make load SCENARIO=<ID> creates that
                                 scenario's database + bucket + documents)
-    AWC/                        Arizona Water Company (water utility)
-      docker-compose.yml  Makefile  .env.example  postgres-init/  awc-documents/
-      domain_pack/  awc-domain-pack.zip  awc-datasources.csv
-    CSCU/                       Copper State Credit Union (financial services)
-      docker-compose.yml  Makefile  .env.example  postgres-init/  cscu-documents/
-      domain_pack/  cscu-domain-pack.zip  cscu-datasources.csv
+    AWC/                        Arizona Water Company (water utility) — data only
+      postgres-init/  awc-documents/  domain_pack/
+      awc-domain-pack.zip  awc-datasources.csv  scenario.json
+    CSCU/                       Copper State Credit Union (financial) — data only
+      postgres-init/  cscu-documents/  domain_pack/
+      cscu-domain-pack.zip  cscu-datasources.csv  scenario.json
   courseware/                   two complete sets — one per scenario
     AWC/                        original .docx guide + .pptx deck + topic notes
     CSCU/                       markdown workshop guide + topic notes
