@@ -1,0 +1,512 @@
+{
+  "schema": "term-tag-dictionary/1",
+  "domain": "water_utility",
+  "category_tags": {
+    "Billing & Rates": [
+      "billing"
+    ],
+    "Usage": [
+      "usage"
+    ],
+    "Customer": [
+      "customer"
+    ],
+    "Water System": [
+      "water-system",
+      "operational"
+    ],
+    "Water Quality": [
+      "water-quality"
+    ],
+    "Governance": [
+      "governance"
+    ],
+    "Records & Documents": [
+      "document",
+      "records"
+    ]
+  },
+  "rules": [
+    {
+      "pattern": "\\bgis\\b|geospatial|spatial|geographic|\\bmap(s|ping)?\\b|parcel|easement|right.?of.?way",
+      "tags": [
+        "gis",
+        "spatial",
+        "asset"
+      ],
+      "layer": "company"
+    },
+    {
+      "pattern": "scada|telemetry|supervisory|\\brtu\\b|\\bplc\\b|sensor|remote.?monitor",
+      "tags": [
+        "scada",
+        "operational",
+        "telemetry"
+      ],
+      "layer": "company"
+    },
+    {
+      "pattern": "inspect|survey|field.?report|site.?visit",
+      "tags": [
+        "inspection",
+        "field-ops"
+      ],
+      "layer": "company"
+    },
+    {
+      "pattern": "correspond|\\bletter\\b|notice|\\bmemo\\b|inquiry|communication|email",
+      "tags": [
+        "correspondence",
+        "records"
+      ],
+      "layer": "company"
+    },
+    {
+      "pattern": "hydrolog|watershed|groundwater|aquifer|\\bwell\\b|reservoir|source.?water",
+      "tags": [
+        "hydrology",
+        "water-quality"
+      ],
+      "layer": "company"
+    },
+    {
+      "pattern": "maintenance|work.?order|repair|service.?request|\\bmain.?break|leak",
+      "tags": [
+        "maintenance",
+        "operational"
+      ],
+      "layer": "company"
+    },
+    {
+      "pattern": "outage|\\bincident\\b|emergency|spill|overflow",
+      "tags": [
+        "incident",
+        "operational"
+      ],
+      "layer": "company"
+    },
+    {
+      "pattern": "permit|licen[cs]e|certificat",
+      "tags": [
+        "permit",
+        "compliance"
+      ],
+      "layer": "company"
+    },
+    {
+      "pattern": "\\bland\\b|property|acquisition|zoning",
+      "tags": [
+        "land",
+        "asset"
+      ],
+      "layer": "company"
+    },
+    {
+      "pattern": "\\bplan(s|ning)?\\b|design|drawing|schematic|as.?built|engineering",
+      "tags": [
+        "engineering",
+        "asset"
+      ],
+      "layer": "company"
+    },
+    {
+      "pattern": "amount|charge|\\bbill|cost|price|\\bfee|payment|invoice|balance|\\bdue\\b|\\bpaid|revenue|outstanding",
+      "tags": [
+        "billing",
+        "financial"
+      ],
+      "layer": "generic"
+    },
+    {
+      "pattern": "\\btax\\b",
+      "tags": [
+        "financial",
+        "tax"
+      ],
+      "layer": "generic"
+    },
+    {
+      "pattern": "rate|tier|\\bplan\\b|pric",
+      "tags": [
+        "billing",
+        "rate"
+      ],
+      "layer": "generic"
+    },
+    {
+      "pattern": "usage|consumption|gallons|\\bmeter|reading|volume|\\bflow\\b|cubic",
+      "tags": [
+        "usage",
+        "metering"
+      ],
+      "layer": "generic"
+    },
+    {
+      "pattern": "\\bph\\b|turbidity|chlorine|\\blead\\b|contaminant|quality|sample|violation|compliance|\\bepa\\b|hardness|nitrate",
+      "tags": [
+        "water-quality",
+        "compliance"
+      ],
+      "layer": "generic"
+    },
+    {
+      "pattern": "alert|status|\\bflag\\b|\\bstate\\b|\\bevent\\b|severity|resolved",
+      "tags": [
+        "operational"
+      ],
+      "layer": "generic"
+    },
+    {
+      "pattern": "\\bdate\\b|time|timestamp|\\bmonth\\b|\\byear\\b|period|billing_cycle",
+      "tags": [
+        "temporal"
+      ],
+      "layer": "generic"
+    },
+    {
+      "pattern": "system|asset|pipe|pump|valve|infrastructure|reservoir|tank",
+      "tags": [
+        "asset",
+        "operational"
+      ],
+      "layer": "generic"
+    },
+    {
+      "pattern": "email|phone|mobile|contact",
+      "tags": [
+        "contact",
+        "privacy"
+      ],
+      "layer": "generic"
+    },
+    {
+      "pattern": "address|street|\\bcity\\b|\\bzip\\b|postal|county|geo|lat|long|coordinate|location",
+      "tags": [
+        "location"
+      ],
+      "layer": "generic"
+    },
+    {
+      "pattern": "account|customer.?id|system.?id|meter.?id|premise",
+      "tags": [
+        "identifier"
+      ],
+      "layer": "generic"
+    }
+  ],
+  "tags": {
+    "PII": {
+      "label": "PII",
+      "sensitivity_floor": "HIGH",
+      "layer": "generic"
+    },
+    "personal-data": {
+      "label": "Personal data",
+      "sensitivity_floor": "HIGH",
+      "layer": "generic"
+    },
+    "direct-identifier": {
+      "label": "Direct identifier",
+      "sensitivity_floor": "HIGH",
+      "layer": "generic"
+    },
+    "privacy": {
+      "label": "Privacy",
+      "sensitivity_floor": "MEDIUM",
+      "layer": "generic"
+    },
+    "contact": {
+      "label": "Contact info",
+      "sensitivity_floor": "MEDIUM",
+      "layer": "generic"
+    },
+    "location": {
+      "label": "Location",
+      "sensitivity_floor": "MEDIUM",
+      "layer": "generic"
+    },
+    "financial": {
+      "label": "Financial",
+      "sensitivity_floor": "MEDIUM",
+      "layer": "generic"
+    },
+    "sensitive": {
+      "label": "Sensitive",
+      "sensitivity_floor": "MEDIUM",
+      "layer": "generic"
+    },
+    "tax": {
+      "label": "Tax",
+      "layer": "generic"
+    },
+    "billing": {
+      "label": "Billing",
+      "layer": "generic"
+    },
+    "rate": {
+      "label": "Rate / tariff",
+      "layer": "generic"
+    },
+    "revenue": {
+      "label": "Revenue",
+      "layer": "generic"
+    },
+    "usage": {
+      "label": "Usage",
+      "layer": "generic"
+    },
+    "metering": {
+      "label": "Metering",
+      "layer": "generic"
+    },
+    "water-quality": {
+      "label": "Water quality",
+      "layer": "generic"
+    },
+    "compliance": {
+      "label": "Regulatory compliance",
+      "layer": "generic"
+    },
+    "water-system": {
+      "label": "Water system",
+      "layer": "generic"
+    },
+    "operational": {
+      "label": "Operational",
+      "layer": "generic"
+    },
+    "asset": {
+      "label": "Asset",
+      "layer": "generic"
+    },
+    "temporal": {
+      "label": "Temporal",
+      "layer": "generic"
+    },
+    "governance": {
+      "label": "Governance",
+      "layer": "generic"
+    },
+    "customer": {
+      "label": "Customer",
+      "layer": "generic"
+    },
+    "document": {
+      "label": "Document",
+      "layer": "generic"
+    },
+    "identifier": {
+      "label": "Identifier",
+      "layer": "generic"
+    },
+    "CDE": {
+      "label": "Critical Data Element",
+      "layer": "generic"
+    },
+    "maskable": {
+      "label": "Maskable",
+      "layer": "generic"
+    },
+    "record": {
+      "label": "Record (table-level)",
+      "layer": "generic"
+    },
+    "table-level": {
+      "label": "Table-level term",
+      "layer": "generic"
+    },
+    "gis": {
+      "label": "gis",
+      "layer": "company",
+      "status": "approved"
+    },
+    "spatial": {
+      "label": "spatial",
+      "layer": "company",
+      "status": "approved"
+    },
+    "scada": {
+      "label": "scada",
+      "layer": "company",
+      "status": "approved"
+    },
+    "telemetry": {
+      "label": "telemetry",
+      "layer": "company",
+      "status": "approved"
+    },
+    "inspection": {
+      "label": "inspection",
+      "layer": "company",
+      "status": "approved"
+    },
+    "field-ops": {
+      "label": "field-ops",
+      "layer": "company",
+      "status": "approved"
+    },
+    "correspondence": {
+      "label": "correspondence",
+      "layer": "company",
+      "status": "approved"
+    },
+    "records": {
+      "label": "records",
+      "layer": "company",
+      "status": "approved"
+    },
+    "hydrology": {
+      "label": "hydrology",
+      "layer": "company",
+      "status": "approved"
+    },
+    "maintenance": {
+      "label": "maintenance",
+      "layer": "company",
+      "status": "approved"
+    },
+    "incident": {
+      "label": "incident",
+      "layer": "company",
+      "status": "approved"
+    },
+    "land": {
+      "label": "land",
+      "layer": "company",
+      "status": "approved"
+    },
+    "permit": {
+      "label": "permit",
+      "layer": "company",
+      "status": "approved"
+    },
+    "engineering": {
+      "label": "engineering",
+      "layer": "company",
+      "status": "approved"
+    }
+  },
+  "terms": {
+    "Customer ID": {
+      "aliases": [
+        "Customer Account Number",
+        "Cust ID"
+      ],
+      "sensitivity": "LOW",
+      "tags": [
+        "identifier",
+        "customer"
+      ],
+      "layer": "generic"
+    },
+    "Account Number": {
+      "aliases": [
+        "Acct Number",
+        "Account No"
+      ],
+      "sensitivity": "HIGH",
+      "tags": [
+        "financial",
+        "identifier",
+        "PII"
+      ],
+      "layer": "generic"
+    },
+    "Customer Name": {
+      "aliases": [
+        "Full Name"
+      ],
+      "sensitivity": "MEDIUM",
+      "tags": [
+        "PII",
+        "personal-data",
+        "privacy"
+      ],
+      "layer": "generic"
+    },
+    "Email": {
+      "aliases": [
+        "Email Address",
+        "E-mail"
+      ],
+      "sensitivity": "MEDIUM",
+      "tags": [
+        "PII",
+        "contact",
+        "privacy"
+      ],
+      "layer": "generic"
+    },
+    "Phone": {
+      "aliases": [
+        "Phone Number",
+        "Telephone"
+      ],
+      "sensitivity": "MEDIUM",
+      "tags": [
+        "PII",
+        "contact",
+        "privacy"
+      ],
+      "layer": "generic"
+    },
+    "Service Address": {
+      "aliases": [
+        "Mailing Address"
+      ],
+      "sensitivity": "MEDIUM",
+      "tags": [
+        "PII",
+        "location",
+        "privacy"
+      ],
+      "layer": "generic"
+    },
+    "SSN": {
+      "aliases": [
+        "Social Security Number"
+      ],
+      "sensitivity": "HIGH",
+      "tags": [
+        "PII",
+        "direct-identifier",
+        "sensitive"
+      ],
+      "layer": "generic"
+    },
+    "Amount": {
+      "aliases": [],
+      "sensitivity": "MEDIUM",
+      "tags": [
+        "financial",
+        "billing"
+      ],
+      "layer": "generic"
+    },
+    "Meter Reading": {
+      "aliases": [
+        "Usage Reading"
+      ],
+      "sensitivity": "LOW",
+      "tags": [
+        "usage",
+        "metering"
+      ],
+      "layer": "generic"
+    },
+    "Date": {
+      "aliases": [
+        "Timestamp"
+      ],
+      "sensitivity": "LOW",
+      "tags": [
+        "temporal"
+      ],
+      "layer": "generic"
+    }
+  },
+  "counts": {},
+  "term_counts": {},
+  "examples": {},
+  "sources": []
+}
