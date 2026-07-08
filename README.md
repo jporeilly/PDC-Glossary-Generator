@@ -1,15 +1,19 @@
 # PDC Glossary Generator
 
-**Version:** 1.6.20 · validated against Pentaho Data Catalog 10.2.11
+**Version:** 1.7.0 · validated against Pentaho Data Catalog 10.2.11
 
 A local-first web app that **scans your data sources, suggests a business
 glossary, lets a steward review and govern it, and exports import-ready JSONL**
 for **Pentaho Data Catalog → Business Glossary → Import** — so the glossary and
 its tags stay governed instead of drifting.
 
-It automates the manual "analyse schema → identify terms → format for import"
-workflow with a human-in-the-loop review step: suggested terms are proposals
-(**Draft**), not approved governance, until a Business Steward signs off.
+The app is **scenario-generic**; two complete, fully separated training
+scenarios ship with it, each with its own lab stack, domain pack and courseware:
+
+| Scenario | Industry | Lab kit | Courseware |
+| --- | --- | --- | --- |
+| **CSCU** — Copper State Credit Union | Financial services | [data_sources/CSCU/](data_sources/CSCU/) | [courseware/CSCU/](courseware/CSCU/) |
+| **AWC** — Arizona Water Company | Water utility | [data_sources/AWC/](data_sources/AWC/) | [courseware/AWC/](courseware/AWC/) |
 
 ## Why — the Registry
 
@@ -43,9 +47,8 @@ Identification:
 
 Because both apps draw from the same row, the glossary term, the tags a method
 stamps, and the sensitivity can no longer quietly diverge. The full rationale
-is in [CHALLENGE-AND-GOAL.md](glossary_generator/CHALLENGE-AND-GOAL.md), and
-the other workshop figures are in
-[diagrams/](glossary_generator/diagrams/).
+is in [CHALLENGE-AND-GOAL.md](docs/CHALLENGE-AND-GOAL.md), and the other
+workshop figures are in [diagrams/](glossary_generator/diagrams/).
 
 ## What it does
 
@@ -67,17 +70,14 @@ the other workshop figures are in
 ## Repository layout
 
 ```text
-glossary_generator/     the Flask app (app.py) + launchers (run.sh / run.ps1 / run.bat)
-  suggester.py          core pipeline: harvest → suggest → JSONL (Flask-free)
-  pdc_api.py            PDC public-API client (auth, harvest, bulk-load, apply)
-  tagdict.py            two-layer Term & Tag dictionary with steward approval
-  registry/             Registry writer (hooked into export)
-  domain_packs/         scenario vocabularies (water-utility example included)
-  courseware/           workshop document, slide deck, and topic notes
-  diagrams/             architecture figures (PNG + SVG)
-  README.md             app-level details (env vars, drivers, GPU/CPU, API table)
-  GUIDE.md              full walkthrough of every page and workflow
-  INSTALL.md            standing it up against your own PDC instance
+glossary_generator/     the app (scenario-generic): Flask API + review UI
+docs/                   all documentation (reference, guide, install, changelog, …)
+data_sources/           lab kits — one folder per scenario (AWC, CSCU), each with
+                        docker-compose + Makefile, sample DB, MinIO documents,
+                        domain pack + install zip, bulk-load CSV
+courseware/             two complete workshop sets — AWC and CSCU
+install-scenario.sh     scenario picker/installer (install-scenario.ps1 on Windows)
+reset-scenario.sh       remove the installed scenario / reset the app to generic
 ```
 
 ## Install & run
@@ -85,41 +85,41 @@ glossary_generator/     the Flask app (app.py) + launchers (run.sh / run.ps1 / r
 **Requirements:** Python 3.9+ (or Docker). Everything runs locally; PDC and
 Ollama are reached over the network only when you use those features.
 
-### Linux / macOS
+### 1. Pick a scenario
+
+```bash
+./install-scenario.sh            # lists AWC / CSCU, installs the pack + roster
+# Windows: .\install-scenario.ps1
+```
+
+This copies the selected scenario's vocabulary (`domain_pack.json`), steward
+roster (`people.json`) and company name (`.env`) into the app's runtime config
+— all git-ignored, so the app itself stays clean. One scenario at a time.
+(Equivalent manual step: unzip `data_sources/<scenario>/*-domain-pack.zip`
+into `glossary_generator/`.) To switch scenarios, just rerun it; to remove the
+scenario and reset the app to generic, run `./reset-scenario.sh`
+(`-All` / `--all` also clears connections, settings and saved glossaries).
+
+### 2. Stand up the lab sources
+
+```bash
+cd data_sources/CSCU             # or AWC
+cp .env.example .env
+make all                         # postgres + minio, loaded and verified
+```
+
+### 3. Run the app
 
 ```bash
 cd glossary_generator
-./run.sh                     # venv + deps + run → http://127.0.0.1:5000
-```
-
-### Windows
-
-```powershell
-cd glossary_generator
-.\run.ps1                    # → http://127.0.0.1:5000
-```
-
-(If PowerShell blocks the unsigned script, use `run.bat` or
-`powershell -ExecutionPolicy Bypass -File .\run.ps1`.)
-
-### Docker
-
-```bash
-cd glossary_generator
-docker compose up --build    # state persists in the glossary-data volume
-```
-
-### Manual
-
-```bash
-cd glossary_generator
-python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-python app.py
+./run.sh                         # Linux/macOS → http://127.0.0.1:5000
+.\run.ps1                        # Windows (or run.bat)
+docker compose up --build        # Docker
 ```
 
 Then open **<http://127.0.0.1:5000>** and follow the workflow stepper:
-*Connect → Review → Govern → Apply*.
+*Connect → Review → Govern → Apply*. The scenario's workshop guide is in
+`courseware/<scenario>/`.
 
 ### Optional: LLM enrichment
 
@@ -129,27 +129,24 @@ ollama serve                 # http://localhost:11434
 ```
 
 The app detects Ollama automatically (on Windows set
-`OLLAMA_URL=http://127.0.0.1:11434` — see the app README for why).
-
-### Configuration
-
-Copy [`.env.example`](glossary_generator/.env.example) to `.env` and edit —
-every setting is optional. Two knobs adapt it to your scenario without code
-changes: `GLOSSARY_COMPANY` (name woven into LLM prompts) and
-`GLOSSARY_DOMAIN_PACK` (scenario vocabulary JSON — see
-[domain_packs/README.md](glossary_generator/domain_packs/README.md)).
+`OLLAMA_URL=http://127.0.0.1:11434` — see [REFERENCE.md](docs/REFERENCE.md)
+for why). Configuration beyond that: copy
+[`.env.example`](glossary_generator/.env.example) to `.env` — every setting is
+optional.
 
 ## Documentation
 
 | Document | What it covers |
 | --- | --- |
-| [README.md](glossary_generator/README.md) | App details: env vars, drivers, Ollama/GPU, API reference |
-| [GUIDE.md](glossary_generator/GUIDE.md) | Full walkthrough of every page and workflow |
-| [INSTALL.md](glossary_generator/INSTALL.md) | Setup against your own PDC instance (Docker + local) |
-| [CHALLENGE-AND-GOAL.md](glossary_generator/CHALLENGE-AND-GOAL.md) | The Registry thesis, plain language |
-| [SUPPLEMENT.md](glossary_generator/SUPPLEMENT.md) | Operating notes for a real PDC instance |
-| [CHANGELOG.md](glossary_generator/CHANGELOG.md) | Release history |
-| [courseware/](glossary_generator/courseware/) | Workshop document and slide deck |
+| [REFERENCE.md](docs/REFERENCE.md) | App details: env vars, drivers, Ollama/GPU, API reference |
+| [GUIDE.md](docs/GUIDE.md) | Full walkthrough of every page and workflow |
+| [INSTALL.md](docs/INSTALL.md) | Setup against your own PDC instance (Docker + local) |
+| [CHALLENGE-AND-GOAL.md](docs/CHALLENGE-AND-GOAL.md) | The Registry thesis, plain language |
+| [SUPPLEMENT.md](docs/SUPPLEMENT.md) | Operating notes for a real PDC instance |
+| [MANIFEST.md](docs/MANIFEST.md) | Full repository layout and packaging |
+| [CHANGELOG.md](docs/CHANGELOG.md) | Release history |
+| [data_sources/](data_sources/) | The two lab kits (AWC · CSCU) |
+| [courseware/](courseware/) | The two workshop sets (AWC · CSCU) |
 
-*All Arizona Water Company (AWC) data in the training scenario is fictional and
-generated for training.*
+*All scenario data — Arizona Water Company and Copper State Credit Union — is
+fictional and generated for training.*

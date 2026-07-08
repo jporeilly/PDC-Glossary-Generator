@@ -1,0 +1,96 @@
+{
+  "people": [
+    {
+      "community": "Data Operations; Glossary Stewards",
+      "display_name": "Elena Ramirez",
+      "email": "elena.ramirez@copperstatecu.org",
+      "expertise": "Deposits, transactions, member accounts, operations",
+      "id": "7f2a91c4-3b8e-4d16-9a57-c1e84f02ab31",
+      "name": "elena.ramirez",
+      "owns": "Connects sources, profiles, runs identification, curates collections; owns Transactions / Accounts & Deposits terms",
+      "roles": [
+        "Data Steward",
+        "Business Steward"
+      ],
+      "stakeholder_role": "Steward"
+    },
+    {
+      "community": "Glossary Stewards",
+      "display_name": "Marcus Webb",
+      "email": "marcus.webb@copperstatecu.org",
+      "expertise": "Lending, loans, credit risk, collateral, APR, underwriting",
+      "id": "5c0d7e92-64af-4b3a-8d21-90b7f3ce6a48",
+      "name": "marcus.webb",
+      "owns": "Owns Lending terms incl. Loan Number and APR",
+      "roles": [
+        "Business Steward"
+      ],
+      "stakeholder_role": "Steward"
+    },
+    {
+      "community": "Glossary Stewards",
+      "display_name": "Priya Nair",
+      "email": "priya.nair@copperstatecu.org",
+      "expertise": "Compliance, BSA, AML, KYC, fraud, audits, governance",
+      "id": "b81f4a06-2c95-4e7d-a3b8-64d0e92c517f",
+      "name": "priya.nair",
+      "owns": "Owns the Compliance & Risk terms (CDE) incl. Risk Rating and SAR",
+      "roles": [
+        "Business Steward"
+      ],
+      "stakeholder_role": "Steward"
+    },
+    {
+      "community": "Glossary Stewards",
+      "display_name": "Tom Callahan",
+      "email": "tom.callahan@copperstatecu.org",
+      "expertise": "Cards, payments, ACH, PCI, disputes, chargebacks",
+      "id": "e93c25b7-08d1-4f6a-bc94-27a5f80d3e62",
+      "name": "tom.callahan",
+      "owns": "Owns Cards & Payments terms incl. Card Number and Routing Number",
+      "roles": [
+        "Business Steward"
+      ],
+      "stakeholder_role": "Steward"
+    },
+    {
+      "community": "Analysts",
+      "display_name": "Business Analyst",
+      "email": "business.analyst@copperstatecu.org",
+      "expertise": "",
+      "id": "",
+      "name": "business.analyst",
+      "owns": "Optional persona: reads metadata (W2), searches (W6), Galaxy View (W11)",
+      "roles": [
+        "Data User"
+      ],
+      "stakeholder_role": "Steward"
+    },
+    {
+      "community": "",
+      "display_name": "Catalog Admin",
+      "email": "catalog.admin@copperstatecu.org",
+      "expertise": "",
+      "id": "",
+      "name": "catalog.admin",
+      "owns": "Creates users, defines custom properties, manages workers and licence",
+      "roles": [
+        "Admin"
+      ],
+      "stakeholder_role": "Steward"
+    },
+    {
+      "community": "Data Operations",
+      "display_name": "Data Analyst",
+      "email": "data.analyst@copperstatecu.org",
+      "expertise": "",
+      "id": "",
+      "name": "data.analyst",
+      "owns": "Optional persona: profiling (W4), lineage (W8), discovery (W6)",
+      "roles": [
+        "Data Steward"
+      ],
+      "stakeholder_role": "Steward"
+    }
+  ]
+}

@@ -1,0 +1,342 @@
+{
+  "domain": "credit_union",
+  "note": "Copper State Credit Union (CSCU) domain pack — the financial-services scenario. Carries both halves of a pack: the categorization/naming keys read by suggester.py (table_category, table_terms, cat_keywords, abbreviations, category_definitions) and the governed tag vocabulary read by tagdict.py (category_tags, tag_rules, extra_tags, terms). Tags introduced here are company-layer and pre-approved. Reseed the Dictionary (Dictionary page -> Reseed) after adding/changing this file, then re-run 'Suggest tags' on the grid.",
+  "table_category": {
+    "members": "Member",
+    "accounts": "Accounts & Deposits",
+    "cards": "Cards & Payments",
+    "ach_payments": "Cards & Payments",
+    "transactions": "Transactions",
+    "loans": "Lending",
+    "kyc_reviews": "Compliance & Risk",
+    "suspicious_activity": "Compliance & Risk",
+    "gl_entries": "Finance & Ledger",
+    "branches": "Branch Operations",
+    "employees": "Branch Operations"
+  },
+  "table_terms": {
+    "members": "Member Record",
+    "accounts": "Member Account Record",
+    "cards": "Payment Card Record",
+    "ach_payments": "ACH Payment Record",
+    "transactions": "Transaction Record",
+    "loans": "Loan Record",
+    "kyc_reviews": "KYC Review Record",
+    "suspicious_activity": "Suspicious Activity Report",
+    "gl_entries": "General Ledger Entry",
+    "branches": "Branch Record",
+    "employees": "Employee Record"
+  },
+  "cat_keywords": [
+    [
+      "member",
+      "Member"
+    ],
+    [
+      "deposit",
+      "Accounts & Deposits"
+    ],
+    [
+      "card",
+      "Cards & Payments"
+    ],
+    [
+      "ach",
+      "Cards & Payments"
+    ],
+    [
+      "transaction",
+      "Transactions"
+    ],
+    [
+      "txn",
+      "Transactions"
+    ],
+    [
+      "loan",
+      "Lending"
+    ],
+    [
+      "apr",
+      "Lending"
+    ],
+    [
+      "collateral",
+      "Lending"
+    ],
+    [
+      "kyc",
+      "Compliance & Risk"
+    ],
+    [
+      "aml",
+      "Compliance & Risk"
+    ],
+    [
+      "sar",
+      "Compliance & Risk"
+    ],
+    [
+      "suspicious",
+      "Compliance & Risk"
+    ],
+    [
+      "ledger",
+      "Finance & Ledger"
+    ],
+    [
+      "gl_",
+      "Finance & Ledger"
+    ],
+    [
+      "branch",
+      "Branch Operations"
+    ]
+  ],
+  "abbreviations": {
+    "mbr": "Member",
+    "br": "Branch",
+    "ln": "Loan",
+    "apr": "APR",
+    "ach": "ACH",
+    "rte": "Routing",
+    "rt": "Rate",
+    "prin": "Principal",
+    "merch": "Merchant",
+    "mcc": "Merchant Category Code",
+    "kyc": "KYC",
+    "sar": "SAR",
+    "gl": "General Ledger",
+    "int": "Interest",
+    "avail": "Available",
+    "eff": "Effective",
+    "ext": "External",
+    "emp": "Employee",
+    "orig": "Origination",
+    "cvv": "CVV",
+    "exp": "Expiration"
+  },
+  "category_definitions": {
+    "Member": "Identifies and describes the credit-union member and their relationship with CSCU.",
+    "Accounts & Deposits": "Share, checking and certificate accounts, their balances and dividend rates.",
+    "Cards & Payments": "Payment cards and electronic payment rails (ACH, wire) used by members.",
+    "Transactions": "Monetary movements posted against member accounts.",
+    "Lending": "Loan origination, servicing, balances, rates and collateral.",
+    "Compliance & Risk": "BSA/AML, KYC and fraud monitoring supporting regulatory compliance.",
+    "Finance & Ledger": "General-ledger accounting entries and financial reporting.",
+    "Branch Operations": "Branches, staff and operational reference data."
+  },
+  "category_tags": {
+    "Member": [
+      "member"
+    ],
+    "Accounts & Deposits": [
+      "deposit"
+    ],
+    "Cards & Payments": [
+      "payments"
+    ],
+    "Transactions": [
+      "transaction"
+    ],
+    "Lending": [
+      "lending"
+    ],
+    "Compliance & Risk": [
+      "compliance",
+      "aml"
+    ],
+    "Finance & Ledger": [
+      "ledger"
+    ],
+    "Branch Operations": [
+      "operational"
+    ],
+    "Records & Documents": [
+      "document",
+      "records"
+    ]
+  },
+  "extra_tags": [
+    "member",
+    "deposit",
+    "payments",
+    "card",
+    "pci",
+    "ach",
+    "transaction",
+    "lending",
+    "credit",
+    "collateral",
+    "aml",
+    "kyc",
+    "fraud",
+    "ledger",
+    "rates",
+    "statement",
+    "correspondence",
+    "records",
+    "board"
+  ],
+  "tag_rules": [
+    {
+      "pattern": "\\bcard\\b|\\bpan\\b|\\bcvv\\b|\\bmcc\\b|expir",
+      "tags": [
+        "pci",
+        "card",
+        "payments"
+      ]
+    },
+    {
+      "pattern": "\\bach\\b|routing|\\brte\\b|\\bwire\\b|swift|iban",
+      "tags": [
+        "payments",
+        "ach"
+      ]
+    },
+    {
+      "pattern": "\\bkyc\\b|\\baml\\b|\\bsar\\b|suspicious|watchlist|\\bofac\\b|\\bbsa\\b|risk.?rating",
+      "tags": [
+        "compliance",
+        "aml"
+      ]
+    },
+    {
+      "pattern": "\\bloan|\\bapr\\b|collateral|principal|amortiz|maturity|underwrit|\\bln_",
+      "tags": [
+        "lending",
+        "credit"
+      ]
+    },
+    {
+      "pattern": "ledger|journal|\\bgl_|dr_amt|cr_amt|debit_amount|credit_amount",
+      "tags": [
+        "ledger"
+      ]
+    },
+    {
+      "pattern": "fraud|dispute|chargeback|reversal",
+      "tags": [
+        "fraud",
+        "compliance"
+      ]
+    },
+    {
+      "pattern": "statement|\\bstmt\\b",
+      "tags": [
+        "statement",
+        "records"
+      ]
+    },
+    {
+      "pattern": "correspond|\\bletter\\b|notice|\\bmemo\\b|inquiry",
+      "tags": [
+        "correspondence",
+        "records"
+      ]
+    },
+    {
+      "pattern": "\\bboard\\b|minutes|polic(y|ies)|procedure|handbook",
+      "tags": [
+        "board",
+        "records",
+        "governance"
+      ]
+    },
+    {
+      "pattern": "dividend|\\bapy\\b|interest.?rate|rate.?sheet|int_rt",
+      "tags": [
+        "rates"
+      ]
+    },
+    {
+      "pattern": "\\bmbr|member|joint.?owner|beneficiar",
+      "tags": [
+        "member"
+      ]
+    },
+    {
+      "pattern": "deposit|savings|checking|share.?(draft|account)|certificate",
+      "tags": [
+        "deposit"
+      ]
+    },
+    {
+      "pattern": "\\btxn|transaction|merchant|\\bmerch",
+      "tags": [
+        "transaction"
+      ]
+    }
+  ],
+  "terms": {
+    "Member Number": {
+      "aliases": [
+        "Member ID",
+        "Mbr Number"
+      ],
+      "sensitivity": "HIGH",
+      "tags": [
+        "member",
+        "identifier",
+        "PII"
+      ]
+    },
+    "Card Number": {
+      "aliases": [
+        "PAN",
+        "Payment Card Number",
+        "Card No"
+      ],
+      "sensitivity": "HIGH",
+      "tags": [
+        "pci",
+        "card",
+        "PII"
+      ]
+    },
+    "Routing Number": {
+      "aliases": [
+        "ABA Number",
+        "ACH Routing Number"
+      ],
+      "sensitivity": "MEDIUM",
+      "tags": [
+        "payments",
+        "ach"
+      ]
+    },
+    "Loan Number": {
+      "aliases": [
+        "Loan ID",
+        "Ln Number"
+      ],
+      "sensitivity": "HIGH",
+      "tags": [
+        "lending",
+        "identifier",
+        "PII"
+      ]
+    },
+    "APR": {
+      "aliases": [
+        "Annual Percentage Rate"
+      ],
+      "sensitivity": "LOW",
+      "tags": [
+        "lending",
+        "rates"
+      ]
+    },
+    "Risk Rating": {
+      "aliases": [
+        "KYC Risk Rating",
+        "AML Risk Rating"
+      ],
+      "sensitivity": "MEDIUM",
+      "tags": [
+        "compliance",
+        "aml"
+      ]
+    }
+  }
+}

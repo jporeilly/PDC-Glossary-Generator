@@ -40,9 +40,7 @@ _SEED_TAGS = {
     "revenue":          {"label": "Revenue"},
     "usage":            {"label": "Usage"},
     "metering":         {"label": "Metering"},
-    "water-quality":    {"label": "Water quality"},
     "compliance":       {"label": "Regulatory compliance"},
-    "water-system":     {"label": "Water system"},
     "operational":      {"label": "Operational"},
     "asset":            {"label": "Asset"},
     "temporal":         {"label": "Temporal"},
@@ -83,8 +81,6 @@ _SEED_CATEGORY_TAGS = {
     "Billing & Rates":     ["billing"],
     "Usage":               ["usage"],
     "Customer":            ["customer"],
-    "Water System":        ["water-system", "operational"],
-    "Water Quality":       ["water-quality"],
     "Governance":          ["governance"],
     "Records & Documents": ["document"],
 }
@@ -94,13 +90,11 @@ _SEED_RULES = [
                                                      ["billing", "financial"]),
     (r"\btax\b",                                     ["financial", "tax"]),
     (r"rate|tier|\bplan\b|pric",                     ["billing", "rate"]),
-    (r"usage|consumption|gallons|\bmeter|reading|volume|\bflow\b|cubic",
-                                                     ["usage", "metering"]),
-    (r"\bph\b|turbidity|chlorine|\blead\b|contaminant|quality|sample|violation|compliance|\bepa\b|hardness|nitrate",
-                                                     ["water-quality", "compliance"]),
+    (r"usage|consumption|\bmeter|reading|volume", ["usage", "metering"]),
+    (r"violation|compliance|regulat|audit", ["compliance"]),
     (r"alert|status|\bflag\b|\bstate\b|\bevent\b|severity|resolved", ["operational"]),
     (r"\bdate\b|time|timestamp|\bmonth\b|\byear\b|period|billing_cycle", ["temporal"]),
-    (r"system|asset|pipe|pump|valve|infrastructure|reservoir|tank", ["asset", "operational"]),
+    (r"system|asset|infrastructure|equipment", ["asset", "operational"]),
     (r"email|phone|mobile|contact", ["contact", "privacy"]),
     (r"address|street|\bcity\b|\bzip\b|postal|county|geo|lat|long|coordinate|location", ["location"]),
     (r"account|customer.?id|system.?id|meter.?id|premise", ["identifier"]),
@@ -141,7 +135,7 @@ def _seed():
     terms = {n: dict(v, layer="generic") for n, v in _SEED_TERMS.items()}
     for n, v in (pack.get("terms") or {}).items():
         terms[n] = dict(v, layer="company", status="approved")
-    return {"schema": SCHEMA, "domain": pack.get("domain") or "water_utility",
+    return {"schema": SCHEMA, "domain": pack.get("domain") or "generic",
             "category_tags": cat, "rules": rules, "tags": tags, "terms": terms,
             "counts": {}, "term_counts": {}, "examples": {}, "sources": []}
 

@@ -515,7 +515,7 @@
     <div class="card" id="bulkLoadCard" style="border-left:3px solid var(--accent,#3b82f6)">
       <h3 style="margin:0 0 4px">Bulk-load data sources into PDC <span class="hint" style="font-weight:600">setup step &mdash; runs before the glossary</span></h3>
       <p class="note" style="margin:0 0 10px">Register many sources in PDC at once from a CSV. For each row the app <b>creates</b> the data source, then triggers a <b>metadata ingest</b> scoped to it and waits for the job &mdash; the Connect&nbsp;+&nbsp;Ingest steps that precede profiling, identification and the glossary. Use <code>kind</code> = <code>postgres</code>, <code>mysql</code>, <code>oracle</code>, <code>minio</code>/<code>s3</code>, or <code>azure_blob</code>. <a href="/api/pdc/bulk-load/sample.csv">Download a sample CSV</a>, or <b>Export existing</b> to turn the connections you saved by hand (the cards below) into a loader-ready CSV. Secrets are sent to PDC only and never saved by the app; an export of your saved connections <b>does</b> include their credentials, so treat that file as sensitive. A connection that <b>already exists</b> in PDC is detected and shown as <span style="color:#1C7293;font-weight:600">EXISTS</span> — it&rsquo;s re-scanned, not re-created, so re-runs don&rsquo;t hit a 400 duplicate error.</p>
-      <p class="note" style="margin:-4px 0 10px;color:#7a4a00;background:#fff6e6;border:1px solid #f0d9a8;border-radius:8px;padding:7px 10px">Two things that make an ingest report OK but find nothing &mdash; or fail: <b>(1)</b> set <code>schemaNames</code> to the schema your tables actually live in (e.g. <code>awc_operations</code>, not <code>public</code>) &mdash; an ingest into an empty schema completes green but harvests zero terms. <b>(2)</b> Object stores (<code>minio</code>/<code>s3</code>) need <code>container</code> (the bucket), a reachable <code>endpoint</code>, and the bucket to actually contain files; metadata ingest lists the files, and content-level classification then needs PDC&rsquo;s <b>Data Discovery</b> step. Ingest failures now show PDC&rsquo;s reason in the note column. <b>(3)</b> To scope a scan, add <code>includePatterns</code> / <code>excludePatterns</code> columns (semicolon-separated globs, e.g. <code>excludePatterns=*.md;*.tmp</code>) &mdash; they flow into both the create and the scan job.</p>
+      <p class="note" style="margin:-4px 0 10px;color:#7a4a00;background:#fff6e6;border:1px solid #f0d9a8;border-radius:8px;padding:7px 10px">Two things that make an ingest report OK but find nothing &mdash; or fail: <b>(1)</b> set <code>schemaNames</code> to the schema your tables actually live in (e.g. <code>cscu_core</code>, not <code>public</code>) &mdash; an ingest into an empty schema completes green but harvests zero terms. <b>(2)</b> Object stores (<code>minio</code>/<code>s3</code>) need <code>container</code> (the bucket), a reachable <code>endpoint</code>, and the bucket to actually contain files; metadata ingest lists the files, and content-level classification then needs PDC&rsquo;s <b>Data Discovery</b> step. Ingest failures now show PDC&rsquo;s reason in the note column. <b>(3)</b> To scope a scan, add <code>includePatterns</code> / <code>excludePatterns</code> columns (semicolon-separated globs, e.g. <code>excludePatterns=*.md;*.tmp</code>) &mdash; they flow into both the create and the scan job.</p>
       <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end">
         <div class="fld" style="flex:1 1 240px"><label>PDC base URL</label><input id="bl_base" type="text" placeholder="https://192.168.1.200 (server root)"/></div>
         <div class="fld" style="flex:0 1 140px"><label>Username</label><input id="bl_user" type="text" autocomplete="off"/></div>
@@ -552,8 +552,8 @@
           <label style="font-size:12px;color:var(--mute);white-space:nowrap;display:flex;align-items:center;gap:5px"><input type="checkbox" id="blImpAll" onclick="blImpToggleAll(this.checked)"/> All shown</label>
         </div>
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap">
-          <label style="font-size:12px;color:var(--mute);white-space:nowrap" title="Rewrite Docker-internal hosts/ports to addresses reachable from where the app runs, e.g. az-water-postgres=localhost, 5432=5433. The PDC-side CSV is unchanged.">App reachability remap</label>
-          <input id="blImpRemap" type="text" placeholder="az-water-postgres=localhost, 5432=5433" oninput="blImpApplyRemap()" style="flex:1;min-width:220px;font-size:12.5px;padding:5px 8px;border:1px solid var(--line);border-radius:6px"/>
+          <label style="font-size:12px;color:var(--mute);white-space:nowrap" title="Rewrite Docker-internal hosts/ports to addresses reachable from where the app runs, e.g. cscu-postgres=localhost, 5432=5433. The PDC-side CSV is unchanged.">App reachability remap</label>
+          <input id="blImpRemap" type="text" placeholder="cscu-postgres=localhost, 5432=5433" oninput="blImpApplyRemap()" style="flex:1;min-width:220px;font-size:12.5px;padding:5px 8px;border:1px solid var(--line);border-radius:6px"/>
         </div>
         <div id="blImpList" style="max-height:260px;overflow:auto;border:1px solid var(--line);border-radius:8px"></div>
         <div style="margin-top:8px;display:flex;align-items:center;gap:10px">
@@ -1130,7 +1130,7 @@
       <div class="grid" style="margin-top:12px">
         <div class="fld" style="flex:1 1 130px"><label>Username</label><input id="p_name" type="text" placeholder="jane.doe" onkeydown="if(event.key==='Enter')addPerson()"/></div>
         <div class="fld" style="flex:1 1 130px"><label>Display name</label><input id="p_display" type="text" placeholder="Jane Doe" onkeydown="if(event.key==='Enter')addPerson()"/></div>
-        <div class="fld" style="flex:1 1 170px"><label>Email</label><input id="p_email" type="text" placeholder="jane.doe@azwater.gov" oninput="valPerson()" onkeydown="if(event.key==='Enter')addPerson()"/><span class="verr">Enter a valid email address.</span></div>
+        <div class="fld" style="flex:1 1 170px"><label>Email</label><input id="p_email" type="text" placeholder="jane.doe@copperstatecu.org" oninput="valPerson()" onkeydown="if(event.key==='Enter')addPerson()"/><span class="verr">Enter a valid email address.</span></div>
         <div class="fld" style="flex:1 1 200px"><label>UUID (Keycloak)</label><input id="p_id" type="text" placeholder="account UUID" oninput="valPerson()" onkeydown="if(event.key==='Enter')addPerson()"/><span class="verr">Not a valid UUID (8-4-4-4-12 hex).</span></div>
         <div class="fld" style="flex:1 1 200px"><label>Expertise <span class="hint">comma-separated keywords</span></label><input id="p_expertise" type="text" placeholder="e.g. invoices, contracts, reports" onkeydown="if(event.key==='Enter')addPerson()"/></div>
         <div style="display:flex;gap:8px;flex:0 0 auto;align-self:flex-end">
@@ -1242,12 +1242,12 @@
         </table>
       </div>
       <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;margin-top:10px">
-        <div class="fld" style="flex:0 1 150px"><label>Add tag</label><input id="td_newtag" type="text" placeholder="e.g. wastewater"/></div>
+        <div class="fld" style="flex:0 1 150px"><label>Add tag</label><input id="td_newtag" type="text" placeholder="e.g. chargeback"/></div>
         <div class="fld" style="flex:0 1 130px"><label>Sensitivity floor</label><select id="td_newfloor"><option value="">none</option><option>LOW</option><option>MEDIUM</option><option>HIGH</option></select></div>
         <button class="ghost sm" onclick="tdAddTag()">Add tag</button>
         <span style="flex:1"></span>
-        <div class="fld" style="flex:1 1 220px"><label>Rule pattern <span class="hint">regex on name/term</span></label><input id="td_rulepat" type="text" placeholder="sewer|wastewater|effluent"/></div>
-        <div class="fld" style="flex:0 1 180px"><label>Rule tags <span class="hint">;-separated</span></label><input id="td_ruletags" type="text" placeholder="wastewater;operational"/></div>
+        <div class="fld" style="flex:1 1 220px"><label>Rule pattern <span class="hint">regex on name/term</span></label><input id="td_rulepat" type="text" placeholder="chargeback|dispute|reversal"/></div>
+        <div class="fld" style="flex:0 1 180px"><label>Rule tags <span class="hint">;-separated</span></label><input id="td_ruletags" type="text" placeholder="fraud;payments"/></div>
         <button class="ghost sm" onclick="tdAddRule()">Add rule</button>
       </div>
       <div class="barrow" style="margin-top:10px">
@@ -1503,7 +1503,7 @@ function renderHoodBulk(){
     intro:'For each CSV row the app runs the <b>Connect + Ingest</b> steps against the PDC Public API: it <b>creates</b> the data source, triggers the <b>initial metadata ingest</b> scoped to it, then <b>polls</b> the job \u2014 the steps that precede profiling, identification and the glossary. Secrets are sent to PDC only; the app never stores them.',
     calls:[
       {verb:'POST',url:base+'/api/public/'+ver+'/data-sources \u2014 create the data source',headers:{'Content-Type':'application/json','Authorization':'Bearer ********'},open:true,
-       body:JSON.stringify({resourceName:'Arizona_Water_Operations',databaseType:'POSTGRES',configMethod:'credentials',host:'\u2026',port:'5432',databaseName:'awc_operations',userName:'\u2026',password:'********',schemaNames:['public']},null,2)},
+       body:JSON.stringify({resourceName:'CopperState_Core_Banking',databaseType:'POSTGRES',configMethod:'credentials',host:'\u2026',port:'5432',databaseName:'cscu_core',userName:'\u2026',password:'********',schemaNames:['cscu_core']},null,2)},
       {verb:'POST',url:base+'/api/public/'+ver+'/jobs/execute/metadata/ingest \u2014 initial ingest ("Ingest Schemas or Scan")',headers:{'Content-Type':'application/json','Authorization':'Bearer ********'},
        body:'// the same config body + the created resourceId (+ fqdnId).\n// NOT metadata/re-ingest \u2014 that refresh job wants entity UUIDs; a new\n// source id isn\u2019t a UUID, so re-ingest 400s: /scope/0 must match format "uuid".'},
       {verb:'GET',url:base+'/api/public/'+ver+'/jobs/{jobId}/status \u2014 poll until COMPLETED',headers:{'Authorization':'Bearer ********'}},

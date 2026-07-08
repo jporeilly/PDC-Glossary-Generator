@@ -1,0 +1,61 @@
+# ============================================================
+#  Arizona Water Company — full lab stack
+#  PostgreSQL (operational database) + MinIO (document store)
+#  on a shared network, ready for Pentaho Data Catalog.
+#
+#  Credentials come from .env. Brought up by `make up`.
+#  PostgreSQL auto-loads the schema, sample data, and the
+#  read-only PDC user from ./postgres-init on first start.
+#  The MinIO bucket, user, and document load are handled by
+#  the Makefile so the ordering is explicit.
+# ============================================================
+services:
+
+  postgres:
+    image: postgres:16
+    container_name: ${PG_CONTAINER:-az-water-postgres}
+    environment:
+      POSTGRES_DB: ${PG_DB}
+      POSTGRES_USER: ${PG_ADMIN_USER}
+      POSTGRES_PASSWORD: ${PG_ADMIN_PASSWORD}
+    ports:
+      - "${PG_PORT:-5432}:5432"
+    volumes:
+      - awc-pgdata:/var/lib/postgresql/data
+      # Scripts here run automatically, in name order, on FIRST init only.
+      - ./postgres-init:/docker-entrypoint-initdb.d:ro
+    networks:
+      - awc-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PG_ADMIN_USER} -d ${PG_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  minio:
+    image: minio/minio
+    container_name: ${MINIO_CONTAINER:-az-water-minio}
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - awc-minio-data:/data
+    networks:
+      - awc-net
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+networks:
+  awc-net:
+    name: ${LAB_NETWORK:-awc-net}
+
+volumes:
+  awc-pgdata:
+  awc-minio-data:

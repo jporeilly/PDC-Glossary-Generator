@@ -22,7 +22,7 @@ def _load_dotenv(path=None):
        overriding anything already set in the real environment. Supports # comments,
        blank lines, optional surrounding quotes, and a leading 'export '. Silent if
        the file is absent. Runs BEFORE the local imports below so values like
-       GLOSSARY_DOMAIN_PACK (the AWC bundle, read at suggester import time),
+       GLOSSARY_DOMAIN_PACK (the scenario bundle, read at suggester import time),
        PORT and OLLAMA_URL all take effect from one file."""
     path = path or os.environ.get("GLOSSARY_ENV") or os.path.join(HERE, ".env")
     try:
@@ -73,7 +73,7 @@ APP_VERSION = _app_version()
 
 DEFAULT_DDL = os.environ.get("GLOSSARY_DDL", "/mnt/user-data/uploads/01-schema-and-data.sql")
 PEOPLE_FILE = os.environ.get("GLOSSARY_PEOPLE", os.path.join(HERE, "people.json"))
-# Optional scenario seed roster (e.g. the AWC people that ship with the water-utility
+# Optional scenario seed roster (e.g. the CSCU people that ship with the credit-union
 # domain pack). Copied into the live PEOPLE_FILE once, only when that file is missing or
 # its roster is empty — so a fresh /data volume (Docker) or fresh checkout (run.sh) gets
 # the seeded roster, but live edits are never overwritten. Unset = generic empty roster.
@@ -487,7 +487,7 @@ def _parse_remap(remap):
 
 def _apply_remap(conn, rules):
     """Rewrite a connection's host/port (exact match) and endpoint (substring) so the
-       app's copy is reachable from where the app runs — e.g. az-water-postgres->localhost,
+       app's copy is reachable from where the app runs — e.g. cscu-postgres->localhost,
        5432->5433 — while the PDC-side CSV keeps the Docker-internal names."""
     if not rules:
         return conn
@@ -1660,7 +1660,7 @@ def _pdc_record_to_conn(rec):
             "use Harvest from PDC for this source instead")
 
 def _reachability_warning(hostish):
-    """PDC often stores container-internal names (az-water-postgres) or in-cluster
+    """PDC often stores container-internal names (cscu-postgres) or in-cluster
        endpoints the app host can't reach — the same remap problem the bulk loader
        solves. Flag anything that isn't obviously an IP/localhost/FQDN."""
     h = str(hostish or "")
@@ -1752,7 +1752,7 @@ def pdc_source_test():
     """Per-connection 'test': confirm the source resolves in the catalog and report
        how many entities PDC actually holds for it (COLUMN for databases, FILE for
        object stores). An ingest that reported OK but scanned an empty schema shows
-       here as 0 — the check that would have caught the public-vs-awc_operations bug.
+       here as 0 — the check that would have caught the public-vs-cscu_core bug.
        Read-only: no jobs triggered."""
     import pdc_api
     body = request.get_json(force=True, silent=True) or {}

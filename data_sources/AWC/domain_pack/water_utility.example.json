@@ -1,0 +1,166 @@
+{
+  "domain": "water_utility",
+  "table_category": {
+    "customers": "Customer",
+    "water_systems": "Water System",
+    "tiered_rates": "Billing & Rates",
+    "monthly_usage": "Usage",
+    "water_quality_reports": "Water Quality",
+    "account_alerts": "Governance"
+  },
+  "table_terms": {
+    "customers": "Customer Record",
+    "water_systems": "Water System Record",
+    "tiered_rates": "Rate Plan Record",
+    "monthly_usage": "Monthly Usage Record",
+    "water_quality_reports": "Water Quality Record",
+    "account_alerts": "Account Alert Record"
+  },
+  "cat_keywords": [
+    [
+      "water_quality",
+      "Water Quality"
+    ],
+    [
+      "quality",
+      "Water Quality"
+    ],
+    [
+      "system",
+      "Water System"
+    ]
+  ],
+  "abbreviations": {
+    "ws": "Water System",
+    "wtr": "Water",
+    "usg": "Usage",
+    "cons": "Consumption",
+    "mtr": "Meter",
+    "rdg": "Reading",
+    "gal": "Gallons"
+  },
+  "category_definitions": {
+    "Water System": "Describes water-system assets for operations and reporting.",
+    "Water Quality": "Tracks water-quality measurements for EPA compliance and monitoring."
+  },
+  "category_tags": {
+    "Records & Documents": [
+      "document",
+      "records"
+    ],
+    "Water System": [
+      "water-system",
+      "operational"
+    ],
+    "Water Quality": [
+      "water-quality"
+    ]
+  },
+  "tag_rules": [
+    {
+      "pattern": "\\bph\\b|turbidity|chlorine|\\blead\\b|contaminant|water.?quality|violation|\\bepa\\b|hardness|nitrate",
+      "tags": [
+        "water-quality",
+        "compliance"
+      ]
+    },
+    {
+      "pattern": "pipe|pump|valve|reservoir|tank|gallons|\\bflow\\b|cubic",
+      "tags": [
+        "water-system",
+        "asset",
+        "operational"
+      ]
+    },
+    {
+      "pattern": "\\bgis\\b|geospatial|spatial|geographic|\\bmap(s|ping)?\\b|parcel|easement|right.?of.?way",
+      "tags": [
+        "gis",
+        "spatial",
+        "asset"
+      ]
+    },
+    {
+      "pattern": "scada|telemetry|supervisory|\\brtu\\b|\\bplc\\b|sensor|remote.?monitor",
+      "tags": [
+        "scada",
+        "operational",
+        "telemetry"
+      ]
+    },
+    {
+      "pattern": "inspect|survey|field.?report|site.?visit",
+      "tags": [
+        "inspection",
+        "field-ops"
+      ]
+    },
+    {
+      "pattern": "correspond|\\bletter\\b|notice|\\bmemo\\b|inquiry|communication|email",
+      "tags": [
+        "correspondence",
+        "records"
+      ]
+    },
+    {
+      "pattern": "hydrolog|watershed|groundwater|aquifer|\\bwell\\b|reservoir|source.?water",
+      "tags": [
+        "hydrology",
+        "water-quality"
+      ]
+    },
+    {
+      "pattern": "maintenance|work.?order|repair|service.?request|\\bmain.?break|leak",
+      "tags": [
+        "maintenance",
+        "operational"
+      ]
+    },
+    {
+      "pattern": "outage|\\bincident\\b|emergency|spill|overflow",
+      "tags": [
+        "incident",
+        "operational"
+      ]
+    },
+    {
+      "pattern": "permit|licen[cs]e|certificat",
+      "tags": [
+        "permit",
+        "compliance"
+      ]
+    },
+    {
+      "pattern": "\\bland\\b|property|acquisition|zoning",
+      "tags": [
+        "land",
+        "asset"
+      ]
+    },
+    {
+      "pattern": "\\bplan(s|ning)?\\b|design|drawing|schematic|as.?built|engineering",
+      "tags": [
+        "engineering",
+        "asset"
+      ]
+    }
+  ],
+  "extra_tags": [
+    "water-quality",
+    "water-system",
+    "gis",
+    "spatial",
+    "scada",
+    "telemetry",
+    "inspection",
+    "field-ops",
+    "correspondence",
+    "records",
+    "hydrology",
+    "maintenance",
+    "incident",
+    "land",
+    "permit",
+    "engineering"
+  ]
+}

@@ -3,7 +3,7 @@
 A domain pack injects scenario-specific vocabulary into the suggestion engine so the
 core stays generic. Point the app at one with:
 
-    GLOSSARY_DOMAIN_PACK=domain_packs/water_utility.example.json
+    GLOSSARY_DOMAIN_PACK=domain_packs/credit_union.example.json
 
 or (the default) drop a file named `domain_pack.json` beside `suggester.py`. If
 `GLOSSARY_DOMAIN_PACK` is unset, the app loads `./domain_pack.json` automatically.
@@ -14,7 +14,7 @@ so a complete pack carries both sets:
 ## Categorization & naming (read by `suggester.py`)
 
 | Key | Purpose |
-|---|---|
+| --- | --- |
 | `table_category` | Category assigned to table-level (conceptual) terms |
 | `table_terms` | Table-name → business-term overrides |
 | `cat_keywords` | List of `[keyword, category]` — routes column/term names to a category |
@@ -24,9 +24,9 @@ so a complete pack carries both sets:
 ## Governed tag vocabulary (read by `tagdict.py`)
 
 | Key | Purpose |
-|---|---|
+| --- | --- |
 | `category_tags` | `{category: [tags]}` — the tag(s) every term in a category gets |
-| `tag_rules` | List of `{pattern, tags}` — regex on a term's name/term/category adds governed tags. **This is how you give a domain meaningful tags** (e.g. `gis` → `gis;spatial;asset`). Pack rules are **company-layer and pre-approved**. |
+| `tag_rules` | List of `{pattern, tags}` — regex on a term's name/term/category adds governed tags. **This is how you give a domain meaningful tags** (e.g. `chargeback` → `fraud;payments`). Pack rules are **company-layer and pre-approved**. |
 | `extra_tags` | Tag names to add to the governed allow-list (pre-approved) |
 | `terms` | Seed governed terms `{name: {aliases, sensitivity, tags, …}}` |
 
@@ -44,5 +44,17 @@ pack, **reseed** so the changes take effect:
 Tags are governed vocabulary, **not** LLM output — so *Enrich with LLM* won't change them;
 the domain pack is how you enrich the tag set.
 
-`water_utility.example.json` reproduces the Arizona Water (AWC) vocabulary — both the
-categorization keys and the governed tag rules — and matches the default `domain_pack.json`.
+## Shipped packs
+
+`credit_union.example.json` is the **Copper State Credit Union (CSCU)** pack — the
+financial-services workshop scenario (members, accounts, cards, lending, BSA/AML
+compliance, general ledger). It carries both the categorization keys and the governed
+tag rules, and matches the default `domain_pack.json`. Its companion
+`credit_union.people.json` seeds the CSCU steward roster
+(`GLOSSARY_PEOPLE_SEED=domain_packs/credit_union.people.json`).
+
+The previous **Arizona Water Company (AWC)** water-utility scenario ships separately and
+completely — pack, roster, lab stack, documents and courseware — under
+`data_sources/AWC/` and `courseware/AWC/` at the repo root, with a ready-to-install
+pack zip. Don't mix the two scenarios: install one pack, reseed, and keep the other
+archived.

@@ -9,8 +9,10 @@ connections.json
 settings.json
 glossaries.json
 tag_dictionary.json
-tag_dictionary.json.backup-*
 audit_log.json
 people.json
 registries/
 .env
+# installed by install-scenario.* — scenario runtime config, never committed
+domain_pack.json
+*.backup-*

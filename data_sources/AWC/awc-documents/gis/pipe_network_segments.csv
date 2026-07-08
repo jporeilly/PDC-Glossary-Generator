@@ -1,0 +1,121 @@
+segment_id,system_name,street_name,material,diameter_inches,length_feet,install_year,condition_rating,status,last_inspection_date,latitude,longitude
+SEG-00001,Lakeside,Main St,Ductile Iron,12,214,1982,3,In Service,2025-11-15,31.828476,-109.043775
+SEG-00002,Sedona,American Ave,HDPE,8,3720,1975,3,In Service,2025-05-06,31.767488,-109.927542
+SEG-00003,Oracle,Highway 89A,HDPE,6,1947,1965,2,In Service,2025-01-08,35.105954,-110.867307
+SEG-00004,White Tank,Brown Rd,HDPE,12,3304,1961,2,Under Repair,2025-09-03,33.214494,-112.273248
+SEG-00005,Apache Junction,Apache Trail,Ductile Iron,6,1001,1974,2,Decommissioned,2025-09-03,32.801892,-112.511247
+SEG-00006,Sierra Vista,Florence Blvd,HDPE,16,3088,2013,4,Decommissioned,2025-06-20,33.730904,-112.239949
+SEG-00007,Oracle,Porter Mtn Rd,Asbestos Cement,24,2899,1997,4,Under Repair,2025-08-02,33.755909,-109.211652
+SEG-00008,Sierra Vista,Florence Blvd,Ductile Iron,8,2123,2010,5,Decommissioned,2025-08-23,34.301948,-110.549131
+SEG-00009,Sedona,Main St,Ductile Iron,8,4730,1964,2,In Service,2025-11-08,34.216214,-111.987718
+SEG-00010,White Tank,Florence Blvd,Asbestos Cement,16,1259,1975,3,Under Repair,2025-05-22,33.697549,-112.804393
+SEG-00011,Bisbee,Brown Rd,Ductile Iron,4,2820,2014,4,In Service,2025-04-23,32.822596,-111.093059
+SEG-00012,Apache Junction,Tombstone Canyon,Asbestos Cement,16,3306,2018,5,In Service,2025-11-28,33.847617,-112.708333
+SEG-00013,Oracle,Tombstone Canyon,Cast Iron,8,3777,1998,4,Under Repair,2025-12-21,32.868192,-110.009393
+SEG-00014,Oracle,Highway 89A,Cast Iron,24,1658,2008,4,In Service,2025-08-11,32.887204,-111.547096
+SEG-00015,Lakeside,Fry Blvd,PVC,4,1668,1984,2,In Service,2025-12-22,33.055654,-110.713778
+SEG-00016,Sierra Vista,Main St,HDPE,16,2126,1999,4,In Service,2025-03-22,32.48183,-110.425219
+SEG-00017,Pinal Valley,Pinal Ave,PVC,8,4794,1972,2,Decommissioned,2025-10-23,32.895943,-109.306939
+SEG-00018,Sierra Vista,Tombstone Canyon,Ductile Iron,8,4473,2007,4,In Service,2025-03-03,32.840187,-110.787188
+SEG-00019,Apache Junction,Porter Mtn Rd,Cast Iron,10,3838,1998,3,Under Repair,2025-07-04,32.168322,-112.100672
+SEG-00020,Sierra Vista,Brown Rd,Cast Iron,8,2826,1995,3,In Service,2025-03-12,34.482462,-111.859624
+SEG-00021,Sierra Vista,Pinal Ave,Cast Iron,16,1915,1998,4,Decommissioned,2025-12-20,32.004594,-114.186738
+SEG-00022,Sierra Vista,Apache Trail,Ductile Iron,10,4909,2013,4,In Service,2025-11-10,34.555488,-112.921129
+SEG-00023,Oracle,American Ave,PVC,8,251,1960,2,In Service,2025-06-10,35.167325,-111.735408
+SEG-00024,Oracle,Fry Blvd,HDPE,8,4912,1995,3,Decommissioned,2025-11-27,34.242975,-113.420615
+SEG-00025,Sierra Vista,Apache Trail,HDPE,4,3285,1992,3,Decommissioned,2025-03-05,31.733345,-112.665516
+SEG-00026,Oracle,Highway 89A,Cast Iron,24,2810,1979,3,In Service,2025-08-27,33.777782,-113.08922
+SEG-00027,White Tank,Fry Blvd,Cast Iron,4,4936,1990,4,In Service,2025-02-06,32.632821,-112.476115
+SEG-00028,Oracle,Pinal Ave,Asbestos Cement,4,4814,2019,5,In Service,2025-03-21,32.211756,-111.724324
+SEG-00029,White Tank,Florence Blvd,Ductile Iron,4,4011,1985,3,Under Repair,2025-03-22,35.108228,-109.812044
+SEG-00030,Sierra Vista,Porter Mtn Rd,PVC,16,1502,1968,2,Under Repair,2025-06-24,33.134039,-111.001612
+SEG-00031,Oracle,Tombstone Canyon,HDPE,10,4341,1960,2,In Service,2025-10-24,33.94844,-112.253291
+SEG-00032,Sierra Vista,Tombstone Canyon,PVC,8,3464,1958,1,In Service,2025-01-16,34.018252,-109.871022
+SEG-00033,Bisbee,Brown Rd,Cast Iron,10,2687,2012,4,In Service,2025-06-19,31.795639,-111.991515
+SEG-00034,White Tank,Apache Trail,PVC,12,2579,2009,4,Decommissioned,2025-01-05,33.322856,-109.937481
+SEG-00035,Pinal Valley,Val Vista Dr,PVC,16,2164,1996,3,In Service,2025-05-12,32.30358,-114.153776
+SEG-00036,White Tank,Highway 89A,PVC,12,2942,1960,2,In Service,2025-03-08,31.737629,-114.250484
+SEG-00037,Oracle,Highway 89A,Ductile Iron,24,3543,2001,3,In Service,2025-01-13,33.299186,-113.303094
+SEG-00038,Sedona,Cotton Ln,Asbestos Cement,4,3025,2011,4,In Service,2025-09-06,33.181909,-111.834181
+SEG-00039,Apache Junction,Brown Rd,Ductile Iron,10,347,1959,2,In Service,2025-12-15,34.390809,-113.76041
+SEG-00040,Sierra Vista,Porter Mtn Rd,PVC,8,4024,1970,2,In Service,2025-09-12,34.926277,-110.36511
+SEG-00041,Sedona,Val Vista Dr,HDPE,10,3430,2010,5,In Service,2025-12-04,33.751418,-109.415552
+SEG-00042,Bisbee,Brown Rd,Ductile Iron,12,2158,2017,5,Under Repair,2025-06-27,34.186461,-111.370263
+SEG-00043,Pinal Valley,American Ave,Asbestos Cement,4,4259,1986,3,In Service,2025-10-11,33.232013,-114.291417
+SEG-00044,Sedona,Fry Blvd,Asbestos Cement,4,1381,1959,2,In Service,2025-04-19,34.547277,-109.060661
+SEG-00045,Sierra Vista,American Ave,Cast Iron,16,5095,2005,4,In Service,2025-09-15,35.08209,-111.798312
+SEG-00046,Sedona,Cotton Ln,Ductile Iron,10,2882,1992,3,In Service,2025-10-25,34.575833,-112.488609
+SEG-00047,White Tank,Cotton Ln,Ductile Iron,8,1947,1968,2,Under Repair,2025-08-16,34.51887,-112.411397
+SEG-00048,Lakeside,Apache Trail,HDPE,12,4652,2023,5,In Service,2025-05-25,33.611546,-112.123471
+SEG-00049,Sedona,American Ave,HDPE,12,4693,1966,2,In Service,2025-12-18,34.393462,-112.074248
+SEG-00050,Lakeside,Porter Mtn Rd,Cast Iron,8,1126,2000,4,Decommissioned,2025-07-19,35.112383,-112.310999
+SEG-00051,Lakeside,Pinal Ave,HDPE,24,3774,2014,5,Decommissioned,2025-12-28,31.57437,-109.540089
+SEG-00052,Oracle,Florence Blvd,Asbestos Cement,16,4423,2002,4,In Service,2025-06-27,31.490327,-113.246274
+SEG-00053,Oracle,Porter Mtn Rd,Asbestos Cement,12,2135,1986,3,In Service,2025-05-01,32.297469,-109.746279
+SEG-00054,Oracle,Florence Blvd,PVC,12,511,1988,3,Decommissioned,2025-01-06,33.710802,-110.03736
+SEG-00055,Bisbee,Val Vista Dr,Cast Iron,16,3389,2002,4,In Service,2025-03-23,32.390269,-114.093197
+SEG-00056,Lakeside,Pinal Ave,Ductile Iron,16,2458,2009,5,Decommissioned,2025-11-21,34.212249,-114.029894
+SEG-00057,Sedona,Brown Rd,PVC,16,2712,1958,2,Under Repair,2025-10-06,33.427018,-112.802586
+SEG-00058,Apache Junction,American Ave,Asbestos Cement,10,4006,1977,3,Decommissioned,2025-07-13,34.061445,-112.47814
+SEG-00059,Pinal Valley,Highway 89A,Asbestos Cement,12,4028,1965,2,In Service,2025-10-02,34.171703,-111.225805
+SEG-00060,Sedona,American Ave,Cast Iron,12,3295,1979,2,In Service,2025-09-21,35.001866,-112.002437
+SEG-00061,Apache Junction,Highway 89A,Asbestos Cement,8,2323,2009,4,In Service,2025-11-14,33.489597,-110.318304
+SEG-00062,Oracle,Fry Blvd,HDPE,10,2076,1980,3,Decommissioned,2025-03-22,31.439375,-113.044522
+SEG-00063,Bisbee,Highway 89A,PVC,16,2672,2021,5,Under Repair,2025-07-27,31.874132,-111.765769
+SEG-00064,Apache Junction,Main St,HDPE,4,1080,2006,4,In Service,2025-03-17,34.207311,-109.655279
+SEG-00065,Oracle,Highway 89A,Asbestos Cement,24,3917,1962,2,In Service,2025-12-17,32.830016,-114.186133
+SEG-00066,White Tank,Val Vista Dr,Cast Iron,8,4020,1959,1,Under Repair,2025-12-02,33.691705,-110.739371
+SEG-00067,Sedona,Fry Blvd,Ductile Iron,10,3007,2012,4,In Service,2025-03-23,33.104744,-114.119511
+SEG-00068,White Tank,Highway 89A,PVC,8,4118,2001,4,Decommissioned,2025-06-11,31.978344,-113.744524
+SEG-00069,Lakeside,American Ave,Cast Iron,24,3582,2008,4,In Service,2025-05-18,31.618902,-112.767369
+SEG-00070,Bisbee,Florence Blvd,Asbestos Cement,4,2001,1970,2,In Service,2025-11-24,33.141208,-109.295256
+SEG-00071,Oracle,Fry Blvd,HDPE,10,3802,1989,3,In Service,2025-04-26,34.646066,-110.760881
+SEG-00072,Sedona,Cotton Ln,PVC,6,3540,1979,2,In Service,2025-06-23,34.97786,-112.226075
+SEG-00073,Sedona,Tombstone Canyon,Asbestos Cement,4,2502,2011,4,In Service,2025-05-24,32.977491,-113.50416
+SEG-00074,Apache Junction,Main St,Cast Iron,12,4373,1980,2,In Service,2025-02-24,33.901823,-109.256677
+SEG-00075,Sedona,Main St,Cast Iron,6,3942,1969,3,Decommissioned,2025-12-19,33.997466,-111.67261
+SEG-00076,Pinal Valley,Apache Trail,HDPE,4,4676,1988,3,Decommissioned,2025-05-18,31.669037,-111.613171
+SEG-00077,White Tank,Cotton Ln,PVC,10,1963,1965,2,In Service,2025-01-03,32.958877,-111.581867
+SEG-00078,Apache Junction,Porter Mtn Rd,PVC,16,4055,1971,2,Under Repair,2025-11-23,32.928389,-109.430902
+SEG-00079,Sierra Vista,Apache Trail,Asbestos Cement,16,4476,2014,5,In Service,2025-11-25,33.935712,-111.369246
+SEG-00080,Sierra Vista,Pinal Ave,PVC,24,3331,1964,2,In Service,2025-03-11,34.105143,-112.600933
+SEG-00081,Pinal Valley,Highway 89A,Asbestos Cement,12,593,2018,4,In Service,2025-08-06,32.82179,-114.153029
+SEG-00082,Apache Junction,Fry Blvd,PVC,6,4779,2006,4,In Service,2025-07-28,34.184492,-113.94918
+SEG-00083,Apache Junction,Tombstone Canyon,HDPE,12,2996,2014,5,In Service,2025-09-27,34.559965,-112.487911
+SEG-00084,Sierra Vista,Pinal Ave,PVC,12,201,1999,3,In Service,2025-12-23,33.125285,-111.273729
+SEG-00085,Apache Junction,Brown Rd,Asbestos Cement,10,1472,2004,4,Under Repair,2025-08-24,33.975132,-110.032555
+SEG-00086,Lakeside,Tombstone Canyon,HDPE,8,4043,1979,3,Under Repair,2025-06-03,35.198751,-110.005671
+SEG-00087,Apache Junction,Fry Blvd,PVC,6,3340,1964,2,In Service,2025-01-14,32.191275,-112.558714
+SEG-00088,Bisbee,Val Vista Dr,Asbestos Cement,8,1008,2020,5,In Service,2025-10-16,31.99467,-112.02447
+SEG-00089,Sierra Vista,Apache Trail,Cast Iron,8,1282,2008,4,Decommissioned,2025-06-10,33.562023,-109.876894
+SEG-00090,Lakeside,Pinal Ave,Ductile Iron,4,2604,1995,4,Decommissioned,2025-08-10,33.090223,-112.912599
+SEG-00091,Lakeside,Florence Blvd,Ductile Iron,16,1532,1986,3,Decommissioned,2025-12-07,34.678797,-110.893732
+SEG-00092,Apache Junction,Cotton Ln,Ductile Iron,24,221,1971,3,Under Repair,2025-01-14,33.953158,-112.291387
+SEG-00093,Apache Junction,Val Vista Dr,HDPE,6,4443,2006,4,In Service,2025-08-27,34.092916,-110.786687
+SEG-00094,Sedona,Val Vista Dr,Cast Iron,10,4067,2020,5,In Service,2025-04-14,32.280397,-109.268993
+SEG-00095,Bisbee,Fry Blvd,PVC,10,1158,1979,2,In Service,2025-10-24,34.263953,-112.798062
+SEG-00096,Lakeside,American Ave,PVC,12,579,1967,2,Decommissioned,2025-06-27,33.588294,-111.767352
+SEG-00097,Oracle,American Ave,Asbestos Cement,6,3463,1986,3,Under Repair,2025-10-10,34.944366,-110.339213
+SEG-00098,Bisbee,Pinal Ave,HDPE,6,1481,2001,4,In Service,2025-07-28,32.255093,-111.713139
+SEG-00099,Pinal Valley,Pinal Ave,HDPE,8,346,1976,2,In Service,2025-05-28,32.840305,-110.459419
+SEG-00100,Bisbee,Val Vista Dr,PVC,8,328,1987,3,In Service,2025-08-15,32.427361,-109.720717
+SEG-00101,Apache Junction,Tombstone Canyon,Cast Iron,6,3162,1968,2,In Service,2025-02-25,34.978987,-112.946402
+SEG-00102,Pinal Valley,Florence Blvd,Asbestos Cement,8,428,1990,3,Decommissioned,2025-08-15,32.934653,-112.090299
+SEG-00103,Apache Junction,Porter Mtn Rd,Asbestos Cement,12,3338,2007,4,In Service,2025-11-22,31.654741,-110.38155
+SEG-00104,Apache Junction,Val Vista Dr,Cast Iron,12,574,1991,3,Decommissioned,2025-12-19,34.642484,-109.297394
+SEG-00105,Pinal Valley,Apache Trail,Cast Iron,12,1546,2016,5,In Service,2025-01-26,32.659923,-109.638125
+SEG-00106,White Tank,Brown Rd,Ductile Iron,24,1188,1975,2,Decommissioned,2025-02-16,32.373612,-112.224572
+SEG-00107,Pinal Valley,American Ave,Cast Iron,4,818,1998,3,In Service,2025-05-15,32.015272,-110.841757
+SEG-00108,Pinal Valley,Porter Mtn Rd,Asbestos Cement,4,3319,1993,4,Under Repair,2025-10-01,35.035138,-110.684686
+SEG-00109,Oracle,Pinal Ave,Asbestos Cement,10,3309,2003,3,In Service,2025-12-08,32.443575,-111.570181
+SEG-00110,Oracle,Tombstone Canyon,Ductile Iron,8,3404,2007,4,Decommissioned,2025-06-19,34.130588,-111.562466
+SEG-00111,Sierra Vista,Cotton Ln,Cast Iron,16,757,2011,4,In Service,2025-06-23,33.293149,-112.287519
+SEG-00112,Apache Junction,Apache Trail,Cast Iron,16,1664,1999,4,In Service,2025-11-01,32.008096,-110.020355
+SEG-00113,Lakeside,Porter Mtn Rd,Ductile Iron,6,233,1975,2,Under Repair,2025-03-27,33.630246,-113.964662
+SEG-00114,White Tank,Fry Blvd,Ductile Iron,12,900,1965,2,Decommissioned,2025-09-23,33.155245,-112.910559
+SEG-00115,White Tank,American Ave,HDPE,4,5031,1976,3,In Service,2025-09-06,32.550903,-111.444801
+SEG-00116,Lakeside,Porter Mtn Rd,Asbestos Cement,16,4234,1959,2,In Service,2025-01-12,32.571181,-109.698489
+SEG-00117,Sedona,Tombstone Canyon,Asbestos Cement,10,2620,2021,5,In Service,2025-04-14,33.571593,-109.29359
+SEG-00118,White Tank,Porter Mtn Rd,Cast Iron,6,3493,1996,4,Decommissioned,2025-12-18,34.213056,-113.868105
+SEG-00119,Sierra Vista,Fry Blvd,HDPE,16,2151,2011,4,Decommissioned,2025-12-12,34.428482,-111.58469
+SEG-00120,Sierra Vista,Apache Trail,PVC,6,2363,2020,4,Decommissioned,2025-07-10,34.054073,-111.623647

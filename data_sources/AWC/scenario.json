@@ -1,0 +1,11 @@
+{
+  "id": "AWC",
+  "name": "Arizona Water Company",
+  "industry": "Water utility",
+  "company": "Arizona Water Company",
+  "pack": "domain_pack/water_utility.example.json",
+  "people": "domain_pack/water_utility.people.json",
+  "datasources_csv": "awc-datasources.csv",
+  "courseware": "courseware/AWC",
+  "description": "The original workshop: 6-table awc_operations schema, awc-documents bucket (EPA compliance, GIS, SCADA, inspections)."
+}
