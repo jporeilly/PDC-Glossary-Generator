@@ -11,8 +11,9 @@ You connect PDC to CSCU's two sources: the **core banking database**
 
 - The shared lab is up with CSCU loaded: `cd data_sources/lab && make up &&
   make load SCENARIO=CSCU` (`make console` prints both connection blocks).
-- Workshop 0 users exist. Work as `elena.ramirez` (Data Steward) or
-  `catalog.admin`.
+- Workshop 0 users exist. Work as `omar.haddad` (**Data Storage
+  Administrator** — creating and ingesting data sources is his job;
+  `elena.ramirez`'s Data Steward role also carries the rights).
 - PDC ships PostgreSQL JDBC support in the lab image — no driver upload needed.
 
 ## Part A — the database source

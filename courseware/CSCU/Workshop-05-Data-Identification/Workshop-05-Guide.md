@@ -12,7 +12,10 @@ value list) and **patterns** (match a regex). CSCU is rich in both.
 
 ## Part A — system methods on the banking tables
 
-1. As `dana.ortiz`: **Data Operations → Data Identification**. Confirm the
+1. As `elena.ramirez` (**Data Steward** — in v11, Data Identification
+   Methods belong to the Data Steward and Data Storage Administrator roles;
+   Dana's Data Developer role cannot author them): **Data Operations → Data
+   Identification**. Confirm the
    built-in methods relevant to CSCU are enabled: SSN, Email Address, Phone
    Number, **Credit Card Number**, US Address/ZIP.
 2. Run identification on `members`, `cards`, `accounts`, `transactions`,

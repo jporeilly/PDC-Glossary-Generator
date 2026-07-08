@@ -90,11 +90,15 @@ sources. On the review grid:
 
 ### Step 5 — Govern
 
-The roster is pre-seeded with four stewards. **Auto-assign all slots** and
-verify it puts *Nadia Flores* (BSA/AML) on **Compliance & Risk**, *Marcus Webb*
-on **Lending**, *Tom Callahan* on **Cards & Payments**, *Elena Ramirez* on
-**Transactions / Accounts & Deposits**. Set ratings (Auto/DQ), review date,
-and status.
+The roster is pre-seeded with the CSCU team, each steward carrying the
+expertise keywords the matcher uses. **Auto-assign all slots** and verify
+the result: *Elena Ramirez* stewards **Member, Accounts & Deposits,
+Transactions, Branch Operations**; *Marcus Webb* **Lending, Finance &
+Ledger**; *Nadia Flores* **Compliance & Risk, Records & Documents**; *Tom
+Callahan* **Cards & Payments**. Elena's Data Steward role fills the
+**owner** slots, and *Omar Haddad* (Data Storage Administrator) fills every
+**custodian** slot — every pick shows its confidence and matched terms.
+Set ratings (Auto/DQ), review date, and status.
 
 ### Step 6 — Generate, import, resolve, apply
 

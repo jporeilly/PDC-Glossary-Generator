@@ -18,6 +18,8 @@ CSCU's compliance obligations into **Business Rules** the Rules Engine scores.
 
 ## Part B — business rules (the point of the workshop)
 
+Switch to `dana.ortiz` (**Data Developer** — in PDC v11 this role owns
+Business Rules; notably the Admin role can view but not create them).
 `assets/Copper-State-Credit-Union-Business-Rules.sql` carries six ready
 conditions in PDC's three-column shape (`total_count / scopeCount /
 nonCompliant`). Configure each via **Data Operations → Business Rules**:

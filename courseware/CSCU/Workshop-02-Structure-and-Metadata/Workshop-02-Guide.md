@@ -28,7 +28,14 @@ as column comments.
    evidence of one governance story.
    `[SCREENSHOT: PDF preview — PCI attestation]`
 
-## Part C — first searches
+## Part C — the role boundary, seen from a browser
+
+Sign out and repeat Part A's first step as `riley.morgan` (**Business
+User**): the glossary and policies are visible, but the data sources are
+absent — the Business tier's boundary, live. `[SCREENSHOT: riley.morgan view —
+no data sources]`
+
+## Part D — first searches
 
 1. Global search: `member number` — observe hits across tables and documents.
 2. Search `routing` — `ach_payments.ach_rte_no` plus the payments JSON files.
@@ -39,5 +46,6 @@ as column comments.
 - [ ] Can navigate schema → table → column and read comments
 - [ ] Found `cvv_cd` and its PCI comment
 - [ ] Previewed a compliance PDF; ran and saved a search
+- [ ] Saw the Business User vs Data User boundary as riley.morgan
 
 All Copper State Credit Union data is fictional and generated for training.

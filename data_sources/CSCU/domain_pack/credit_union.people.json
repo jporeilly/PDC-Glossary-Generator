@@ -4,10 +4,10 @@
       "community": "Data Operations; Glossary Stewards",
       "display_name": "Elena Ramirez",
       "email": "elena.ramirez@copperstatecu.org",
-      "expertise": "Deposits, transactions, member accounts, operations",
+      "expertise": "Members, member accounts, deposits, transactions, branch operations, share accounts",
       "id": "7f2a91c4-3b8e-4d16-9a57-c1e84f02ab31",
       "name": "elena.ramirez",
-      "owns": "Connects sources, profiles, runs identification, curates collections; owns Transactions / Accounts & Deposits terms",
+      "owns": "Connects sources, profiles, runs identification; stewards Member, Accounts & Deposits, Transactions and Branch Operations terms; owner slots via Data Steward",
       "roles": [
         "Data Steward",
         "Business Steward"
@@ -18,10 +18,10 @@
       "community": "Glossary Stewards",
       "display_name": "Marcus Webb",
       "email": "marcus.webb@copperstatecu.org",
-      "expertise": "Lending, loans, credit risk, collateral, APR, underwriting",
+      "expertise": "Lending, loans, credit risk, collateral, APR, underwriting, finance, general ledger",
       "id": "5c0d7e92-64af-4b3a-8d21-90b7f3ce6a48",
       "name": "marcus.webb",
-      "owns": "Owns Lending terms incl. Loan Number and APR",
+      "owns": "Stewards Lending and Finance & Ledger terms incl. Loan Number, APR and GL Account",
       "roles": [
         "Business Steward"
       ],
@@ -31,10 +31,10 @@
       "community": "Glossary Stewards",
       "display_name": "Nadia Flores",
       "email": "nadia.flores@copperstatecu.org",
-      "expertise": "Compliance, BSA, AML, KYC, fraud, audits, governance",
+      "expertise": "Compliance, BSA, AML, KYC, SAR, fraud, risk, audits, governance, records, documents",
       "id": "b81f4a06-2c95-4e7d-a3b8-64d0e92c517f",
       "name": "nadia.flores",
-      "owns": "Owns the Compliance & Risk terms (CDE) incl. Risk Rating and SAR",
+      "owns": "BSA/AML officer; stewards Compliance & Risk (all CDE) and Records & Documents terms",
       "roles": [
         "Business Steward"
       ],
@@ -44,22 +44,35 @@
       "community": "Glossary Stewards",
       "display_name": "Tom Callahan",
       "email": "tom.callahan@copperstatecu.org",
-      "expertise": "Cards, payments, ACH, PCI, disputes, chargebacks",
+      "expertise": "Cards, payments, ACH, PCI, routing, wire, disputes, chargebacks",
       "id": "e93c25b7-08d1-4f6a-bc94-27a5f80d3e62",
       "name": "tom.callahan",
-      "owns": "Owns Cards & Payments terms incl. Card Number and Routing Number",
+      "owns": "Stewards Cards & Payments terms incl. Card Number and Routing Number",
       "roles": [
         "Business Steward"
       ],
       "stakeholder_role": "Steward"
     },
     {
+      "community": "CSCU Data Operations",
+      "display_name": "Omar Haddad",
+      "email": "omar.haddad@copperstatecu.org",
+      "expertise": "Storage, data sources, infrastructure, ingest, connections, buckets",
+      "id": "2f6b91d3-7c04-4e8a-b5d2-91a6c30f47e8",
+      "name": "omar.haddad",
+      "owns": "Technical custodian of the stored data; creates and ingests data sources \u2014 fills the Govern custodian slot",
+      "roles": [
+        "Data Storage Administrator"
+      ],
+      "stakeholder_role": "Steward"
+    },
+    {
       "community": "Analysts",
-      "display_name": "Business Analyst",
-      "email": "business.analyst@copperstatecu.org",
+      "display_name": "Jordan Blake",
+      "email": "jordan.blake@copperstatecu.org",
       "expertise": "",
       "id": "",
-      "name": "business.analyst",
+      "name": "jordan.blake",
       "owns": "Optional persona: reads metadata (W2), searches (W6), Galaxy View (W11)",
       "roles": [
         "Data User"
@@ -81,14 +94,14 @@
     },
     {
       "community": "Data Operations",
-      "display_name": "Data Analyst",
-      "email": "data.analyst@copperstatecu.org",
-      "expertise": "",
+      "display_name": "Dana Ortiz",
+      "email": "dana.ortiz@copperstatecu.org",
+      "expertise": "Business rules, metadata rules, profiling, data quality",
       "id": "",
-      "name": "data.analyst",
-      "owns": "Optional persona: profiling (W4), lineage (W8), discovery (W6)",
+      "name": "dana.ortiz",
+      "owns": "Data Developer persona: authors business rules and domain logic (W4); no glossary edit rights",
       "roles": [
-        "Data Steward"
+        "Data Developer"
       ],
       "stakeholder_role": "Steward"
     }

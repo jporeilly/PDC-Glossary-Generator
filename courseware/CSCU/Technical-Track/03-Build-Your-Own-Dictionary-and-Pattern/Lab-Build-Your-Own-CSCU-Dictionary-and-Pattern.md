@@ -9,8 +9,9 @@ shape), combine them into a **policy**, and run it against the profiled
 ## Prerequisites
 
 - `cscu_core` ingested and **profiled** (BA Workshops 1 and 4).
-- A **Data Steward** or **Data Storage Administrator** login — Data Operations →
-  Data Identification Methods is role-gated.
+- A **Data Steward** or **Data Storage Administrator** login — in the CSCU
+  cast that is `elena.ramirez` or `omar.haddad`; Data Operations → Data
+  Identification Methods is role-gated.
 - Module 02 (the engine deep-dive) is strongly recommended first.
 
 ## Part A — a dictionary: CSCU Transaction Types

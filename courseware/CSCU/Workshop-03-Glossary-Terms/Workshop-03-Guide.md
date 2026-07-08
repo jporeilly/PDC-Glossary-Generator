@@ -36,8 +36,9 @@ assign stewards.
 
 ## Part C — link terms to columns
 
-Use `assets/CSCU-Term-Linking-Map.csv` (`schema,table,column → business_term`)
-to attach terms to the profiled columns — e.g. `members.mbr_no` → *Member
+As `elena.ramirez` (her Data Steward side carries the data-source write
+rights a Business Steward lacks), use `assets/CSCU-Term-Linking-Map.csv`
+(`schema,table,column → business_term`) to attach terms to the profiled columns — e.g. `members.mbr_no` → *Member
 Number*, `ach_payments.ach_rte_no` → *ACH Routing Number*. In the UI: open the
 column → **Business Terms → Add**. (The Technical Track automates exactly this
 via the app's Resolve → Apply.)
@@ -45,9 +46,11 @@ via the app's Resolve → Apply.)
 
 ## Part D — stewardship
 
-Assign each category's steward per `assets/users.csv` / the user-map CSV:
-Elena → Transactions, Accounts & Deposits; Marcus → Lending; Nadia →
-Compliance & Risk; Tom → Cards & Payments.
+Assign each category's steward per `assets/users.csv` / the user-map CSV —
+the expertise-driven map covers all nine categories:
+Elena → Member, Accounts & Deposits, Transactions, Branch Operations;
+Marcus → Lending, Finance & Ledger; Nadia → Compliance & Risk, Records &
+Documents; Tom → Cards & Payments.
 
 ## Checkpoint
 
