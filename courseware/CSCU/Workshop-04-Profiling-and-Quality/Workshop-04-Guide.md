@@ -1,9 +1,33 @@
 # Workshop 4 — Profile Data & Assess Quality (CSCU)
 
-*Copper State Credit Union scenario · PDC 10.2.11*
+*Copper State Credit Union scenario · PDC 11.0.0*
 
 You profile the `cscu_core` tables, read what the profiler found, then turn
 CSCU's compliance obligations into **Business Rules** the Rules Engine scores.
+
+## Why this workshop matters
+
+Profiling turns "we have a members table" into "members is 100% complete on
+`mbr_no`, 8 distinct transaction types, SSNs match the expected pattern".
+Business rules then turn obligations into numbers that recompute on a
+schedule — compliance you can trend, not assert.
+
+**The business problem.** Two of CSCU's obligations are already broken in the
+data, and nobody can see it: three opted-out members still hold live
+marketing emails (GDPR/CCPA exposure), and six stored CVV codes violate PCI
+DSS outright. This workshop makes both failures *measurable* — the
+prerequisite for fixing them and proving the fix.
+
+## What you will learn
+
+- What the profiler captures per column — completeness, cardinality,
+  patterns — and how to read it.
+- How PDC business rules work: the three-column SQL contract
+  (`total_count / scopeCount / nonCompliant`) the Rules Engine scores.
+- Why the rules are authored by a **Data Developer** (Dana) — v11's
+  role-gating in practice.
+- How the flagship opt-out rule and the PCI no-stored-CVV rule report the
+  planted violations.
 
 ## Part A — profile the tables
 

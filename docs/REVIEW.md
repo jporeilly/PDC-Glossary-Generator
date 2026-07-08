@@ -27,7 +27,7 @@ v3-compatible. The **job-execution** calls (Calculate Trust Score, trigger
 profiling/discovery, and harvest's test-connection/ingest) follow the v1/v2 style of
 one endpoint per job; **v3 reorganised these into a single bulk endpoint**, so under a
 literal `v3` selection those specific features may 404. **Recommendation: keep the
-connector on `v2` on a 10.2.11 instance (fully compatible).** A v3 job adapter — POST
+connector on `v2` on the lab's 11.0.0 instance (fully compatible).** A v3 job adapter — POST
 the bulk array and read the per-job result — is the one change needed for end-to-end
 v3, and is isolated to ~4 helpers in `pdc_api.py`.
 

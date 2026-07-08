@@ -1,51 +1,222 @@
 # Workshop 2 — Explore Structure & Metadata (CSCU)
 
-*Copper State Credit Union scenario · PDC 10.2.11*
+*Copper State Credit Union scenario · PDC 11.0.0*
 
-As `jordan.blake` (Business Analyst) you explore what the ingest captured:
-tables, columns, types, keys — and the business descriptions engineering left
-as column comments.
+**Primary role:** Business Analyst
+**Estimated time:** 60 min
 
-## Part A — the database structure
+## Why this workshop matters
 
-1. **Data Canvas** → `CopperState_Core_Banking` → schema `cscu_core`.
-   `[SCREENSHOT: Data Canvas — cscu_core table list]`
-2. Open **members**: 16 columns. Read the technical metadata (types, PK) and
-   the ingested comments — e.g. `ssn`: *"HIGHEST sensitivity — GLBA/identity-
-   theft exposure. Mask everywhere outside servicing."*
-3. Open **cards** and find `cvv_cd`. Its comment says the column **should not
-   exist** (PCI DSS 3.2). Bookmark this — Workshops 4 and 5 turn that comment
-   into a measurable rule and an identification finding.
-   `[SCREENSHOT: cards.cvv_cd column metadata with comment]`
-4. Trace a relationship chain: members → accounts → transactions (FKs), and
-   loans → members.
+A catalog is only as useful as the metadata it holds. In Workshop 1 you
+connected two data sources; now you learn to read what PDC captured about
+them. For a Copper State Credit Union analyst, this is the difference between
+staring at a table called `members` and understanding that it holds personal
+data, is described by governed business terms, carries a trust score, and
+links to accounts and transactions. Metadata is the context that turns raw
+data into something a business can trust and govern.
 
-## Part B — the document store
+> **The business problem.** A new analyst joins CSCU and is handed the
+> `members` table. Which column identifies the member? Which holds personal
+> data? Who owns the definition of "active member"? Without metadata, every
+> one of these questions means interrupting a colleague. With a
+> well-described catalog, the answers are on the asset's own pages.
+> Workshop 2 teaches you to find them.
 
-1. Open `CopperState_Documents` and browse the folder tree.
-2. Preview `compliance/pci_dss_saq_attestation_2026.pdf` — note it names the
-   same `cards.cvv_cd` issue found in Part A: structured and unstructured
-   evidence of one governance story.
-   `[SCREENSHOT: PDF preview — PCI attestation]`
+## What you will learn
 
-## Part C — the role boundary, seen from a browser
+- The three layers of metadata — technical, business, and operational — and
+  what each tells you.
+- How to read a table's columns, data types, sizes, and nullability in the
+  Data Canvas — and where key relationships appear once they are discovered.
+- How to read an asset's business metadata — its Description, Remarks, linked
+  Business Terms and Sensitivity — and where governance roles like Domain,
+  Classification, and Business Steward actually live.
+- How the same three-layer model applies to an unstructured document, not
+  just a table.
+- How to spot a metadata gap — a missing definition or owner — that needs a
+  steward's attention.
+
+## Background: the three layers of metadata
+
+PDC organizes what it knows about every asset into three layers. Learning to
+read all three is the core skill of this workshop:
+
+| Layer | Answers the question | Example for `members` |
+| --- | --- | --- |
+| Technical | What is it, physically? | Columns, data types, primary/foreign keys, row count |
+| Business | What does it mean? | Description / Remarks, linked Business Terms, Sensitivity (Domain, Classification & Business Steward live on the Glossary term) |
+| Operational | Can I trust it? | Quality score, last profiled date, lineage to other assets |
+
+Most technical metadata — columns, data types, sizes, and nullability — is
+captured automatically when you ingest a schema; row counts and the PK/FK
+column are added later by profiling: the PK/FK column reflects the keys
+declared in the source, surfaced by cross-table foreign-key detection once
+every related table is profiled.
+
+Business metadata is partly automatic and partly added by stewards — it is
+where human knowledge enters the catalog. Operational metadata accrues as the
+asset is profiled and used. Together they make an asset self-describing.
+
+## What's populated now — and what appears after Workshop 4
+
+Workshop 1 ran only Metadata Ingest (for the schema) and Scan Files (for the
+documents). That fills in the technical layer completely, but the business
+and operational layers are produced by processing jobs you run in Workshops 4
+and 5. So in this workshop you learn where each field lives and read what is
+there — and several fields will be empty until then. That is expected, not an
+error.
+
+| Processing job | What it populates | Available in Workshop 2? |
+| --- | --- | --- |
+| Metadata Ingest (Workshop 1) | Technical layer — columns, data types, sizes, nullability; file size and format for documents | Yes — fully available now |
+| Data Profiling / Data Discovery (Workshop 4) | Operational layer — column statistics, patterns, samples, row counts, last-profiled date; drives the foreign-key detection that fills the PK/FK column | No — empty until Workshop 4 |
+| Calculate Trust Score (Workshop 4) | Operational layer — the trust score, from data quality, ratings, lineage, and glossary terms; shown in Key Metrics | Default (0 / Untrusted) shows now; a real score needs profiling |
+| Data Identification (Workshop 5) | Business layer — Tags and Business Terms applied from dictionaries and patterns | No — empty until Workshop 5 |
+| PII Detection | Column-level PII flags — scope-limited (JDBC tables and CSV/TSV in specific languages) | Not applicable to CSCU's English documents |
+
+One exception: business metadata a steward types in — a Description, a
+Purpose, a steward name — does not depend on a processing job, so it may
+already be filled in. Part B is partly about spotting where those
+human-entered fields are still missing.
+
+> **Why the Trust Score reads 0 / Untrusted before profiling.** Every asset
+> carries a Trust Score from the moment it is cataloged: it defaults to
+> Untrusted (0), exactly as Sensitivity defaults to Unknown and Data Lineage
+> to Unverified. The score is a roll-up of four inputs — Data Quality, User
+> Ratings, Data Lineage, and whether a Glossary Term is assigned — and it is
+> a table- and file-level metric, computed for the asset as a whole, never
+> per column. Running Calculate Trust Score recomputes the roll-up from
+> whatever exists right now; on a freshly ingested table none of the inputs
+> are populated, so it stays 0. Only the Data Quality input needs profiling,
+> which is why a meaningful score appears after Workshop 4 — though you can
+> nudge it off 0 earlier by verifying lineage, adding a rating, or linking a
+> table-level term.
+
+## Before you begin
+
+### Prerequisites
+
+- Workshop 1 complete — both CSCU sources connected and visible in the Data
+  Canvas.
+- Work as `jordan.blake` (Data User — the Business Analyst persona).
+
+### Assets used in this workshop
+
+- The connected `cscu_core` database (the `members` table is the focus).
+- The PCI attestation PDF from `cscu-documents/compliance/` (to read document
+  metadata).
+
+## Step-by-step
+
+### Part A — Read a table's technical metadata
+
+1. In the left navigation menu, click **Data Canvas** and open the
+   `CopperState_Core_Banking` source.
+2. Select the `members` table. The Summary tab opens with an overview of the
+   asset.
+   `[SCREENSHOT: members table — Summary tab]`
+3. Open the **Details** tab to see the Contained Items — every column with
+   its Data Type, Column Size, and Nullable flag. Notice the PK/FK column is
+   still blank: it reflects the keys declared in the source, but PDC only
+   surfaces them through foreign-key detection, which runs on profiling
+   output across related tables in Workshop 4. For now, predict which column
+   is the key (`mbr_id`) and which look like foreign keys (`br_id`); you
+   will confirm them once every related table has been profiled.
+   `[SCREENSHOT: members Details tab — columns and types]`
+4. Find a column whose meaning is not obvious from its name — CSCU's schema
+   is full of them: `mbr_no`, `mbr_since_dt`, `opted_out_marketing`. The
+   technical layer tells you `opted_out_marketing` is a boolean, but not what
+   it is for. That is the business layer's job — and the ingested column
+   comment (*"GDPR/CCPA marketing-consent flag… CRITICAL compliance
+   control"*) is your first taste of it.
+
+### Part B — Read the business and operational layers
+
+1. On the `members` Summary tab, read the asset's own business metadata: the
+   Description, the Properties (Remarks), and the **Key Metrics** panel —
+   Data Quality, Data Lineage, Sensitivity, and Trust Score. A table has a
+   Sensitivity level (Unknown until set), not a Classification field.
+2. Open the **Business Terms** panel (or the Glossary tab). A table carries
+   no Domain, Classification, or Business Steward of its own — those are
+   built-in properties of the Glossary term you link to it. Terms arrive in
+   Workshop 3; after that, open a linked term to see its Domain,
+   Classification, Business Steward, and Owner.
+   `[SCREENSHOT: members Summary — Key Metrics and Business Terms panels]`
+3. Find where the data quality / trust score and the last-profiled date
+   appear in the operational layer. Expect them empty for now — they are
+   produced by Data Profiling and Calculate Trust Score in Workshop 4. Note
+   where lineage would appear.
+4. Identify at least one gap — an empty Description, no linked Business
+   Terms, Sensitivity still Unknown, or a Trust Score of Untrusted — and note
+   it as work for a steward. On `cards`, the `cvv_cd` column comment flags a
+   defect the stewards must own: bookmark it for Workshops 4 and 5.
+
+### Part C — The same three layers for a document
+
+Metadata is not just for tables. Open a document and see the same model
+expressed differently.
+
+1. In the Data Canvas, open the `compliance/` folder and select
+   `pci_dss_saq_attestation_2026.pdf`.
+2. On its Summary tab, find the **Document Properties** pane — file size,
+   format, and (after document processing) page count and owner. This is the
+   document's technical layer.
+3. Find the **Business Terms**, **Tags**, and **Custom Properties** panels —
+   the business layer, identical to a table's. Business Terms and Tags are
+   applied by Data Identification in Workshop 5, so they may be empty now;
+   Custom Properties can be set by a steward at any time.
+4. Read the first page of the attestation: it names the same `cards.cvv_cd`
+   issue you found in Part B — structured and unstructured evidence of one
+   governance story, side by side in one catalog.
+   `[SCREENSHOT: PCI attestation — Summary tab with Document Properties]`
+
+### Part D — The role boundary, seen from a browser
 
 Sign out and repeat Part A's first step as `riley.morgan` (**Business
 User**): the glossary and policies are visible, but the data sources are
-absent — the Business tier's boundary, live. `[SCREENSHOT: riley.morgan view —
-no data sources]`
+absent — the Business tier's boundary, live.
+`[SCREENSHOT: riley.morgan view — no data sources]`
 
-## Part D — first searches
+## Verify your work
 
-1. Global search: `member number` — observe hits across tables and documents.
-2. Search `routing` — `ach_payments.ach_rte_no` plus the payments JSON files.
-3. Save one search for reuse in Workshop 6.
+- [ ] You can state the data type, size, and nullability of any column in
+  `members`, and explain that key roles (PK/FK) surface once every related
+  table has been profiled in Workshop 4.
+- [ ] You can read the table's Sensitivity, Trust Score, Data Quality and
+  Data Lineage in Key Metrics, and explain that Domain, Classification, and
+  Business Steward live on the linked Glossary term.
+- [ ] You can locate where the quality score will appear (it populates in
+  Workshop 4) and explain which tab shows lineage.
+- [ ] You identified at least one metadata gap to hand to a steward —
+  including the `cvv_cd` comment.
+- [ ] You opened the PCI attestation PDF and found its Summary tab and
+  Document Properties.
+- [ ] You saw the Business User vs Data User boundary as `riley.morgan`.
 
-## Checkpoint
+## Troubleshooting
 
-- [ ] Can navigate schema → table → column and read comments
-- [ ] Found `cvv_cd` and its PCI comment
-- [ ] Previewed a compliance PDF; ran and saved a search
-- [ ] Saw the Business User vs Data User boundary as riley.morgan
+| Symptom | Cause and fix |
+| --- | --- |
+| The members table is missing | Schema ingest did not complete in Workshop 1, or it ingested `public`. Re-ingest the `cscu_core` schema |
+| No quality score shown | The table has not been profiled yet. That happens in Workshop 4; the field is empty until then |
+| Document has no page count or owner | Those come from document processing, run later. Format and size are available now |
+| riley.morgan sees data sources | The account carries an extra role. Check its roles in Users & Communities — Business User only |
+
+## Why it matters & discussion
+
+A new analyst asks, *"Can I email everyone in the members table about a new
+credit-card offer?"* Which single column answers that question, and which
+metadata layer does it belong to? Discuss why the answer
+(`opted_out_marketing`, a piece of business metadata with a compliance
+purpose) is far more valuable than any technical detail — and what it would
+cost CSCU, under GDPR/CCPA and its own privacy notice, to get that answer
+wrong. Workshop 4 turns exactly this question into a scheduled business rule.
+
+## What's next
+
+You can now read what the catalog knows. Workshop 3 builds the business
+glossary — the governed terms, sensitivity, and stewardship you link to
+CSCU's tables. Workshop 4 then measures how much you can trust the data —
+profiling its quality and scoring the compliance rules.
 
 All Copper State Credit Union data is fictional and generated for training.

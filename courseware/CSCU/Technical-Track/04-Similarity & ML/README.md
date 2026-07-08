@@ -7,8 +7,10 @@ value-distribution similarity between columns, term/tag propagation to similar
 columns, and where the Glossary Generator's **Find similar** (similarity-scored
 suggested merges) fits in the same story.
 
-> The deck and Word guide for the CSCU edition have not been produced yet —
-> `Similarity-ML-Inference-Guide.md` is the authoritative source: build the
-> .docx/.pptx from it and capture the screenshots on the CSCU lab.
+> The Word guide (`.docx`) is **generated from the markdown master** — the
+> `.md` stays authoritative. Amber boxes in the .docx mark where to paste
+> screenshots captured on the CSCU lab. Regenerate after editing the master:
+> `python ../tools/build-docx.py` (see `courseware/CSCU/tools/`). The deck
+> (.pptx) is still pending.
 
 All Copper State Credit Union data is fictional and generated for training.

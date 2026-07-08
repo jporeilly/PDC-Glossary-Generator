@@ -8,9 +8,11 @@ The conceptual deep-dive into PDC's auto-classification engine — how
 combine into **Policies** that apply **Tags and Business Terms** to profiled
 data.
 
-> The deck and Word guide for the CSCU edition have not been produced yet —
-> `Data-Identification-Guide.md` is the authoritative source: build the
-> .docx/.pptx from it and capture the screenshots on the CSCU lab.
+> The Word guide (`.docx`) is **generated from the markdown master** — the
+> `.md` stays authoritative. Amber boxes in the .docx mark where to paste
+> screenshots captured on the CSCU lab. Regenerate after editing the master:
+> `python ../tools/build-docx.py` (see `courseware/CSCU/tools/`). The deck
+> (.pptx) is still pending.
 
 Runs on **profiled** data; the Trust Score is computed **last**. Next module:
 **03 — Build Your Own CSCU Dictionary & Pattern** (hands-on).

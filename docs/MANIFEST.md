@@ -4,7 +4,7 @@ The Flask app, with the **Registry writer** hooked in at export time, plus the
 **Copper State Credit Union (CSCU)** training scenario (additional scenarios
 plug in as data folders). The **Policy Generator** ships
 **separately** as its own standalone app (`policy_generator/`). Validated
-against **PDC 10.2.11**.
+against **PDC 11.0.0**.
 
 ## The model
 

@@ -7,9 +7,10 @@
 
 - **`Workshop-00-Guide.md`** — the workshop guide (markdown master; explains the steps *and the reasoning*, with Copper State Credit Union context).
 
-> The deck and Word guide for the CSCU edition have not been produced yet —
-> `Workshop-00-Guide.md` is the authoritative source: build the .docx/.pptx from it
-> and capture the screenshots at each `[SCREENSHOT]` marker on the CSCU lab.
+> The Word guide (`.docx`) is **generated from the markdown master** — the
+> `.md` stays authoritative. Amber boxes in the .docx mark where to paste
+> screenshots captured on the CSCU lab. Regenerate after editing the master
+> with `courseware/CSCU/tools/build-docx.py`. The deck (.pptx) is pending.
 
 ## Assets used in this workshop
 

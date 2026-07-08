@@ -1,6 +1,6 @@
 # Installation & Setup — Run the Glossary Generator on Your Own PDC Instance
 
-*App version **1.7.2** · validated against **Pentaho Data Catalog 10.2.11**.*
+*App version **1.7.2** · validated against **Pentaho Data Catalog 11.0.0**.*
 
 This guide stands the **Glossary Generator** app up against *your* Pentaho Data
 Catalog (PDC) instance — your data sources, your accounts, your network. The app
@@ -29,7 +29,7 @@ lab this is typically the same VM the catalog work is done from.
 - **Python 3.9+** — for the local `run.sh` path.
 
 **A running PDC instance** with the public API enabled and reachable over HTTPS. This
-guide is validated against **PDC 10.2.11**; confirm your version's API segment (`v2`
+guide is validated against **PDC 11.0.0**; confirm your version's API segment (`v2`
 vs `v3`) from its Swagger — entity/search shapes are stable across both, but the
 `jobs` endpoints (Trust Score, Data Discovery) are richest in `v3`.
 

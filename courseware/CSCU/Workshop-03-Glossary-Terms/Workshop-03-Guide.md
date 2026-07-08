@@ -1,6 +1,6 @@
 # Workshop 3 — Build the Business Glossary (CSCU)
 
-*Copper State Credit Union scenario · PDC 10.2.11*
+*Copper State Credit Union scenario · PDC 11.0.0*
 
 You stand up CSCU's business glossary: eight categories (Member, Accounts &
 Deposits, Cards & Payments, Transactions, Lending, Compliance & Risk, Finance
@@ -13,6 +13,29 @@ assign stewards.
 > **Technical Track** builds the same glossary interactively with the
 > **Glossary Generator app** (scan → review → govern → generate). Use one path
 > per environment, not both.
+
+## Why this workshop matters
+
+Tables answer *where* data lives; the glossary answers *what it means* — in
+the language the business actually speaks. Terms carry the definitions,
+sensitivity and criticality that examiners ask about, and they are the
+anchor that later links columns, documents and policies into one governed
+vocabulary.
+
+**The business problem.** Ask three CSCU departments what "member number"
+means and you may get three answers (the ID, the account, the card). A
+governed glossary makes one answer authoritative, assigns it a steward by
+name, and connects it to the exact columns that hold it.
+
+## What you will learn
+
+- How a category tree and draft terms are imported in one pass — and why the
+  import replaces the whole glossary.
+- What a well-formed term carries: definition, sensitivity, CDE flag,
+  governed tags, steward.
+- How term-to-column links turn definitions into navigation.
+- How stewardship maps CSCU's four business domains onto named Business
+  Stewards.
 
 ## Part A — import the glossary
 

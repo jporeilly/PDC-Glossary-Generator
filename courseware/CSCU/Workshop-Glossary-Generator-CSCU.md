@@ -1,6 +1,6 @@
 # Workshop — Build the Business Glossary with the Glossary Generator
 
-*Copper State Credit Union (CSCU) scenario · app 1.7.x · validated against PDC 10.2.11*
+*Copper State Credit Union (CSCU) scenario · app 1.7.x · validated against PDC 11.0.0*
 
 **Primary role:** Data Steward / Solution Architect
 **Estimated time:** 60–90 min

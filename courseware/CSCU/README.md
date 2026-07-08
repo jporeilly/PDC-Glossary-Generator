@@ -14,10 +14,11 @@ The workshop set for the credit-union scenario. Workshops 0–5 are built;
 | [Workshop-04-Profiling-and-Quality](Workshop-04-Profiling-and-Quality/) | Profile the tables; six business rules incl. the flagship opt-out + PCI CVV | `Workshop-04-Guide.md` |
 | [Workshop-05-Data-Identification](Workshop-05-Data-Identification/) | Dictionaries + patterns on tables and documents; the cvv_cd triangulation | `Workshop-05-Guide.md` |
 
-Each workshop folder carries a README (package + assets list) and a
-`Workshop-XX-Guide.md` — the markdown master for the Word guide, with
-`[SCREENSHOT]` markers where captures from the CSCU lab go. Decks and .docx
-builds are pending; generate them from the guides.
+Each workshop folder carries a README (package + assets list), a
+`Workshop-XX-Guide.md` — the authoritative markdown master — and a
+`Workshop-XX-Guide.docx` generated from it in the course design
+([`tools/build-docx.py`](tools/)), with amber placeholder boxes where
+screenshots from the CSCU lab go. Decks (.pptx) are still pending.
 
 ## Technical Track
 

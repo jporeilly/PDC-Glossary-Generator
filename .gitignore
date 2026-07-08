@@ -10,3 +10,6 @@ venv/
 # OS cruft
 .DS_Store
 Thumbs.db
+
+# Local Claude settings
+.claude/

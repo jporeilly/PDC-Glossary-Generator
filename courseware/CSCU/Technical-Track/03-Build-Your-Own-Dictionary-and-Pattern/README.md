@@ -6,10 +6,10 @@
 A hands-on lab: you author **one dictionary** and **one pattern**, combine them
 into a **policy**, and run it on Copper State Credit Union data.
 
-> The deck and Word guide for the CSCU edition have not been produced yet —
-> `Lab-Build-Your-Own-CSCU-Dictionary-and-Pattern.md` is the authoritative
-> source: build the .docx/.pptx from it and capture the screenshots at each
-> `[SCREENSHOT]` marker on the CSCU lab.
+> The Word guide (`.docx`) is **generated from the markdown master** — the
+> `.md` stays authoritative. Amber boxes in the .docx mark where to paste
+> screenshots captured on the CSCU lab. Regenerate after editing the master
+> with `courseware/CSCU/tools/build-docx.py`. The deck (.pptx) is pending.
 
 Worked examples: the **CSCU Transaction Types** dictionary (match by content)
 and the **CSCU Member Number** pattern `CSCU-nnnnnn` (match by shape). Profile

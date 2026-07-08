@@ -1,6 +1,6 @@
 # Workshop 5 — Data Identification (CSCU)
 
-*Copper State Credit Union scenario · PDC 10.2.11*
+*Copper State Credit Union scenario · PDC 11.0.0*
 
 Data Identification stamps **tags and sensitivity** onto columns (and, via
 Data Discovery, documents) using two method types: **dictionaries** (match a
@@ -9,6 +9,31 @@ value list) and **patterns** (match a regex). CSCU is rich in both.
 > **Identify once.** Run Data Identification as a one-time baseline. After the
 > stewards override tags/sensitivity (Technical Track: the Glossary Generator's
 > Apply), re-running identification clobbers their work.
+
+## Why this workshop matters
+
+Nobody hand-classifies eleven tables, let alone a document store. Data
+Identification is PDC's engine for doing it automatically — dictionaries
+match by *content*, patterns match by *shape* — and this workshop is where
+tags and sensitivity start appearing on columns without a steward touching
+each one.
+
+**The business problem.** CSCU's sensitive data does not stay in neatly
+labelled columns: member numbers appear inside correspondence, card numbers
+inside disputes, cities inside letters. Identification finds them wherever
+they occur — and the one thing it *misses* (`cvv_cd`, a 3-digit column no
+generic method recognises) teaches the limits: engines baseline, stewards
+decide.
+
+## What you will learn
+
+- The two method types — dictionaries and data patterns — and when each is
+  the right tool.
+- How to run identification with system methods and read the results on the
+  banking tables.
+- How to upload and attach CSCU's custom dictionaries.
+- How Data Discovery extends identification to unstructured documents.
+- Why you identify **once**, and where the steward's judgement takes over.
 
 ## Part A — system methods on the banking tables
 
