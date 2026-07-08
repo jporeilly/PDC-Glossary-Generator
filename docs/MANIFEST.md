@@ -1,7 +1,8 @@
-# Glossary Generator — repository manifest (1.7.1)
+# Glossary Generator — repository manifest (1.7.2)
 
-The Flask app, with the **Registry writer** hooked in at export time, plus two
-complete, fully separated training scenarios. The **Policy Generator** ships
+The Flask app, with the **Registry writer** hooked in at export time, plus the
+**Copper State Credit Union (CSCU)** training scenario (additional scenarios
+plug in as data folders). The **Policy Generator** ships
 **separately** as its own standalone app (`policy_generator/`). Validated
 against **PDC 10.2.11**.
 
@@ -48,15 +49,11 @@ PDC-Glossary/
     lab/                        SHARED stack: one PostgreSQL + one MinIO for all
                                 scenarios (make load SCENARIO=<ID> creates that
                                 scenario's database + bucket + documents)
-    AWC/                        Arizona Water Company (water utility) — data only
-      postgres-init/  awc-documents/  domain_pack/
-      awc-domain-pack.zip  awc-datasources.csv  scenario.json
     CSCU/                       Copper State Credit Union (financial) — data only
       postgres-init/  cscu-documents/  domain_pack/
       cscu-domain-pack.zip  cscu-datasources.csv  scenario.json
-  courseware/                   two complete sets — one per scenario
-    AWC/                        original .docx guide + .pptx deck + topic notes
-    CSCU/                       markdown workshop guide + topic notes
+  courseware/
+    CSCU/                       workshop guides (markdown masters) + topic notes
 ```
 
 The **Policy Generator** is delivered separately as `policy_generator/` (its own zip):
@@ -70,8 +67,8 @@ Docker: `docker compose up --build`. Full setup is in **`INSTALL.md`**.
 ## Install a scenario
 
 Unzip the scenario's pack into `glossary_generator/`
-(`data_sources/CSCU/cscu-domain-pack.zip` or `data_sources/AWC/awc-domain-pack.zip`),
-delete any previous `tag_dictionary.json`, restart. **One scenario at a time.**
+(`data_sources/CSCU/cscu-domain-pack.zip`), delete any previous
+`tag_dictionary.json`, restart. **One scenario at a time.**
 
 ## Test the Registry writer (offline)
 

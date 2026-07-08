@@ -6,8 +6,7 @@ changes in the documented connection values and nothing conflicts:
 
 | Scenario | PostgreSQL database | MinIO bucket | Read-only users |
 | --- | --- | --- | --- |
-| AWC | `awc_operations` (6 tables) | `awc-documents` | `pdc_user` · `awc_minio_user` |
-| CSCU | `cscu_core` (11 tables) | `cscu-documents` | `pdc_user` · `cscu_minio_user` |
+| CSCU | `cscu_core` (11 tables) | `cscu-documents` (18 files) | `pdc_user` · `cscu_minio_user` |
 
 The stack itself is scenario-free: containers `demo-postgres` and
 `demo-minio` on the `demo-net` network, admin account `demo_admin`.
@@ -16,7 +15,7 @@ binds 5432 on the lab VM); in-container it is still 5432. MinIO publishes
 on 9000/9001 as before.
 Scenario data (schemas, tables, sample rows, documents, read-only grants)
 is applied by the **loader script**, driven by each scenario folder's
-`scenario.json` — drop a new scenario folder next to AWC/CSCU and it becomes
+`scenario.json` — drop a new scenario folder next to CSCU and it becomes
 loadable with no script changes.
 
 ## Quick start (on the Docker host — the Ubuntu VM)
@@ -25,7 +24,6 @@ loadable with no script changes.
 cp .env.example .env
 make up                    # start the shared postgres + minio
 make load SCENARIO=CSCU    # create cscu_core + cscu-documents, load + verify
-make load SCENARIO=AWC     # and/or the water scenario — they coexist
 make console               # PDC connection details per scenario
 ```
 
@@ -40,8 +38,8 @@ idempotent — an existing database is left untouched (use
    the read-only `pdc_user` grants), and verifies the expected table count.
 2. **MinIO** — creates the scenario's bucket, creates its read-only user and
    a bucket-scoped read-only policy, uploads the documents folder, and
-   verifies the object count. Both buckets (`awc-documents`,
-   `cscu-documents`) live in the same MinIO.
+   verifies the object count. Every scenario's bucket lives in the same
+   MinIO.
 
 ## Targets
 

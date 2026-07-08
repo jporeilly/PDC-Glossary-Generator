@@ -268,9 +268,8 @@ The engine is scenario-agnostic. Two knobs tailor it without code changes:
 - **Domain pack** — an optional JSON of scenario vocabulary (table→category,
   table→term, keyword rules, abbreviations, category definitions). Point at it with
   `GLOSSARY_DOMAIN_PACK=path/to/pack.json`, or drop `domain_pack.json` beside
-  `suggester.py`. Two complete scenario packs ship with ready-to-install zips:
-  the **Copper State Credit Union** pack (`data_sources/CSCU/domain_pack/`) and the
-  **Arizona Water Company** pack (`data_sources/AWC/domain_pack/`). See
+  `suggester.py`. The **Copper State Credit Union** pack ships with a
+  ready-to-install zip (`data_sources/CSCU/domain_pack/`). See
   `glossary_generator/domain_packs/README.md` for the pack format.
 
 Connections, buckets, and the glossary name are all set in the app UI or via the

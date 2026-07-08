@@ -53,8 +53,6 @@ tag rules, and matches the default `domain_pack.json`. Its companion
 `credit_union.people.json` seeds the CSCU steward roster
 (`GLOSSARY_PEOPLE_SEED=domain_packs/credit_union.people.json`).
 
-The previous **Arizona Water Company (AWC)** water-utility scenario ships separately and
-completely — pack, roster, lab stack, documents and courseware — under
-`data_sources/AWC/` and `courseware/AWC/` at the repo root, with a ready-to-install
-pack zip. Don't mix the two scenarios: install one pack, reseed, and keep the other
-archived.
+Additional scenario packs plug in the same way: a `data_sources/<ID>/domain_pack/`
+folder plus a `scenario.json` manifest. Don't mix scenarios: install one pack at a
+time and reseed.

@@ -8,7 +8,6 @@ pack + install zip, bulk-load CSV, `scenario.json` manifest).
 
 | Folder | Scenario | Database | Documents |
 | --- | --- | --- | --- |
-| [`AWC/`](AWC/) | **Arizona Water Company** — water utility | `awc_operations` (6 tables) | `awc-documents` bucket |
 | [`CSCU/`](CSCU/) | **Copper State Credit Union** — financial services | `cscu_core` (11 tables) | `cscu-documents` bucket (18 files) |
 
 Quick start (on the Docker host — the Ubuntu VM):
@@ -17,7 +16,7 @@ Quick start (on the Docker host — the Ubuntu VM):
 cd lab
 cp .env.example .env
 make up                    # start demo-postgres + demo-minio
-make load SCENARIO=CSCU    # and/or SCENARIO=AWC — they coexist
+make load SCENARIO=CSCU
 make console               # PDC connection details per scenario
 ```
 

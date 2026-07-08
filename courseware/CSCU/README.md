@@ -1,8 +1,7 @@
 # CSCU courseware — Copper State Credit Union (financial services)
 
 The workshop set for the credit-union scenario. Workshops 0–5 are built;
-6–11 have not been produced for CSCU yet (the AWC set covers them for the
-water-utility scenario).
+6–11 have not been produced yet.
 
 ## Workshops
 

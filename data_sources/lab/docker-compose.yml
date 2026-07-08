@@ -2,7 +2,7 @@
 #  PDC demo lab — SHARED stack for all scenarios
 #  One PostgreSQL + one MinIO. Scenarios are loaded into it on
 #  demand with ./load-scenario.sh <ID> — each scenario gets its
-#  own DATABASE (awc_operations, cscu_core, ...) and its own
+#  own DATABASE (cscu_core, ...) and its own
 #  BUCKET, so they coexist without port conflicts.
 #
 #  Credentials come from .env. Brought up by `make up`.
