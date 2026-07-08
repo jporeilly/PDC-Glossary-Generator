@@ -27,7 +27,9 @@ INSERT INTO branches VALUES
 (10, 'Phoenix Camelback',   '2201 E Camelback Rd',  'Phoenix',     'Maricopa', '85016', '602-555-0110', NULL, '1998-04-12', 'Open'),
 (20, 'Tempe University',    '798 S Mill Ave',       'Tempe',       'Maricopa', '85281', '480-555-0120', NULL, '2004-09-01', 'Open'),
 (30, 'Tucson Speedway',     '4550 E Speedway Blvd', 'Tucson',      'Pima',     '85712', '520-555-0130', NULL, '2001-06-18', 'Open'),
-(40, 'Casa Grande Plaza',   '1355 E Florence Blvd', 'Casa Grande', 'Pinal',    '85122', '520-555-0140', NULL, '2012-02-27', 'Open');
+(40, 'Casa Grande Plaza',   '1355 E Florence Blvd', 'Casa Grande', 'Pinal',    '85122', '520-555-0140', NULL, '2012-02-27', 'Open'),
+(50, 'Globe Broad Street',  '150 N Broad St',       'Globe',       'Gila',     '85501', '928-555-0150', NULL, '2016-05-09', 'Open'),
+(60, 'Prescott Courthouse', '201 N Cortez St',      'Prescott',    'Yavapai',  '86301', '928-555-0160', NULL, '2008-10-13', 'Open');
 
 -- ==========================================
 -- Table 2: employees (branch staff)
@@ -49,12 +51,16 @@ INSERT INTO employees VALUES
 (903, 'Nadia',  'Flores',     'nadia.flores@copperstatecu.org',    10, 'COMPLIANCE',   '2016-01-25', 'Active'),
 (904, 'Tom',    'Callahan', 'tom.callahan@copperstatecu.org',  20, 'BR_MGR',       '2011-11-07', 'Active'),
 (905, 'Dana',   'Ortiz',    'dana.ortiz@copperstatecu.org',    30, 'MSR',          '2019-06-03', 'Active'),
-(906, 'Sam',    'Whitfield','sam.whitfield@copperstatecu.org', 40, 'TELLER',       '2022-02-21', 'Active');
+(906, 'Sam',    'Whitfield','sam.whitfield@copperstatecu.org', 40, 'TELLER',       '2022-02-21', 'Active'),
+(907, 'Carla',  'Bustamante','carla.bustamante@copperstatecu.org', 50, 'BR_MGR',    '2016-05-09', 'Active'),
+(908, 'Owen',   'Maddox',   'owen.maddox@copperstatecu.org',   60, 'BR_MGR',       '2009-01-20', 'Active');
 
 ALTER TABLE branches
     ADD CONSTRAINT fk_branches_mgr FOREIGN KEY (mgr_emp_id) REFERENCES employees(emp_id);
 UPDATE branches SET mgr_emp_id = 901 WHERE br_id = 10;
 UPDATE branches SET mgr_emp_id = 904 WHERE br_id = 20;
+UPDATE branches SET mgr_emp_id = 907 WHERE br_id = 50;
+UPDATE branches SET mgr_emp_id = 908 WHERE br_id = 60;
 
 -- ==========================================
 -- Table 3: members (the credit-union member master file)
@@ -90,7 +96,10 @@ INSERT INTO members VALUES
 (5007, 'CSCU-100507', 'Ray',     'Delgado',  '000-27-6634', '1955-01-03', 'ray.delgado@email.com',    '520-555-0207', '508 E Cottonwood Ln', 'Casa Grande', 'AZ', '85122', 40, '2000-09-15', 'Dormant', TRUE),
 (5008, 'CSCU-100508', 'Monica',  'Steele',   '000-19-4451', '1983-11-27', 'monica.steele@email.com',  '602-555-0208', '6040 N 7th Ave',      'Phoenix',     'AZ', '85013', 10, '2011-06-08', 'Active', FALSE),
 (5009, 'CSCU-100509', 'Victor',  'Kowalski', '000-85-7709', '1974-08-16', 'victor.kowalski@email.com','480-555-0209', '1745 E Broadway Rd',  'Tempe',       'AZ', '85282', 20, '2016-12-01', 'Active', FALSE),
-(5010, 'CSCU-100510', 'Leah',    'Tsosie',   '000-31-9987', '1990-03-22', 'leah.tsosie@email.com',    '520-555-0210', '2210 W McCartney Rd', 'Casa Grande', 'AZ', '85122', 40, '2020-07-27', 'Active', FALSE);
+(5010, 'CSCU-100510', 'Leah',    'Tsosie',   '000-31-9987', '1990-03-22', 'leah.tsosie@email.com',    '520-555-0210', '2210 W McCartney Rd', 'Casa Grande', 'AZ', '85122', 40, '2020-07-27', 'Active', FALSE),
+(5011, 'CSCU-100511', 'Hannah',  'Quintero', '000-46-7731', '1987-05-17', 'hannah.quintero@email.com','928-555-0211', '345 S Hill St',       'Globe',       'AZ', '85501', 50, '2017-03-08', 'Active', FALSE),
+(5012, 'CSCU-100512', 'Frank',   'Bellamy',  '000-58-2210', '1961-10-02', 'frank.bellamy@email.com',  '928-555-0212', '820 W Gurley St',     'Prescott',    'AZ', '86305', 60, '2010-11-19', 'Active', FALSE),
+(5013, 'CSCU-100513', 'Teresa',  'Nakai',    '000-72-8845', '1994-01-29', 'teresa.nakai@email.com',   '928-555-0213', '77 E Oak St',         'Globe',       'AZ', '85501', 50, '2023-06-14', 'Active', FALSE);
 
 -- ==========================================
 -- Table 4: accounts (share/checking/certificate accounts)
@@ -121,7 +130,10 @@ INSERT INTO accounts VALUES
 (70009, 'ACC-00070009', 5008, 10, 'CERT_36MO', '2024-06-30', NULL, 'Open',   50000.00,     0.00, 0.0450),
 (70010, 'ACC-00070010', 5009, 20, 'CHECKING',  '2016-12-01', NULL, 'Open',    5321.90,  5321.90, 0.0005),
 (70011, 'ACC-00070011', 5010, 40, 'CHECKING',  '2020-07-27', NULL, 'Open',     418.63,   418.63, 0.0005),
-(70012, 'ACC-00070012', 5004, 20, 'CERT_12MO', '2025-11-15', NULL, 'Open',   25000.00,     0.00, 0.0410);
+(70012, 'ACC-00070012', 5004, 20, 'CERT_12MO', '2025-11-15', NULL, 'Open',   25000.00,     0.00, 0.0410),
+(70013, 'ACC-00070013', 5011, 50, 'CHECKING',  '2017-03-08', NULL, 'Open',    2210.40,  2210.40, 0.0005),
+(70014, 'ACC-00070014', 5012, 60, 'SHARE',     '2010-11-19', NULL, 'Open',   15320.00, 15320.00, 0.0150),
+(70015, 'ACC-00070015', 5013, 50, 'SHARE',     '2023-06-14', NULL, 'Open',     305.20,   305.20, 0.0150);
 
 -- ==========================================
 -- Table 5: cards (payment cards issued on accounts)
@@ -178,7 +190,9 @@ INSERT INTO transactions VALUES
 (900012, 70011, '2026-06-15 08:00:00', '2026-06-15', -400.00, 'XFER',     NULL,                       NULL,   'transfer to loan 91004'),
 (900013, 70002, '2026-06-16 21:12:05', '2026-06-16', -9450.00,'ACH_DR',   'COIN-XCHNG DIGITAL',       NULL,   'external transfer'),
 (900014, 70002, '2026-06-17 21:15:44', '2026-06-17', -9450.00,'ACH_DR',   'COIN-XCHNG DIGITAL',       NULL,   'external transfer'),
-(900015, 70004, '2026-06-20 11:30:00', '2026-06-20',   25.00, 'XFER',     NULL,                       NULL,   'share deposit');
+(900015, 70004, '2026-06-20 11:30:00', '2026-06-20',   25.00, 'XFER',     NULL,                       NULL,   'share deposit'),
+(900016, 70013, '2026-06-21 10:05:12', '2026-06-21',  -62.35, 'POS',      'Safeway 1189 Globe',       '5411', 'groceries'),
+(900017, 70014, '2026-06-30 00:00:00', '2026-06-30',   19.11, 'DIVIDEND', NULL,                       NULL,   'monthly dividend');
 
 -- ==========================================
 -- Table 7: loans (consumer + real-estate lending)
@@ -393,7 +407,7 @@ WHERE s.sar_status <> 'Closed';
 -- ==========================================
 -- Add metadata comments for PDC
 -- ==========================================
-COMMENT ON TABLE members IS 'Copper State Credit Union member master file. Contains PII (names, SSN, DOB, addresses, phone, email) for every member across the four Arizona branches. CONFIDENTIAL.';
+COMMENT ON TABLE members IS 'Copper State Credit Union member master file. Contains PII (names, SSN, DOB, addresses, phone, email) for every member across the six Arizona branches. CONFIDENTIAL.';
 
 COMMENT ON COLUMN members.mbr_no IS 'Unique CSCU member number in format CSCU-NNNNNN. Primary member identifier used on statements and in correspondence. CONFIDENTIAL PII.';
 
@@ -441,7 +455,7 @@ COMMENT ON COLUMN suspicious_activity.activity_type_cd IS 'Suspicious-activity c
 
 COMMENT ON TABLE gl_entries IS 'General-ledger postings (double entry): 1xxx assets, 2xxx liabilities, 4xxx income, 5xxx expense. Feeds the call report and financial statements.';
 
-COMMENT ON TABLE branches IS 'CSCU branch network reference data: four Arizona branches with manager and status.';
+COMMENT ON TABLE branches IS 'CSCU branch network reference data: six Arizona branches with manager and status.';
 
 COMMENT ON TABLE employees IS 'Branch staff master: role, branch and status. Contains employee PII (names, email).';
 

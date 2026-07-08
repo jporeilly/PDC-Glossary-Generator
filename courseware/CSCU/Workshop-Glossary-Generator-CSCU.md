@@ -13,8 +13,9 @@ PDC reachable over HTTPS, the CSCU domain pack installed
 
 ## 1. The scenario
 
-**Copper State Credit Union** is a fictional Arizona credit union with four
-branches, ~10 pilot members, and a core banking schema (`cscu_core`, 11 tables)
+**Copper State Credit Union** is a fictional Arizona credit union with six
+branches (Phoenix, Tempe, Tucson, Casa Grande, Globe, Prescott), ~13 pilot
+members, and a core banking schema (`cscu_core`, 11 tables)
 plus a document store (`cscu-documents` bucket, 18 files). Its data estate has
 exactly the governance problems the Registry approach fixes:
 
