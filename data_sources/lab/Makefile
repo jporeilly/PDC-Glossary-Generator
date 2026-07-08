@@ -99,8 +99,8 @@ console:
 	@echo "  $(C_INFO)$(C_BOLD)PDC demo lab — connection details (shared stack)$(C_OFF)"
 	@echo ""
 	@echo "  PostgreSQL:  $(PG_CONTAINER):5432 in-network · <VM-IP>:$(PG_PORT) from outside"
-	@echo "  MinIO S3:    $(MINIO_ENDPOINT) in-network · http://<VM-IP>:9000 from outside"
-	@echo "  MinIO console: http://<VM-IP>:9001  ($(MINIO_ROOT_USER) / $(MINIO_ROOT_PASSWORD))"
+	@echo "  MinIO S3:    $(MINIO_ENDPOINT) in-network · http://<VM-IP>:$(MINIO_PORT) from outside"
+	@echo "  MinIO console: http://<VM-IP>:$(MINIO_CONSOLE_PORT)  ($(MINIO_ROOT_USER) / $(MINIO_ROOT_PASSWORD))"
 	@echo ""
 	@for m in ../*/scenario.json; do \
 		id=$$(basename $$(dirname $$m)); \

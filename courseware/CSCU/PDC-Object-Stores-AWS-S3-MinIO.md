@@ -91,7 +91,7 @@ The same source needs **different host values depending on who connects**:
 | **The Glossary app** (Schema / Files / Test / live-scan) | Host reachable from where the app runs, e.g. `localhost:5433`, `192.168.1.200:9000` | The app runs outside Docker; service names don't resolve, and container ports must be published to the host. |
 
 So the loader CSV keeps the PDC-correct names, and **Add to app connections** offers a
-reachability remap (`demo-postgres=192.168.1.200`) to rewrite host/port on the
+reachability remap (`demo-postgres=192.168.1.200, 5432=5433`) to rewrite host/port on the
 app's copies at import time. A Docker service name that fails from the app host with
 *"Temporary failure in name resolution"* is this, not a credential problem.
 

@@ -24,7 +24,7 @@ You connect PDC to CSCU's two sources: the **core banking database**
    | Field | Value |
    | --- | --- |
    | Name | `CopperState_Core_Banking` |
-   | Host / Port | `192.168.1.200` / `5432` |
+   | Host / Port | `192.168.1.200` / `5433` (the shared lab publishes on 5433 — PDC's own PostgreSQL owns 5432) |
    | Database | `cscu_core` |
    | User / Password | `pdc_user` / `catalog123!` (read-only) |
    | Schemas | `cscu_core` — **not** `public` (an empty schema ingests "OK" and harvests nothing) |

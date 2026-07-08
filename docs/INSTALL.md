@@ -215,7 +215,7 @@ pre-filled with the two CSCU lab connections, ready to load:
 
 | kind | resourceName | reaches |
 | --- | --- | --- |
-| `postgres` | `CopperState_Core_Banking` | `192.168.1.200:5432` (shared `demo-postgres`) · db `cscu_core` · user `pdc_user` · schema `cscu_core` |
+| `postgres` | `CopperState_Core_Banking` | `192.168.1.200:5433` (shared `demo-postgres`, published on 5433) · db `cscu_core` · user `pdc_user` · schema `cscu_core` |
 | `minio` | `CopperState_Documents` | `http://192.168.1.200:9000` · bucket `cscu-documents` · path `/` |
 
 The credentials in it are the **lab values** (`catalog123!`, `minio_secret_123!`) — change

@@ -11,6 +11,9 @@ changes in the documented connection values and nothing conflicts:
 
 The stack itself is scenario-free: containers `demo-postgres` and
 `demo-minio` on the `demo-net` network, admin account `demo_admin`.
+PostgreSQL publishes on host port **5433** (PDC's own PostgreSQL already
+binds 5432 on the lab VM); in-container it is still 5432. MinIO publishes
+on 9000/9001 as before.
 Scenario data (schemas, tables, sample rows, documents, read-only grants)
 is applied by the **loader script**, driven by each scenario folder's
 `scenario.json` — drop a new scenario folder next to AWC/CSCU and it becomes
@@ -55,14 +58,14 @@ idempotent — an existing database is left untouched (use
 
 ## Connecting (same topology as before)
 
-The published ports are identical to the old per-scenario stacks, so every
-documented connection value still holds — only the container names changed
-(`demo-postgres` / `demo-minio`):
+PostgreSQL publishes on **5433** (5432 belongs to PDC's own database on the
+same VM); MinIO on 9000/9001:
 
 - **From the Windows 11 host (the Glossary Generator app):** PostgreSQL
-  `192.168.1.200:5432`, MinIO `http://192.168.1.200:9000`.
-- **From PDC (in the VM):** `192.168.1.200:5432` / `http://192.168.1.200:9000`
-  (published ports) — or the container names if PDC shares `demo-net`.
+  `192.168.1.200:5433`, MinIO `http://192.168.1.200:9000`.
+- **From PDC (in the VM):** `192.168.1.200:5433` / `http://192.168.1.200:9000`
+  (published ports) — or `demo-postgres:5432` / `http://demo-minio:9000` if
+  PDC shares `demo-net`.
 - Database / schema / credentials per scenario: see the table above or
   `make console`. Full topology notes (hosts file, ufw, `https://pentaho.io`)
   are in each scenario's README.

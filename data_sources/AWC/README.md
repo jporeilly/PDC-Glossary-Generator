@@ -49,9 +49,9 @@ same two sources — use the right value for each:
 
 | Who connects | PostgreSQL | MinIO (S3 API) |
 | --- | --- | --- |
-| **The app** (Windows host) | Host `192.168.1.200` : `5432` | Endpoint `http://192.168.1.200:9000` |
-| **PDC** (containers in the VM) | `192.168.1.200:5432` (published port) — or `demo-postgres:5432` only if PDC shares the lab's `demo-net` network | `http://192.168.1.200:9000` — or `http://demo-minio:9000` on `demo-net` |
-| **Shell on the VM** | `localhost:5432` | `http://localhost:9000` |
+| **The app** (Windows host) | Host `192.168.1.200` : `5433` | Endpoint `http://192.168.1.200:9000` |
+| **PDC** (containers in the VM) | `192.168.1.200:5433` (published port) — or `demo-postgres:5432` only if PDC shares the lab's `demo-net` network | `http://192.168.1.200:9000` — or `http://demo-minio:9000` on `demo-net` |
+| **Shell on the VM** | `localhost:5433` | `http://localhost:9000` |
 
 Never use `localhost` from Windows — that's the Windows machine, not the VM.
 The container names (`demo-postgres`, `demo-minio`) resolve **only inside the
@@ -60,11 +60,12 @@ The IP endpoint also forces S3 **path-style** addressing, which MinIO requires.
 
 ### One-time setup on the VM (Ubuntu 24.04)
 
-Docker publishes 5432/9000/9001 to the VM's interfaces, so from the VM side
-you only need the firewall open if `ufw` is on:
+Docker publishes 5433/9000/9001 to the VM's interfaces (PostgreSQL sits on
+**5433** because PDC's own database owns 5432 on this VM), so from the VM
+side you only need the firewall open if `ufw` is on:
 
 ```sh
-sudo ufw allow 5432/tcp   # PostgreSQL  (app + PDC)
+sudo ufw allow 5433/tcp   # demo-lab PostgreSQL  (app + PDC)
 sudo ufw allow 9000/tcp   # MinIO S3 API (app + PDC)
 sudo ufw allow 9001/tcp   # MinIO console (optional, browser only)
 sudo ufw allow 443/tcp    # PDC (https://pentaho.io)
@@ -85,7 +86,7 @@ Add-Content C:\Windows\System32\drivers\etc\hosts "192.168.1.200  pentaho.io"
 Then verify everything is reachable from Windows:
 
 ```powershell
-Test-NetConnection 192.168.1.200 -Port 5432                      # PostgreSQL
+Test-NetConnection 192.168.1.200 -Port 5433                      # PostgreSQL
 curl.exe http://192.168.1.200:9000/minio/health/live -i          # MinIO -> 200
 curl.exe -k https://pentaho.io/ -I                               # PDC UI
 ```
@@ -97,7 +98,7 @@ curl.exe -k https://pentaho.io/ -I                               # PDC UI
 | Field | Value |
 | --- | --- |
 | Host | `192.168.1.200` (plain hostname/IP — never a URL) |
-| Port | `5432` |
+| Port | `5433` |
 | Database | `awc_operations` |
 | Schema | `awc_operations` |
 | User / Password | `pdc_user` / `catalog123!` (read-only) |
