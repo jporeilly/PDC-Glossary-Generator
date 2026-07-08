@@ -63,9 +63,11 @@ same VM); MinIO on 9000/9001:
 
 - **From the Windows 11 host (the Glossary Generator app):** PostgreSQL
   `192.168.1.200:5433`, MinIO `http://192.168.1.200:9000`.
-- **From PDC (in the VM):** `192.168.1.200:5433` / `http://192.168.1.200:9000`
-  (published ports) — or `demo-postgres:5432` / `http://demo-minio:9000` if
-  PDC shares `demo-net`.
+- **From PDC (in the VM):** the same — `192.168.1.200:5433` /
+  `http://192.168.1.200:9000` via the published ports. Use the **VM IP for
+  data sources** and reserve `pentaho.io` for PDC's HTTPS URL; container
+  names resolve only inside `demo-net` and are used only by the lab's own
+  tooling.
 - Database / schema / credentials per scenario: see the table above or
   `make console`. Full topology notes (hosts file, ufw, `https://pentaho.io`)
   are in each scenario's README.

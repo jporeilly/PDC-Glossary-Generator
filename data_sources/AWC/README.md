@@ -50,13 +50,15 @@ same two sources — use the right value for each:
 | Who connects | PostgreSQL | MinIO (S3 API) |
 | --- | --- | --- |
 | **The app** (Windows host) | Host `192.168.1.200` : `5433` | Endpoint `http://192.168.1.200:9000` |
-| **PDC** (containers in the VM) | `192.168.1.200:5433` (published port) — or `demo-postgres:5432` only if PDC shares the lab's `demo-net` network | `http://192.168.1.200:9000` — or `http://demo-minio:9000` on `demo-net` |
+| **PDC** (containers in the VM) | `192.168.1.200:5433` | `http://192.168.1.200:9000` |
 | **Shell on the VM** | `localhost:5433` | `http://localhost:9000` |
 
-Never use `localhost` from Windows — that's the Windows machine, not the VM.
-The container names (`demo-postgres`, `demo-minio`) resolve **only inside the
-VM's Docker network**; from Windows they fail with *name resolution* errors.
-The IP endpoint also forces S3 **path-style** addressing, which MinIO requires.
+**Always use the VM IP `192.168.1.200` for the data sources**; reserve
+`pentaho.io` for PDC's HTTPS URL. Never use `localhost` from Windows (that's
+the Windows machine, not the VM), and never use Docker container names — they
+resolve only inside the VM's Docker network. The IP endpoint also forces S3
+**path-style** addressing, which MinIO requires (a hostname endpoint can make
+S3 clients attempt virtual-host-style bucket URLs and fail).
 
 ### One-time setup on the VM (Ubuntu 24.04)
 
