@@ -50,7 +50,7 @@ help:
 	@echo "    make destroy               Stop containers AND wipe all data"
 	@echo ""
 	@echo "  Scenarios available:"
-	@./load-scenario.sh | sed -n 's/^    /    /p'
+	@bash ./load-scenario.sh | sed -n 's/^    /    /p'
 	@echo ""
 
 preflight:
@@ -79,11 +79,11 @@ up: preflight
 
 load:
 	@test -n "$(SCENARIO)" || { echo "usage: make load SCENARIO=<ID>"; exit 1; }
-	@./load-scenario.sh $(SCENARIO)
+	@bash ./load-scenario.sh $(SCENARIO)
 
 remove:
 	@test -n "$(SCENARIO)" || { echo "usage: make remove SCENARIO=<ID>"; exit 1; }
-	@./load-scenario.sh --remove $(SCENARIO)
+	@bash ./load-scenario.sh --remove $(SCENARIO)
 
 status:
 	@echo "$(C_INFO)▶ Containers$(C_OFF)"
