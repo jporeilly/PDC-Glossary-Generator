@@ -50,7 +50,7 @@ glossary_generator/
   requirements.txt
 docs/                     this reference + GUIDE, INSTALL, SUPPLEMENT, ...
 data_sources/lab/         SHARED PostgreSQL + MinIO for all scenarios
-data_sources/<scenario>/  scenario data + installable domain packs (AWC, CSCU)
+data_sources/<scenario>/  scenario data + installable domain pack (CSCU)
 courseware/<scenario>/    workshop guides and topic notes per scenario
 ```
 
@@ -220,9 +220,8 @@ Pack `tag_rules` are company-layer and pre-approved (governed). Then **apply**:
 
 The app ships **generic** — install a scenario pack to get one: unzip
 `data_sources/CSCU/cscu-domain-pack.zip` (Copper State Credit Union — cards/PCI, ACH,
-KYC/AML, lending, ledger rules) or `data_sources/AWC/awc-domain-pack.zip` (Arizona
-Water Company) into the app folder. See `domain_packs/README.md` for the full pack
-schema (categorization keys *and* tag keys), and
+KYC/AML, lending, ledger rules) into the app folder. See `domain_packs/README.md`
+for the full pack schema (categorization keys *and* tag keys), and
 `data_sources/CSCU/domain_pack/credit_union.example.json` for a complete example.
 
 ---

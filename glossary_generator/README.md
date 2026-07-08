@@ -6,8 +6,7 @@ PDC-importable glossary JSONL (+ the Classification Registry).
 - **Run:** `./run.sh` (Linux/macOS) · `run.ps1` / `run.bat` (Windows) ·
   `docker compose up --build` → http://127.0.0.1:5000
 - **Install a scenario:** unzip `../data_sources/CSCU/cscu-domain-pack.zip`
-  (Copper State Credit Union) or `../data_sources/AWC/awc-domain-pack.zip`
-  (Arizona Water Company) into this folder — one at a time.
+  (Copper State Credit Union) into this folder — one scenario at a time.
 - **Documentation:** lives in [`../docs/`](../docs/) —
   [REFERENCE](../docs/REFERENCE.md) (env vars, drivers, LLM/GPU, API table),
   [GUIDE](../docs/GUIDE.md) (full walkthrough),

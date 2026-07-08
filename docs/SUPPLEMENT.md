@@ -3,7 +3,7 @@
 **Primary role:** Data Steward / Solution Architect
 **Estimated time:** 60 min
 **Track:** Technical / app-driven — an *alternative* to the manual glossary in Workshop 3
-**App version:** 1.7.1 · validated against **PDC 10.2.11**
+**App version:** 1.7.2 · validated against **PDC 10.2.11**
 
 ## What this is
 
@@ -18,8 +18,7 @@ Union (CSCU)** scenario it is configured with the credit-union pack — unzip
 `data_sources/CSCU/cscu-domain-pack.zip` into `glossary_generator/` and set
 `GLOSSARY_COMPANY="Copper State Credit Union"` — which installs CSCU's curated terms
 (Member Record, Loan Record, KYC Review Record, …). Point it at a different client by
-swapping the pack — no code changes. (The Arizona Water Company scenario ships
-separately under `data_sources/AWC/`.)
+swapping the pack — no code changes.
 
 ## What's new in 1.5.7
 
@@ -56,8 +55,7 @@ See **`CHANGELOG.md`** for the full list and the developer patch summary.
   final reviewed rows to `registries/registry.<glossary>.json` at export
   (`POST /api/generate`), with an offline 11-check self-test. The classify / emit / drift /
   reconcile engine ships separately as the standalone **Policy Generator** (`policy_generator/`).
-- **`courseware/CSCU/Workshop-Glossary-Generator-CSCU.md`** — the CSCU workshop guide
-  (the AWC deck and Word doc are preserved under `courseware/AWC/`).
+- **`courseware/CSCU/Workshop-Glossary-Generator-CSCU.md`** — the CSCU workshop guide.
 - **`CHALLENGE-AND-GOAL.md`** — one-page steward / analyst explainer.
 - **`glossary_generator/diagrams/`** — the architecture figures (PNG + editable SVG).
 - **`data_sources/CSCU/domain_pack/credit_union.people.json`** — the CSCU people/steward
@@ -133,8 +131,7 @@ baseline and the steward curates it.
   references) to `registry.<glossary>.json`; open reloads it. The reconcile
   handshake — and therefore drift detection — now survives a restart.
 - **Verified compliance references.** Domain packs carry a curated, human-verified
-  reference map — add your sector's regulator links (e.g. NCUA, FinCEN for CSCU;
-  the AWC water pack shipped real EPA and Arizona ADEQ links).
+  reference map — add your sector's regulator links (e.g. NCUA, FinCEN for CSCU).
 - **Safe description enrichment.** The LLM writes the prose; the links come only
   from the verified map — the model never mints a regulation or URL.
 
@@ -193,9 +190,9 @@ PDC, reconcile the id, *then* drift becomes visible.**
 The core registry is industry-neutral (PII / PCI / PHI). Industry vocabulary is
 **not** hard-coded — it loads from a domain pack, exactly like the glossary
 engine's `GLOSSARY_DOMAIN_PACK`. Set `CLASSIFICATION_DOMAIN_PACK` to a pack JSON
-(concepts + tags + categories + detection rules). Example packs ship for the
-credit-union and water-utility scenarios as **illustrations**; copy one and swap the
-vocabulary for healthcare, retail, or any sector without touching code.
+(concepts + tags + categories + detection rules). The credit-union example pack
+ships as **one illustration**; copy it and swap the vocabulary for healthcare,
+retail, or any sector without touching code.
 
 ## Not a replacement for BA Workshop 5
 

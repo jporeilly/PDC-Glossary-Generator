@@ -13,10 +13,9 @@
 #  Scenarios are discovered from ../<ID>/scenario.json, so a
 #  new scenario folder is loadable with no script changes.
 #
-#  Usage:   ./load-scenario.sh              # list scenarios
-#           ./load-scenario.sh CSCU         # load one
-#           ./load-scenario.sh AWC CSCU     # load several
-#           ./load-scenario.sh --remove AWC # drop its db + bucket
+#  Usage:   ./load-scenario.sh               # list scenarios
+#           ./load-scenario.sh CSCU          # load one (several: CSCU <ID> ...)
+#           ./load-scenario.sh --remove CSCU # drop its db + bucket
 # ============================================================
 set -euo pipefail
 cd "$(dirname "$0")"

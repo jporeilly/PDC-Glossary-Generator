@@ -1,14 +1,12 @@
 # Installation & Setup — Run the Glossary Generator on Your Own PDC Instance
 
-*App version **1.7.1** · validated against **Pentaho Data Catalog 10.2.11**.*
+*App version **1.7.2** · validated against **Pentaho Data Catalog 10.2.11**.*
 
 This guide stands the **Glossary Generator** app up against *your* Pentaho Data
 Catalog (PDC) instance — your data sources, your accounts, your network. The app
 ships **generic** (no scenario vocabulary baked in); a scenario is installed from
 its domain pack. This guide uses **Copper State Credit Union (CSCU)** — the
-financial-services scenario — as the worked example throughout. The water-utility
-scenario (Arizona Water Company) ships separately and completely under
-`data_sources/AWC/` and `courseware/AWC/`.
+financial-services scenario — as the worked example throughout.
 
 > **What the app needs from PDC.** The app scans your sources locally and then drives
 > PDC's **public API** to resolve terms, apply governance, and calculate Trust Score.

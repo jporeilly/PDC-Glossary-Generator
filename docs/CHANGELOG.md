@@ -14,6 +14,22 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.7.2] — 2026-07-08
+
+The CSCU-only release: the Arizona Water Company scenario was removed from
+the repository (data_sources/AWC, courseware/AWC and the AWC domain pack).
+
+### Changed
+- **All documentation swept to CSCU-only** — root README, data_sources and
+  courseware indexes, lab README/compose/loader comments, GUIDE, INSTALL,
+  MANIFEST, REFERENCE, SUPPLEMENT, domain-pack README. The shared lab and the
+  scenario plug-in model are unchanged: additional scenarios (a Retail
+  scenario is planned next) drop in as `data_sources/<ID>/` + `courseware/<ID>/`
+  folders with a `scenario.json`.
+- **lab-setup.docx rebuilt CSCU-only** with two embedded diagrams (lab
+  topology; shared-stack model), sourced from `data_sources/lab/diagrams/`
+  (PNG + SVG).
+
 ## [1.7.1] — 2026-07-08
 
 ### Added
