@@ -1,0 +1,64 @@
+[
+  {
+    "__typename": "dictionariesRules",
+    "type": "Dictionary",
+    "name": "AWC Pipe Status",
+    "category": "AWC_Operations",
+    "minSamples": 1,
+    "confidenceScore": {
+      "+": [
+        {
+          "*": [
+            {
+              "var": "similarity"
+            },
+            0.8
+          ]
+        },
+        {
+          "*": [
+            {
+              "var": "metadataScore"
+            },
+            0.2
+          ]
+        }
+      ]
+    },
+    "columnNameRegex": [
+      {
+        "regex": "(?i)(segment)?_?status",
+        "score": 0.85
+      }
+    ],
+    "condition": {
+      "or": [
+        {
+          ">=": [
+            {
+              "var": "confidenceScore"
+            },
+            "0.6"
+          ]
+        },
+        {
+          ">=": [
+            {
+              "var": "metadataScore"
+            },
+            "0.7"
+          ]
+        }
+      ]
+    },
+    "actions": [
+      {
+        "applyTags": [
+          {
+            "k": "Asset Status"
+          }
+        ]
+      }
+    ]
+  }
+]

@@ -1,0 +1,92 @@
+{
+  "_id": "3e96b666-c574-5233-aa4c-ad16aee649e7",
+  "name": "AWC Contact Email",
+  "type": "DataPattern",
+  "isEnabled": true,
+  "description": "AWC Contact Email format",
+  "note": "",
+  "categories": [
+    "AWC_Contact"
+  ],
+  "rules": [
+    {
+      "type": "DataPattern",
+      "minSamples": "200",
+      "confidenceScore": {
+        "+": [
+          {
+            "*": [
+              {
+                "var": "regexScore"
+              },
+              "0.6"
+            ]
+          },
+          {
+            "*": [
+              {
+                "var": "metadataScore"
+              },
+              "0.4"
+            ]
+          }
+        ]
+      },
+      "condition": {
+        "or": [
+          {
+            ">=": [
+              {
+                "var": "confidenceScore"
+              },
+              "0.5"
+            ]
+          },
+          {
+            ">=": [
+              {
+                "var": "regexScore"
+              },
+              "0.75"
+            ]
+          }
+        ]
+      },
+      "actions": [
+        {
+          "applyTags": [
+            {
+              "name": "Contact"
+            },
+            {
+              "name": "PII"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "minSamples": 200,
+  "dataEventThreshold": 0.5,
+  "metadataHints": {
+    "aliases": [
+      {
+        "nameRegex": "(?i)contactemail*",
+        "score": 0.9
+      },
+      {
+        "nameRegex": "(?i)contact*",
+        "score": 0.9
+      },
+      {
+        "nameRegex": "(?i)email*",
+        "score": 0.9
+      }
+    ]
+  },
+  "regexMatch": {
+    "regex": [
+      "^[^@\\s]+@[^@\\s]+\\.[a-z]{2,}$"
+    ]
+  }
+}

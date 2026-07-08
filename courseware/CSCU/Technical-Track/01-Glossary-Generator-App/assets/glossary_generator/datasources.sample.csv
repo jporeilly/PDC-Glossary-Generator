@@ -1,0 +1,3 @@
+kind,resourceName,databaseType,configMethod,affinityId,host,port,databaseName,userName,password,endpoint,region,accessKeyID,secretAccessKey,accessKey,secretKey,container,path,schemaNames,fqdnId,description
+postgres,Operations_DB,,,,db-host,5432,public,db_user,CHANGE_ME,,,,,,,,,public,,Sample operational database
+minio,Documents,,,,,,,,,http://minio-host:9000,,minioadmin,CHANGE_ME,,,documents,/,,,Sample document store

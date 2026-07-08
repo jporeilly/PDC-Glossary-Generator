@@ -1,0 +1,80 @@
+[
+  {
+    "__typename": "patternsRules",
+    "type": "Pattern",
+    "name": "AWC Equipment Tag",
+    "category": "AWC_Reference",
+    "status": "enabled",
+    "columnNameRegex": [
+      {
+        "regex": "(?i)(equip|equipment|tag|unit)_?(id|no)?",
+        "score": 1.0
+      }
+    ],
+    "columnNameWeight": 0.3,
+    "contentPatterns": [
+      {
+        "pattern": "AA-nnn"
+      },
+      {
+        "pattern": "A-nn"
+      }
+    ],
+    "contentPatternWeight": 0.4,
+    "contentRegex": [
+      {
+        "regex": "^(PS|BS|WL|PRV|LS|TK|T)-\\d{2,3}$"
+      }
+    ],
+    "contentRegexWeight": 0.3,
+    "confidenceScore": {
+      "+": [
+        {
+          "*": [
+            {
+              "var": "metadataScore"
+            },
+            0.3
+          ]
+        },
+        {
+          "*": [
+            {
+              "var": "patternScore"
+            },
+            0.4
+          ]
+        },
+        {
+          "*": [
+            {
+              "var": "regexScore"
+            },
+            0.3
+          ]
+        }
+      ]
+    },
+    "condition": {
+      "and": [
+        {
+          ">=": [
+            {
+              "var": "confidenceScore"
+            },
+            "0.7"
+          ]
+        }
+      ]
+    },
+    "actions": [
+      {
+        "applyTags": [
+          {
+            "k": "Equipment Tag"
+          }
+        ]
+      }
+    ]
+  }
+]

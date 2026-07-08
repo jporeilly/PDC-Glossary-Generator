@@ -1,0 +1,69 @@
+[
+  {
+    "__typename": "dictionariesRules",
+    "type": "Dictionary",
+    "name": "AWC Water System Names",
+    "category": "AWC_Reference",
+    "minSamples": 1,
+    "confidenceScore": {
+      "+": [
+        {
+          "*": [
+            {
+              "var": "similarity"
+            },
+            0.7
+          ]
+        },
+        {
+          "*": [
+            {
+              "var": "metadataScore"
+            },
+            0.3
+          ]
+        }
+      ]
+    },
+    "columnNameRegex": [
+      {
+        "regex": "(?i)(system_?name|service_?area_?system|water_?system)",
+        "score": 0.85
+      }
+    ],
+    "condition": {
+      "or": [
+        {
+          ">=": [
+            {
+              "var": "confidenceScore"
+            },
+            "0.6"
+          ]
+        },
+        {
+          ">=": [
+            {
+              "var": "metadataScore"
+            },
+            "0.7"
+          ]
+        }
+      ]
+    },
+    "actions": [
+      {
+        "applyTags": [
+          {
+            "k": "Water System"
+          }
+        ]
+      }
+    ],
+    "assignBusinessTerm": [
+      {
+        "k": "Water System"
+      }
+    ]
+  }
+]
