@@ -1,6 +1,6 @@
 # PDC Glossary Generator
 
-**Version:** 1.7.0 · validated against Pentaho Data Catalog 10.2.11
+**Version:** 1.7.2 · validated against Pentaho Data Catalog 11.0.0
 
 A local-first web app that **scans your data sources, suggests a business
 glossary, lets a steward review and govern it, and exports import-ready JSONL**
