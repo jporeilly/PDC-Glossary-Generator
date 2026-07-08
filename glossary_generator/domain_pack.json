@@ -1,0 +1,24 @@
+{
+  "domain": "water_utility",
+  "note": "AWC domain pack. Extends the generic governed vocabulary with water-utility document and operational domains so folders/columns like GIS, SCADA, inspections, correspondence and hydrology get meaningful, governed tags instead of only 'document'. Tags introduced here are company-layer and pre-approved. Reseed the Dictionary (Dictionary page -> Reseed) after adding/changing this file, then re-run 'Suggest tags' on the grid.",
+  "category_tags": {
+    "Records & Documents": ["document", "records"]
+  },
+  "extra_tags": [
+    "gis", "spatial", "scada", "telemetry", "inspection", "field-ops",
+    "correspondence", "records", "hydrology", "maintenance", "incident",
+    "land", "permit", "engineering"
+  ],
+  "tag_rules": [
+    { "pattern": "\\bgis\\b|geospatial|spatial|geographic|\\bmap(s|ping)?\\b|parcel|easement|right.?of.?way", "tags": ["gis", "spatial", "asset"] },
+    { "pattern": "scada|telemetry|supervisory|\\brtu\\b|\\bplc\\b|sensor|remote.?monitor", "tags": ["scada", "operational", "telemetry"] },
+    { "pattern": "inspect|survey|field.?report|site.?visit", "tags": ["inspection", "field-ops"] },
+    { "pattern": "correspond|\\bletter\\b|notice|\\bmemo\\b|inquiry|communication|email", "tags": ["correspondence", "records"] },
+    { "pattern": "hydrolog|watershed|groundwater|aquifer|\\bwell\\b|reservoir|source.?water", "tags": ["hydrology", "water-quality"] },
+    { "pattern": "maintenance|work.?order|repair|service.?request|\\bmain.?break|leak", "tags": ["maintenance", "operational"] },
+    { "pattern": "outage|\\bincident\\b|emergency|spill|overflow", "tags": ["incident", "operational"] },
+    { "pattern": "permit|licen[cs]e|certificat", "tags": ["permit", "compliance"] },
+    { "pattern": "\\bland\\b|property|acquisition|zoning", "tags": ["land", "asset"] },
+    { "pattern": "\\bplan(s|ning)?\\b|design|drawing|schematic|as.?built|engineering", "tags": ["engineering", "asset"] }
+  ]
+}

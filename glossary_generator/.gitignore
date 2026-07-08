@@ -1,0 +1,16 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.jsonl
+*.log
+.DS_Store
+connections.json
+settings.json
+glossaries.json
+tag_dictionary.json
+tag_dictionary.json.backup-*
+audit_log.json
+people.json
+registries/
+.env
