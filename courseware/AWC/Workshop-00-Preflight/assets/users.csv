@@ -1,8 +1,0 @@
-First_Name,Last_Name,Email,PDC_Roles,Tier,Community,Notes
-Maria,Garcia,maria.garcia@azwater.gov,Business Steward,Expert,AWC Glossary Stewards,Owns Customer + Governance terms; can create/import/edit glossary and policies
-Robert,Hayes,robert.hayes@azwater.gov,Business Steward,Expert,AWC Glossary Stewards,Owns Billing & Rates terms incl. Customer Account Number
-David,Chen,david.chen@azwater.gov,Data Steward; Business Steward,Expert,AWC Data Operations; AWC Glossary Stewards,"Connects sources, profiles, runs identification, curates collections; owns Usage / Water System / Service Area terms"
-Susan,Park,susan.park@azwater.gov,Business Steward,Expert,AWC Glossary Stewards,Displayed as Dr. Susan Park; owns all four Water Quality terms (all CDE)
-Catalog,Admin,catalog.admin@azwater.gov,Admin,Expert,,"Creates users, defines custom properties, manages workers and licence"
-Alex,Rivera,alex.rivera@azwater.gov,Data User,Business,AWC Analysts,"Business Analyst persona (Business tier). Reads technical/business/operational metadata, runs Search & Saved Searches, views the glossary, policies and Galaxy View. Consumes data — cannot edit the glossary or connect sources."
-Priya,Nair,priya.nair@azwater.gov,Data Steward,Expert,AWC Data Operations,"Data Analyst persona (Expert tier). Profiles tables, runs Data Identification / PII, curates Collections and Data Products, traces lineage. Hands-on prep — but cannot edit the glossary (that needs Business Steward)."
