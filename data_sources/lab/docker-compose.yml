@@ -19,7 +19,9 @@ services:
       POSTGRES_PASSWORD: ${PG_ADMIN_PASSWORD}
       POSTGRES_DB: postgres
     ports:
-      - "${PG_PORT:-5432}:5432"
+      # Published on 5433 by default — PDC's own PostgreSQL owns 5432 on the
+      # lab VM. In-container the server still listens on 5432.
+      - "${PG_PORT:-5433}:5432"
     volumes:
       - demo-pgdata:/var/lib/postgresql/data
     networks:
