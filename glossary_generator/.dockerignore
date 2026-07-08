@@ -9,6 +9,11 @@ people.json
 connections.json
 settings.json
 glossaries.json
+tag_dictionary.json
+tag_dictionary.json.backup-*
+audit_log.json
+registries/
+.env
 
 # VCS / tooling
 .git/

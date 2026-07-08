@@ -38,7 +38,7 @@ the LLM prompt, the import path, teaching notes, and extension points — see
 ## Layout
 
 ```
-glossary_app/
+glossary_generator/
   app.py                  Flask API + serves the UI
   suggester.py            core: harvest -> suggest -> JSONL (importable, no Flask)
   dbconn.py               driver-aware DB connections + test + driver status
@@ -59,7 +59,7 @@ the same logic backs the web app, the CLI, and any unit tests.
 ## Install & run
 
 ```bash
-cd glossary_app
+cd glossary_generator
 pip install -r requirements.txt
 python app.py                      # http://127.0.0.1:5000
 ```
@@ -87,7 +87,7 @@ Runs as-is on Ubuntu 24.04 (Python 3.12). Two Noble-specific notes:
 
 ```bash
 sudo apt update && sudo apt install -y python3-venv
-cd glossary_app
+cd glossary_generator
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 python app.py                       # http://127.0.0.1:5000
@@ -126,7 +126,7 @@ Runs natively on Windows — the code is pure Python with no POSIX-only imports.
 Use the PowerShell launcher instead of `run.sh`:
 
 ```powershell
-cd glossary_app
+cd glossary_generator
 .\run.ps1                     # http://127.0.0.1:5000
 .\run.ps1 -Port 8080          # choose a port
 .\run.ps1 -PyVersion 3.12     # force a Python (see note below)
