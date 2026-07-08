@@ -7,5 +7,12 @@
   "people": "domain_pack/water_utility.people.json",
   "datasources_csv": "awc-datasources.csv",
   "courseware": "courseware/AWC",
-  "description": "The original workshop: 6-table awc_operations schema, awc-documents bucket (EPA compliance, GIS, SCADA, inspections)."
+  "description": "The original workshop: 6-table awc_operations schema, awc-documents bucket (EPA compliance, GIS, SCADA, inspections).",
+  "database": "awc_operations",
+  "schema": "awc_operations",
+  "tables": 6,
+  "bucket": "awc-documents",
+  "documents_dir": "awc-documents",
+  "db_user": "pdc_user",
+  "minio_user": "awc_minio_user"
 }

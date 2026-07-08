@@ -72,9 +72,12 @@ workshop figures are in [diagrams/](glossary_generator/diagrams/).
 ```text
 glossary_generator/     the app (scenario-generic): Flask API + review UI
 docs/                   all documentation (reference, guide, install, changelog, …)
-data_sources/           lab kits — one folder per scenario (AWC, CSCU), each with
-                        docker-compose + Makefile, sample DB, MinIO documents,
-                        domain pack + install zip, bulk-load CSV
+data_sources/           scenario data + the shared lab
+  lab/                  ONE PostgreSQL + ONE MinIO for all scenarios; make load
+                        SCENARIO=<ID> creates that scenario's db + bucket
+  AWC/, CSCU/           per-scenario data: sample DB SQL, MinIO documents,
+                        domain pack + install zip, bulk-load CSV (+ optional
+                        standalone stack for single-scenario isolation)
 courseware/             two complete workshop sets — AWC and CSCU
 install-scenario.sh     scenario picker/installer (install-scenario.ps1 on Windows)
 reset-scenario.sh       remove the installed scenario / reset the app to generic
@@ -102,10 +105,14 @@ scenario and reset the app to generic, run `./reset-scenario.sh`
 
 ### 2. Stand up the lab sources
 
+One shared PostgreSQL + MinIO hosts every scenario (one database + one bucket
+each), so scenarios coexist without port conflicts:
+
 ```bash
-cd data_sources/CSCU             # or AWC
+cd data_sources/lab              # on the Docker host (the Ubuntu VM)
 cp .env.example .env
-make all                         # postgres + minio, loaded and verified
+make up                          # shared postgres + minio
+make load SCENARIO=CSCU          # and/or SCENARIO=AWC
 ```
 
 ### 3. Run the app

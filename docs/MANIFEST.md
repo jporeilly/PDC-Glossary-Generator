@@ -1,4 +1,4 @@
-# Glossary Generator — repository manifest (1.7.0)
+# Glossary Generator — repository manifest (1.7.1)
 
 The Flask app, with the **Registry writer** hooked in at export time, plus two
 complete, fully separated training scenarios. The **Policy Generator** ships
@@ -44,7 +44,10 @@ PDC-Glossary/
     diagrams/                   six figures, PNG + SVG
     datasources.sample.csv      generic bulk-load starter CSV
     Dockerfile  docker-compose.yml  requirements.txt  .env.example  VERSION
-  data_sources/                 lab kits — one folder per scenario
+  data_sources/                 scenario data + the shared lab
+    lab/                        SHARED stack: one PostgreSQL + one MinIO for all
+                                scenarios (make load SCENARIO=<ID> creates that
+                                scenario's database + bucket + documents)
     AWC/                        Arizona Water Company (water utility)
       docker-compose.yml  Makefile  .env.example  postgres-init/  awc-documents/
       domain_pack/  awc-domain-pack.zip  awc-datasources.csv

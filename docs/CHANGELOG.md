@@ -14,6 +14,36 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.7.1] — 2026-07-08
+
+### Added
+- **Shared demo lab** (`data_sources/lab/`) — ONE PostgreSQL + ONE MinIO for
+  all scenarios. `load-scenario.sh` (wrapped by `make load SCENARIO=<ID>`)
+  creates the scenario's own database (`awc_operations` / `cscu_core`),
+  runs its `postgres-init/*.sql`, creates its bucket (`awc-documents` /
+  `cscu-documents`) + read-only user, uploads the documents, and verifies
+  counts — scenarios coexist with no port conflicts, and every documented
+  connection value is unchanged. Scenario discovery is data-driven from
+  each folder's `scenario.json` (extended with database/schema/bucket keys),
+  so new scenarios need no script changes. Per-scenario standalone stacks
+  remain as the isolation option.
+- **CSCU courseware Workshops 00–05** under `courseware/CSCU/` (Preflight →
+  Data Identification): per-workshop READMEs, markdown guide masters with
+  `[SCREENSHOT]` markers, and generated assets — users, glossary JSONL
+  (123 records), term-linking map, metadata dictionary, six business rules
+  (flagship marketing-opt-out + PCI no-stored-CVV), two custom dictionaries.
+  The full original AWC 11-workshop course is archived under `courseware/AWC/`.
+- **Windows-host topology sections** in both lab READMEs: app on Windows 11,
+  PostgreSQL/MinIO/PDC in the Ubuntu 24.04 VM at 192.168.1.200
+  (`https://pentaho.io`) — per-vantage-point connection tables, ufw and
+  hosts-file setup, reachability checks.
+
+### Changed
+- All docs (root README, data_sources index, workshop guides, installer
+  next-steps) now present the shared lab as the recommended path.
+- The CSCU compliance steward was renamed **Nadia Flores** (was Priya Nair,
+  which collided with the AWC course's Data Analyst persona).
+
 ## [1.7.0] — 2026-07-08
 
 The two-scenario release: the app is now fully **scenario-generic**, and each

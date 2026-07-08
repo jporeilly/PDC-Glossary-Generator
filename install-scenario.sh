@@ -103,7 +103,7 @@ echo "  + GLOSSARY_COMPANY=\"$company\"  ($env_file)"
 
 echo ""
 echo "Done. Next steps:"
-echo "  1. Stand up the lab:      cd $DS/$choice && cp .env.example .env && make all"
+echo "  1. Stand up the lab:      cd $DS/lab && make up && make load SCENARIO=$choice"
 echo "  2. Start the app:         cd $APP && ./run.sh"
 echo "  3. In the app:            Dictionary page -> confirm the vocabulary reseeded"
 echo "  4. Courseware:            $(jget "$m" courseware)/"

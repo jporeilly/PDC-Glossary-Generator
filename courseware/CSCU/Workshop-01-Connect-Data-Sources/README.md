@@ -18,7 +18,8 @@
 
 ## How to run it
 
-1. Make sure the CSCU lab is running (`make all` in `data_sources/CSCU/`).
+1. Make sure the shared lab is running with CSCU loaded
+   (`data_sources/lab/`: `make up && make load SCENARIO=CSCU`).
 2. Make sure you have completed the previous workshops — this one builds on them.
 3. Work through `Workshop-01-Guide.md` step by step.
 

@@ -1,0 +1,59 @@
+# ============================================================
+#  PDC demo lab — SHARED stack for all scenarios
+#  One PostgreSQL + one MinIO. Scenarios are loaded into it on
+#  demand with ./load-scenario.sh <ID> — each scenario gets its
+#  own DATABASE (awc_operations, cscu_core, ...) and its own
+#  BUCKET, so they coexist without port conflicts.
+#
+#  Credentials come from .env. Brought up by `make up`.
+#  No auto-init: the loader script creates databases, schemas,
+#  tables, users, buckets and documents explicitly.
+# ============================================================
+services:
+
+  postgres:
+    image: postgres:16
+    container_name: ${PG_CONTAINER:-demo-postgres}
+    environment:
+      POSTGRES_USER: ${PG_ADMIN_USER}
+      POSTGRES_PASSWORD: ${PG_ADMIN_PASSWORD}
+      POSTGRES_DB: postgres
+    ports:
+      - "${PG_PORT:-5432}:5432"
+    volumes:
+      - demo-pgdata:/var/lib/postgresql/data
+    networks:
+      - demo-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PG_ADMIN_USER} -d postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  minio:
+    image: minio/minio
+    container_name: ${MINIO_CONTAINER:-demo-minio}
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - demo-minio-data:/data
+    networks:
+      - demo-net
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+networks:
+  demo-net:
+    name: ${LAB_NETWORK:-demo-net}
+
+volumes:
+  demo-pgdata:
+  demo-minio-data:

@@ -4,7 +4,8 @@
 
 **Primary role:** Data Steward / Solution Architect
 **Estimated time:** 60–90 min
-**Prerequisites:** the CSCU lab stack running (`data_sources/CSCU` → `make all`),
+**Prerequisites:** the shared lab running with CSCU loaded
+(`data_sources/lab` → `make up && make load SCENARIO=CSCU`),
 PDC reachable over HTTPS, the CSCU domain pack installed
 (`data_sources/CSCU/cscu-domain-pack.zip` → unzip into `glossary_generator/`).
 
@@ -43,9 +44,10 @@ emit Data Identification methods.
 ### Step 1 — Stand up the sources
 
 ```sh
-cd data_sources/CSCU
+cd data_sources/lab
 cp .env.example .env
-make all          # postgres + minio, schema + data + documents, all verified
+make up                    # shared postgres + minio (all scenarios)
+make load SCENARIO=CSCU    # cscu_core db + cscu-documents bucket, verified
 ```
 
 `make console` reprints the PDC connection values (database

@@ -49,7 +49,8 @@ glossary_generator/
   run.ps1 / run.bat       Windows launcher (PowerShell; .bat wrapper)
   requirements.txt
 docs/                     this reference + GUIDE, INSTALL, SUPPLEMENT, ...
-data_sources/<scenario>/  lab kits + installable domain packs (AWC, CSCU)
+data_sources/lab/         SHARED PostgreSQL + MinIO for all scenarios
+data_sources/<scenario>/  scenario data + installable domain packs (AWC, CSCU)
 courseware/<scenario>/    workshop guides and topic notes per scenario
 ```
 

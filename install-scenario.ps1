@@ -99,7 +99,7 @@ Write-Host ("  + GLOSSARY_COMPANY=""{0}""  ({1})" -f $sel.company, $envFile)
 
 Write-Host ""
 Write-Host "Done. Next steps:" -ForegroundColor Green
-Write-Host ("  1. Stand up the lab:      cd {0}\{1}; copy .env.example .env; make all  (or Docker Desktop + WSL)" -f $DS, $sel.id)
+Write-Host ("  1. Stand up the lab:      cd {0}\lab; make up; make load SCENARIO={1}  (on the Docker host)" -f $DS, $sel.id)
 Write-Host ("  2. Start the app:         cd {0}; .\run.ps1" -f $App)
 Write-Host  "  3. In the app:            Dictionary page -> confirm the vocabulary reseeded"
 Write-Host ("  4. Courseware:            {0}\" -f $sel.courseware)

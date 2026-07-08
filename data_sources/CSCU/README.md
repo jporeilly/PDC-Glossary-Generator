@@ -5,6 +5,11 @@ course environment: the **core banking database** (PostgreSQL with the CSCU
 sample data) and the **document store** (MinIO with the unstructured files),
 on a shared network, ready for PDC to connect to both.
 
+> **Shared lab (recommended).** All scenarios now run on ONE PostgreSQL + ONE
+> MinIO — see [`../lab/`](../lab/): `make up && make load SCENARIO=CSCU`. The
+> stack below is the **standalone** option for running this scenario in
+> isolation; never run both at once (same ports).
+
 ## Prerequisites
 - Docker with the Compose plugin (`docker compose`)
 - `make`
@@ -134,7 +139,7 @@ two sources — use the right value for each:
 | Who connects | PostgreSQL | MinIO (S3 API) |
 | --- | --- | --- |
 | **The app** (Windows host) | Host `192.168.1.200` : `5432` | Endpoint `http://192.168.1.200:9000` |
-| **PDC** (containers in the VM) | `192.168.1.200:5432` (published port) — or `cscu-postgres:5432` only if PDC shares this stack's Docker network | `http://192.168.1.200:9000` — or `http://cscu-minio:9000` on a shared network |
+| **PDC** (containers in the VM) | `192.168.1.200:5432` (published port) — or `cscu-postgres:5432` only if PDC shares the lab's Docker network (shared lab: `demo-postgres` on `demo-net`) | `http://192.168.1.200:9000` — or `http://cscu-minio:9000` on a shared network |
 | **Shell on the VM** | `localhost:5432` | `http://localhost:9000` |
 
 Never use `localhost` from Windows — that's the Windows machine, not the VM.

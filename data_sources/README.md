@@ -10,14 +10,20 @@ domain pack and the bulk-load CSV for the Glossary Generator.
 | [`AWC/`](AWC/) | **Arizona Water Company** — water utility | `awc_operations` (6 tables) | `awc-documents` bucket |
 | [`CSCU/`](CSCU/) | **Copper State Credit Union** — financial services | `cscu_core` (11 tables) | `cscu-documents` bucket (18 files) |
 
-Quick start (either scenario):
+**Recommended: the shared lab** ([`lab/`](lab/)) — one PostgreSQL + one MinIO
+hosting every scenario side by side (one database + one bucket each):
 
 ```sh
-cd AWC        # or CSCU
+cd lab
 cp .env.example .env
-make all      # preflight -> up -> bucket -> load -> check
-make console  # prints the PDC connection details
+make up                    # shared postgres + minio
+make load SCENARIO=CSCU    # and/or SCENARIO=AWC — they coexist
+make console               # PDC connection details per scenario
 ```
+
+Each scenario folder also carries a standalone compose stack for running that
+scenario in isolation (`cd <ID> && cp .env.example .env && make all`) — never
+run a standalone stack and the shared lab at the same time (same ports).
 
 Each folder also carries:
 
