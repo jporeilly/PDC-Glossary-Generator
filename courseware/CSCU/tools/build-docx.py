@@ -395,23 +395,23 @@ DOCS = [
  ("Workshop-03-Glossary-Terms/Workshop-03-Guide.md", "Workshop-03-Glossary-Terms/Workshop-03-Guide.docx",
   dict(eyebrow1=E1, eyebrow2="PDC PROCESS  ·  BUSINESS GLOSSARY", label="WORKSHOP 3",
        title="Build the Business Glossary",
-       subtitle="Give CSCU one governed vocabulary: import, review, link and steward the draft terms.",
-       meta=[("Primary role", "Business Steward / Business Analyst"), ("Estimated time", "45 minutes"),
+       subtitle="Give CSCU one governed vocabulary: build, import, link and steward the terms — then feed each table's Trust Score.",
+       meta=[("Primary role", "Business Steward"), ("Estimated time", "60 minutes"),
              ("Dataset", DS)],
        header="Workshop 3: Build the Business Glossary",
-       embeds={"Part A": ("rId101", "two-apps", TWO_APPS)})),
+       embeds={"Part B": ("rId101", "two-apps", TWO_APPS)})),
  ("Workshop-04-Profiling-and-Quality/Workshop-04-Guide.md", "Workshop-04-Profiling-and-Quality/Workshop-04-Guide.docx",
   dict(eyebrow1=E1, eyebrow2="PDC PROCESS  ·  PROFILING & QUALITY", label="WORKSHOP 4",
        title="Profile Data & Assess Quality",
-       subtitle="Measure the data — and turn CSCU's compliance obligations into scheduled, scored business rules.",
-       meta=[("Primary role", "Data Steward / Business Analyst"), ("Estimated time", "90 minutes"),
+       subtitle="Profile CSCU's tables to generate statistics, discover keys, make the Trust Score real — and score the compliance obligations as business rules.",
+       meta=[("Primary role", "Data Steward / Data Developer"), ("Estimated time", "90 minutes"),
              ("Dataset", DS)],
        header="Workshop 4: Profile Data & Assess Quality")),
  ("Workshop-05-Data-Identification/Workshop-05-Guide.md", "Workshop-05-Data-Identification/Workshop-05-Guide.docx",
   dict(eyebrow1=E1, eyebrow2="PDC PROCESS  ·  DATA IDENTIFICATION", label="WORKSHOP 5",
        title="Data Identification",
-       subtitle="Let the engine classify: dictionaries, patterns and discovery across tables and documents.",
-       meta=[("Primary role", "Business Analyst"), ("Estimated time", "45 minutes"), ("Dataset", DS)],
+       subtitle="How PDC recognizes what your data is — dictionaries and patterns that classify, tag, and prepare every column and document for governance.",
+       meta=[("Primary role", "Business Analyst"), ("Estimated time", "60 minutes"), ("Dataset", DS)],
        header="Workshop 5: Data Identification")),
  ("Workshop-Glossary-Generator-CSCU.md", "Workshop-Glossary-Generator-CSCU.docx",
   dict(eyebrow1=E1T, eyebrow2="PDC PROCESS  ·  GLOSSARY GENERATOR", label="APP WORKSHOP",
@@ -449,8 +449,15 @@ DOCS = [
        header="Technical Track — Module 04: Similarity & ML")),
 ]
 
+# Optional filters: `python tools/build-docx.py 03 04` builds only docs
+# whose markdown path contains one of the arguments.
+import sys
+FILTERS = sys.argv[1:]
+
 for md, out, cfg in DOCS:
+    if FILTERS and not any(f in md for f in FILTERS):
+        continue
     d = convert(os.path.join(CW, md), cfg)
     build(os.path.join(CW, out), d, cfg)
     print("built", out, "| steps-lists:", len(d.numids), "| images:", [n for _, n, _ in d.images])
-print("ALL BUILT v2")
+print("ALL BUILT v2" + (" (filtered: %s)" % ",".join(FILTERS) if FILTERS else ""))

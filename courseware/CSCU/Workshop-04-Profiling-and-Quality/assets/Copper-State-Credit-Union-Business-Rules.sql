@@ -1,7 +1,7 @@
 -- =====================================================================
 --  COPPER STATE CREDIT UNION  -  PENTAHO DATA CATALOG BUSINESS RULES
 --  Data Quality Rules for the cscu_core schema
---  PDC 10.2.11  |  Business Analyst Happy Path course
+--  PDC 11.0.0  |  Business Analyst Happy Path course
 -- =====================================================================
 --
 --  HOW PDC BUSINESS RULES WORK

@@ -13,3 +13,6 @@ Thumbs.db
 
 # Local Claude settings
 .claude/
+
+# Word/Office lock files
+~$*
