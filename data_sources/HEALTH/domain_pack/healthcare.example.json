@@ -1,0 +1,377 @@
+{
+  "domain": "healthcare",
+  "note": "Lakeshore Health Partners (LHP) domain pack — the healthcare scenario. Carries both halves of a pack: the categorization/naming keys read by suggester.py (table_category, table_terms, cat_keywords, abbreviations, category_definitions) and the governed tag vocabulary read by tagdict.py (category_tags, tag_rules, extra_tags, terms). Tags introduced here are company-layer and pre-approved. Reseed the Dictionary (Dictionary page -> Reseed) after adding/changing this file, then re-run 'Suggest tags' on the grid.",
+  "table_category": {
+    "patients": "Patient",
+    "appointments": "Appointments & Encounters",
+    "encounters": "Appointments & Encounters",
+    "lab_results": "Diagnoses & Results",
+    "prescriptions": "Prescriptions",
+    "claims": "Claims & Billing",
+    "payers": "Payers",
+    "disclosure_log": "Privacy & Disclosures",
+    "clinics": "Clinic Operations",
+    "staff": "Clinic Operations",
+    "providers": "Clinic Operations"
+  },
+  "table_terms": {
+    "patients": "Patient Record",
+    "appointments": "Appointment Record",
+    "encounters": "Encounter Record",
+    "lab_results": "Lab Result Record",
+    "prescriptions": "Prescription Record",
+    "claims": "Claim Record",
+    "payers": "Payer Record",
+    "disclosure_log": "Disclosure Log Entry",
+    "clinics": "Clinic Record",
+    "staff": "Staff Record",
+    "providers": "Provider Record"
+  },
+  "cat_keywords": [
+    [
+      "patient",
+      "Patient"
+    ],
+    [
+      "mrn",
+      "Patient"
+    ],
+    [
+      "_pt",
+      "Patient"
+    ],
+    [
+      "appt",
+      "Appointments & Encounters"
+    ],
+    [
+      "appointment",
+      "Appointments & Encounters"
+    ],
+    [
+      "encounter",
+      "Appointments & Encounters"
+    ],
+    [
+      "visit",
+      "Appointments & Encounters"
+    ],
+    [
+      "dx",
+      "Diagnoses & Results"
+    ],
+    [
+      "diagnos",
+      "Diagnoses & Results"
+    ],
+    [
+      "lab",
+      "Diagnoses & Results"
+    ],
+    [
+      "loinc",
+      "Diagnoses & Results"
+    ],
+    [
+      "result",
+      "Diagnoses & Results"
+    ],
+    [
+      "rx",
+      "Prescriptions"
+    ],
+    [
+      "drug",
+      "Prescriptions"
+    ],
+    [
+      "ndc",
+      "Prescriptions"
+    ],
+    [
+      "prescri",
+      "Prescriptions"
+    ],
+    [
+      "claim",
+      "Claims & Billing"
+    ],
+    [
+      "cpt",
+      "Claims & Billing"
+    ],
+    [
+      "billed",
+      "Claims & Billing"
+    ],
+    [
+      "payer",
+      "Payers"
+    ],
+    [
+      "insurance",
+      "Payers"
+    ],
+    [
+      "disclos",
+      "Privacy & Disclosures"
+    ],
+    [
+      "authoriz",
+      "Privacy & Disclosures"
+    ],
+    [
+      "consent",
+      "Privacy & Disclosures"
+    ],
+    [
+      "clinic",
+      "Clinic Operations"
+    ],
+    [
+      "provider",
+      "Clinic Operations"
+    ],
+    [
+      "npi",
+      "Clinic Operations"
+    ],
+    [
+      "staff",
+      "Clinic Operations"
+    ]
+  ],
+  "abbreviations": {
+    "pt": "Patient",
+    "mrn": "MRN",
+    "dob": "Date of Birth",
+    "ssn": "SSN",
+    "appt": "Appointment",
+    "enc": "Encounter",
+    "dx": "Diagnosis",
+    "rx": "Prescription",
+    "ndc": "NDC",
+    "cpt": "CPT",
+    "npi": "NPI",
+    "prov": "Provider",
+    "cl": "Clinic",
+    "dl": "Disclosure",
+    "mkt": "Marketing",
+    "dea": "DEA",
+    "amt": "Amount",
+    "cd": "Code",
+    "dt": "Date",
+    "nm": "Name",
+    "no": "Number",
+    "txt": "Text",
+    "qty": "Quantity",
+    "ref": "Reference",
+    "mgr": "Manager"
+  },
+  "category_definitions": {
+    "Patient": "Identifies and describes the patient — the PHI master under HIPAA.",
+    "Appointments & Encounters": "Scheduled visits and the clinical encounters they become, including the visit note.",
+    "Diagnoses & Results": "ICD-10 diagnoses and LOINC-coded laboratory results.",
+    "Prescriptions": "Medication orders, NDC product codes and DEA-scheduled controlled substances.",
+    "Claims & Billing": "Professional claims, CPT coding and the revenue cycle.",
+    "Payers": "Insurance payers and coverage programs.",
+    "Privacy & Disclosures": "HIPAA accounting of disclosures, authorizations and marketing consent.",
+    "Clinic Operations": "Clinics, staff and credentialed providers."
+  },
+  "category_tags": {
+    "Patient": [
+      "patient",
+      "phi"
+    ],
+    "Appointments & Encounters": [
+      "encounter"
+    ],
+    "Diagnoses & Results": [
+      "clinical",
+      "results"
+    ],
+    "Prescriptions": [
+      "medication"
+    ],
+    "Claims & Billing": [
+      "claims",
+      "billing"
+    ],
+    "Payers": [
+      "payer"
+    ],
+    "Privacy & Disclosures": [
+      "privacy",
+      "compliance"
+    ],
+    "Clinic Operations": [
+      "operational"
+    ],
+    "Records & Documents": [
+      "document",
+      "records"
+    ]
+  },
+  "extra_tags": [
+    "patient",
+    "phi",
+    "hipaa",
+    "privacy",
+    "encounter",
+    "clinical",
+    "results",
+    "diagnosis",
+    "medication",
+    "controlled-substance",
+    "claims",
+    "billing",
+    "coding",
+    "payer",
+    "disclosure",
+    "consent",
+    "compliance",
+    "statement",
+    "correspondence",
+    "records"
+  ],
+  "tag_rules": [
+    {
+      "pattern": "\\bssn\\b|\\bdob\\b|\\bmrn\\b|\\bphi\\b|date.?of.?birth",
+      "tags": [
+        "phi",
+        "privacy"
+      ]
+    },
+    {
+      "pattern": "\\bdx\\b|icd|diagnos|loinc|result|\\blab\\b|abnormal",
+      "tags": [
+        "clinical",
+        "results"
+      ]
+    },
+    {
+      "pattern": "\\bndc\\b|drug|\\brx|prescri|dose|\\bdea\\b|controlled|refill",
+      "tags": [
+        "medication"
+      ]
+    },
+    {
+      "pattern": "\\bcpt\\b|claim|billed|allowed|paid|remit|\\b837\\b|fee.?schedule",
+      "tags": [
+        "claims",
+        "billing",
+        "coding"
+      ]
+    },
+    {
+      "pattern": "payer|insurance|medicare|medicaid|coverage|crossover",
+      "tags": [
+        "payer"
+      ]
+    },
+    {
+      "pattern": "disclos|consent|authoriz|opt.?out|\\bnpp\\b|privacy",
+      "tags": [
+        "privacy",
+        "disclosure",
+        "compliance"
+      ]
+    },
+    {
+      "pattern": "appt|appointment|encounter|visit|no.?show|chief.?complaint",
+      "tags": [
+        "encounter"
+      ]
+    },
+    {
+      "pattern": "\\bnpi\\b|provider|specialt|license|credential",
+      "tags": [
+        "operational"
+      ]
+    },
+    {
+      "pattern": "statement|balance|coinsurance",
+      "tags": [
+        "billing",
+        "statement",
+        "records"
+      ]
+    },
+    {
+      "pattern": "correspond|\\bletter\\b|referral|appeal|notice|intake",
+      "tags": [
+        "correspondence",
+        "records"
+      ]
+    }
+  ],
+  "terms": {
+    "MRN": {
+      "aliases": [
+        "Medical Record Number",
+        "Patient ID"
+      ],
+      "sensitivity": "HIGH",
+      "tags": [
+        "patient",
+        "phi",
+        "identifier",
+        "PII"
+      ]
+    },
+    "SSN": {
+      "aliases": [
+        "Social Security Number"
+      ],
+      "sensitivity": "HIGH",
+      "tags": [
+        "phi",
+        "PII",
+        "privacy"
+      ]
+    },
+    "NPI": {
+      "aliases": [
+        "National Provider Identifier"
+      ],
+      "sensitivity": "LOW",
+      "tags": [
+        "operational",
+        "identifier"
+      ]
+    },
+    "Diagnosis Code": {
+      "aliases": [
+        "ICD-10 Code",
+        "Dx Code"
+      ],
+      "sensitivity": "HIGH",
+      "tags": [
+        "clinical",
+        "phi"
+      ]
+    },
+    "Claim Number": {
+      "aliases": [
+        "Claim No",
+        "Claim ID"
+      ],
+      "sensitivity": "MEDIUM",
+      "tags": [
+        "claims",
+        "billing",
+        "identifier"
+      ]
+    },
+    "DEA Schedule": {
+      "aliases": [
+        "Controlled Substance Schedule"
+      ],
+      "sensitivity": "MEDIUM",
+      "tags": [
+        "medication",
+        "controlled-substance"
+      ]
+    }
+  }
+}

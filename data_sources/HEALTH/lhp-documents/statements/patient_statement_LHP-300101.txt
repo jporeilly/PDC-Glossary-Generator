@@ -1,0 +1,15 @@
+LAKESHORE HEALTH PARTNERS - PATIENT STATEMENT
+2934 Hennepin Ave, Minneapolis, MN 55408 - billing@lakeshorehealth.org
+
+Statement date: 2026-07-01
+Patient: Alma Petersen        MRN: LHP-300101
+Coverage: North Star Mutual Health
+
+  2026-05-05  99396  Preventive visit           285.00  ins paid 214.60  you owe   0.00
+  2026-05-05  80053  Metabolic panel             89.00  ins paid  41.83  you owe   9.40
+  2026-06-23  99213  Office visit (lab review)  168.00  processing       est.     25.87
+
+  BALANCE DUE: $9.40 (insurance-processed items only)
+
+Questions? Reference your MRN and the claim number on any correspondence.
+All Lakeshore Health Partners data is fictional and generated for training.

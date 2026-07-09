@@ -1,0 +1,11 @@
+{
+  "interface": "lab-results-inbound",
+  "period": "2026-06",
+  "source": "Northland Reference Lab",
+  "results": [
+    {"mrn": "LHP-300111", "loinc_cd": "3016-3", "test": "TSH", "value": "2.8", "unit": "mIU/L", "flag": "N", "result_dt": "2026-06-09"},
+    {"mrn": "LHP-300101", "loinc_cd": "13457-7", "test": "LDL cholesterol", "value": "162", "unit": "mg/dL", "flag": "H", "result_dt": "2026-06-22"},
+    {"mrn": "LHP-300112", "loinc_cd": "718-7", "test": "Hemoglobin", "value": "12.9", "unit": "g/dL", "flag": "N", "result_dt": "2026-06-02"}
+  ],
+  "note": "MRNs follow LHP-nnnnnn. PHI - interface files are purged from the landing zone after 30 days."
+}
