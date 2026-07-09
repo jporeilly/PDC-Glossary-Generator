@@ -30,8 +30,9 @@ self-signed `CN=admin` certificate. `securityadmin` therefore cannot
 authenticate to write the `.opendistro_security` index, and cluster-init
 times out waiting for a security-initialized cluster.
 
-Tell-tales: the node log shows *"OpenSearch Security not initialized"*;
-a plain `curl -s http://localhost:9200/_cluster/health` from inside the
+Tell-tales: the node log repeats *"Failure no such index
+[.opendistro_security]"* / *"OpenSearch Security not initialized"*; a
+plain `curl -s http://localhost:9200/_cluster/health` from inside the
 node container returns *"not initialized"* instead of a 401; securityadmin
 fails with `certificate_unknown`.
 
@@ -77,7 +78,9 @@ the whole app tier (`fe`, `public-api`, `glossary`, …) stays in
 `Created`. Traefik answers but has no backends, so **every URL 404s even
 after OpenSearch is fixed**. After the repair you must re-run
 `./pdc.sh up` so the stranded services start, then wait for `fe` and
-`public-api` to actually reach `Up`.
+`public-api` to actually reach `Up`. If the tier is stuck in `Created`
+and OpenSearch is healthy, see the site-wide-404 section below — there is
+a second, independent cause.
 
 **Automated: `pdc-reset.sh`** (repo root, run on the VM). The full
 wipe-and-rebuild script does all of this — wipes the `pdc_*` volumes,
@@ -218,6 +221,41 @@ Then sign in and check the Workers page — search-backed features
 
 ---
 
+## Site-wide 404 — app tier stuck in `Created` (`um-css-admin-api-init` exit 1)
+
+`pentaho.io` returns 404 for every path, including
+`/api/public/swagger/`. `./pdc.sh ps` shows `fe`, `public-api`,
+`glossary`, `mds`, `applications` and others stuck in `Created`, and
+`um-css-admin-api-init` exits 1 with its log looping `http_code=000`
+against `https://pentaho.io/keycloak/realms/master`. **Two possible
+causes — check both:**
+
+1. **The OpenSearch init failed** (section above): the dependent init
+   chain fails and the tier never starts. Fix that first, then re-run
+   `./pdc.sh up`.
+2. **More subtly: `/etc/hosts` maps `pentaho.io` to `127.0.0.1`.** Inside
+   a container, 127.0.0.1 is the container itself — so any service that
+   reaches another via the `pentaho.io` URL (Keycloak, Mongo/FerretDB,
+   OpenSearch, Kafka; all built from `GLOBAL_SERVER_HOST_NAME=pentaho.io`)
+   hits its own loopback and gets `http_code=000`, stranding the entire
+   stack. This mapping was introduced during the version upgrade.
+
+Fix the mapping, then recreate the containers so they pick it up:
+
+```sh
+sudo sed -i 's/^127\.0\.0\.1\s\+pentaho\.io/192.168.1.200 pentaho.io/' /etc/hosts
+grep pentaho.io /etc/hosts    # should now read: 192.168.1.200 pentaho.io
+cd /opt/pentaho/pdc-docker-deployment && ./pdc.sh stop && ./pdc.sh up
+```
+
+Verify from inside any container — the name must resolve to the LAN IP:
+
+```sh
+docker exec "$node" getent hosts pentaho.io   # expect 192.168.1.200, not 127.0.0.1
+```
+
+---
+
 ## Browser: `NET::ERR_CERT_AUTHORITY_INVALID` at `https://pentaho.io` — with no "Proceed anyway" link
 
 Seen in Chrome (on the VM or the Windows host) after a rebuild. **This is
@@ -263,10 +301,25 @@ sudo cp /tmp/pentaho.crt /usr/local/share/ca-certificates/pentaho.crt
 sudo update-ca-certificates
 ```
 
-Chrome keeps its **own** store, so for the browser specifically import
-`/tmp/pentaho.crt` via Settings → Privacy and security → Security →
-Manage certificates → Authorities → Import, tick *"trust this certificate
-for identifying websites"*, and restart Chrome.
+Recent Chrome no longer has an Authorities → Import tab — it reads
+imported certificates from the operating system store (*"use imported
+local certificates from your operating system"*), so the
+`update-ca-certificates` step above is what Chrome picks up; restart the
+browser afterwards.
+
+**Gotcha — stale certificates.** The cert regenerates each rebuild, so
+old trusted certs accumulate in two separate stores: the OS store
+(`/usr/local/share/ca-certificates`) and Chrome's NSS database
+(`~/.pki/nssdb`). `update-ca-certificates` only manages the OS store, so
+a stale entry (for example a `CN=awc-pdc` leftover) can survive in NSS.
+Find and remove them by subject/nickname:
+
+```sh
+for f in /usr/local/share/ca-certificates/*.crt; do
+  echo "$f -> $(openssl x509 -in "$f" -noout -subject)"; done
+certutil -d sql:$HOME/.pki/nssdb -L                 # list Chrome NSS entries
+certutil -d sql:$HOME/.pki/nssdb -D -n "<nickname>" # delete a stale one
+```
 
 ### Which path to use
 
@@ -274,6 +327,23 @@ for identifying websites"*, and restart Chrome.
 - A VM you demo from regularly: the import is worth doing once — **but**
   every volume-wipe rebuild regenerates the cert, so you re-import each
   time. In a rebuild-heavy lab that is itself an argument for the bypass.
+
+---
+
+## Licensed features unavailable after a rebuild
+
+After a volume wipe, licensed features are greyed out even though offline
+mode is configured. The offline license is stored in **PDC's internal
+database**, which is wiped with the volumes; the
+`LICENSING_OFFLINE_INSTALL=true` flag survives (it lives in `conf/.env`),
+but the uploaded license does not. Re-upload the `license.bin` after each
+rebuild — get a bearer token, then POST it to
+`/api/public/v2/licensing/uploadLicense` with `deviceId=pdc-demo` (the
+endpoint is `v1` on earlier builds and `/api/public/v3/licensing/upload`
+on v3 — the Swagger page shows which your instance exposes).
+`pdc-reset.sh` does this automatically when `LICENSE_BIN` and the admin
+password are supplied. The full Swagger walkthrough is in the lab setup
+guide (`data_sources/lab/lab-setup.docx`, Part F).
 
 ---
 
