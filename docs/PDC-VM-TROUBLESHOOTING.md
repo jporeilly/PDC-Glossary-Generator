@@ -19,7 +19,81 @@ indices, users and policies PDC needs. Exit 1 means it gave up — almost
 always because OpenSearch itself never became healthy, not because the
 init logic is broken.
 
-Diagnose top-to-bottom on the VM, from
+### KNOWN CAUSE on this lab's deployment — securityadmin cert trust
+
+On this deployment's OpenSearch image (`cat-opensearch:2.19`,
+Bitnami-based) a **fresh volume** reproduces this failure every clean
+rebuild. Root cause: the image regenerates
+`/opt/bitnami/opensearch/config/extra.crt` (the node's truststore) with
+only the node CA — the node's own CN — so it does not trust the
+self-signed `CN=admin` certificate. `securityadmin` therefore cannot
+authenticate to write the `.opendistro_security` index, and cluster-init
+times out waiting for a security-initialized cluster.
+
+Tell-tales: the node log shows *"OpenSearch Security not initialized"*;
+a plain `curl -s http://localhost:9200/_cluster/health` from inside the
+node container returns *"not initialized"* instead of a 401; securityadmin
+fails with `certificate_unknown`.
+
+**Fix — append the admin cert to the node truststore, restart, run
+securityadmin by hand** (run on the VM as the pdc user):
+
+```bash
+node=$(docker ps --format '{{.Names}}' | grep opensearch | grep -vE 'init|volume' | head -1)
+
+# make the node trust the admin cert (append to the truststore, as root)
+docker exec -u 0 "$node" sh -c '
+  if [ $(grep -c "BEGIN CERT" /opt/bitnami/opensearch/config/extra.crt) -lt 2 ]; then
+    cat /opt/bitnami/opensearch/config/admin.crt >> /opt/bitnami/opensearch/config/extra.crt
+  fi'
+
+docker restart "$node"
+sleep 40
+
+# load the security config -> creates .opendistro_security (REST 9200/TLS)
+docker exec "$node" bash -c '
+  cd /opt/bitnami/opensearch/plugins/opensearch-security/tools && \
+  ./securityadmin.sh \
+    -cd /opt/bitnami/opensearch/config/opensearch-security/ \
+    -icl -nhnv \
+    -cacert /opt/bitnami/opensearch/config/extra.crt \
+    -cert   /opt/bitnami/opensearch/config/admin.crt \
+    -key    /opt/bitnami/opensearch/config/admin.key \
+    -h localhost -p 9200'
+```
+
+Expect `Done with success`. Then confirm and bring the stack up:
+
+```bash
+docker exec "$node" curl -s http://localhost:9200/_cluster/health
+# "not initialized" flipping to a 401 response = security is now active
+./pdc.sh up
+./pdc.sh ps      # cluster-init should reach Exited (0)
+```
+
+Notes from the times this has recurred:
+
+- The node's CN follows the host that generated it (`awc-pdc` on the old
+  VM, whatever `pdc-demo` minted on this one). The fix does not depend on
+  the CN — it appends `admin.crt` to `extra.crt` regardless — so don't be
+  thrown if the certificate subjects read differently between rebuilds.
+- If securityadmin still throws `certificate_unknown`: the append didn't
+  take (`grep -c "BEGIN CERT" extra.crt` inside the node must show 2) or
+  the restart didn't reload the truststore — redo those two steps.
+- This recurs on **every clean rebuild** with a fresh OpenSearch volume,
+  so it belongs in the deployment's reset/up script, guarded to run only
+  when security is uninitialized:
+
+```bash
+node=$(docker ps --format '{{.Names}}' | grep opensearch | grep -vE 'init|volume' | head -1)
+if docker exec "$node" curl -s http://localhost:9200/_cluster/health \
+     | grep -q "not initialized"; then
+  # ... the append + restart + securityadmin sequence above ...
+fi
+```
+
+If the tell-tales above do **not** match, fall back to the generic chain
+below — diagnose top-to-bottom on the VM, from
 `/opt/pentaho/pdc-docker-deployment`:
 
 ### 1. Read the init job's own log first
