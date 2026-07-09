@@ -1,9 +1,9 @@
 # Glossary Generator — repository manifest (1.7.2)
 
 The Flask app, with the **Registry writer** hooked in at export time, plus the
-**Copper State Credit Union (CSCU)**, **Canyon Trail Outfitters (RETAIL)** and
-**Lakeshore Health Partners (HEALTH)** training scenarios (additional scenarios
-plug in as data folders). The **Policy Generator** ships
+**Copper State Credit Union (CSCU)**, **Canyon Trail Outfitters (RETAIL)**,
+**Lakeshore Health Partners (HEALTH)** and **Cascade Precision Components (MFG)**
+training scenarios (additional scenarios plug in as data folders). The **Policy Generator** ships
 **separately** as its own standalone app (`policy_generator/`). Validated
 against **PDC 11.0.0**.
 
@@ -59,10 +59,14 @@ PDC-Glossary/
     HEALTH/                     Lakeshore Health Partners (healthcare) — same kit shape
       postgres-init/  lhp-documents/  domain_pack/
       lhp-domain-pack.zip  lhp-datasources.csv  scenario.json
+    MFG/                        Cascade Precision Components (manufacturing) — same kit shape
+      postgres-init/  cpc-documents/  domain_pack/
+      cpc-domain-pack.zip  cpc-datasources.csv  scenario.json
   courseware/
     CSCU/                       workshop guides (markdown masters) + Technical Track
     RETAIL/                     the retail workshop set (W00-W05 + assets)
     HEALTH/                     the healthcare workshop set (W00-W05 + assets)
+    MFG/                        the manufacturing workshop set (W00-W05 + assets)
 ```
 
 The **Policy Generator** is delivered separately as `policy_generator/` (its own zip):

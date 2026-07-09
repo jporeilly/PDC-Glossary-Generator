@@ -1,0 +1,27 @@
+From: petra.novak@cascadeprecision.com
+To: sales@pacificalloys.example
+Date: 2026-06-18 08:52
+Subject: PO-30000112 - 600 pcs CPC-61181, need promise date
+
+Team,
+
+Issuing PO-30000112 for 600 pcs of the 1/2 NPT plated fitting
+(CPC-61181), unit $4.40, need at Vancouver Columbia by 7/10. Please
+confirm the promise date today - line is down for Klamath Ag's order.
+
+Petra Novak, Buyer
+Cascade Precision Components
+
+---
+From: yuki.mori@cascadeprecision.com
+To: petra.novak@cascadeprecision.com
+Date: 2026-06-19 07:31
+Subject: RE: PO-30000112 - HOLD - supplier is SUSPENDED
+
+Petra - Pacific Alloys has been SUSPENDED on the ASL since 5/30 (plating
+escapes, see the audit and 8D). No new POs may be placed until corrective
+actions are verified. Please cancel PO-30000112 and re-source; the ERP
+should have blocked this - I have raised the gap with IT.
+
+Yuki Mori, Quality
+All Cascade Precision Components data is fictional and generated for training.

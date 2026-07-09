@@ -1,0 +1,101 @@
+schema_name,table_name,column_name,entity_type,business_term,glossary,category,sensitivity,critical_data_element
+cpc_mfg,plants,pl_id,COLUMN,Plant ID,CPC Business Glossary,Plant Operations,LOW,Yes
+cpc_mfg,plants,pl_name,COLUMN,Plant Name,CPC Business Glossary,Plant Operations,LOW,No
+cpc_mfg,plants,pl_addr,COLUMN,Plant Address,CPC Business Glossary,Plant Operations,LOW,No
+cpc_mfg,plants,pl_city,COLUMN,Plant City,CPC Business Glossary,Plant Operations,LOW,No
+cpc_mfg,plants,pl_st,COLUMN,Plant State,CPC Business Glossary,Plant Operations,LOW,No
+cpc_mfg,plants,pl_zip,COLUMN,Plant ZIP,CPC Business Glossary,Plant Operations,LOW,No
+cpc_mfg,plants,pl_phone,COLUMN,Plant Phone,CPC Business Glossary,Plant Operations,LOW,No
+cpc_mfg,plants,mgr_emp_id,COLUMN,Manager Employee ID,CPC Business Glossary,Plant Operations,LOW,No
+cpc_mfg,plants,open_dt,COLUMN,Plant Open Date,CPC Business Glossary,Plant Operations,LOW,No
+cpc_mfg,plants,pl_status,COLUMN,Plant Status,CPC Business Glossary,Plant Operations,LOW,No
+cpc_mfg,employees,emp_id,COLUMN,Employee ID,CPC Business Glossary,Plant Operations,LOW,Yes
+cpc_mfg,employees,first_nm,COLUMN,First Name,CPC Business Glossary,Plant Operations,HIGH,Yes
+cpc_mfg,employees,last_nm,COLUMN,Last Name,CPC Business Glossary,Plant Operations,HIGH,Yes
+cpc_mfg,employees,email,COLUMN,Email,CPC Business Glossary,Plant Operations,HIGH,Yes
+cpc_mfg,employees,pl_id,COLUMN,Plant ID,CPC Business Glossary,Plant Operations,LOW,No
+cpc_mfg,employees,role_cd,COLUMN,Role Code,CPC Business Glossary,Plant Operations,LOW,No
+cpc_mfg,employees,hire_dt,COLUMN,Hire Date,CPC Business Glossary,Plant Operations,LOW,No
+cpc_mfg,employees,emp_status,COLUMN,Employee Status,CPC Business Glossary,Plant Operations,LOW,No
+cpc_mfg,suppliers,supplier_id,COLUMN,Supplier ID,CPC Business Glossary,Suppliers & Purchasing,LOW,Yes
+cpc_mfg,suppliers,supplier_nm,COLUMN,Supplier Name,CPC Business Glossary,Suppliers & Purchasing,LOW,No
+cpc_mfg,suppliers,contact_email,COLUMN,Contact Email,CPC Business Glossary,Suppliers & Purchasing,MEDIUM,No
+cpc_mfg,suppliers,phone,COLUMN,Phone,CPC Business Glossary,Suppliers & Purchasing,LOW,No
+cpc_mfg,suppliers,city,COLUMN,City,CPC Business Glossary,Suppliers & Purchasing,LOW,No
+cpc_mfg,suppliers,st,COLUMN,St,CPC Business Glossary,Suppliers & Purchasing,LOW,No
+cpc_mfg,suppliers,asl_status,COLUMN,ASL Status,CPC Business Glossary,Suppliers & Purchasing,MEDIUM,Yes
+cpc_mfg,suppliers,status_dt,COLUMN,Status Date,CPC Business Glossary,Suppliers & Purchasing,LOW,No
+cpc_mfg,suppliers,quality_rating_cd,COLUMN,Quality Rating Code,CPC Business Glossary,Suppliers & Purchasing,LOW,No
+cpc_mfg,parts,part_id,COLUMN,Part ID,CPC Business Glossary,Parts & BOM,LOW,Yes
+cpc_mfg,parts,part_no,COLUMN,Part Number,CPC Business Glossary,Parts & BOM,LOW,Yes
+cpc_mfg,parts,rev_cd,COLUMN,Revision Code,CPC Business Glossary,Parts & BOM,LOW,Yes
+cpc_mfg,parts,part_nm,COLUMN,Part Name,CPC Business Glossary,Parts & BOM,LOW,No
+cpc_mfg,parts,part_type_cd,COLUMN,Part Type Code,CPC Business Glossary,Parts & BOM,LOW,No
+cpc_mfg,parts,uom_cd,COLUMN,UOM Code,CPC Business Glossary,Parts & BOM,LOW,No
+cpc_mfg,parts,unit_cost,COLUMN,Unit Cost,CPC Business Glossary,Parts & BOM,HIGH,Yes
+cpc_mfg,parts,safety_critical_flag,COLUMN,Safety Critical Flag,CPC Business Glossary,Parts & BOM,MEDIUM,Yes
+cpc_mfg,parts,part_status,COLUMN,Part Status,CPC Business Glossary,Parts & BOM,LOW,No
+cpc_mfg,boms,bom_id,COLUMN,BOM ID,CPC Business Glossary,Parts & BOM,LOW,Yes
+cpc_mfg,boms,parent_part_id,COLUMN,Parent Part ID,CPC Business Glossary,Parts & BOM,LOW,Yes
+cpc_mfg,boms,child_part_id,COLUMN,Child Part ID,CPC Business Glossary,Parts & BOM,LOW,Yes
+cpc_mfg,boms,qty_per,COLUMN,Quantity Per,CPC Business Glossary,Parts & BOM,LOW,No
+cpc_mfg,boms,effective_dt,COLUMN,Effective Date,CPC Business Glossary,Parts & BOM,LOW,No
+cpc_mfg,boms,bom_status,COLUMN,BOM Status,CPC Business Glossary,Parts & BOM,LOW,No
+cpc_mfg,purchase_orders,po_id,COLUMN,PO ID,CPC Business Glossary,Suppliers & Purchasing,LOW,Yes
+cpc_mfg,purchase_orders,po_no,COLUMN,PO Number,CPC Business Glossary,Suppliers & Purchasing,MEDIUM,Yes
+cpc_mfg,purchase_orders,supplier_id,COLUMN,Supplier ID,CPC Business Glossary,Suppliers & Purchasing,LOW,No
+cpc_mfg,purchase_orders,part_id,COLUMN,Part ID,CPC Business Glossary,Suppliers & Purchasing,LOW,No
+cpc_mfg,purchase_orders,qty_ordered,COLUMN,Quantity Ordered,CPC Business Glossary,Suppliers & Purchasing,LOW,No
+cpc_mfg,purchase_orders,unit_price,COLUMN,Unit Price,CPC Business Glossary,Suppliers & Purchasing,HIGH,No
+cpc_mfg,purchase_orders,order_dt,COLUMN,Order Date,CPC Business Glossary,Suppliers & Purchasing,LOW,No
+cpc_mfg,purchase_orders,promised_dt,COLUMN,Promised Date,CPC Business Glossary,Suppliers & Purchasing,LOW,No
+cpc_mfg,purchase_orders,po_status,COLUMN,PO Status,CPC Business Glossary,Suppliers & Purchasing,LOW,No
+cpc_mfg,work_orders,wo_id,COLUMN,WO ID,CPC Business Glossary,Production,LOW,Yes
+cpc_mfg,work_orders,wo_no,COLUMN,WO Number,CPC Business Glossary,Production,MEDIUM,Yes
+cpc_mfg,work_orders,part_id,COLUMN,Part ID,CPC Business Glossary,Production,LOW,No
+cpc_mfg,work_orders,pl_id,COLUMN,Plant ID,CPC Business Glossary,Production,LOW,No
+cpc_mfg,work_orders,qty_planned,COLUMN,Quantity Planned,CPC Business Glossary,Production,LOW,No
+cpc_mfg,work_orders,qty_completed,COLUMN,Quantity Completed,CPC Business Glossary,Production,LOW,No
+cpc_mfg,work_orders,qty_scrapped,COLUMN,Quantity Scrapped,CPC Business Glossary,Production,MEDIUM,No
+cpc_mfg,work_orders,start_dt,COLUMN,Start Date,CPC Business Glossary,Production,LOW,No
+cpc_mfg,work_orders,due_dt,COLUMN,Due Date,CPC Business Glossary,Production,LOW,No
+cpc_mfg,work_orders,wo_status,COLUMN,WO Status,CPC Business Glossary,Production,LOW,No
+cpc_mfg,lots,lot_id,COLUMN,Lot ID,CPC Business Glossary,Traceability,LOW,Yes
+cpc_mfg,lots,lot_no,COLUMN,Lot Number,CPC Business Glossary,Traceability,MEDIUM,Yes
+cpc_mfg,lots,part_id,COLUMN,Part ID,CPC Business Glossary,Traceability,LOW,No
+cpc_mfg,lots,wo_id,COLUMN,WO ID,CPC Business Glossary,Traceability,LOW,No
+cpc_mfg,lots,supplier_id,COLUMN,Supplier ID,CPC Business Glossary,Traceability,LOW,No
+cpc_mfg,lots,qty,COLUMN,Quantity,CPC Business Glossary,Traceability,LOW,No
+cpc_mfg,lots,mfg_dt,COLUMN,Manufacture Date,CPC Business Glossary,Traceability,LOW,No
+cpc_mfg,lots,coc_flag,COLUMN,CoC Flag,CPC Business Glossary,Traceability,MEDIUM,Yes
+cpc_mfg,lots,lot_status,COLUMN,Lot Status,CPC Business Glossary,Traceability,MEDIUM,Yes
+cpc_mfg,inspections,insp_id,COLUMN,Inspection ID,CPC Business Glossary,Quality & Inspection,LOW,Yes
+cpc_mfg,inspections,lot_id,COLUMN,Lot ID,CPC Business Glossary,Quality & Inspection,LOW,No
+cpc_mfg,inspections,insp_type_cd,COLUMN,Inspection Type Code,CPC Business Glossary,Quality & Inspection,LOW,No
+cpc_mfg,inspections,insp_dt,COLUMN,Inspection Date,CPC Business Glossary,Quality & Inspection,LOW,No
+cpc_mfg,inspections,inspector_emp_id,COLUMN,Inspector Employee ID,CPC Business Glossary,Quality & Inspection,LOW,No
+cpc_mfg,inspections,sample_qty,COLUMN,Sample Quantity,CPC Business Glossary,Quality & Inspection,LOW,No
+cpc_mfg,inspections,defects_found,COLUMN,Defects Found,CPC Business Glossary,Quality & Inspection,MEDIUM,No
+cpc_mfg,inspections,result_cd,COLUMN,Result Code,CPC Business Glossary,Quality & Inspection,LOW,No
+cpc_mfg,ncrs,ncr_id,COLUMN,NCR ID,CPC Business Glossary,Nonconformance,LOW,Yes
+cpc_mfg,ncrs,ncr_no,COLUMN,NCR Number,CPC Business Glossary,Nonconformance,MEDIUM,Yes
+cpc_mfg,ncrs,lot_id,COLUMN,Lot ID,CPC Business Glossary,Nonconformance,LOW,No
+cpc_mfg,ncrs,part_id,COLUMN,Part ID,CPC Business Glossary,Nonconformance,LOW,No
+cpc_mfg,ncrs,defect_cd,COLUMN,Defect Code,CPC Business Glossary,Nonconformance,LOW,No
+cpc_mfg,ncrs,severity_cd,COLUMN,Severity Code,CPC Business Glossary,Nonconformance,MEDIUM,Yes
+cpc_mfg,ncrs,disposition_cd,COLUMN,Disposition Code,CPC Business Glossary,Nonconformance,MEDIUM,Yes
+cpc_mfg,ncrs,mrb_approval_flag,COLUMN,MRB Approval Flag,CPC Business Glossary,Nonconformance,MEDIUM,Yes
+cpc_mfg,ncrs,opened_dt,COLUMN,Opened Date,CPC Business Glossary,Nonconformance,LOW,No
+cpc_mfg,ncrs,opened_by_emp_id,COLUMN,Opened By Employee ID,CPC Business Glossary,Nonconformance,LOW,No
+cpc_mfg,ncrs,closed_dt,COLUMN,Closed Date,CPC Business Glossary,Nonconformance,LOW,No
+cpc_mfg,ncrs,ncr_status,COLUMN,NCR Status,CPC Business Glossary,Nonconformance,LOW,No
+cpc_mfg,shipments,ship_id,COLUMN,Shipment ID,CPC Business Glossary,Shipments & Customers,LOW,Yes
+cpc_mfg,shipments,ship_no,COLUMN,Shipment Number,CPC Business Glossary,Shipments & Customers,MEDIUM,Yes
+cpc_mfg,shipments,customer_nm,COLUMN,Customer Name,CPC Business Glossary,Shipments & Customers,MEDIUM,No
+cpc_mfg,shipments,part_id,COLUMN,Part ID,CPC Business Glossary,Shipments & Customers,LOW,No
+cpc_mfg,shipments,lot_id,COLUMN,Lot ID,CPC Business Glossary,Shipments & Customers,MEDIUM,Yes
+cpc_mfg,shipments,qty,COLUMN,Quantity,CPC Business Glossary,Shipments & Customers,LOW,No
+cpc_mfg,shipments,ship_dt,COLUMN,Ship Date,CPC Business Glossary,Shipments & Customers,LOW,No
+cpc_mfg,shipments,dest_city,COLUMN,Destination City,CPC Business Glossary,Shipments & Customers,LOW,No
+cpc_mfg,shipments,dest_st,COLUMN,Destination State,CPC Business Glossary,Shipments & Customers,LOW,No
+cpc_mfg,shipments,ship_status,COLUMN,Shipment Status,CPC Business Glossary,Shipments & Customers,LOW,No

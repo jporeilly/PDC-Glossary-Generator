@@ -75,7 +75,7 @@ up: preflight
 		[ $$i -eq 30 ] && { echo "  $(C_ERR)✗ MinIO not ready$(C_OFF)"; exit 1; }; \
 		printf "  ...waiting (%d/30)\r" $$i; sleep 2; done
 	@echo ""
-	@echo "  Next: make load SCENARIO=CSCU   (and/or RETAIL, HEALTH)"
+	@echo "  Next: make load SCENARIO=CSCU   (and/or RETAIL, HEALTH, MFG)"
 
 load:
 	@test -n "$(SCENARIO)" || { echo "usage: make load SCENARIO=<ID>"; exit 1; }

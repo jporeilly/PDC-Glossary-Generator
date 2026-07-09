@@ -59,6 +59,10 @@ Scenario packs ship with their scenario, not with the app (the app stays clean):
   diagnoses & results, prescriptions, claims, HIPAA disclosures):
   `data_sources/HEALTH/domain_pack/healthcare.example.json` +
   `healthcare.people.json`.
+- **Cascade Precision Components (CPC)** — manufacturing (parts/BOM, ASL
+  suppliers, work orders, lot traceability, NCR/MRB, shipments — the non-PII
+  contrast): `data_sources/MFG/domain_pack/manufacturing.example.json` +
+  `manufacturing.people.json`.
 
 Install one with `install-scenario.ps1` / `install-scenario.sh` (or unzip the
 scenario's `*-domain-pack.zip` into `glossary_generator/`), then reseed.
