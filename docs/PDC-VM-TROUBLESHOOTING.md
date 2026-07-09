@@ -205,6 +205,65 @@ Then sign in and check the Workers page — search-backed features
 
 ---
 
+## Browser: `NET::ERR_CERT_AUTHORITY_INVALID` at `https://pentaho.io` — with no "Proceed anyway" link
+
+Seen in Chrome (on the VM or the Windows host) after a rebuild. **This is
+a browser trust issue, not a PDC failure.** PDC's TLS certificate is
+self-signed, so Chrome doesn't trust the CA — and on a fresh rebuild the
+certificate regenerates, so hitting this right after wiping volumes is
+expected. The twist: `pentaho.io` is under **HSTS**, which is why Chrome
+suppresses the "Proceed to pentaho.io (unsafe)" link it normally offers.
+
+If the OpenSearch `_cluster/health` check (section above) already answers
+401, PDC itself is healthy — this warning is the only thing between you
+and the login page.
+
+### Fastest — the HSTS-override bypass
+
+With the error page focused, type **blind** (there is no input box):
+
+```text
+thisisunsafe
+```
+
+Chrome accepts it as the HSTS-override passphrase and loads the site.
+This is the standard trick precisely because HSTS suppresses the normal
+proceed link. It is **per-certificate**, so repeat it after any rebuild
+that regenerates the cert.
+
+### Clean — trust the certificate
+
+Import the cert the web tier actually serves. Do **not** grab the
+OpenSearch `server.crt` — the cert on 443 is served by the Traefik/proxy
+container. Capture what the browser is actually rejecting:
+
+```sh
+openssl s_client -connect pentaho.io:443 -servername pentaho.io </dev/null 2>/dev/null \
+  | openssl x509 -outform PEM > /tmp/pentaho.crt
+openssl x509 -in /tmp/pentaho.crt -noout -subject -issuer   # sanity-check
+```
+
+Trust it system-wide on the Ubuntu VM:
+
+```sh
+sudo cp /tmp/pentaho.crt /usr/local/share/ca-certificates/pentaho.crt
+sudo update-ca-certificates
+```
+
+Chrome keeps its **own** store, so for the browser specifically import
+`/tmp/pentaho.crt` via Settings → Privacy and security → Security →
+Manage certificates → Authorities → Import, tick *"trust this certificate
+for identifying websites"*, and restart Chrome.
+
+### Which path to use
+
+- Throwaway lab session: `thisisunsafe` is all you need.
+- A VM you demo from regularly: the import is worth doing once — **but**
+  every volume-wipe rebuild regenerates the cert, so you re-import each
+  time. In a rebuild-heavy lab that is itself an argument for the bypass.
+
+---
+
 *Add further PDC platform issues here as the labs surface them — same
 format: the exact error, what the failing piece does, an ordered check
 chain, and the verification step.*

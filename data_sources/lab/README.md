@@ -72,6 +72,19 @@ same VM); MinIO on 9000/9001:
 
 *All scenario data is fictional and generated for training.*
 
-> **PDC itself won't come up?** Platform errors from the PDC deployment
-> (e.g. `opensearch-cluster-init ... exit 1`) are covered in
-> [`docs/PDC-VM-TROUBLESHOOTING.md`](../../docs/PDC-VM-TROUBLESHOOTING.md).
+## Troubleshooting — PDC itself (same VM)
+
+The lab stack and PDC share the VM, so a broken PDC blocks every workshop
+even when `make status` is green. Known PDC platform issues are documented
+in [`docs/PDC-VM-TROUBLESHOOTING.md`](../../docs/PDC-VM-TROUBLESHOOTING.md):
+
+- **`opensearch-cluster-init ... exit 1` on `docker compose up`** — on this
+  deployment (`cat-opensearch:2.19`, fresh volume) the node truststore
+  omits the admin cert, so securityadmin can't initialize
+  `.opendistro_security`. The doc carries the verified fix (append
+  `admin.crt` to `extra.crt`, restart, run securityadmin) and a guarded
+  self-heal block for the deployment's reset script.
+- **Chrome `NET::ERR_CERT_AUTHORITY_INVALID` at `https://pentaho.io` with
+  no "Proceed anyway"** — self-signed cert + HSTS. Quick bypass: focus the
+  error page and type `thisisunsafe` blind; the clean cert-import path is
+  in the doc. Recurs after every rebuild that regenerates the cert.
