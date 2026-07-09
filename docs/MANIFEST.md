@@ -31,6 +31,7 @@ PDC-Glossary/
     GUIDE.md                    full walkthrough of every page and workflow
     INSTALL.md                  stand it up against your own PDC instance
     SUPPLEMENT.md               operating notes for a real PDC instance
+    PDC-VM-TROUBLESHOOTING.md   PDC platform errors on the lab VM (opensearch-cluster-init, ...)
     CHALLENGE-AND-GOAL.md       the Registry thesis, plain language
     REVIEW.md                   code review & PDC v3 compatibility notes
     CHANGELOG.md                release history

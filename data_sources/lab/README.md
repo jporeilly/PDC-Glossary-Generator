@@ -71,3 +71,7 @@ same VM); MinIO on 9000/9001:
   are in each scenario's README.
 
 *All scenario data is fictional and generated for training.*
+
+> **PDC itself won't come up?** Platform errors from the PDC deployment
+> (e.g. `opensearch-cluster-init ... exit 1`) are covered in
+> [`docs/PDC-VM-TROUBLESHOOTING.md`](../../docs/PDC-VM-TROUBLESHOOTING.md).
