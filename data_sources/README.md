@@ -10,6 +10,7 @@ pack + install zip, bulk-load CSV, `scenario.json` manifest).
 | --- | --- | --- | --- |
 | [`CSCU/`](CSCU/) | **Copper State Credit Union** — financial services | `cscu_core` (11 tables) | `cscu-documents` bucket (18 files) |
 | [`RETAIL/`](RETAIL/) | **Canyon Trail Outfitters** — retail | `cto_retail` (11 tables) | `cto-documents` bucket (18 files) |
+| [`HEALTH/`](HEALTH/) | **Lakeshore Health Partners** — healthcare | `lhp_clinical` (11 tables) | `lhp-documents` bucket (18 files) |
 
 Quick start (on the Docker host — the Ubuntu VM):
 
@@ -17,7 +18,7 @@ Quick start (on the Docker host — the Ubuntu VM):
 cd lab
 cp .env.example .env
 make up                    # start demo-postgres + demo-minio
-make load SCENARIO=CSCU    # and/or SCENARIO=RETAIL
+make load SCENARIO=CSCU    # and/or RETAIL, HEALTH
 make console               # PDC connection details per scenario
 ```
 

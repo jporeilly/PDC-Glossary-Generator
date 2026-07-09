@@ -1,0 +1,8 @@
+name,email,uuid,roles
+Maya Lindqvist,maya.lindqvist@lakeshorehealth.org,99e92f9e-2a94-541c-9aa1-b0148d2b6982,Data Steward; Business Steward
+Anders Berg,anders.berg@lakeshorehealth.org,8a242075-3f1c-5cf1-b6ff-e588e0a90c35,Business Steward
+Rosa Jimenez,rosa.jimenez@lakeshorehealth.org,ab1769eb-f6ea-506e-883a-7066377154c6,Business Steward
+Hannah Weiss,hannah.weiss@lakeshorehealth.org,1b2f5c18-6fba-59c0-8dad-4eac14f0d168,Business Steward
+Business Analyst,business.analyst@lakeshorehealth.org,,Data User
+Catalog Admin,catalog.admin@lakeshorehealth.org,,Admin
+Data Analyst,data.analyst@lakeshorehealth.org,,Data Steward

@@ -1,0 +1,109 @@
+schema_name,table_name,column_name,entity_type,business_term,glossary,category,sensitivity,critical_data_element
+lhp_clinical,clinics,cl_id,COLUMN,Clinic ID,LHP Business Glossary,Clinic Operations,LOW,Yes
+lhp_clinical,clinics,cl_name,COLUMN,Clinic Name,LHP Business Glossary,Clinic Operations,LOW,No
+lhp_clinical,clinics,cl_addr,COLUMN,Clinic Address,LHP Business Glossary,Clinic Operations,LOW,No
+lhp_clinical,clinics,cl_city,COLUMN,Clinic City,LHP Business Glossary,Clinic Operations,LOW,No
+lhp_clinical,clinics,cl_county,COLUMN,Clinic County,LHP Business Glossary,Clinic Operations,LOW,No
+lhp_clinical,clinics,cl_zip,COLUMN,Clinic ZIP,LHP Business Glossary,Clinic Operations,LOW,No
+lhp_clinical,clinics,cl_phone,COLUMN,Clinic Phone,LHP Business Glossary,Clinic Operations,LOW,No
+lhp_clinical,clinics,mgr_staff_id,COLUMN,Manager Staff ID,LHP Business Glossary,Clinic Operations,LOW,No
+lhp_clinical,clinics,open_dt,COLUMN,Clinic Open Date,LHP Business Glossary,Clinic Operations,LOW,No
+lhp_clinical,clinics,cl_status,COLUMN,Clinic Status,LHP Business Glossary,Clinic Operations,LOW,No
+lhp_clinical,staff,staff_id,COLUMN,Staff ID,LHP Business Glossary,Clinic Operations,LOW,Yes
+lhp_clinical,staff,first_nm,COLUMN,First Name,LHP Business Glossary,Clinic Operations,HIGH,Yes
+lhp_clinical,staff,last_nm,COLUMN,Last Name,LHP Business Glossary,Clinic Operations,HIGH,Yes
+lhp_clinical,staff,email,COLUMN,Email,LHP Business Glossary,Clinic Operations,HIGH,Yes
+lhp_clinical,staff,cl_id,COLUMN,Clinic ID,LHP Business Glossary,Clinic Operations,LOW,No
+lhp_clinical,staff,role_cd,COLUMN,Role Code,LHP Business Glossary,Clinic Operations,LOW,No
+lhp_clinical,staff,hire_dt,COLUMN,Hire Date,LHP Business Glossary,Clinic Operations,LOW,No
+lhp_clinical,staff,staff_status,COLUMN,Staff Status,LHP Business Glossary,Clinic Operations,LOW,No
+lhp_clinical,providers,prov_id,COLUMN,Provider ID,LHP Business Glossary,Clinic Operations,LOW,Yes
+lhp_clinical,providers,npi_no,COLUMN,NPI,LHP Business Glossary,Clinic Operations,LOW,Yes
+lhp_clinical,providers,first_nm,COLUMN,First Name,LHP Business Glossary,Clinic Operations,HIGH,No
+lhp_clinical,providers,last_nm,COLUMN,Last Name,LHP Business Glossary,Clinic Operations,HIGH,No
+lhp_clinical,providers,specialty_cd,COLUMN,Specialty Code,LHP Business Glossary,Clinic Operations,LOW,No
+lhp_clinical,providers,cl_id,COLUMN,Clinic ID,LHP Business Glossary,Clinic Operations,LOW,No
+lhp_clinical,providers,license_no,COLUMN,License Number,LHP Business Glossary,Clinic Operations,MEDIUM,Yes
+lhp_clinical,providers,prov_status,COLUMN,Provider Status,LHP Business Glossary,Clinic Operations,LOW,No
+lhp_clinical,patients,pt_id,COLUMN,Patient ID,LHP Business Glossary,Patient,HIGH,Yes
+lhp_clinical,patients,mrn,COLUMN,MRN,LHP Business Glossary,Patient,HIGH,Yes
+lhp_clinical,patients,first_nm,COLUMN,First Name,LHP Business Glossary,Patient,HIGH,Yes
+lhp_clinical,patients,last_nm,COLUMN,Last Name,LHP Business Glossary,Patient,HIGH,Yes
+lhp_clinical,patients,ssn,COLUMN,SSN,LHP Business Glossary,Patient,HIGH,Yes
+lhp_clinical,patients,dob,COLUMN,Date of Birth,LHP Business Glossary,Patient,HIGH,Yes
+lhp_clinical,patients,sex_cd,COLUMN,Sex Code,LHP Business Glossary,Patient,MEDIUM,No
+lhp_clinical,patients,email,COLUMN,Email,LHP Business Glossary,Patient,HIGH,Yes
+lhp_clinical,patients,phone,COLUMN,Phone,LHP Business Glossary,Patient,HIGH,Yes
+lhp_clinical,patients,addr1,COLUMN,Address 1,LHP Business Glossary,Patient,HIGH,Yes
+lhp_clinical,patients,city,COLUMN,City,LHP Business Glossary,Patient,HIGH,Yes
+lhp_clinical,patients,st,COLUMN,St,LHP Business Glossary,Patient,LOW,No
+lhp_clinical,patients,zip,COLUMN,ZIP,LHP Business Glossary,Patient,HIGH,Yes
+lhp_clinical,patients,primary_prov_id,COLUMN,Primary Provider ID,LHP Business Glossary,Patient,LOW,No
+lhp_clinical,patients,enrolled_dt,COLUMN,Enrolled Date,LHP Business Glossary,Patient,LOW,No
+lhp_clinical,patients,mkt_optout,COLUMN,Marketing Opt-Out,LHP Business Glossary,Patient,MEDIUM,Yes
+lhp_clinical,patients,pt_status,COLUMN,Patient Status,LHP Business Glossary,Patient,LOW,No
+lhp_clinical,payers,payer_id,COLUMN,Payer ID,LHP Business Glossary,Payers,LOW,Yes
+lhp_clinical,payers,payer_nm,COLUMN,Payer Name,LHP Business Glossary,Payers,LOW,No
+lhp_clinical,payers,payer_type_cd,COLUMN,Payer Type Code,LHP Business Glossary,Payers,LOW,No
+lhp_clinical,payers,contact_email,COLUMN,Contact Email,LHP Business Glossary,Payers,MEDIUM,No
+lhp_clinical,payers,phone,COLUMN,Phone,LHP Business Glossary,Payers,LOW,No
+lhp_clinical,payers,city,COLUMN,City,LHP Business Glossary,Payers,LOW,No
+lhp_clinical,payers,st,COLUMN,St,LHP Business Glossary,Payers,LOW,No
+lhp_clinical,payers,payer_status,COLUMN,Payer Status,LHP Business Glossary,Payers,LOW,No
+lhp_clinical,appointments,appt_id,COLUMN,Appointment ID,LHP Business Glossary,Appointments & Encounters,MEDIUM,Yes
+lhp_clinical,appointments,pt_id,COLUMN,Patient ID,LHP Business Glossary,Appointments & Encounters,HIGH,Yes
+lhp_clinical,appointments,prov_id,COLUMN,Provider ID,LHP Business Glossary,Appointments & Encounters,LOW,No
+lhp_clinical,appointments,cl_id,COLUMN,Clinic ID,LHP Business Glossary,Appointments & Encounters,LOW,No
+lhp_clinical,appointments,appt_dt,COLUMN,Appointment Date,LHP Business Glossary,Appointments & Encounters,MEDIUM,No
+lhp_clinical,appointments,appt_type_cd,COLUMN,Appointment Type Code,LHP Business Glossary,Appointments & Encounters,LOW,No
+lhp_clinical,appointments,appt_status,COLUMN,Appointment Status,LHP Business Glossary,Appointments & Encounters,LOW,No
+lhp_clinical,encounters,enc_id,COLUMN,Encounter ID,LHP Business Glossary,Appointments & Encounters,MEDIUM,Yes
+lhp_clinical,encounters,appt_id,COLUMN,Appointment ID,LHP Business Glossary,Appointments & Encounters,MEDIUM,No
+lhp_clinical,encounters,pt_id,COLUMN,Patient ID,LHP Business Glossary,Appointments & Encounters,HIGH,Yes
+lhp_clinical,encounters,prov_id,COLUMN,Provider ID,LHP Business Glossary,Appointments & Encounters,LOW,No
+lhp_clinical,encounters,enc_dt,COLUMN,Encounter Date,LHP Business Glossary,Appointments & Encounters,MEDIUM,No
+lhp_clinical,encounters,chief_complaint_txt,COLUMN,Chief Complaint,LHP Business Glossary,Appointments & Encounters,HIGH,No
+lhp_clinical,encounters,dx_cd,COLUMN,Diagnosis Code,LHP Business Glossary,Appointments & Encounters,HIGH,Yes
+lhp_clinical,encounters,note_txt,COLUMN,Clinical Note,LHP Business Glossary,Appointments & Encounters,HIGH,No
+lhp_clinical,encounters,enc_status,COLUMN,Encounter Status,LHP Business Glossary,Appointments & Encounters,LOW,No
+lhp_clinical,lab_results,lab_id,COLUMN,Lab Result ID,LHP Business Glossary,Diagnoses & Results,LOW,Yes
+lhp_clinical,lab_results,enc_id,COLUMN,Encounter ID,LHP Business Glossary,Diagnoses & Results,MEDIUM,No
+lhp_clinical,lab_results,pt_id,COLUMN,Patient ID,LHP Business Glossary,Diagnoses & Results,HIGH,Yes
+lhp_clinical,lab_results,loinc_cd,COLUMN,LOINC Code,LHP Business Glossary,Diagnoses & Results,LOW,Yes
+lhp_clinical,lab_results,test_nm,COLUMN,Test Name,LHP Business Glossary,Diagnoses & Results,MEDIUM,No
+lhp_clinical,lab_results,result_val,COLUMN,Result Value,LHP Business Glossary,Diagnoses & Results,HIGH,No
+lhp_clinical,lab_results,result_unit,COLUMN,Result Unit,LHP Business Glossary,Diagnoses & Results,LOW,No
+lhp_clinical,lab_results,ref_range,COLUMN,Reference Range,LHP Business Glossary,Diagnoses & Results,LOW,No
+lhp_clinical,lab_results,abnormal_flag,COLUMN,Abnormal Flag,LHP Business Glossary,Diagnoses & Results,MEDIUM,No
+lhp_clinical,lab_results,result_dt,COLUMN,Result Date,LHP Business Glossary,Diagnoses & Results,MEDIUM,No
+lhp_clinical,prescriptions,rx_id,COLUMN,Prescription ID,LHP Business Glossary,Prescriptions,MEDIUM,Yes
+lhp_clinical,prescriptions,enc_id,COLUMN,Encounter ID,LHP Business Glossary,Prescriptions,MEDIUM,No
+lhp_clinical,prescriptions,pt_id,COLUMN,Patient ID,LHP Business Glossary,Prescriptions,HIGH,Yes
+lhp_clinical,prescriptions,prov_id,COLUMN,Provider ID,LHP Business Glossary,Prescriptions,LOW,No
+lhp_clinical,prescriptions,ndc_cd,COLUMN,NDC Code,LHP Business Glossary,Prescriptions,LOW,Yes
+lhp_clinical,prescriptions,drug_nm,COLUMN,Drug Name,LHP Business Glossary,Prescriptions,HIGH,No
+lhp_clinical,prescriptions,dose_txt,COLUMN,Dose,LHP Business Glossary,Prescriptions,MEDIUM,No
+lhp_clinical,prescriptions,qty,COLUMN,Quantity,LHP Business Glossary,Prescriptions,LOW,No
+lhp_clinical,prescriptions,refills,COLUMN,Refills,LHP Business Glossary,Prescriptions,LOW,No
+lhp_clinical,prescriptions,dea_schedule_cd,COLUMN,DEA Schedule Code,LHP Business Glossary,Prescriptions,MEDIUM,Yes
+lhp_clinical,prescriptions,rx_dt,COLUMN,Prescription Date,LHP Business Glossary,Prescriptions,MEDIUM,No
+lhp_clinical,prescriptions,rx_status,COLUMN,Prescription Status,LHP Business Glossary,Prescriptions,LOW,No
+lhp_clinical,claims,claim_id,COLUMN,Claim ID,LHP Business Glossary,Claims & Billing,MEDIUM,Yes
+lhp_clinical,claims,claim_no,COLUMN,Claim Number,LHP Business Glossary,Claims & Billing,MEDIUM,Yes
+lhp_clinical,claims,enc_id,COLUMN,Encounter ID,LHP Business Glossary,Claims & Billing,MEDIUM,No
+lhp_clinical,claims,pt_id,COLUMN,Patient ID,LHP Business Glossary,Claims & Billing,HIGH,Yes
+lhp_clinical,claims,payer_id,COLUMN,Payer ID,LHP Business Glossary,Claims & Billing,LOW,No
+lhp_clinical,claims,cpt_cd,COLUMN,CPT Code,LHP Business Glossary,Claims & Billing,LOW,Yes
+lhp_clinical,claims,billed_amt,COLUMN,Billed Amount,LHP Business Glossary,Claims & Billing,MEDIUM,No
+lhp_clinical,claims,allowed_amt,COLUMN,Allowed Amount,LHP Business Glossary,Claims & Billing,MEDIUM,No
+lhp_clinical,claims,paid_amt,COLUMN,Paid Amount,LHP Business Glossary,Claims & Billing,MEDIUM,No
+lhp_clinical,claims,claim_dt,COLUMN,Claim Date,LHP Business Glossary,Claims & Billing,LOW,No
+lhp_clinical,claims,claim_status,COLUMN,Claim Status,LHP Business Glossary,Claims & Billing,LOW,No
+lhp_clinical,disclosure_log,dl_id,COLUMN,Disclosure ID,LHP Business Glossary,Privacy & Disclosures,LOW,Yes
+lhp_clinical,disclosure_log,pt_id,COLUMN,Patient ID,LHP Business Glossary,Privacy & Disclosures,HIGH,Yes
+lhp_clinical,disclosure_log,requested_by_txt,COLUMN,Requested By,LHP Business Glossary,Privacy & Disclosures,HIGH,No
+lhp_clinical,disclosure_log,purpose_cd,COLUMN,Purpose Code,LHP Business Glossary,Privacy & Disclosures,LOW,Yes
+lhp_clinical,disclosure_log,disclosed_dt,COLUMN,Disclosed Date,LHP Business Glossary,Privacy & Disclosures,LOW,No
+lhp_clinical,disclosure_log,disclosed_by_staff_id,COLUMN,Disclosed By Staff ID,LHP Business Glossary,Privacy & Disclosures,LOW,No
+lhp_clinical,disclosure_log,authorization_flag,COLUMN,Authorization Flag,LHP Business Glossary,Privacy & Disclosures,MEDIUM,Yes
+lhp_clinical,disclosure_log,notes_txt,COLUMN,Disclosure Notes,LHP Business Glossary,Privacy & Disclosures,HIGH,No

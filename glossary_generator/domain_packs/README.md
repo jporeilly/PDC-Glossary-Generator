@@ -55,6 +55,10 @@ Scenario packs ship with their scenario, not with the app (the app stays clean):
 - **Canyon Trail Outfitters (CTO)** — retail (loyalty customers, merchandising,
   inventory, orders, payments/PCI, loss prevention):
   `data_sources/RETAIL/domain_pack/retail.example.json` + `retail.people.json`.
+- **Lakeshore Health Partners (LHP)** — healthcare (patients/PHI, encounters,
+  diagnoses & results, prescriptions, claims, HIPAA disclosures):
+  `data_sources/HEALTH/domain_pack/healthcare.example.json` +
+  `healthcare.people.json`.
 
 Install one with `install-scenario.ps1` / `install-scenario.sh` (or unzip the
 scenario's `*-domain-pack.zip` into `glossary_generator/`), then reseed.

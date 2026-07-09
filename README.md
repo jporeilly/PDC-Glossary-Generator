@@ -82,7 +82,8 @@ data_sources/           scenario data + the shared lab
   CSCU/                 the financial-services scenario: sample DB SQL, MinIO
                         documents, domain pack + install zip, bulk-load CSV
   RETAIL/               the retail scenario (Canyon Trail Outfitters), same kit
-courseware/             one workshop set per scenario (CSCU/ and RETAIL/)
+  HEALTH/               the healthcare scenario (Lakeshore Health Partners), same kit
+courseware/             one workshop set per scenario (CSCU/, RETAIL/, HEALTH/)
 install-scenario.sh     scenario picker/installer (install-scenario.ps1 on Windows)
 reset-scenario.sh       remove the installed scenario / reset the app to generic
 ```
@@ -116,7 +117,7 @@ each), so scenarios coexist without port conflicts:
 cd data_sources/lab              # on the Docker host (the Ubuntu VM)
 cp .env.example .env
 make up                          # shared postgres + minio
-make load SCENARIO=CSCU          # and/or SCENARIO=RETAIL
+make load SCENARIO=CSCU          # and/or RETAIL, HEALTH
 ```
 
 ### 3. Run the app

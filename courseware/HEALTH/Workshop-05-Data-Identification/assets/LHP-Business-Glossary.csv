@@ -1,0 +1,113 @@
+Category,Term,Definition,Sensitivity,PII_Category,CDE,Tags
+Patient,Address 1,Street address line of the patient.,HIGH,ADDRESS,Yes,PII;personal-data;privacy;patient;phi;CDE
+Patient,City,City of the patient address.,HIGH,ADDRESS,Yes,PII;personal-data;privacy;patient;phi;CDE
+Patient,Date of Birth,Date of birth - one of the 18 HIPAA identifiers.,HIGH,DOB,Yes,PII;personal-data;privacy;patient;phi;CDE
+Patient,Email,Email address of the person.,HIGH,EMAIL,Yes,PII;personal-data;privacy;patient;phi;CDE
+Patient,Enrolled Date,Date the patient joined the practice.,LOW,,No,patient;phi
+Patient,First Name,Given name of the person.,HIGH,PERSONAL_NAME,Yes,PII;personal-data;privacy;patient;phi;CDE
+Patient,Last Name,Family name of the person.,HIGH,PERSONAL_NAME,Yes,PII;personal-data;privacy;patient;phi;CDE
+Patient,MRN,"Medical record number, format LHP-nnnnnn; the patient identifier used everywhere.",HIGH,PATIENT_ID,Yes,PII;personal-data;privacy;patient;phi;identifier;CDE
+Patient,Marketing Opt-Out,TRUE when the patient opted out of marketing contact; extracts must suppress these rows.,MEDIUM,,Yes,patient;phi;CDE
+Patient,Patient ID,Unique identifier for a patient record.,HIGH,,Yes,patient;phi;identifier;CDE
+Patient,Patient Record,"A patient of the practice: identity, contact details, provider and consent. PHI.",HIGH,,Yes,patient;phi;CDE
+Patient,Patient Status,Panel status of the patient.,LOW,,No,patient;phi
+Patient,Phone,Phone number of the person.,HIGH,PHONE,Yes,PII;personal-data;privacy;patient;phi;CDE
+Patient,Primary Provider ID,The patient's primary care provider.,LOW,,No,patient;phi;identifier
+Patient,SSN,Social Security number of the patient. Must never appear in free-text fields.,HIGH,SSN,Yes,PII;personal-data;privacy;patient;phi;CDE
+Patient,Sex Code,"Administrative sex: F, M or X.",MEDIUM,,No,patient;phi
+Patient,St,US state code of the address.,LOW,,No,patient;phi
+Patient,ZIP,ZIP code of the patient address.,HIGH,ADDRESS,Yes,PII;personal-data;privacy;patient;phi;CDE
+Appointments & Encounters,Appointment Date,Date of the appointment.,MEDIUM,,No,encounter
+Appointments & Encounters,Appointment ID,Unique identifier for an appointment.,MEDIUM,,Yes,encounter;identifier;CDE
+Appointments & Encounters,Appointment Record,A scheduled visit at a clinic.,MEDIUM,,No,encounter
+Appointments & Encounters,Appointment Status,"Status: Scheduled, Completed, NoShow or Cancelled.",LOW,,No,encounter
+Appointments & Encounters,Appointment Type Code,"Visit type: NEW, FOLLOWUP, PHYSICAL, TELEHEALTH or URGENT.",LOW,,No,encounter
+Appointments & Encounters,Chief Complaint,Presenting concern in the patient's words. PHI.,HIGH,,No,encounter;phi
+Appointments & Encounters,Clinic ID,Clinic hosting the appointment.,LOW,,No,encounter;identifier
+Appointments & Encounters,Clinical Note,Free-text visit note. DEFECT: two notes carry a patient SSN in clear text - identifiers must never be documented in notes.,HIGH,,No,encounter;phi
+Appointments & Encounters,Diagnosis Code,"Primary diagnosis, ICD-10-CM (e.g. E11.9, I10).",HIGH,,Yes,encounter;phi;CDE
+Appointments & Encounters,Encounter Date,Date of the encounter.,MEDIUM,,No,encounter
+Appointments & Encounters,Encounter ID,Unique identifier for a clinical encounter.,MEDIUM,,Yes,encounter;identifier;CDE
+Appointments & Encounters,Encounter Record,"A clinical encounter: complaint, diagnosis and the visit note. PHI.",HIGH,,Yes,encounter;CDE
+Appointments & Encounters,Encounter Status,"Status: Open, Closed or Amended.",LOW,,No,encounter
+Appointments & Encounters,Patient ID,Patient the appointment is for.,HIGH,,Yes,encounter;identifier;CDE
+Appointments & Encounters,Provider ID,Provider the appointment is with.,LOW,,No,encounter;identifier
+Diagnoses & Results,Abnormal Flag,"N normal, H high, L low.",MEDIUM,,No,clinical;results
+Diagnoses & Results,Encounter ID,Encounter the result belongs to.,MEDIUM,,No,clinical;results;identifier
+Diagnoses & Results,LOINC Code,LOINC code identifying the test (e.g. 4548-4 Hemoglobin A1c).,LOW,,Yes,clinical;results;identifier;CDE
+Diagnoses & Results,Lab Result ID,Unique identifier for a lab result.,LOW,,Yes,clinical;results;identifier;CDE
+Diagnoses & Results,Lab Result Record,One laboratory result for one patient. PHI.,HIGH,,Yes,clinical;results;CDE
+Diagnoses & Results,Patient ID,Patient the result belongs to.,HIGH,,Yes,clinical;results;identifier;CDE
+Diagnoses & Results,Reference Range,Normal range for the test.,LOW,,No,clinical;results
+Diagnoses & Results,Result Date,Date the result was reported.,MEDIUM,,No,clinical;results
+Diagnoses & Results,Result Unit,Unit of measure for the result.,LOW,,No,clinical;results
+Diagnoses & Results,Result Value,Measured result value. PHI.,HIGH,,No,clinical;results;phi
+Diagnoses & Results,Test Name,Human-readable name of the test.,MEDIUM,,No,clinical;results
+Prescriptions,DEA Schedule Code,DEA schedule for controlled substances (II-V); empty for non-controlled.,MEDIUM,,Yes,medication;controlled-substance;CDE
+Prescriptions,Dose,Dose and directions.,MEDIUM,,No,medication
+Prescriptions,Drug Name,Name of the medication - can reveal the condition treated. PHI.,HIGH,,No,medication;phi
+Prescriptions,Encounter ID,Encounter the order came from.,MEDIUM,,No,medication;identifier
+Prescriptions,NDC Code,"National Drug Code identifying the drug product (11-digit, 5-4-2).",LOW,,Yes,medication;identifier;CDE
+Prescriptions,Patient ID,Patient the medication is for.,HIGH,,Yes,medication;identifier;CDE
+Prescriptions,Prescription Date,Date the medication was ordered.,MEDIUM,,No,medication
+Prescriptions,Prescription ID,Unique identifier for a prescription.,MEDIUM,,Yes,medication;identifier;CDE
+Prescriptions,Prescription Record,"A medication order, including controlled substances. PHI.",HIGH,,Yes,medication;CDE
+Prescriptions,Prescription Status,"Status: Active, Completed or Cancelled.",LOW,,No,medication
+Prescriptions,Provider ID,Prescribing provider.,LOW,,No,medication;identifier
+Prescriptions,Quantity,Quantity dispensed.,LOW,,No,medication
+Prescriptions,Refills,Refills authorized.,LOW,,No,medication
+Claims & Billing,Allowed Amount,Payer-contracted allowed amount.,MEDIUM,,No,claims;billing
+Claims & Billing,Billed Amount,Charge submitted on the claim.,MEDIUM,,No,claims;billing
+Claims & Billing,CPT Code,CPT procedure code (e.g. 99213 established-patient office visit).,LOW,,Yes,claims;billing;identifier;CDE
+Claims & Billing,Claim Date,Date the claim was submitted.,LOW,,No,claims;billing
+Claims & Billing,Claim ID,Unique identifier for a claim.,MEDIUM,,Yes,claims;billing;identifier;CDE
+Claims & Billing,Claim Number,"Claim number, format CLM-nnnnnnnn; appears on remittances and statements.",MEDIUM,,Yes,claims;billing;identifier;CDE
+Claims & Billing,Claim Record,A professional claim and its adjudication.,MEDIUM,,No,claims;billing
+Claims & Billing,Claim Status,"Status: Submitted, Paid, Denied or Appealed.",LOW,,No,claims;billing
+Claims & Billing,Encounter ID,Encounter the claim bills.,MEDIUM,,No,claims;billing;identifier
+Claims & Billing,Paid Amount,Amount the payer paid.,MEDIUM,,No,claims;billing
+Claims & Billing,Patient ID,Patient the claim concerns.,HIGH,,Yes,claims;billing;identifier;CDE
+Claims & Billing,Payer ID,Payer the claim was submitted to.,LOW,,No,claims;billing;identifier
+Payers,City,City of the payer.,LOW,,No,payer
+Payers,Contact Email,Business contact email of the payer.,MEDIUM,EMAIL,No,PII;personal-data;privacy;payer
+Payers,Payer ID,Unique identifier for a payer record.,LOW,,Yes,payer;identifier;CDE
+Payers,Payer Name,Name of the insurance payer or program.,LOW,,No,payer
+Payers,Payer Record,An insurance payer or coverage program.,LOW,,No,payer
+Payers,Payer Status,Status: Active or OnHold.,LOW,,No,payer
+Payers,Payer Type Code,"Coverage type: COMMERCIAL, MEDICARE, MEDICAID or SELF_PAY.",LOW,,No,payer
+Payers,Phone,Business phone number of the payer.,LOW,,No,payer
+Payers,St,US state code of the payer.,LOW,,No,payer
+Privacy & Disclosures,Authorization Flag,TRUE when a signed HIPAA authorization is on file; required for MARKETING and RESEARCH.,MEDIUM,,Yes,privacy;compliance;CDE
+Privacy & Disclosures,Disclosed By Staff ID,Staff member who made the disclosure.,LOW,,No,privacy;compliance;identifier
+Privacy & Disclosures,Disclosed Date,Date of the disclosure.,LOW,,No,privacy;compliance
+Privacy & Disclosures,Disclosure ID,Unique identifier for a disclosure-log entry.,LOW,,Yes,privacy;compliance;identifier;CDE
+Privacy & Disclosures,Disclosure Log Entry,One entry in the HIPAA accounting of disclosures.,HIGH,,Yes,privacy;compliance;CDE
+Privacy & Disclosures,Disclosure Notes,Free-text detail of the disclosure; contains PHI context.,HIGH,,No,privacy;compliance;phi
+Privacy & Disclosures,Patient ID,Patient whose PHI was disclosed.,HIGH,,Yes,privacy;compliance;identifier;CDE
+Privacy & Disclosures,Purpose Code,"Disclosure purpose: TPO, PATIENT_REQUEST, LEGAL, RESEARCH or MARKETING.",LOW,,Yes,privacy;compliance;CDE
+Privacy & Disclosures,Requested By,Person or organization that received the PHI.,HIGH,,No,privacy;compliance;phi
+Clinic Operations,Clinic Address,Street address of the clinic.,LOW,,No,operational
+Clinic Operations,Clinic City,City the clinic operates in.,LOW,,No,operational
+Clinic Operations,Clinic County,Minnesota county the clinic sits in.,LOW,,No,operational
+Clinic Operations,Clinic ID,Unique identifier for a clinic record.,LOW,,Yes,operational;identifier;CDE
+Clinic Operations,Clinic Name,Public-facing name of an LHP clinic.,LOW,,No,operational
+Clinic Operations,Clinic Open Date,Date the clinic first opened.,LOW,,No,operational
+Clinic Operations,Clinic Phone,Published phone number of the clinic.,LOW,,No,operational
+Clinic Operations,Clinic Record,"An LHP clinic: location, manager and status.",LOW,,No,operational
+Clinic Operations,Clinic Status,"Operating status: Open, Closed or Relocating.",LOW,,No,operational
+Clinic Operations,Clinic ZIP,ZIP code of the clinic address.,LOW,,No,operational
+Clinic Operations,Email,Email address of the person.,HIGH,EMAIL,Yes,PII;personal-data;privacy;operational;CDE
+Clinic Operations,First Name,Given name of the person.,HIGH,PERSONAL_NAME,Yes,PII;personal-data;privacy;operational;CDE
+Clinic Operations,Hire Date,Date the staff member was hired.,LOW,,No,operational
+Clinic Operations,Last Name,Family name of the person.,HIGH,PERSONAL_NAME,Yes,PII;personal-data;privacy;operational;CDE
+Clinic Operations,License Number,State medical licence number of the provider.,MEDIUM,,Yes,operational;CDE
+Clinic Operations,Manager Staff ID,Staff member who manages the clinic.,LOW,,No,operational;identifier
+Clinic Operations,NPI,National Provider Identifier - the national 10-digit provider id.,LOW,,Yes,operational;identifier;CDE
+Clinic Operations,Provider ID,Unique identifier for a provider record.,LOW,,Yes,operational;identifier;CDE
+Clinic Operations,Provider Record,"A credentialed provider: NPI, specialty, licence and clinic.",MEDIUM,,No,operational
+Clinic Operations,Provider Status,"Status: Active, OnLeave or Departed.",LOW,,No,operational
+Clinic Operations,Role Code,"Job role: RN, MA, FRONT_DESK, CLINIC_MGR, BILLING or HIM.",LOW,,No,operational
+Clinic Operations,Specialty Code,"Specialty: FAMMED, PEDS, CARDIO, DERM, ORTHO or BEHAV.",LOW,,No,operational
+Clinic Operations,Staff ID,Unique identifier for a staff record.,LOW,,Yes,operational;identifier;CDE
+Clinic Operations,Staff Record,"A non-provider staff member: role, clinic and status.",MEDIUM,,No,operational
+Clinic Operations,Staff Status,Employment status: Active or Inactive.,LOW,,No,operational
