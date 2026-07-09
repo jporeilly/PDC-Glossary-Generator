@@ -13,6 +13,13 @@ generated from it in the course design (`<set>/tools/build-docx.py`), and its
 assets. Scenario data (lab SQL, documents, domain pack, bulk-load CSV) lives
 in `data_sources/<ID>/`; the shared lab stack in `data_sources/lab/`.
 
+**All PDC user accounts in one place:**
+[`PDC-Users-All-Scenarios.md`](PDC-Users-All-Scenarios.md) (readable tables)
+and [`PDC-Users-All-Scenarios.csv`](PDC-Users-All-Scenarios.csv) — the
+consolidated roster of every workshop user across the four scenarios, with
+emails, roles and lab passwords. The per-scenario source of truth remains
+each set's `Workshop-00-Preflight/assets/users.csv`.
+
 The Technical Track is authored on the CSCU scenario and transfers directly
 to the others. Additional scenarios plug in the same way: a
 `courseware/<ID>/` set beside a `data_sources/<ID>/` data folder.

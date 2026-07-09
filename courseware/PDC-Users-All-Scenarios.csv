@@ -1,0 +1,37 @@
+Scenario,Company,Username,Email,PDC_Roles,Tier,Lab_Password
+CSCU,Copper State Credit Union,elena.ramirez,elena.ramirez@copperstatecu.org,Data Steward; Business Steward,Expert,copperstate
+CSCU,Copper State Credit Union,marcus.webb,marcus.webb@copperstatecu.org,Business Steward,Expert,copperstate
+CSCU,Copper State Credit Union,nadia.flores,nadia.flores@copperstatecu.org,Business Steward,Expert,copperstate
+CSCU,Copper State Credit Union,tom.callahan,tom.callahan@copperstatecu.org,Business Steward,Expert,copperstate
+CSCU,Copper State Credit Union,omar.haddad,omar.haddad@copperstatecu.org,Data Storage Administrator,Expert,copperstate
+CSCU,Copper State Credit Union,dana.ortiz,dana.ortiz@copperstatecu.org,Data Developer,Expert,copperstate
+CSCU,Copper State Credit Union,jordan.blake,jordan.blake@copperstatecu.org,Data User,Business,copperstate
+CSCU,Copper State Credit Union,riley.morgan,riley.morgan@copperstatecu.org,Business User,Business,copperstate
+CSCU,Copper State Credit Union,catalog.admin,catalog.admin@copperstatecu.org,Admin,Expert,copperstate
+RETAIL,Canyon Trail Outfitters,sofia.marin,sofia.marin@canyontrailoutfitters.com,Data Steward; Business Steward,Expert,canyontrail
+RETAIL,Canyon Trail Outfitters,derek.boone,derek.boone@canyontrailoutfitters.com,Business Steward,Expert,canyontrail
+RETAIL,Canyon Trail Outfitters,ken.tanaka,ken.tanaka@canyontrailoutfitters.com,Business Steward,Expert,canyontrail
+RETAIL,Canyon Trail Outfitters,alicia.vega,alicia.vega@canyontrailoutfitters.com,Business Steward,Expert,canyontrail
+RETAIL,Canyon Trail Outfitters,leo.fischer,leo.fischer@canyontrailoutfitters.com,Data Storage Administrator,Expert,canyontrail
+RETAIL,Canyon Trail Outfitters,tessa.nguyen,tessa.nguyen@canyontrailoutfitters.com,Data Developer,Expert,canyontrail
+RETAIL,Canyon Trail Outfitters,casey.holt,casey.holt@canyontrailoutfitters.com,Data User,Business,canyontrail
+RETAIL,Canyon Trail Outfitters,robin.pierce,robin.pierce@canyontrailoutfitters.com,Business User,Business,canyontrail
+RETAIL,Canyon Trail Outfitters,catalog.admin,catalog.admin@canyontrailoutfitters.com,Admin,Expert,canyontrail
+HEALTH,Lakeshore Health Partners,maya.lindqvist,maya.lindqvist@lakeshorehealth.org,Data Steward; Business Steward,Expert,lakeshore
+HEALTH,Lakeshore Health Partners,anders.berg,anders.berg@lakeshorehealth.org,Business Steward,Expert,lakeshore
+HEALTH,Lakeshore Health Partners,rosa.jimenez,rosa.jimenez@lakeshorehealth.org,Business Steward,Expert,lakeshore
+HEALTH,Lakeshore Health Partners,hannah.weiss,hannah.weiss@lakeshorehealth.org,Business Steward,Expert,lakeshore
+HEALTH,Lakeshore Health Partners,victor.osei,victor.osei@lakeshorehealth.org,Data Storage Administrator,Expert,lakeshore
+HEALTH,Lakeshore Health Partners,ingrid.dahl,ingrid.dahl@lakeshorehealth.org,Data Developer,Expert,lakeshore
+HEALTH,Lakeshore Health Partners,jamal.carter,jamal.carter@lakeshorehealth.org,Data User,Business,lakeshore
+HEALTH,Lakeshore Health Partners,beth.nakamura,beth.nakamura@lakeshorehealth.org,Business User,Business,lakeshore
+HEALTH,Lakeshore Health Partners,catalog.admin,catalog.admin@lakeshorehealth.org,Admin,Expert,lakeshore
+MFG,Cascade Precision Components,nora.whitaker,nora.whitaker@cascadeprecision.com,Data Steward; Business Steward,Expert,cascade
+MFG,Cascade Precision Components,felix.okonkwo,felix.okonkwo@cascadeprecision.com,Business Steward,Expert,cascade
+MFG,Cascade Precision Components,yuki.mori,yuki.mori@cascadeprecision.com,Business Steward,Expert,cascade
+MFG,Cascade Precision Components,silas.grant,silas.grant@cascadeprecision.com,Business Steward,Expert,cascade
+MFG,Cascade Precision Components,petra.novak,petra.novak@cascadeprecision.com,Data Storage Administrator,Expert,cascade
+MFG,Cascade Precision Components,andre.gibson,andre.gibson@cascadeprecision.com,Data Developer,Expert,cascade
+MFG,Cascade Precision Components,mia.torres,mia.torres@cascadeprecision.com,Data User,Business,cascade
+MFG,Cascade Precision Components,owen.fitch,owen.fitch@cascadeprecision.com,Business User,Business,cascade
+MFG,Cascade Precision Components,catalog.admin,catalog.admin@cascadeprecision.com,Admin,Expert,cascade
