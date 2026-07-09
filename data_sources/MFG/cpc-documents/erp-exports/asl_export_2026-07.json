@@ -1,0 +1,12 @@
+{
+  "export": "approved-supplier-list",
+  "as_of": "2026-07-01",
+  "suppliers": [
+    {"supplier": "Willamette Bar & Alloy", "status": "Approved", "rating": "A"},
+    {"supplier": "Pacific Alloys Finishing", "status": "Suspended", "rating": "C", "status_dt": "2026-05-30", "note": "plating escapes; no new POs"},
+    {"supplier": "Cascade Seal & Gasket", "status": "Approved", "rating": "A"},
+    {"supplier": "Inland Fastener Supply", "status": "Approved", "rating": "B"},
+    {"supplier": "Sound Heat Treat", "status": "Conditional", "rating": "B"},
+    {"supplier": "Bridgetown Castings", "status": "Approved", "rating": "A"}
+  ]
+}

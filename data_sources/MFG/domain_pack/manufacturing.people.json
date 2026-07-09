@@ -1,0 +1,109 @@
+{
+  "people": [
+    {
+      "community": "Data Operations; Glossary Stewards",
+      "display_name": "Nora Whitaker",
+      "email": "nora.whitaker@cascadeprecision.com",
+      "expertise": "Production, work orders, planning, scheduling, lots, traceability, plants, operations",
+      "id": "e1ae3614-24cc-53b6-9ca3-30d3480742bc",
+      "name": "nora.whitaker",
+      "owns": "Connects sources, profiles, runs identification; stewards Production, Traceability and Plant Operations terms; owner slots via Data Steward",
+      "roles": [
+        "Data Steward",
+        "Business Steward"
+      ],
+      "stakeholder_role": "Steward"
+    },
+    {
+      "community": "Glossary Stewards",
+      "display_name": "Felix Okonkwo",
+      "email": "felix.okonkwo@cascadeprecision.com",
+      "expertise": "Parts, BOM, engineering, revisions, item master, suppliers, purchasing, ASL, cost, pricing",
+      "id": "75c1969a-d558-500e-9a08-1b450859e0e6",
+      "name": "felix.okonkwo",
+      "owns": "Manufacturing engineer; stewards Parts & BOM and Suppliers & Purchasing terms incl. Part Number and Unit Cost",
+      "roles": [
+        "Business Steward"
+      ],
+      "stakeholder_role": "Steward"
+    },
+    {
+      "community": "Glossary Stewards",
+      "display_name": "Yuki Mori",
+      "email": "yuki.mori@cascadeprecision.com",
+      "expertise": "Quality, inspections, NCR, MRB, dispositions, defects, audits, ISO 9001, AS9100, calibration, certificates",
+      "id": "8cd5358a-5c45-55c3-8941-0adaad711673",
+      "name": "yuki.mori",
+      "owns": "Quality lead; stewards Quality & Inspection and Nonconformance (all CDE) terms",
+      "roles": [
+        "Business Steward"
+      ],
+      "stakeholder_role": "Steward"
+    },
+    {
+      "community": "Glossary Stewards",
+      "display_name": "Silas Grant",
+      "email": "silas.grant@cascadeprecision.com",
+      "expertise": "Shipments, customers, deliveries, recalls, logistics, records, documents",
+      "id": "46593e77-2779-5005-b1c9-2c662fe80736",
+      "name": "silas.grant",
+      "owns": "Stewards Shipments & Customers and Records & Documents terms",
+      "roles": [
+        "Business Steward"
+      ],
+      "stakeholder_role": "Steward"
+    },
+    {
+      "community": "CPC Data Operations",
+      "display_name": "Petra Novak",
+      "email": "petra.novak@cascadeprecision.com",
+      "expertise": "Storage, data sources, infrastructure, ingest, connections, buckets, ERP exports",
+      "id": "bb9883c7-f943-5e93-bd22-51d46e762c81",
+      "name": "petra.novak",
+      "owns": "Technical custodian of the stored data; creates and ingests data sources — fills the Govern custodian slot",
+      "roles": [
+        "Data Storage Administrator"
+      ],
+      "stakeholder_role": "Steward"
+    },
+    {
+      "community": "Data Operations",
+      "display_name": "Andre Gibson",
+      "email": "andre.gibson@cascadeprecision.com",
+      "expertise": "Business rules, metadata rules, profiling, data quality",
+      "id": "",
+      "name": "andre.gibson",
+      "owns": "Data Developer persona: authors business rules and domain logic (W4); no glossary edit rights",
+      "roles": [
+        "Data Developer"
+      ],
+      "stakeholder_role": "Steward"
+    },
+    {
+      "community": "Analysts",
+      "display_name": "Mia Torres",
+      "email": "mia.torres@cascadeprecision.com",
+      "expertise": "",
+      "id": "",
+      "name": "mia.torres",
+      "owns": "Optional persona: reads metadata (W2), searches, views dashboards",
+      "roles": [
+        "Data User"
+      ],
+      "stakeholder_role": "Steward"
+    },
+    {
+      "community": "",
+      "display_name": "Catalog Admin",
+      "email": "catalog.admin@cascadeprecision.com",
+      "expertise": "",
+      "id": "",
+      "name": "catalog.admin",
+      "owns": "Creates users, defines custom properties, manages workers and licence",
+      "roles": [
+        "Admin"
+      ],
+      "stakeholder_role": "Steward"
+    }
+  ]
+}

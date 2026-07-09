@@ -1,0 +1,18 @@
+{
+  "id": "MFG",
+  "name": "Cascade Precision Components",
+  "industry": "Manufacturing",
+  "company": "Cascade Precision Components",
+  "pack": "domain_pack/manufacturing.example.json",
+  "people": "domain_pack/manufacturing.people.json",
+  "datasources_csv": "cpc-datasources.csv",
+  "courseware": "courseware/MFG",
+  "description": "Manufacturing workshop: 11-table cpc_mfg schema (parts/BOM, suppliers/ASL, work orders, lot traceability, inspections, NCR/MRB, shipments), cpc-documents bucket (certs, ISO/AS audits, 8D, recall letter, price list).",
+  "database": "cpc_mfg",
+  "schema": "cpc_mfg",
+  "tables": 11,
+  "bucket": "cpc-documents",
+  "documents_dir": "cpc-documents",
+  "db_user": "pdc_user",
+  "minio_user": "cpc_minio_user"
+}

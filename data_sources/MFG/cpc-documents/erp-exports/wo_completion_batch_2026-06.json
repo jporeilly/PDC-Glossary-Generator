@@ -1,0 +1,10 @@
+{
+  "export": "work-order-completions",
+  "period": "2026-06",
+  "completions": [
+    {"wo_no": "WO-50000204", "part_no": "CPC-84120", "lot_no": "LOT-2026-0138", "qty_completed": 138, "qty_scrapped": 2, "plant": "Portland Swan Island"},
+    {"wo_no": "WO-50000206", "part_no": "CPC-70210", "lot_no": "LOT-2026-0142", "qty_completed": 50, "qty_scrapped": 0, "plant": "Eugene West 11th"},
+    {"wo_no": "WO-50000207", "part_no": "CPC-55041", "lot_no": "LOT-2026-0145", "qty_completed": 88, "qty_scrapped": 2, "plant": "Spokane Valley"}
+  ],
+  "note": "Work orders follow WO-nnnnnnnn, parts CPC-nnnnn, lots LOT-YYYY-nnnn."
+}
