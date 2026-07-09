@@ -87,6 +87,8 @@ data_sources/           scenario data + the shared lab
 courseware/             one workshop set per scenario (CSCU/, RETAIL/, HEALTH/, MFG/)
 install-scenario.sh     scenario picker/installer (install-scenario.ps1 on Windows)
 reset-scenario.sh       remove the installed scenario / reset the app to generic
+pdc-reset.sh            wipe + rebuild the PDC deployment on the VM, incl. the
+                        OpenSearch security-index auto-repair (see docs/PDC-VM-TROUBLESHOOTING.md)
 ```
 
 ## Install & run

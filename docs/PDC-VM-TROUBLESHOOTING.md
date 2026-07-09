@@ -71,6 +71,25 @@ docker exec "$node" curl -s http://localhost:9200/_cluster/health
 ./pdc.sh ps      # cluster-init should reach Exited (0)
 ```
 
+**The failure cascades — one `up` is not enough.** When cluster-init
+exits 1, its dependent inits (e.g. `um-css-admin-api-init`) fail too and
+the whole app tier (`fe`, `public-api`, `glossary`, …) stays in
+`Created`. Traefik answers but has no backends, so **every URL 404s even
+after OpenSearch is fixed**. After the repair you must re-run
+`./pdc.sh up` so the stranded services start, then wait for `fe` and
+`public-api` to actually reach `Up`.
+
+**Automated: `pdc-reset.sh`** (repo root, run on the VM). The full
+wipe-and-rebuild script does all of this — wipes the `pdc_*` volumes,
+brings the stack up, appends the admin cert (idempotently, with cert
+paths read from the container's own env), restarts the node, runs
+securityadmin, verifies `.opendistro_security`, re-runs `up` to un-stick
+the app tier, and waits for `fe`/`public-api` before declaring success.
+It also supports `--keep-opensearch` (skip the security dance by
+preserving the OpenSearch volumes), optional MailHog, and optional
+offline-license re-upload. Use the manual sequence above only when
+repairing a live instance **without** wiping.
+
 Notes from the times this has recurred:
 
 - The node's CN follows the host that generated it (`awc-pdc` on the old
@@ -80,17 +99,11 @@ Notes from the times this has recurred:
 - If securityadmin still throws `certificate_unknown`: the append didn't
   take (`grep -c "BEGIN CERT" extra.crt` inside the node must show 2) or
   the restart didn't reload the truststore — redo those two steps.
-- This recurs on **every clean rebuild** with a fresh OpenSearch volume,
-  so it belongs in the deployment's reset/up script, guarded to run only
-  when security is uninitialized:
-
-```bash
-node=$(docker ps --format '{{.Names}}' | grep opensearch | grep -vE 'init|volume' | head -1)
-if docker exec "$node" curl -s http://localhost:9200/_cluster/health \
-     | grep -q "not initialized"; then
-  # ... the append + restart + securityadmin sequence above ...
-fi
-```
+- securityadmin must target **REST 9200 with TLS** on this build —
+  pointing it at 9300 fails with *"not an HTTP port"*.
+- This recurs on **every clean rebuild** with a fresh OpenSearch volume —
+  which is exactly why `pdc-reset.sh` exists; prefer it over hand-running
+  the sequence.
 
 If the tell-tales above do **not** match, fall back to the generic chain
 below — diagnose top-to-bottom on the VM, from

@@ -81,9 +81,10 @@ in [`docs/PDC-VM-TROUBLESHOOTING.md`](../../docs/PDC-VM-TROUBLESHOOTING.md):
 - **`opensearch-cluster-init ... exit 1` on `docker compose up`** — on this
   deployment (`cat-opensearch:2.19`, fresh volume) the node truststore
   omits the admin cert, so securityadmin can't initialize
-  `.opendistro_security`. The doc carries the verified fix (append
-  `admin.crt` to `extra.crt`, restart, run securityadmin) and a guarded
-  self-heal block for the deployment's reset script.
+  `.opendistro_security` — and the failure cascades, stranding the app
+  tier in `Created` (site-wide 404). Automated end to end by
+  [`pdc-reset.sh`](../../pdc-reset.sh) at the repo root; the doc carries
+  the manual repair for a no-wipe fix.
 - **Chrome `NET::ERR_CERT_AUTHORITY_INVALID` at `https://pentaho.io` with
   no "Proceed anyway"** — self-signed cert + HSTS. Quick bypass: focus the
   error page and type `thisisunsafe` blind; the clean cert-import path is
