@@ -1,2 +1,14 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# Binary formats — never CRLF-convert or diff as text.
+# (The generated PDFs are byte-offset sensitive: CRLF conversion
+# would break their xref tables.)
+*.pdf   binary
+*.docx  binary
+*.pptx  binary
+*.xlsx  binary
+*.zip   binary
+*.png   binary
+*.jpg   binary
+*.ico   binary
