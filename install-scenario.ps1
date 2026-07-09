@@ -13,7 +13,7 @@
 #    - tag_dictionary.json backed up + removed (forces reseed)
 #
 #  Usage:   .\install-scenario.ps1              # interactive menu
-#           .\install-scenario.ps1 -Scenario CSCU
+#           .\install-scenario.ps1 -Scenario CSCU   (or RETAIL)
 # ============================================================
 param([string]$Scenario)
 

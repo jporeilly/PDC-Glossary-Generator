@@ -14,7 +14,7 @@
 #    - tag_dictionary.json backed up + removed (forces reseed)
 #
 #  Usage:   ./install-scenario.sh          # interactive menu
-#           ./install-scenario.sh CSCU     # direct
+#           ./install-scenario.sh CSCU     # direct (or RETAIL)
 # ============================================================
 set -euo pipefail
 cd "$(dirname "$0")"

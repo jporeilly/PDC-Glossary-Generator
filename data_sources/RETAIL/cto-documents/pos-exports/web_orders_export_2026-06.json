@@ -1,0 +1,11 @@
+{
+  "export": "web-orders",
+  "period": "2026-06",
+  "channel": "WEB",
+  "orders": [
+    {"order_no": "SO-30000010", "loyalty_no": "CTO-200109", "order_dt": "2026-06-14", "status": "RETURNED", "total": 169.95, "ship_city": "Tucson"},
+    {"order_no": "SO-30000012", "loyalty_no": "CTO-200107", "order_dt": "2026-06-21", "status": "SHIPPED", "total": 399.85, "ship_city": "Phoenix"},
+    {"order_no": "SO-30000015", "loyalty_no": "CTO-200104", "order_dt": "2026-07-01", "status": "CANCELLED", "total": 99.95, "ship_city": "Casa Grande"}
+  ],
+  "note": "Loyalty numbers follow CTO-nnnnnn; order numbers follow SO-nnnnnnnn."
+}
