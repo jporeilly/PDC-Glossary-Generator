@@ -1,0 +1,8 @@
+name,email,uuid,roles
+Sofia Marin,sofia.marin@canyontrailoutfitters.com,4db6b926-0c2a-5da2-bf61-73ffecaec288,Data Steward; Business Steward
+Derek Boone,derek.boone@canyontrailoutfitters.com,fadf07e2-b944-54b1-97e6-752feced084d,Business Steward
+Ken Tanaka,ken.tanaka@canyontrailoutfitters.com,b4925b8e-7b71-59a8-abe1-a97a861085bf,Business Steward
+Alicia Vega,alicia.vega@canyontrailoutfitters.com,87ec13b3-42bd-545a-966c-d26fcf903a10,Business Steward
+Business Analyst,business.analyst@canyontrailoutfitters.com,,Data User
+Catalog Admin,catalog.admin@canyontrailoutfitters.com,,Admin
+Data Analyst,data.analyst@canyontrailoutfitters.com,,Data Steward

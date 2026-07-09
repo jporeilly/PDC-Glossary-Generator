@@ -1,15 +1,18 @@
-# Courseware — Copper State Credit Union (CSCU)
+# Courseware — one workshop set per scenario
 
-The workshop set for the **Copper State Credit Union** financial-services
-scenario lives in [`CSCU/`](CSCU/): Workshops 00–05 (Preflight → Data
-Identification), each with a README, a markdown guide master (with
-`[SCREENSHOT]` markers for captures on the CSCU lab) and its assets, plus the
-Glossary Generator workshop and topic notes.
+| Set | Scenario | Contents |
+| --- | --- | --- |
+| [`CSCU/`](CSCU/) | **Copper State Credit Union** — financial services | Workshops 00–05 (Preflight → Data Identification), the Glossary Generator app workshop, topic notes, and the **Technical Track** (identification engine, build-your-own methods, similarity & ML) |
+| [`RETAIL/`](RETAIL/) | **Canyon Trail Outfitters** — retail | Workshops 00–05 with the CTO cast, the PCI full-PAN and marketing-opt-out planted defects, and the loyalty-number custom pattern |
 
-Scenario data (lab SQL, documents, domain pack, bulk-load CSV) lives in
-`data_sources/CSCU/`; the shared lab stack in `data_sources/lab/`.
+Each workshop folder carries a markdown guide master (authoritative, with
+`[SCREENSHOT]` markers for captures on that scenario's lab), a `.docx`
+generated from it in the course design (`<set>/tools/build-docx.py`), and its
+assets. Scenario data (lab SQL, documents, domain pack, bulk-load CSV) lives
+in `data_sources/<ID>/`; the shared lab stack in `data_sources/lab/`.
 
-Additional scenarios plug in the same way: a `courseware/<ID>/` set beside a
-`data_sources/<ID>/` data folder.
+The Technical Track is authored on the CSCU scenario and transfers directly
+to the others. Additional scenarios plug in the same way: a
+`courseware/<ID>/` set beside a `data_sources/<ID>/` data folder.
 
-*All Copper State Credit Union data is fictional and generated for training.*
+*All scenario data is fictional and generated for training.*

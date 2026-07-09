@@ -1,0 +1,94 @@
+schema_name,table_name,column_name,entity_type,business_term,glossary,category,sensitivity,critical_data_element
+cto_retail,stores,st_id,COLUMN,Store ID,CTO Business Glossary,Store Operations,LOW,Yes
+cto_retail,stores,st_name,COLUMN,Store Name,CTO Business Glossary,Store Operations,LOW,No
+cto_retail,stores,st_addr,COLUMN,Store Address,CTO Business Glossary,Store Operations,LOW,No
+cto_retail,stores,st_city,COLUMN,Store City,CTO Business Glossary,Store Operations,LOW,No
+cto_retail,stores,st_county,COLUMN,Store County,CTO Business Glossary,Store Operations,LOW,No
+cto_retail,stores,st_zip,COLUMN,Store ZIP,CTO Business Glossary,Store Operations,LOW,No
+cto_retail,stores,st_phone,COLUMN,Store Phone,CTO Business Glossary,Store Operations,LOW,No
+cto_retail,stores,mgr_emp_id,COLUMN,Manager Employee ID,CTO Business Glossary,Store Operations,LOW,No
+cto_retail,stores,open_dt,COLUMN,Store Open Date,CTO Business Glossary,Store Operations,LOW,No
+cto_retail,stores,st_status,COLUMN,Store Status,CTO Business Glossary,Store Operations,LOW,No
+cto_retail,employees,emp_id,COLUMN,Employee ID,CTO Business Glossary,Store Operations,LOW,Yes
+cto_retail,employees,first_nm,COLUMN,First Name,CTO Business Glossary,Store Operations,HIGH,Yes
+cto_retail,employees,last_nm,COLUMN,Last Name,CTO Business Glossary,Store Operations,HIGH,Yes
+cto_retail,employees,email,COLUMN,Email,CTO Business Glossary,Store Operations,HIGH,Yes
+cto_retail,employees,st_id,COLUMN,Store ID,CTO Business Glossary,Store Operations,LOW,No
+cto_retail,employees,role_cd,COLUMN,Role Code,CTO Business Glossary,Store Operations,LOW,No
+cto_retail,employees,hire_dt,COLUMN,Hire Date,CTO Business Glossary,Store Operations,LOW,No
+cto_retail,employees,emp_status,COLUMN,Employee Status,CTO Business Glossary,Store Operations,LOW,No
+cto_retail,customers,cust_id,COLUMN,Customer ID,CTO Business Glossary,Customer,HIGH,Yes
+cto_retail,customers,loyalty_no,COLUMN,Loyalty Number,CTO Business Glossary,Customer,HIGH,Yes
+cto_retail,customers,first_nm,COLUMN,First Name,CTO Business Glossary,Customer,HIGH,Yes
+cto_retail,customers,last_nm,COLUMN,Last Name,CTO Business Glossary,Customer,HIGH,Yes
+cto_retail,customers,email,COLUMN,Email,CTO Business Glossary,Customer,HIGH,Yes
+cto_retail,customers,phone,COLUMN,Phone,CTO Business Glossary,Customer,HIGH,Yes
+cto_retail,customers,addr1,COLUMN,Address 1,CTO Business Glossary,Customer,HIGH,Yes
+cto_retail,customers,city,COLUMN,City,CTO Business Glossary,Customer,HIGH,Yes
+cto_retail,customers,st,COLUMN,St,CTO Business Glossary,Customer,LOW,No
+cto_retail,customers,zip,COLUMN,ZIP,CTO Business Glossary,Customer,HIGH,Yes
+cto_retail,customers,joined_dt,COLUMN,Joined Date,CTO Business Glossary,Customer,LOW,No
+cto_retail,customers,loyalty_tier,COLUMN,Loyalty Tier,CTO Business Glossary,Customer,LOW,No
+cto_retail,customers,opted_out_marketing,COLUMN,Opted Out Marketing,CTO Business Glossary,Customer,MEDIUM,Yes
+cto_retail,customers,cust_status,COLUMN,Customer Status,CTO Business Glossary,Customer,LOW,No
+cto_retail,suppliers,supplier_id,COLUMN,Supplier ID,CTO Business Glossary,Suppliers,LOW,Yes
+cto_retail,suppliers,supplier_nm,COLUMN,Supplier Name,CTO Business Glossary,Suppliers,LOW,No
+cto_retail,suppliers,contact_email,COLUMN,Contact Email,CTO Business Glossary,Suppliers,MEDIUM,No
+cto_retail,suppliers,phone,COLUMN,Phone,CTO Business Glossary,Suppliers,LOW,No
+cto_retail,suppliers,city,COLUMN,City,CTO Business Glossary,Suppliers,LOW,No
+cto_retail,suppliers,st,COLUMN,St,CTO Business Glossary,Suppliers,LOW,No
+cto_retail,suppliers,terms_cd,COLUMN,Terms Code,CTO Business Glossary,Suppliers,LOW,No
+cto_retail,suppliers,supplier_status,COLUMN,Supplier Status,CTO Business Glossary,Suppliers,LOW,No
+cto_retail,products,prod_id,COLUMN,Product ID,CTO Business Glossary,Merchandising,LOW,Yes
+cto_retail,products,sku,COLUMN,SKU,CTO Business Glossary,Merchandising,LOW,Yes
+cto_retail,products,prod_nm,COLUMN,Product Name,CTO Business Glossary,Merchandising,LOW,No
+cto_retail,products,category_cd,COLUMN,Category Code,CTO Business Glossary,Merchandising,LOW,No
+cto_retail,products,supplier_id,COLUMN,Supplier ID,CTO Business Glossary,Merchandising,LOW,No
+cto_retail,products,unit_cost,COLUMN,Unit Cost,CTO Business Glossary,Merchandising,MEDIUM,Yes
+cto_retail,products,list_price,COLUMN,List Price,CTO Business Glossary,Merchandising,LOW,No
+cto_retail,products,prod_status,COLUMN,Product Status,CTO Business Glossary,Merchandising,LOW,No
+cto_retail,inventory,inv_id,COLUMN,Inventory ID,CTO Business Glossary,Inventory,LOW,Yes
+cto_retail,inventory,prod_id,COLUMN,Product ID,CTO Business Glossary,Inventory,LOW,No
+cto_retail,inventory,st_id,COLUMN,Store ID,CTO Business Glossary,Inventory,LOW,No
+cto_retail,inventory,qty_on_hand,COLUMN,Quantity On Hand,CTO Business Glossary,Inventory,LOW,No
+cto_retail,inventory,qty_reserved,COLUMN,Quantity Reserved,CTO Business Glossary,Inventory,LOW,No
+cto_retail,inventory,reorder_pt,COLUMN,Reorder Point,CTO Business Glossary,Inventory,LOW,No
+cto_retail,inventory,last_count_dt,COLUMN,Last Count Date,CTO Business Glossary,Inventory,LOW,No
+cto_retail,orders,order_id,COLUMN,Order ID,CTO Business Glossary,Orders & Fulfillment,MEDIUM,Yes
+cto_retail,orders,order_no,COLUMN,Order Number,CTO Business Glossary,Orders & Fulfillment,MEDIUM,Yes
+cto_retail,orders,cust_id,COLUMN,Customer ID,CTO Business Glossary,Orders & Fulfillment,HIGH,Yes
+cto_retail,orders,st_id,COLUMN,Store ID,CTO Business Glossary,Orders & Fulfillment,LOW,No
+cto_retail,orders,channel_cd,COLUMN,Channel Code,CTO Business Glossary,Orders & Fulfillment,LOW,No
+cto_retail,orders,order_dt,COLUMN,Order Date,CTO Business Glossary,Orders & Fulfillment,LOW,No
+cto_retail,orders,order_status,COLUMN,Order Status,CTO Business Glossary,Orders & Fulfillment,LOW,No
+cto_retail,orders,total_amt,COLUMN,Total Amount,CTO Business Glossary,Orders & Fulfillment,MEDIUM,No
+cto_retail,order_items,item_id,COLUMN,Order Line ID,CTO Business Glossary,Orders & Fulfillment,LOW,Yes
+cto_retail,order_items,order_id,COLUMN,Order ID,CTO Business Glossary,Orders & Fulfillment,MEDIUM,No
+cto_retail,order_items,prod_id,COLUMN,Product ID,CTO Business Glossary,Orders & Fulfillment,LOW,No
+cto_retail,order_items,qty,COLUMN,Quantity,CTO Business Glossary,Orders & Fulfillment,LOW,No
+cto_retail,order_items,unit_price,COLUMN,Unit Price,CTO Business Glossary,Orders & Fulfillment,LOW,No
+cto_retail,order_items,discount_pct,COLUMN,Discount Percent,CTO Business Glossary,Orders & Fulfillment,LOW,No
+cto_retail,payments,pay_id,COLUMN,Payment ID,CTO Business Glossary,Payments,MEDIUM,Yes
+cto_retail,payments,order_id,COLUMN,Order ID,CTO Business Glossary,Payments,MEDIUM,No
+cto_retail,payments,pay_method_cd,COLUMN,Payment Method Code,CTO Business Glossary,Payments,LOW,No
+cto_retail,payments,card_no,COLUMN,Card Number,CTO Business Glossary,Payments,HIGH,Yes
+cto_retail,payments,auth_cd,COLUMN,Authorization Code,CTO Business Glossary,Payments,MEDIUM,No
+cto_retail,payments,pay_amt,COLUMN,Payment Amount,CTO Business Glossary,Payments,MEDIUM,No
+cto_retail,payments,pay_dt,COLUMN,Payment Date,CTO Business Glossary,Payments,LOW,No
+cto_retail,payments,pay_status,COLUMN,Payment Status,CTO Business Glossary,Payments,LOW,No
+cto_retail,returns,ret_id,COLUMN,Return ID,CTO Business Glossary,Orders & Fulfillment,LOW,Yes
+cto_retail,returns,order_id,COLUMN,Order ID,CTO Business Glossary,Orders & Fulfillment,MEDIUM,No
+cto_retail,returns,prod_id,COLUMN,Product ID,CTO Business Glossary,Orders & Fulfillment,LOW,No
+cto_retail,returns,ret_reason_cd,COLUMN,Return Reason Code,CTO Business Glossary,Orders & Fulfillment,LOW,No
+cto_retail,returns,ret_dt,COLUMN,Return Date,CTO Business Glossary,Orders & Fulfillment,LOW,No
+cto_retail,returns,refund_amt,COLUMN,Refund Amount,CTO Business Glossary,Orders & Fulfillment,MEDIUM,No
+cto_retail,returns,ret_status,COLUMN,Return Status,CTO Business Glossary,Orders & Fulfillment,LOW,No
+cto_retail,loss_prevention_cases,lp_id,COLUMN,LP Case ID,CTO Business Glossary,Loss Prevention & Compliance,LOW,Yes
+cto_retail,loss_prevention_cases,st_id,COLUMN,Store ID,CTO Business Glossary,Loss Prevention & Compliance,LOW,No
+cto_retail,loss_prevention_cases,cust_id,COLUMN,Customer ID,CTO Business Glossary,Loss Prevention & Compliance,HIGH,Yes
+cto_retail,loss_prevention_cases,emp_id,COLUMN,Employee ID,CTO Business Glossary,Loss Prevention & Compliance,LOW,No
+cto_retail,loss_prevention_cases,case_type_cd,COLUMN,Case Type Code,CTO Business Glossary,Loss Prevention & Compliance,LOW,No
+cto_retail,loss_prevention_cases,opened_dt,COLUMN,Opened Date,CTO Business Glossary,Loss Prevention & Compliance,LOW,No
+cto_retail,loss_prevention_cases,opened_by_emp_id,COLUMN,Opened By Employee ID,CTO Business Glossary,Loss Prevention & Compliance,LOW,No
+cto_retail,loss_prevention_cases,case_status,COLUMN,Case Status,CTO Business Glossary,Loss Prevention & Compliance,LOW,No
+cto_retail,loss_prevention_cases,notes_txt,COLUMN,Case Notes,CTO Business Glossary,Loss Prevention & Compliance,HIGH,No

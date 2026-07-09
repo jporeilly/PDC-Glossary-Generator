@@ -46,13 +46,18 @@ the domain pack is how you enrich the tag set.
 
 ## Shipped packs
 
-`credit_union.example.json` is the **Copper State Credit Union (CSCU)** pack — the
-financial-services workshop scenario (members, accounts, cards, lending, BSA/AML
-compliance, general ledger). It carries both the categorization keys and the governed
-tag rules, and matches the default `domain_pack.json`. Its companion
-`credit_union.people.json` seeds the CSCU steward roster
-(`GLOSSARY_PEOPLE_SEED=domain_packs/credit_union.people.json`).
+Scenario packs ship with their scenario, not with the app (the app stays clean):
 
+- **Copper State Credit Union (CSCU)** — financial services (members, accounts,
+  cards, lending, BSA/AML compliance, general ledger):
+  `data_sources/CSCU/domain_pack/credit_union.example.json` +
+  `credit_union.people.json` (the steward roster seed).
+- **Canyon Trail Outfitters (CTO)** — retail (loyalty customers, merchandising,
+  inventory, orders, payments/PCI, loss prevention):
+  `data_sources/RETAIL/domain_pack/retail.example.json` + `retail.people.json`.
+
+Install one with `install-scenario.ps1` / `install-scenario.sh` (or unzip the
+scenario's `*-domain-pack.zip` into `glossary_generator/`), then reseed.
 Additional scenario packs plug in the same way: a `data_sources/<ID>/domain_pack/`
 folder plus a `scenario.json` manifest. Don't mix scenarios: install one pack at a
 time and reseed.

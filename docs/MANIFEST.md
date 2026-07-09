@@ -1,8 +1,8 @@
 # Glossary Generator — repository manifest (1.7.2)
 
 The Flask app, with the **Registry writer** hooked in at export time, plus the
-**Copper State Credit Union (CSCU)** training scenario (additional scenarios
-plug in as data folders). The **Policy Generator** ships
+**Copper State Credit Union (CSCU)** and **Canyon Trail Outfitters (RETAIL)**
+training scenarios (additional scenarios plug in as data folders). The **Policy Generator** ships
 **separately** as its own standalone app (`policy_generator/`). Validated
 against **PDC 11.0.0**.
 
@@ -52,8 +52,12 @@ PDC-Glossary/
     CSCU/                       Copper State Credit Union (financial) — data only
       postgres-init/  cscu-documents/  domain_pack/
       cscu-domain-pack.zip  cscu-datasources.csv  scenario.json
+    RETAIL/                     Canyon Trail Outfitters (retail) — same kit shape
+      postgres-init/  cto-documents/  domain_pack/
+      cto-domain-pack.zip  cto-datasources.csv  scenario.json
   courseware/
-    CSCU/                       workshop guides (markdown masters) + topic notes
+    CSCU/                       workshop guides (markdown masters) + Technical Track
+    RETAIL/                     the retail workshop set (W00-W05 + assets)
 ```
 
 The **Policy Generator** is delivered separately as `policy_generator/` (its own zip):
@@ -66,8 +70,9 @@ Docker: `docker compose up --build`. Full setup is in **`INSTALL.md`**.
 
 ## Install a scenario
 
-Unzip the scenario's pack into `glossary_generator/`
-(`data_sources/CSCU/cscu-domain-pack.zip`), delete any previous
+Run `install-scenario.ps1` / `install-scenario.sh` and pick CSCU or RETAIL —
+or unzip the scenario's pack into `glossary_generator/`
+(`data_sources/<ID>/*-domain-pack.zip`), delete any previous
 `tag_dictionary.json`, restart. **One scenario at a time.**
 
 ## Test the Registry writer (offline)

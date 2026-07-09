@@ -1,0 +1,15 @@
+CANYON TRAIL OUTFITTERS
+Phoenix Camelback - 2415 E Camelback Rd, Phoenix, AZ 85016
+602-555-0210
+
+Order:    SO-30000001          Date: 2026-05-04
+Loyalty:  CTO-200101 (Alicia Mendoza, GOLD)
+
+  CT-CMP-0101  Sonoran 2P Backpacking Tent      1 @ 279.95    279.95
+  CT-CMP-0102  Mogollon 20F Down Sleeping Bag   1 @ 199.95    199.95
+
+  TOTAL                                                       479.90
+  CARD ************2001  AUTH A83K21                          479.90
+
+Returns within 60 days with receipt. GOLD members: 90 days.
+All Canyon Trail Outfitters data is fictional and generated for training.
