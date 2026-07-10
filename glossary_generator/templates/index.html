@@ -311,7 +311,8 @@
   tr.gclhead .gclcnt{color:var(--mute);font-size:12px;flex:1;min-width:120px}
   tr.gclhead .gsegs{margin-left:auto}
   .go{background:var(--dark);color:#fff}
-  .danger{background:none;color:var(--hi);border:1px solid var(--line)}
+  .danger{background:none;color:#c0392b;border:1px solid #e0a49b;font-weight:600}
+  .danger:hover{background:#c0392b;color:#fff;border-color:#c0392b}
   button:disabled{opacity:.5;cursor:not-allowed}
   .msg{font-size:12.5px;color:var(--mute)}
   .help{display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:var(--line);color:var(--ink);font-size:10px;font-weight:700;cursor:help;margin-left:4px;vertical-align:middle}
@@ -2152,6 +2153,8 @@ function editConn(id){
   window.scrollTo({top:0,behavior:'smooth'});
 }
 async function delConn(id){
+  const c=CONNS.find(x=>x.id===id);
+  if(!confirm(`Delete connection "${c?c.name:id}"? This removes it from the app only — nothing in PDC is touched.`)) return;
   const d=await (await fetch('/api/connections/'+id,{method:'DELETE'})).json();
   CONNS=d.connections; renderConns();
 }
