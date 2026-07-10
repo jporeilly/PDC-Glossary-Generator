@@ -525,7 +525,7 @@
       </div>
       <div class="fld" style="margin-top:8px"><label>Bearer token <span class="hint">optional &mdash; use instead of username / password</span></label><input id="bl_token" type="text" autocomplete="off" placeholder="eyJhbGciOi…"/></div>
       <div class="fld" style="margin-top:8px"><label>CSV <span class="hint">paste rows, or choose a file</span></label>
-        <textarea id="bl_csv" rows="4" style="width:100%;font-family:monospace;font-size:12px" placeholder="kind,resourceName,databaseType,configMethod,affinityId,host,port,databaseName,userName,password,endpoint,region,accessKeyID,secretAccessKey,accessKey,secretKey,container,path,schemaNames,fqdnId,description"></textarea></div>
+        <textarea id="bl_csv" rows="5" wrap="off" spellcheck="false" style="width:100%;font-family:monospace;font-size:12px;line-height:1.5;white-space:pre;overflow:auto" placeholder="kind,resourceName,databaseType,configMethod,affinityId,host,port,databaseName,userName,password,endpoint,region,accessKeyID,secretAccessKey,accessKey,secretKey,container,path,schemaNames,fqdnId,description"></textarea></div>
       <div style="display:flex;flex-wrap:wrap;gap:14px;align-items:center;margin-top:8px">
         <input type="file" id="bl_file" accept=".csv" onchange="blLoadFile(event)"/>
         <label style="display:flex;align-items:center;gap:6px;font-size:13px"><input type="checkbox" id="bl_ingest" checked/> ingest metadata</label>
