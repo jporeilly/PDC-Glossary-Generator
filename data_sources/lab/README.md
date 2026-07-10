@@ -4,6 +4,13 @@ A single generic stack that hosts **every** scenario side by side. Each
 scenario loads into its **own database** and its **own bucket**, so nothing
 changes in the documented connection values and nothing conflicts:
 
+> **Start here:** [`lab-setup.docx`](lab-setup.docx) is the consolidated,
+> end-to-end install & configuration guide — repository, one-time network
+> setup, shared stack, scenario load, Glossary Generator configuration, PDC
+> connections, and the rebuild troubleshooting (Parts A-I). This README is
+> the quick reference for the lab stack itself.
+
+
 | Scenario | PostgreSQL database | MinIO bucket | Read-only users |
 | --- | --- | --- | --- |
 | CSCU | `cscu_core` (11 tables) | `cscu-documents` (18 files) | `pdc_user` · `cscu_minio_user` |
@@ -71,6 +78,20 @@ same VM); MinIO on 9000/9001:
   are in each scenario's README.
 
 *All scenario data is fictional and generated for training.*
+
+## Troubleshooting — leftovers from the old AWC stack
+
+The retired AWC-era lab ran as its own Compose project (`awc`), and Docker
+keeps its artifacts until removed: a `awc-net` network (172.18.0.0/16) and
+possibly old containers with a restart policy still attached to it. Nothing
+in the current repo references them — clean them up once on the VM:
+
+```sh
+docker network inspect awc-net --format '{{range .Containers}}{{.Name}} {{end}}'
+docker ps -a | grep -iE 'awc|az-water'      # any old AWC containers
+docker rm -f <old-container> ...            # remove attached leftovers first
+docker network rm awc-net
+```
 
 ## Troubleshooting — PDC itself (same VM)
 

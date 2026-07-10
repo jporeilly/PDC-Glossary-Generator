@@ -343,7 +343,7 @@ endpoint is `v1` on earlier builds and `/api/public/v3/licensing/upload`
 on v3 — the Swagger page shows which your instance exposes).
 `pdc-reset.sh` does this automatically when `LICENSE_BIN` and the admin
 password are supplied. The full Swagger walkthrough is in the lab setup
-guide (`data_sources/lab/lab-setup.docx`, Part F).
+guide (`data_sources/lab/lab-setup.docx`, Part I).
 
 ---
 
