@@ -81,6 +81,30 @@ Refactoring is **optional, not required**. Candidates, in priority order:
 4. **File size** — `pdc_api.py` (~1.8k lines) and `suggester.py` (~2.4k) are large but
    cohesive; splitting (auth / entities / jobs) would aid navigation, not correctness.
 
+### Framework decision — Flask vs FastAPI (evaluated 2026-07-10, deferred)
+
+Considered migrating the backend to FastAPI and decided **against it for this
+app in its current shape**. Rationale:
+
+- **No benefit at this scale.** FastAPI's wins are async concurrency, Pydantic
+  request validation, and auto-generated OpenAPI docs. This is a single-user
+  lab tool whose slow paths are database scans and Ollama inference — no
+  framework accelerates those — and whose API has one consumer: its own page.
+- **Real cost.** Dozens of Flask routes (including streaming endpoints, file
+  uploads and CSV exports) rewritten to ASGI/Pydantic idioms; gunicorn →
+  uvicorn across `run.sh` / `run.ps1` / Docker; full re-validation against
+  PDC 11.0.0 (which 1.7.x was carefully validated against); and a
+  documentation/courseware sweep — Workshop 1 even shows the
+  `* Serving Flask app 'app'` launcher output that screenshots will capture.
+
+**Revisit trigger:** if the Registry becomes a *service* — the Policy
+Generator (or other tooling) consuming the app's API over HTTP as a
+documented contract rather than reading the registry file — migrate as part
+of that redesign, when re-validation is unavoidable anyway. Until then, if
+API documentation is wanted (e.g. for the Technical Track), serve a
+hand-maintained OpenAPI spec from the existing Flask app instead — a
+fraction of the cost, most of the benefit.
+
 ## 5. Changes in this build
 
 - **New: LLM expertise generation.** `llm.suggest_expertise()` + `_expertise_llm`
