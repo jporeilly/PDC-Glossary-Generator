@@ -104,7 +104,8 @@ Ollama are reached over the network only when you use those features.
 ```
 
 This copies the selected scenario's vocabulary (`domain_pack.json`), steward
-roster (`people.json`) and company name (`.env`) into the app's runtime config
+roster (`people.json`), company name (`.env`) and PDC bulk-load connections
+(`datasources.csv`) into the app's runtime config
 — all git-ignored, so the app itself stays clean. One scenario at a time.
 (Equivalent manual step: unzip `data_sources/<scenario>/*-domain-pack.zip`
 into `glossary_generator/`.) To switch scenarios, just rerun it; to remove the

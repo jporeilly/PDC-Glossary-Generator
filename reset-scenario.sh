@@ -11,6 +11,7 @@
 #    - domain_pack.json      (the installed vocabulary)
 #    - people.json           (the steward roster)
 #    - tag_dictionary.json   (the persisted, seeded dictionary)
+#    - datasources.csv       (the scenario's bulk-load connections)
 #    - GLOSSARY_COMPANY in .env  (commented back out)
 #
 #  --all: ALSO removes the rest of the app's runtime state
@@ -38,6 +39,7 @@ echo "Resetting the Glossary Generator to its clean, generic state"
 backup_rm "$APP/domain_pack.json"
 backup_rm "$APP/people.json"
 backup_rm "$APP/tag_dictionary.json"
+backup_rm "$APP/datasources.csv"
 
 # comment GLOSSARY_COMPANY back out in .env (if present)
 if [ -f "$APP/.env" ] && grep -q '^GLOSSARY_COMPANY=' "$APP/.env"; then

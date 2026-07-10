@@ -12,6 +12,7 @@
 #    - people.json        <- the steward roster seed
 #    - .env               <- GLOSSARY_COMPANY set
 #    - tag_dictionary.json backed up + removed (forces reseed)
+#    - datasources.csv    <- the scenario's PDC bulk-load connections
 #
 #  Usage:   ./install-scenario.sh          # interactive menu
 #           ./install-scenario.sh CSCU     # direct (or RETAIL)
@@ -101,11 +102,22 @@ else
 fi
 echo "  + GLOSSARY_COMPANY=\"$company\"  ($env_file)"
 
+# ---- 5. bulk-load datasources CSV -------------------------------------------
+dscsv="$DS/$choice/$(jget "$m" datasources_csv)"
+if [ -f "$dscsv" ]; then
+  [ -f "$APP/datasources.csv" ] && cp "$APP/datasources.csv" "$APP/datasources.csv.backup-$stamp"
+  cp "$dscsv" "$APP/datasources.csv"
+  echo "  + $APP/datasources.csv  (the scenario's PDC bulk-load connections)"
+else
+  echo "  ~ no datasources CSV in this scenario (skipped)"
+fi
+
 echo ""
 echo "Done. Next steps:"
 echo "  1. Stand up the lab:      cd $DS/lab && make up && make load SCENARIO=$choice"
 echo "  2. Start the app:         cd $APP && ./run.sh"
 echo "  3. In the app:            Dictionary page -> confirm the vocabulary reseeded"
-echo "  4. Courseware:            $(jget "$m" courseware)/"
+echo "  4. Register PDC sources:  Connections -> Bulk-load panel -> choose $APP/datasources.csv"
+echo "  5. Courseware:            $(jget "$m" courseware)/"
 echo ""
 echo "One scenario at a time — rerun this script to switch (it backs everything up)."

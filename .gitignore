@@ -16,3 +16,6 @@ Thumbs.db
 
 # Word/Office lock files
 ~$*
+
+# scenario-installed runtime bulk-load CSV
+glossary_generator/datasources.csv

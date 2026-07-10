@@ -39,6 +39,7 @@ Write-Host "Resetting the Glossary Generator to its clean, generic state" -Foreg
 Backup-Remove (Join-Path $App "domain_pack.json")
 Backup-Remove (Join-Path $App "people.json")
 Backup-Remove (Join-Path $App "tag_dictionary.json")
+Backup-Remove (Join-Path $App "datasources.csv")
 
 # comment GLOSSARY_COMPANY back out in .env (if present)
 $envFile = Join-Path $App ".env"

@@ -11,6 +11,7 @@
 #    - people.json        <- the steward roster seed
 #    - .env               <- GLOSSARY_COMPANY set
 #    - tag_dictionary.json backed up + removed (forces reseed)
+#    - datasources.csv    <- the scenario's PDC bulk-load connections
 #
 #  Usage:   .\install-scenario.ps1              # interactive menu
 #           .\install-scenario.ps1 -Scenario CSCU   (or RETAIL)
@@ -97,11 +98,23 @@ if ($content -match '(?m)^[#\s]*GLOSSARY_COMPANY=') {
 [IO.File]::WriteAllText((Resolve-Path $envFile), $content, (New-Object Text.UTF8Encoding $false))
 Write-Host ("  + GLOSSARY_COMPANY=""{0}""  ({1})" -f $sel.company, $envFile)
 
+# ---- 5. bulk-load datasources CSV -------------------------------------------
+$dsCsvSrc = Join-Path $DS (Join-Path $sel.id $sel.datasources_csv)
+$dsCsvDst = Join-Path $App "datasources.csv"
+if (Test-Path $dsCsvSrc) {
+    if (Test-Path $dsCsvDst) { Copy-Item $dsCsvDst "$dsCsvDst.backup-$stamp" }
+    Copy-Item $dsCsvSrc $dsCsvDst
+    Write-Host "  + $dsCsvDst  (the scenario's PDC bulk-load connections)"
+} else {
+    Write-Host "  ~ no datasources CSV in this scenario (skipped)"
+}
+
 Write-Host ""
 Write-Host "Done. Next steps:" -ForegroundColor Green
 Write-Host ("  1. Stand up the lab:      cd {0}\lab; make up; make load SCENARIO={1}  (on the Docker host)" -f $DS, $sel.id)
 Write-Host ("  2. Start the app:         cd {0}; .\run.ps1" -f $App)
 Write-Host  "  3. In the app:            Dictionary page -> confirm the vocabulary reseeded"
-Write-Host ("  4. Courseware:            {0}\" -f $sel.courseware)
+Write-Host ("  4. Register PDC sources:  Connections -> Bulk-load panel -> choose {0}" -f $dsCsvDst)
+Write-Host ("  5. Courseware:            {0}\" -f $sel.courseware)
 Write-Host ""
 Write-Host "One scenario at a time - rerun this script to switch (it backs everything up)."
