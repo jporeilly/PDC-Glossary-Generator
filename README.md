@@ -7,13 +7,22 @@ glossary, lets a steward review and govern it, and exports import-ready JSONL**
 for **Pentaho Data Catalog → Business Glossary → Import** — so the glossary and
 its tags stay governed instead of drifting.
 
-The app is **scenario-generic**; the training scenario ships as a separate,
+The app is **scenario-generic**; each training scenario ships as a separate,
 self-contained bundle — data kit, domain pack and courseware — served by one
 shared lab stack:
 
 | Scenario | Industry | Data kit | Courseware |
 | --- | --- | --- | --- |
 | **CSCU** — Copper State Credit Union | Financial services | [data_sources/CSCU/](data_sources/CSCU/) | [courseware/CSCU/](courseware/CSCU/) |
+| **RETAIL** — Canyon Trail Outfitters | Retail | [data_sources/RETAIL/](data_sources/RETAIL/) | [courseware/RETAIL/](courseware/RETAIL/) |
+| **HEALTH** — Lakeshore Health Partners | Healthcare | [data_sources/HEALTH/](data_sources/HEALTH/) | [courseware/HEALTH/](courseware/HEALTH/) |
+| **MFG** — Cascade Precision Components | Manufacturing | [data_sources/MFG/](data_sources/MFG/) | [courseware/MFG/](courseware/MFG/) |
+
+Each scenario carries Workshops 0–5 at full depth, its own cast across all
+seven PDC roles, planted data defects the workshops expose, and a custom
+identification-pattern family; CSCU additionally carries the Technical Track
+and the app workshop. The consolidated user roster for all four is
+[courseware/PDC-Users-All-Scenarios.md](courseware/PDC-Users-All-Scenarios.md).
 
 Additional scenarios plug in as data folders — drop a `data_sources/<ID>/`
 with a `scenario.json` and it becomes loadable and installable with no code
@@ -107,6 +116,9 @@ This copies the selected scenario's vocabulary (`domain_pack.json`), steward
 roster (`people.json`), company name (`.env`) and PDC bulk-load connections
 (`datasources.csv`) into the app's runtime config
 — all git-ignored, so the app itself stays clean. One scenario at a time.
+If you pin `GLOSSARY_DOMAIN_PACK` / `GLOSSARY_PEOPLE_SEED` in `.env` (they
+override the copied files), the installer retargets them to the selected
+scenario.
 (Equivalent manual step: unzip `data_sources/<scenario>/*-domain-pack.zip`
 into `glossary_generator/`.) To switch scenarios, just rerun it; to remove the
 scenario and reset the app to generic, run `./reset-scenario.sh`
@@ -123,6 +135,10 @@ cp .env.example .env
 make up                          # shared postgres + minio
 make load SCENARIO=CSCU          # and/or RETAIL, HEALTH, MFG
 ```
+
+The **end-to-end guide** — repository, one-time network setup, lab, app,
+PDC connections, and rebuild troubleshooting (Parts A–I) — is
+[data_sources/lab/lab-setup.docx](data_sources/lab/lab-setup.docx).
 
 ### 3. Run the app
 
@@ -161,8 +177,11 @@ optional.
 | [SUPPLEMENT.md](docs/SUPPLEMENT.md) | Operating notes for a real PDC instance |
 | [MANIFEST.md](docs/MANIFEST.md) | Full repository layout and packaging |
 | [CHANGELOG.md](docs/CHANGELOG.md) | Release history |
-| [data_sources/](data_sources/) | The shared lab + the scenario data kit |
-| [courseware/](courseware/) | The CSCU workshop set |
+| [PDC-VM-TROUBLESHOOTING.md](docs/PDC-VM-TROUBLESHOOTING.md) | PDC platform errors on the lab VM (OpenSearch init, site-wide 404, certs, licensing) |
+| [lab-setup.docx](data_sources/lab/lab-setup.docx) | The consolidated lab install & configuration guide (Parts A–I) |
+| [data_sources/](data_sources/) | The shared lab + one data kit per scenario |
+| [courseware/](courseware/) | One workshop set per scenario + the consolidated PDC user roster |
 
-*All Copper State Credit Union data in the training scenario is fictional and
+*All scenario data — Copper State Credit Union, Canyon Trail Outfitters,
+Lakeshore Health Partners and Cascade Precision Components — is fictional and
 generated for training.*
