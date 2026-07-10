@@ -48,6 +48,8 @@ if (Test-Path $envFile) {
     if ($content -match '(?m)^GLOSSARY_COMPANY=') {
         Copy-Item $envFile "$envFile.backup-$stamp"
         $content = [regex]::Replace($content, '(?m)^GLOSSARY_COMPANY=', '# GLOSSARY_COMPANY=')
+        $content = [regex]::Replace($content, '(?m)^GLOSSARY_DOMAIN_PACK=', '# GLOSSARY_DOMAIN_PACK=')
+        $content = [regex]::Replace($content, '(?m)^GLOSSARY_PEOPLE_SEED=', '# GLOSSARY_PEOPLE_SEED=')
         [IO.File]::WriteAllText((Resolve-Path $envFile), $content, (New-Object Text.UTF8Encoding $false))
         Write-Host "  ~ GLOSSARY_COMPANY commented out in $envFile"
     }

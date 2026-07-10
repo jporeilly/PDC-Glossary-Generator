@@ -60,6 +60,15 @@ if [ "${1:-}" = "--all" ]; then
   fi
 fi
 
+
+# also comment out env-pinned pack/roster overrides (they would bring the
+# old scenario straight back)
+if [ -f "$APP/.env" ]; then
+  sed -i -E 's/^(GLOSSARY_DOMAIN_PACK=)/# \1/; s/^(GLOSSARY_PEOPLE_SEED=)/# \1/' "$APP/.env" \
+    && grep -qE '^# GLOSSARY_(DOMAIN_PACK|PEOPLE_SEED)=' "$APP/.env" \
+    && echo "  ~ GLOSSARY_DOMAIN_PACK / GLOSSARY_PEOPLE_SEED commented out in $APP/.env" || true
+fi
+
 echo ""
 echo "Done. The app now runs generic (no scenario vocabulary, empty roster)."
 echo "Install a scenario again with:  ./install-scenario.sh"

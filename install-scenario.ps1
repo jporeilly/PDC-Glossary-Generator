@@ -98,6 +98,27 @@ if ($content -match '(?m)^[#\s]*GLOSSARY_COMPANY=') {
 [IO.File]::WriteAllText((Resolve-Path $envFile), $content, (New-Object Text.UTF8Encoding $false))
 Write-Host ("  + GLOSSARY_COMPANY=""{0}""  ({1})" -f $sel.company, $envFile)
 
+# ---- 4b. retarget env-pinned pack/roster paths, if the user set them --------
+# GLOSSARY_DOMAIN_PACK / GLOSSARY_PEOPLE_SEED in .env OVERRIDE the copied
+# runtime files, so if they are set (uncommented) point them at the selected
+# scenario instead of leaving them pinned to an old one.
+$content = Get-Content $envFile -Raw -Encoding UTF8
+$retarget = @{
+    "GLOSSARY_DOMAIN_PACK" = ("../data_sources/{0}/{1}" -f $sel.id, $sel.pack)
+    "GLOSSARY_PEOPLE_SEED" = ("../data_sources/{0}/{1}" -f $sel.id, $sel.people)
+}
+$dirty = $false
+foreach ($k in $retarget.Keys) {
+    if ($content -match ("(?m)^{0}=" -f $k)) {
+        $content = [regex]::Replace($content, ("(?m)^{0}=.*$" -f $k), ("{0}={1}" -f $k, $retarget[$k]), 1)
+        Write-Host ("  ~ {0} -> {1}  (env override retargeted)" -f $k, $retarget[$k])
+        $dirty = $true
+    }
+}
+if ($dirty) {
+    [IO.File]::WriteAllText((Resolve-Path $envFile), $content, (New-Object Text.UTF8Encoding $false))
+}
+
 # ---- 5. bulk-load datasources CSV -------------------------------------------
 $dsCsvSrc = Join-Path $DS (Join-Path $sel.id $sel.datasources_csv)
 $dsCsvDst = Join-Path $App "datasources.csv"

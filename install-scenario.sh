@@ -102,6 +102,26 @@ else
 fi
 echo "  + GLOSSARY_COMPANY=\"$company\"  ($env_file)"
 
+# ---- 4b. retarget env-pinned pack/roster paths, if the user set them --------
+# GLOSSARY_DOMAIN_PACK / GLOSSARY_PEOPLE_SEED in .env OVERRIDE the copied
+# runtime files, so if they are set (uncommented) point them at the selected
+# scenario instead of leaving them pinned to an old one.
+"$PY" - "$env_file" "$choice" "$(jget "$m" pack)" "$(jget "$m" people)" <<'PYEOF'
+import io, re, sys
+p, sid, pack, people = sys.argv[1:5]
+s = io.open(p, encoding="utf-8").read()
+changed = []
+for key, rel in (("GLOSSARY_DOMAIN_PACK", pack), ("GLOSSARY_PEOPLE_SEED", people)):
+    val = "../data_sources/%s/%s" % (sid, rel)
+    if re.search(r"(?m)^%s=" % key, s):
+        s = re.sub(r"(?m)^%s=.*$" % key, "%s=%s" % (key, val), s, count=1)
+        changed.append("%s -> %s" % (key, val))
+if changed:
+    io.open(p, "w", encoding="utf-8", newline="\n").write(s)
+    for c in changed:
+        print("  ~ %s  (env override retargeted)" % c)
+PYEOF
+
 # ---- 5. bulk-load datasources CSV -------------------------------------------
 dscsv="$DS/$choice/$(jget "$m" datasources_csv)"
 if [ -f "$dscsv" ]; then
