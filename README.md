@@ -11,14 +11,12 @@ The app is **scenario-generic**; each training scenario ships as a separate,
 self-contained bundle — data kit, domain pack and courseware — served by one
 shared lab stack:
 
-| Scenario | Industry | Data kit | Courseware |
-| --- | --- | --- | --- |
-| **CSCU** — Copper State Credit Union | Financial services | [data_sources/CSCU/](data_sources/CSCU/) | [courseware/CSCU/](courseware/CSCU/) |
-| **RETAIL** — Canyon Trail Outfitters | Retail | [data_sources/RETAIL/](data_sources/RETAIL/) | [courseware/RETAIL/](courseware/RETAIL/) |
-| **HEALTH** — Lakeshore Health Partners | Healthcare | [data_sources/HEALTH/](data_sources/HEALTH/) | [courseware/HEALTH/](courseware/HEALTH/) |
-| **MFG** — Cascade Precision Components | Manufacturing | [data_sources/MFG/](data_sources/MFG/) | [courseware/MFG/](courseware/MFG/) |
-
-
+| Scenario                                      | Industry           | Data kit                                    | Courseware                              |
+| --------------------------------------------- | ------------------ | ------------------------------------------- | --------------------------------------- |
+| **CSCU** — Copper State Credit Union   | Financial services | [data_sources/CSCU/](data_sources/CSCU/)     | [courseware/CSCU/](courseware/CSCU/)     |
+| **RETAIL** — Canyon Trail Outfitters   | Retail             | [data_sources/RETAIL/](data_sources/RETAIL/) | [courseware/RETAIL/](courseware/RETAIL/) |
+| **HEALTH** — Lakeshore Health Partners | Healthcare         | [data_sources/HEALTH/](data_sources/HEALTH/) | [courseware/HEALTH/](courseware/HEALTH/) |
+| **MFG** — Cascade Precision Components | Manufacturing      | [data_sources/MFG/](data_sources/MFG/)       | [courseware/MFG/](courseware/MFG/)       |
 
 Each scenario carries Workshops 0–5 at full depth, its own cast across all
 seven PDC roles, planted data defects the workshops expose, and a custom
@@ -75,6 +73,9 @@ workshop figures are in [diagrams/](glossary_generator/diagrams/).
 - **Connect** — live database scan (PostgreSQL, SQL Server, MySQL/MariaDB,
   Oracle), MinIO/S3 document stores, or a plain DDL file. Or skip direct access
   entirely and **harvest from what PDC has already cataloged**.
+
+    ![1783944990502](image/README/1783944990502.png)
+
 - **Review** — one suggested term per business-meaningful column, with inferred
   sensitivity, PII category, CDE flag, governed lower-case tags, and an
   evidence-based confidence signal. The scan **learns value formats from the
@@ -83,9 +84,15 @@ workshop figures are in [diagrams/](glossary_generator/diagrams/).
   inline; duplicate groups come with an evidence-grounded **Merge /
   Disambiguate / Keep separate recommendation** (escalating to a live
   data-value probe and an AI adjudicator on demand).
+
+    ![1783945275542](image/README/1783945275542.png)
+
 - **Govern** — steward/owner/custodian assignment (manual or keyword
   auto-assign from a Keycloak-fetched roster), ratings, review dates, and a
   steward approval gate over the vocabulary, with a full audit trail.
+
+    ![1783946028446](image/README/1783946028446.png)
+
 - **Generate & apply** — export the kept terms as PDC-importable JSONL, then
   resolve term ids and **apply term links, tags and sensitivity back onto PDC
   column entities** over the public API, ending with a Trust Score rollup.
@@ -166,7 +173,7 @@ cd glossary_generator
 docker compose up --build        # Docker
 ```
 
-Then open **<http://127.0.0.1:5000>** and follow the workflow stepper:
+Then open **[http://127.0.0.1:5000](http://127.0.0.1:5000)** and follow the workflow stepper:
 *Connect → Review → Govern → Apply*. The scenario's workshop guide is in
 `courseware/<scenario>/`.
 
@@ -185,19 +192,19 @@ optional.
 
 ## Documentation
 
-| Document | What it covers |
-| --- | --- |
-| [REFERENCE.md](docs/REFERENCE.md) | App details: env vars, drivers, Ollama/GPU, API reference |
-| [GUIDE.md](docs/GUIDE.md) | Full walkthrough of every page and workflow |
-| [INSTALL.md](docs/INSTALL.md) | Setup against your own PDC instance (Docker + local) |
-| [CHALLENGE-AND-GOAL.md](docs/CHALLENGE-AND-GOAL.md) | The Registry thesis, plain language |
-| [SUPPLEMENT.md](docs/SUPPLEMENT.md) | Operating notes for a real PDC instance |
-| [MANIFEST.md](docs/MANIFEST.md) | Full repository layout and packaging |
-| [CHANGELOG.md](docs/CHANGELOG.md) | Release history |
+| Document                                                   | What it covers                                                                       |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| [REFERENCE.md](docs/REFERENCE.md)                           | App details: env vars, drivers, Ollama/GPU, API reference                            |
+| [GUIDE.md](docs/GUIDE.md)                                   | Full walkthrough of every page and workflow                                          |
+| [INSTALL.md](docs/INSTALL.md)                               | Setup against your own PDC instance (Docker + local)                                 |
+| [CHALLENGE-AND-GOAL.md](docs/CHALLENGE-AND-GOAL.md)         | The Registry thesis, plain language                                                  |
+| [SUPPLEMENT.md](docs/SUPPLEMENT.md)                         | Operating notes for a real PDC instance                                              |
+| [MANIFEST.md](docs/MANIFEST.md)                             | Full repository layout and packaging                                                 |
+| [CHANGELOG.md](docs/CHANGELOG.md)                           | Release history                                                                      |
 | [PDC-VM-TROUBLESHOOTING.md](docs/PDC-VM-TROUBLESHOOTING.md) | PDC platform errors on the lab VM (OpenSearch init, site-wide 404, certs, licensing) |
-| [lab-setup.docx](data_sources/lab/lab-setup.docx) | The consolidated lab install & configuration guide (Parts A–I) |
-| [data_sources/](data_sources/) | The shared lab + one data kit per scenario |
-| [courseware/](courseware/) | One workshop set per scenario + the consolidated PDC user roster |
+| [lab-setup.docx](data_sources/lab/lab-setup.docx)           | The consolidated lab install & configuration guide (Parts A–I)                      |
+| [data_sources/](data_sources/)                              | The shared lab + one data kit per scenario                                           |
+| [courseware/](courseware/)                                  | One workshop set per scenario + the consolidated PDC user roster                     |
 
 *All scenario data — Copper State Credit Union, Canyon Trail Outfitters,
 Lakeshore Health Partners and Cascade Precision Components — is fictional and
