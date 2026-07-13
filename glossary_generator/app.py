@@ -6,6 +6,7 @@ Endpoints:
   GET  /api/llm-status   -> {online, backend, model, ...}
   POST /api/scan         -> {rows:[...], stats:{...}}   (heuristic suggestion)
   POST /api/enrich       -> {rows:[...], enriched:N}    (LLM pass, fallback-safe)
+  POST /api/ai-suggest   -> {rows:[...], updated:{...}}  (evidence-grounded AI term/tag pass)
   POST /api/generate     -> {jsonl:"...", stats:{...}}  (import-ready JSONL)
 
 Run:  python app.py   (defaults to http://127.0.0.1:5000)
@@ -897,6 +898,28 @@ def enrich():
     return jsonify({"rows": rows, "enriched": counts,
                     "definitions": counts["definitions"], "purposes": counts["purposes"],
                     "names": counts.get("names", 0),
+                    "stats": _stats(rows), "llm": llm.status(model)})
+
+@app.post("/api/ai-suggest")
+def ai_suggest():
+    """Evidence-grounded AI pass over review rows: the local model proposes term /
+       category / governed tags / sensitivity from the SCAN EVIDENCE (profiled value
+       signatures, induced regexes, reference values), applied under guardrails —
+       tags governed-only, sensitivity tighten-only, term as a suggestion chip."""
+    body = request.get_json(force=True) or {}
+    rows = [r for r in (body.get("rows") or []) if isinstance(r, dict)]
+    only_low = bool(body.get("only_low_confidence", False))
+    model = body.get("model") or None
+    compute = body.get("compute") or None
+    try:
+        allow = sorted(tagdict.governed_tags())
+    except Exception:
+        allow = []
+    cats = sorted({r.get("Category") for r in rows if r.get("Category")})
+    rows, counts, used_llm = llm.suggest_terms_rows(
+        rows, allow_tags=allow, categories=cats,
+        only_low_confidence=only_low, model=model, compute=compute)
+    return jsonify({"rows": rows, "updated": counts, "used_llm": used_llm,
                     "stats": _stats(rows), "llm": llm.status(model)})
 
 @app.post("/api/suggest-expertise")

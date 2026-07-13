@@ -528,3 +528,136 @@ def pull_stream(model=None):
                        "percent": pct}
     except Exception as e:
         yield {"phase": "error", "status": f"pull failed: {e}", "percent": 0}
+
+
+# ------------------------------------------------------------ AI evidence pass
+def _suggest_one(row, allow_tags, categories, model=None, num_gpu=None):
+    """One evidence-grounded classification call. Returns the parsed proposal
+       dict or None. The prompt is grounded in SCAN EVIDENCE (profiled value
+       signature / induced regex / reference values), not just the name."""
+    ev = []
+    if row.get("Source_Column"):
+        ev.append("physical column(s): %s" % row["Source_Column"])
+    if row.get("Definition"):
+        ev.append("current definition: %s" % row["Definition"][:220])
+    if row.get("Value_Signature"):
+        ev.append("profiled position signature: %s" % row["Value_Signature"])
+    if row.get("Value_Pattern"):
+        ev.append("induced value regex: %s" % row["Value_Pattern"])
+    enum_vals = (row.get("Enum_Values") or "").strip()
+    if enum_vals:
+        ev.append("profiled reference values: %s" % enum_vals[:200])
+    if row.get("PII_Category"):
+        ev.append("PII category: %s" % row["PII_Category"])
+    if row.get("Suggested_Reason"):
+        ev.append("scan reasoning: %s" % row["Suggested_Reason"][:160])
+    prompt = (
+        "You classify a database column into a governed business glossary%s.\n"
+        "Current suggestion: term \"%s\" in category \"%s\", sensitivity %s, tags: %s.\n"
+        "Evidence from scanning the actual data:\n- %s\n\n"
+        "Categories (choose one): %s\n"
+        "Governed tag allow-list (use ONLY these): %s\n\n"
+        "Return JSON with keys: term (concise singular business name), category, "
+        "tags (array, only from the allow-list, the most relevant 2-5), sensitivity "
+        "(LOW, MEDIUM or HIGH - never lower than the current value), rationale "
+        "(one short sentence grounded in the evidence)."
+    ) % (
+        (" at " + COMPANY) if COMPANY else "",
+        row.get("Term", ""), row.get("Category", ""), row.get("Sensitivity", "LOW"),
+        row.get("Suggested_Tags", "") or "(none)",
+        "\n- ".join(ev) if ev else "(name only - no profile evidence)",
+        ", ".join(categories or []) or "(keep current)",
+        ", ".join(allow_tags or []) or "(none)",
+    )
+    return _complete_json(prompt, model=model, num_gpu=num_gpu)
+
+_SENS_ORDER = {"LOW": 0, "MEDIUM": 1, "HIGH": 2}
+
+def suggest_terms_rows(rows, allow_tags=None, categories=None, only_low_confidence=False,
+                       model=None, compute=None, workers=None):
+    """AI agent pass over review rows. For each row the model proposes term /
+       category / tags / sensitivity FROM THE SCAN EVIDENCE, and the code applies
+       it under governance guardrails: tags are filtered to the governed
+       allow-list, sensitivity can only tighten, the term is surfaced as
+       Suggested_Name (never overwriting the steward's Term), and the rationale
+       lands in Suggested_Reason. Returns (rows, counts, used_llm)."""
+    rows = [r for r in rows if isinstance(r, dict)]
+    counts = {"names": 0, "tags": 0, "sensitivity": 0, "category": 0}
+    if not status(model)["online"]:
+        return rows, counts, False
+    num_gpu = 0 if compute == "cpu" else (99 if compute == "gpu" else None)
+    if workers is None:
+        workers = WORKERS
+    workers = max(1, min(workers, 16))
+    allow = [t for t in (allow_tags or [])]
+    allow_set = {str(t).strip().lower() for t in allow}
+    cats = [c for c in (categories or [])]
+    targets = [r for r in rows
+               if not (only_low_confidence and r.get("Confidence") == "High")]
+
+    # warm the model first: a cold load can outlive LLM_TIMEOUT and would make
+    # the first batch fail silently (calls return None until the model is resident)
+    try:
+        _post(OLLAMA_URL + "/api/generate",
+              {"model": model or MODEL, "prompt": "ok", "stream": False,
+               "options": {"num_predict": 1}}, timeout=max(TIMEOUT, 120))
+    except Exception:
+        pass
+
+    def _do(r):
+        try:
+            return r, _suggest_one(r, allow, cats, model=model, num_gpu=num_gpu)
+        except Exception:
+            return r, None
+
+    if workers == 1 or len(targets) <= 1:
+        results = [_do(r) for r in targets]
+    else:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as ex:
+            results = list(ex.map(_do, targets))
+
+    for r, out in results:
+        if not isinstance(out, dict):
+            continue
+        changed = False
+        # term: propose, never overwrite (same contract as enrich's name pass)
+        term = _clean_name(str(out.get("term") or ""), r.get("Term", ""))
+        if term and term != r.get("Term") and term != r.get("Suggested_Name"):
+            r["Suggested_Name"] = term
+            r["LLM_Name"] = "Yes"
+            counts["names"] += 1
+            changed = True
+        # category: accept only a known category
+        cat = str(out.get("category") or "").strip()
+        if cat and cats and cat in cats and cat != r.get("Category"):
+            r["Category"] = cat
+            counts["category"] += 1
+            changed = True
+        # tags: union, governed-only
+        proposed = out.get("tags") or []
+        if isinstance(proposed, list):
+            cur = [t for t in (r.get("Suggested_Tags") or "").split(";") if t]
+            cur_l = {t.strip().lower() for t in cur}
+            added = [str(t).strip() for t in proposed
+                     if str(t).strip() and str(t).strip().lower() in allow_set
+                     and str(t).strip().lower() not in cur_l]
+            if added:
+                r["Suggested_Tags"] = ";".join(cur + added)
+                counts["tags"] += 1
+                changed = True
+        # sensitivity: tighten only
+        sens = str(out.get("sensitivity") or "").strip().upper()
+        cur_s = str(r.get("Sensitivity") or "LOW").upper()
+        if sens in _SENS_ORDER and _SENS_ORDER[sens] > _SENS_ORDER.get(cur_s, 0):
+            r["Sensitivity"] = sens
+            counts["sensitivity"] += 1
+            changed = True
+        if changed:
+            r["AI_Suggested"] = "Yes"
+            r["LLM_Enriched"] = "Yes"
+            why = str(out.get("rationale") or "").strip()
+            if why:
+                base = r.get("Suggested_Reason") or ""
+                if "AI(evidence)" not in base:
+                    r["Suggested_Reason"] = (base + " · " if base else "") + "AI(evidence): " + why[:180]
+    return rows, counts, True

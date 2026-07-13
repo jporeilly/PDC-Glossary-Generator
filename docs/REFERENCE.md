@@ -326,6 +326,7 @@ nudge per run.
 | `POST /api/test-connection` | verify a DB connection (no scan)                   |
 | `POST /api/scan`            | harvest + suggest -> rows + stats                  |
 | `POST /api/enrich`          | LLM definition pass (fallback-safe)                |
+| `POST /api/ai-suggest`      | evidence-grounded AI term/tag/sensitivity pass     |
 | `POST /api/generate`        | build import-ready JSONL from the kept rows        |
 
 ---

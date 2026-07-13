@@ -14,6 +14,49 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.8.0] — 2026-07-10
+
+Evidence-grounded suggestion: the scan now LEARNS value formats from the data,
+the AI can reason over that evidence, and the Registry hands the Policy
+Generator ready-made detection seeds.
+
+### Added
+- **Pattern induction from profiled data.** When >=90% of a column's sampled
+  values share one position signature (e.g. `AAA-nnnnn` for `CPC-84120`), the
+  scan derives an anchored regex (`^CPC-\d{5}$`) — stable literal prefixes are
+  kept verbatim, the rest generalizes by character class. Enum detection now
+  keeps up to 12 reference values. Review rows carry the evidence as
+  `Value_Signature`, `Value_Pattern` and `Enum_Values` (kept across merges).
+- **Registry `detect` seeds.** Each exported concept now carries its scan
+  evidence — `{type: pattern, regex, signature}` and/or
+  `{type: dictionary, values}` — so the Policy Generator can author the Data
+  Pattern / Dictionary for a term directly from the profiled data behind it
+  ("this Term is based on this pattern / dictionary").
+- **AI suggest (evidence)** — `POST /api/ai-suggest` + a Review-page button.
+  The local model reads each row's scan evidence and proposes the business
+  term (surfaced as a suggestion chip, never overwriting the steward's Term),
+  governed tags and sensitivity — under guardrails: tags filtered to the
+  governed allow-list, sensitivity tighten-only, category only from the known
+  set, rationale appended to Suggested_Reason. Warm-up call absorbs cold model
+  loads that outlive LLM_TIMEOUT.
+- **PDC v3 job adapter.** Job execution (calculate-trust-score,
+  data-discovery, test-connection, metadata ingest) now tries the individual
+  endpoint and, under v3, falls back to `POST /jobs/execute/bulk` with the
+  named-job payload on 404/405 — closing the one v3 gap called out in
+  REVIEW.md section 1. v1/v2 behaviour unchanged.
+
+### Fixed
+- Bulk-load CSV textarea no longer soft-wraps long rows over each other
+  (one record per line, horizontal scroll).
+- The connection cards' Delete button is now visibly red (its style referenced
+  an undefined CSS variable) and asks for confirmation before removing.
+
+### Changed
+- `install-scenario.*` also installs the scenario's bulk-load CSV as
+  `glossary_generator/datasources.csv` and retargets env-pinned
+  `GLOSSARY_DOMAIN_PACK` / `GLOSSARY_PEOPLE_SEED` to the selected scenario;
+  `reset-scenario.*` removes/comments them.
+
 ## [1.7.2] — 2026-07-08
 
 The CSCU-only release: the Arizona Water Company scenario was removed from

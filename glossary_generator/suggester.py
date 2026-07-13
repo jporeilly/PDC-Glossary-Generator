@@ -386,6 +386,67 @@ RX_ZIP   = re.compile(r"^\d{5}(-\d{4})?$")
 RX_DATE  = re.compile(r"^\d{4}-\d{2}-\d{2}|^\d{1,2}/\d{1,2}/\d{2,4}")
 RX_DEC   = re.compile(r"^-?\d+\.\d+$")
 
+def _value_signature(s):
+    """PDC-style position signature of one value: digits->n, upper->A, lower->a,
+       common separators kept literally. None for long/exotic values."""
+    if not s or len(s) > 32:
+        return None
+    out = []
+    for ch in s:
+        if ch.isdigit(): c = "n"
+        elif ch.isalpha(): c = "A" if ch.isupper() else "a"
+        elif ch in "-_./ :#": c = ch
+        else: return None
+        out.append(c)
+    return "".join(out)
+
+def _induce_pattern(strs):
+    r"""Learn a value format from sampled data: when >=90% of values share one
+       position signature (e.g. AAA-nnnnn for CPC-84120), derive an anchored
+       regex — a stable literal prefix is kept verbatim (^CPC-\d{5}$), the rest
+       generalizes by character class. This is the evidence a Data Pattern
+       method needs, so it flows into the row and the Registry `detect` list.
+       Returns (signature, regex, share) or (None, None, 0)."""
+    sigs = {}
+    for v in strs:
+        g = _value_signature(v)
+        if g:
+            sigs.setdefault(g, []).append(v)
+    if not sigs:
+        return None, None, 0
+    sig, vals = max(sigs.items(), key=lambda kv: len(kv[1]))
+    share = len(vals) / len(strs)
+    if share < 0.9 or len(vals) < 5 or len(sig) < 4:
+        return None, None, 0
+    if "n" not in sig or len(set(sig)) < 2:
+        return None, None, 0        # want structured codes, not plain words/numbers
+    prefix = os.path.commonprefix(vals)
+    while prefix and (prefix[-1].isdigit() or _value_signature(prefix) is None):
+        prefix = prefix[:-1]        # never let variance digits leak into the literal
+    if len(prefix) < 2:
+        prefix = ""
+    rest = sig[len(prefix):]
+    parts, i = [], 0
+    while i < len(rest):
+        j = i
+        while j < len(rest) and rest[j] == rest[i]:
+            j += 1
+        k, c = j - i, rest[i]
+        if c == "n":   parts.append(r"\d{%d}" % k if k > 1 else r"\d")
+        elif c == "A": parts.append("[A-Z]{%d}" % k if k > 1 else "[A-Z]")
+        elif c == "a": parts.append("[a-z]{%d}" % k if k > 1 else "[a-z]")
+        else:          parts.append(re.escape(c) * k)
+        i = j
+    rx = "^" + re.escape(prefix) + "".join(parts) + "$"
+    try:
+        crx = re.compile(rx)
+    except re.error:
+        return None, None, 0
+    ok = sum(1 for v in strs if crx.match(v)) / len(strs)
+    if ok < 0.9:
+        return None, None, 0
+    return sig, rx, ok
+
 def _profile_values(name, vals, sample_n):
     """Infer pii/sensitivity/uniqueness/type from a column's sampled values.
        Also returns DQ signals: completeness (non-empty/sampled) and, where a
@@ -419,10 +480,16 @@ def _profile_values(name, vals, sample_n):
     if frac(RX_PHONE) >= 0.6 and 7 <= avg_digits <= 15 and has_sep >= 0.3:
         return {**base, "pii": "CONTACT_INFO", "sensitivity": "MEDIUM", "confidence": "High",
                 "reason": "Profiled: phone-format values", "kind": "phone", "valid": round(frac(RX_PHONE), 3)}
-    if distinct <= 8 and n >= 10:
+    if distinct <= 12 and n >= 10:
         return {**base, "confidence": "Medium", "kind": "enum",
                 "reason": f"Profiled: low cardinality ({distinct} distinct - reference-data candidate)",
-                "enum": sorted(set(strs))[:8]}
+                "enum": sorted(set(strs))[:12]}
+    sig, rx, share = _induce_pattern(strs)
+    if sig:
+        return {**base, "confidence": "High",
+                "kind": "identifier" if uniq >= 0.95 else "code",
+                "signature": sig, "pattern": rx, "valid": round(share, 3),
+                "reason": f"Profiled: {int(share * 100)}% of values share position signature {sig}"}
     if uniq >= 0.95 and n >= 5 and frac(RX_DEC) < 0.5:
         return {**base, "confidence": "High", "reason": "Profiled: near-unique values (likely identifier)",
                 "kind": "identifier"}
@@ -1079,6 +1146,12 @@ def suggest(tables, schema=None):
                          "Suggested_Quality": quality,
                          "Source_Quality_Dims": {src: qdims},
                          "Status": "Draft", "Confidence": conf, "Suggested_Reason": reason,
+                         # scan evidence: the induced value format / reference list —
+                         # carried through save + export so the Registry can hand the
+                         # Policy Generator a ready-made pattern / dictionary seed
+                         "Value_Signature": prof.get("signature", ""),
+                         "Value_Pattern": prof.get("pattern", ""),
+                         "Enum_Values": ";".join(prof.get("enum", []) or []),
                          "LLM_Enriched": "No"})
     for r in rows:
         key = (r["Category"], r["Term"])
@@ -1090,6 +1163,9 @@ def suggest(tables, schema=None):
                                                 r.get("Suggested_Rating", 0))
             # carry each merged column's own DQ dimensions
             seen[key].setdefault("Source_Quality_Dims", {}).update(r.get("Source_Quality_Dims", {}))
+            for f in ("Value_Signature", "Value_Pattern", "Enum_Values"):
+                if not seen[key].get(f) and r.get(f):
+                    seen[key][f] = r[f]
             continue
         seen[key] = r
         out.append(r)

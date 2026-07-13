@@ -81,6 +81,18 @@ def build_registry(rows, glossary_name: str, glossary_id: str = None) -> dict:
         tags = _tags(r)
         # governance flag: any tag outside the controlled allow-list (drift risk)
         off = [t for t in tags if allow and t not in allow]
+        # scan evidence -> detection seeds: the Policy Generator can author a
+        # Data Pattern (regex + signature) or a Dictionary (value list) for this
+        # concept directly from the profiled data behind the term.
+        detect = []
+        vp = (r.get('Value_Pattern') or '').strip()
+        if vp:
+            detect.append({"type": "pattern", "regex": vp,
+                           "signature": (r.get('Value_Signature') or '').strip() or None,
+                           "source": "profiled"})
+        enum_vals = [v.strip() for v in (r.get('Enum_Values') or '').split(';') if v.strip()]
+        if enum_vals:
+            detect.append({"type": "dictionary", "values": enum_vals, "source": "profiled"})
         concepts.append({
             "concept": concept,
             "term_name": term,
@@ -90,7 +102,7 @@ def build_registry(rows, glossary_name: str, glossary_id: str = None) -> dict:
             "off_vocabulary_tags": off,            # empty when tags are all governed
             "category": (r.get('Category') or None),
             "definition": (r.get('Definition') or ''),
-            "detect": [],
+            "detect": detect,
             "method": None,
         })
     return {"schema": "classification-registry/1", "glossary": glossary_name,

@@ -1342,6 +1342,43 @@ def apply_to_pdc(base_url, token, api_json, version="v2", verify_tls=True,
 # --------------------------------------------------------------------------- #
 #  Calculate Trust Score (+ poll)
 # --------------------------------------------------------------------------- #
+# v3 reorganised job execution around a bulk endpoint; these are the named-job
+# equivalents of the v1/v2 per-job paths (see docs/REVIEW.md section 1).
+_V3_BULK_NAMES = {
+    "calculate-trust-score": "CALCULATE_TRUST_SCORE",
+    "data-discovery": "DATA_DISCOVERY",
+    "test-connection": "TEST_CONNECTION",
+    "metadata/ingest": "METADATA_INGEST",
+}
+
+def _execute_job(base_url, token, name, body, version="v2", verify_tls=True, timeout=30):
+    """POST a named job. v1/v2 expose one endpoint per job
+       (/jobs/execute/<name>); v3 moved job execution to a bulk pattern.
+       Strategy: try the individual path first (PDC 11.0.0 still serves
+       several under /v3/), and on HTTP 404/405 under v3 retry as
+       POST /jobs/execute/bulk with the named-job payload. Returns the
+       response dict, normalized so callers can read data/jobId/id/_id."""
+    base = clean_base(base_url)
+    url = base + f"/api/public/{version}/jobs/execute/{name}"
+    try:
+        return _req("POST", url, token=token, body=body,
+                    verify_tls=verify_tls, timeout=timeout)
+    except RuntimeError as e:
+        msg = str(e)
+        if str(version).lower() not in ("v3", "3") or            not ("HTTP 404" in msg or "HTTP 405" in msg):
+            raise
+    bulk_name = _V3_BULK_NAMES.get(name) or         name.replace("/", "_").replace("-", "_").upper()
+    out = _req("POST", base + f"/api/public/{version}/jobs/execute/bulk",
+               token=token,
+               body=[{"name": bulk_name, "type": "START", "payload": body}],
+               verify_tls=verify_tls, timeout=timeout)
+    d = out.get("data", out) if isinstance(out, dict) else out
+    if isinstance(d, list) and d:
+        first = d[0]
+        return first if isinstance(first, dict) else {"data": first}
+    return out if isinstance(out, dict) else {"data": out}
+
+
 def calculate_trust_score(base_url, token, ids, version="v2", verify_tls=True,
                           timeout=30, poll=True, poll_tries=20, poll_wait=2.0):
     """POST /jobs/execute/calculate-trust-score {"scope":[ids]} then poll status.
@@ -1350,9 +1387,9 @@ def calculate_trust_score(base_url, token, ids, version="v2", verify_tls=True,
        and reports whatever the instance does."""
     import time
     base = clean_base(base_url)
-    url = base + f"/api/public/{version}/jobs/execute/calculate-trust-score"
-    out = _req("POST", url, token=token, body={"scope": list(ids)},
-               verify_tls=verify_tls, timeout=timeout)
+    out = _execute_job(base_url, token, "calculate-trust-score",
+                       {"scope": list(ids)}, version=version,
+                       verify_tls=verify_tls, timeout=timeout)
     d = out.get("data", out)
     job_id = (d.get("jobId") or d.get("id") or d.get("_id")
               if isinstance(d, dict) else None)
@@ -1467,7 +1504,6 @@ def trigger_data_discovery(base_url, token, scope_ids, version="v2", verify_tls=
         return {"ok": False, "message": "no entities in scope to profile",
                 "job_id": None, "submitted": 0}
     base = clean_base(base_url)
-    url = base + f"/api/public/{version}/jobs/execute/data-discovery"
     cfg = dict(_DISCOVERY_DEFAULTS)
     # withProfile is a v3-only field that also profiles file/object/document stores;
     # sending it to v1/v2 risks a strict-validation 400, so gate it on the version.
@@ -1475,8 +1511,9 @@ def trigger_data_discovery(base_url, token, scope_ids, version="v2", verify_tls=
         cfg["withProfile"] = True
     if configs:
         cfg.update(configs)
-    out = _req("POST", url, token=token, body={"scope": list(scope_ids), "configs": cfg},
-               verify_tls=verify_tls, timeout=timeout)
+    out = _execute_job(base_url, token, "data-discovery",
+                       {"scope": list(scope_ids), "configs": cfg}, version=version,
+                       verify_tls=verify_tls, timeout=timeout)
     data = out.get("data", out) if isinstance(out, dict) else {}
     job_id = data.get("_id") or data.get("id") or data.get("jobId")
     rep = {"ok": True, "job_id": job_id, "submitted": len(list(scope_ids)),
@@ -1825,8 +1862,8 @@ def create_data_source(base_url, token, body, version="v2", verify_tls=True, tim
 def run_job(base_url, token, name, body, version="v2", verify_tls=True, timeout=30):
     """POST /jobs/execute/<name>. Returns {job_id, raw} — same shape used by
        calculate_trust_score()."""
-    url = clean_base(base_url) + f"/api/public/{version}/jobs/execute/{name}"
-    out = _req("POST", url, token=token, body=body, verify_tls=verify_tls, timeout=timeout)
+    out = _execute_job(base_url, token, name, body, version=version,
+                       verify_tls=verify_tls, timeout=timeout)
     d = out.get("data", out) if isinstance(out, dict) else {}
     jid = None
     if isinstance(d, dict):

@@ -902,6 +902,7 @@
       <input type="file" id="reviewfile" accept=".json,.jsonl" style="display:none" onchange="loadGlossaryForReview(this)"/>
       <button class="ghost" onclick="document.getElementById('reviewfile').click()" title="Open an existing PDC glossary export directly in the grid to review and edit (round-trip).">Open glossary for review&hellip;</button>
       <button class="ghost" id="enrichBtn" onclick="enrich()" disabled title="Rewrite definitions with the local LLM (needs a pulled model).">Enrich with LLM</button>
+      <button class="ghost" id="aiSuggestBtn" onclick="aiSuggest()" disabled title="Evidence-grounded AI pass: the local model reads each row's SCAN EVIDENCE (profiled value signature, induced regex, reference values) and proposes the business term (as a suggestion chip), governed tags and a tightened sensitivity.">AI suggest (evidence)</button>
       <button class="ghost" id="revertEnrichBtn" onclick="revertEnrich()" style="display:none;border-color:#c98a2b;color:#7a4a00" title="Undo the last Enrich run and restore the pre-enrich definitions/purposes.">↶ Revert enrich</button>
       <input type="file" id="glossfile" accept=".json,.jsonl" style="display:none" onchange="enhanceFromGlossary(this)"/>
       <button class="ghost" id="enhanceBtn" onclick="document.getElementById('glossfile').click()" disabled title="Overlay an existing glossary's real definitions, purpose, tags and sensitivity onto matched scanned terms.">Enhance from glossary&hellip;</button>
@@ -2076,7 +2077,7 @@ async function llmStatus(){
     $('llmtxt').textContent=s.online?(s.model_present===false?(s.model+' not pulled'):('Ollama · '+s.model)):'LLM offline';
     const need=s.online&&s.model_present===false;
     $('pullBtn').style.display=need?'':'none';
-    $('enrichBtn').disabled=!ROWS.length||!s.online||s.model_present===false;
+    $('enrichBtn').disabled=!ROWS.length||!s.online||s.model_present===false; if($('aiSuggestBtn')) $('aiSuggestBtn').disabled=$('enrichBtn').disabled;
   }catch(e){ $('dot').className='dot off'; $('llmtxt').textContent='LLM offline'; $('pullBtn').style.display='none'; }
 }
 function fmtBytes(n){ if(!n||n<0)return'0 B'; if(n>=1e9)return(n/1e9).toFixed(2)+' GB'; if(n>=1e6)return(n/1e6).toFixed(1)+' MB'; if(n>=1e3)return(n/1e3).toFixed(0)+' KB'; return n+' B'; }
@@ -3707,13 +3708,46 @@ function epUpdate(done,total,dd,pp){
   $('epFill').style.width=v+'%';
   $('epLbl').textContent=`Enriching ${done} of ${total} (${v}%)${(dd||pp)?` \u00b7 ${dd} def, ${pp} purpose`:''} \u00b7 ${COMPUTE.toUpperCase()}`;
 }
+async function aiSuggest(){
+  const total=ROWS.length; if(!total) return;
+  const idx=ROWS.map((_,i)=>i);
+  $('aiSuggestBtn').disabled=true; $('msg').textContent='AI suggesting from scan evidence\u2026';
+  const CHUNK=6; let done=0, cn={names:0,tags:0,sensitivity:0,category:0}, offline=false, failed=0;
+  for(let s2=0; s2<idx.length; s2+=CHUNK){
+    const slice=idx.slice(s2,s2+CHUNK);
+    const payload=slice.map(i=>ROWS[i]);
+    try{
+      const d=await (await fetch('/api/ai-suggest',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({rows:payload,model:currentModel()||null,compute:COMPUTE})})).json();
+      if(d.error){ failed+=slice.length; }
+      else if(d.llm && d.llm.online===false){ offline=true; break; }
+      else{
+        (d.rows||[]).forEach((nr,j)=>{ const i=slice[j]; if(i==null) return;
+          const old=ROWS[i]||{};
+          ['_grp','_rid','_res'].forEach(f=>{ if(nr[f]==null && old[f]!=null) nr[f]=old[f]; });
+          if(nr.Keep==null && old.Keep!=null) nr.Keep=old.Keep;
+          ROWS[i]=nr; });
+        const u=d.updated||{}; cn.names+=u.names||0; cn.tags+=u.tags||0;
+        cn.sensitivity+=u.sensitivity||0; cn.category+=u.category||0;
+      }
+    }catch(e){ failed+=slice.length; }
+    done+=slice.length;
+    $('msg').textContent=`AI suggesting from scan evidence\u2026 ${done}/${total}`;
+    applyFilter(); renderSummary(computeStats(ROWS));
+    await new Promise(r=>requestAnimationFrame(r));
+  }
+  $('aiSuggestBtn').disabled=false;
+  if(offline){ $('msg').textContent='LLM offline \u2014 start Ollama and pull a model, then try again.'; return; }
+  const any=cn.names+cn.tags+cn.sensitivity+cn.category;
+  $('msg').textContent=any?`AI(evidence): suggested ${cn.names} name${cn.names!==1?'s':''} (\u2192 chips), added governed tags on ${cn.tags} row${cn.tags!==1?'s':''}, tightened sensitivity on ${cn.sensitivity}, moved ${cn.category} categor${cn.category!==1?'ies':'y'}${failed?` (${failed} skipped)`:''}.`:'AI made no changes \u2014 the scan evidence already agrees with the suggestions.';
+}
 async function enrich(){
   const total=ROWS.length; if(!total) return;
   // snapshot before enriching so trying a different model is non-destructive
   PRE_ENRICH={rows:_deep(ROWS), model:(currentModel()||'default'), at:Date.now()};
   if(typeof updateRevertEnrichUI==='function') updateRevertEnrichUI();
   const idx=ROWS.map((_,i)=>i);                 // map results back even while filtered
-  ENRICH_CANCEL=false; $('enrichBtn').disabled=true; $('epCancel').disabled=false;
+  ENRICH_CANCEL=false; $('enrichBtn').disabled=true; if($('aiSuggestBtn')) $('aiSuggestBtn').disabled=$('enrichBtn').disabled; $('epCancel').disabled=false;
   $('enrichProg').style.display='flex'; epUpdate(0,total,0,0); $('msg').textContent='';
   const CHUNK=6; let done=0, dd=0, pp=0, nn=0, offline=false, failed=0;
   for(let s=0; s<idx.length && !ENRICH_CANCEL; s+=CHUNK){
@@ -3741,7 +3775,7 @@ async function enrich(){
     applyFilter(); renderSummary(computeStats(ROWS));   // live: watch terms fill in
     await new Promise(r=>requestAnimationFrame(r));      // let the UI paint
   }
-  $('enrichProg').style.display='none'; $('enrichBtn').disabled=false;
+  $('enrichProg').style.display='none'; $('enrichBtn').disabled=false; if($('aiSuggestBtn')) $('aiSuggestBtn').disabled=$('enrichBtn').disabled;
   if(offline){ $('msg').textContent='LLM offline — start Ollama and pull a model, then try again.'; }
   else if(ENRICH_CANCEL){ $('msg').textContent=`Stopped — improved ${dd} definition${dd!==1?'s':''} and ${pp} purpose${pp!==1?'s':''} so far.`; }
   else{ const nm=nn?` and suggested ${nn} name${nn!==1?'s':''} (click a → chip to apply)`:''; const mdl=(PRE_ENRICH&&PRE_ENRICH.model)?` with ${esc(PRE_ENRICH.model)}`:''; $('msg').textContent=(dd||pp||nn)?`Improved ${dd} definition${dd!==1?'s':''} and ${pp} purpose${pp!==1?'s':''}${nm}${mdl}${failed?` (${failed} skipped)`:''}.`:'LLM made no changes.'; }

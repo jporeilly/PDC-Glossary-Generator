@@ -26,10 +26,12 @@ reference (v1, v2, v3):
 v3-compatible. The **job-execution** calls (Calculate Trust Score, trigger
 profiling/discovery, and harvest's test-connection/ingest) follow the v1/v2 style of
 one endpoint per job; **v3 reorganised these into a single bulk endpoint**, so under a
-literal `v3` selection those specific features may 404. **Recommendation: keep the
-connector on `v2` on the lab's 11.0.0 instance (fully compatible).** A v3 job adapter — POST
-the bulk array and read the per-job result — is the one change needed for end-to-end
-v3, and is isolated to ~4 helpers in `pdc_api.py`.
+literal `v3` selection those specific features may 404. **Update (1.8.0): the v3 job
+adapter is implemented** — `_execute_job()` in `pdc_api.py` tries the individual
+endpoint and, under v3, falls back to `POST /jobs/execute/bulk` with the named-job
+payload on 404/405; all four job paths (trust score, data discovery,
+test-connection, metadata ingest) route through it. v2 remains the guides' default
+and is unchanged; v3 is now end-to-end safe.
 
 > Doc note: the PDC *user guide* states Calculate Trust Score "is not available in
 > public API's", which contradicts the API *reference* (the `calculate-trust-score`
