@@ -1653,6 +1653,10 @@ def apply_to_pdc():
     calc_trust = bool(body.get("calculate_trust", False))
     apply_table_ratings = bool(body.get("apply_table_ratings", True))
     skip_unresolved = bool(body.get("skip_unresolved_terms", False))
+    desc_mode = (body.get("desc_mode") or "fill").strip().lower()
+    _rows = body.get("rows") or []
+    _gname0 = (body.get("glossary_name") or "").strip()
+    table_terms = suggester.table_term_directory(_rows, _gname0 or "Business Glossary") if _rows else None
     if not base:
         return jsonify({"error": "PDC base URL is required"}), 400
     if not api_json:
@@ -1667,7 +1671,8 @@ def apply_to_pdc():
                                       apply_table_ratings=apply_table_ratings,
                                       skip_unresolved_terms=skip_unresolved,
                                       glossary_name=(gname or None),
-                                      default_glossary_id=default_gid)
+                                      default_glossary_id=default_gid,
+                                      desc_mode=desc_mode, table_terms=table_terms)
     except Exception as e:
         return jsonify({"error": str(e)}), 502
     report.pop("token", None)  # never hand the token back to the browser
@@ -1691,6 +1696,10 @@ def apply_to_pdc_stream():
     calc_trust = bool(body.get("calculate_trust", False))
     apply_table_ratings = bool(body.get("apply_table_ratings", True))
     skip_unresolved = bool(body.get("skip_unresolved_terms", False))
+    desc_mode = (body.get("desc_mode") or "fill").strip().lower()
+    _rows = body.get("rows") or []
+    _gname0 = (body.get("glossary_name") or "").strip()
+    table_terms = suggester.table_term_directory(_rows, _gname0 or "Business Glossary") if _rows else None
     if not base:
         return jsonify({"error": "PDC base URL is required"}), 400
     if not api_json:
@@ -1710,6 +1719,7 @@ def apply_to_pdc_stream():
                                           skip_unresolved_terms=skip_unresolved,
                                           glossary_name=(gname or None),
                                           default_glossary_id=default_gid,
+                                          desc_mode=desc_mode, table_terms=table_terms,
                                           progress=lambda ev: q.put(("progress", ev)))
             report.pop("token", None)
             q.put(("done", report))

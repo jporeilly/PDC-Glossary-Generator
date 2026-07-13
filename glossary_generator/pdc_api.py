@@ -1031,11 +1031,16 @@ def _retry_auth(fn, reauth):
         return fn(new_tok)
 
 
+_SENS_UP = {"LOW": 1, "MEDIUM": 2, "HIGH": 3}
+_SENS_DN = {1: "LOW", 2: "MEDIUM", 3: "HIGH"}
+
+
 def apply_to_pdc(base_url, token, api_json, version="v2", verify_tls=True,
                  timeout=30, dry_run=True, reauth=None, calculate_trust=False,
                  apply_table_ratings=True, table_lineage_verified=True,
                  skip_unresolved_terms=False, glossary_name=None,
-                 default_glossary_id=None, progress=None):
+                 default_glossary_id=None, desc_mode="fill", table_terms=None,
+                 progress=None):
     """For each Data Element record: resolve the column entity, merge attributes,
        and PATCH (unless dry_run). Returns a structured report.
 
@@ -1051,6 +1056,7 @@ def apply_to_pdc(base_url, token, api_json, version="v2", verify_tls=True,
     table_cache = {}
     table_ratings = {}   # (schema, table) -> [rating values from columns]
     table_quality = {}   # (schema, table) -> [qualityScore values from columns]
+    table_sens = {}      # (schema, table) -> max column sensitivity rank
     object_store_keys = set()  # (bucket, folder) keys whose elements are object-store
                                # FILES — the file is the Trust-Score unit, not the folder
     unresolved_term_names = set()   # term links carrying a name but no glossaryId
@@ -1170,6 +1176,14 @@ def apply_to_pdc(base_url, token, api_json, version="v2", verify_tls=True,
                     pass
 
             merged = merge_attributes(current, incoming_attrs)
+            # entity description: honor the mode. "fill" writes only where PDC
+            # has none; "overwrite" replaces; "off" never sends info at all.
+            inc_desc = ((incoming_attrs.get("info") or {}).get("description") or "").strip()
+            cur_desc = ((current.get("info") or {}).get("description") or "").strip()
+            if desc_mode == "off" or not inc_desc or (desc_mode != "overwrite" and cur_desc):
+                merged.pop("info", None)
+            else:
+                merged["info"] = {"description": inc_desc}
             body = {"attributes": merged}
             row["body"] = body
             row["current_terms"] = [t.get("name") for t in (current.get("businessTerms") or [])]
@@ -1183,6 +1197,12 @@ def apply_to_pdc(base_url, token, api_json, version="v2", verify_tls=True,
                 if is_obj:
                     object_store_keys.add(tkey)
                 table_ratings.setdefault(tkey, []).append(rv)
+            sv = str(((incoming_attrs.get("features") or {}).get("sensitivity")) or "").upper()
+            if sv in _SENS_UP:
+                tkey = ((rec.get("schemaName") or ""), (rec.get("tableName") or ""))
+                if is_obj:
+                    object_store_keys.add(tkey)
+                table_sens[tkey] = max(table_sens.get(tkey, 0), _SENS_UP[sv])
             qv = _quality_of(incoming_attrs)
             if qv is not None:
                 tkey = ((rec.get("schemaName") or ""), (rec.get("tableName") or ""))
@@ -1220,7 +1240,15 @@ def apply_to_pdc(base_url, token, api_json, version="v2", verify_tls=True,
     # ---- table-level rollup: roll up column ratings + DQ qualityScore onto tables ----
     table_results = []
     table_ids = []
-    table_keys = set(table_ratings) | set(table_quality)
+    table_keys = set(table_ratings) | set(table_quality) | set(table_sens)
+    if table_terms:
+        # a table-level term may exist for a table none of whose columns carried
+        # a rating (e.g. all LOW) — make sure that table still gets its term
+        named = {t.lower() for t in table_terms}
+        for rec0 in api_json:
+            tk = ((rec0.get("schemaName") or ""), (rec0.get("tableName") or ""))
+            if (rec0.get("tableName") or "").lower() in named:
+                table_keys.add(tk)
     if apply_table_ratings and table_keys:
         if progress:
             try: progress({"phase": "tables", "total": len(table_keys)})
@@ -1228,7 +1256,9 @@ def apply_to_pdc(base_url, token, api_json, version="v2", verify_tls=True,
         for (sch, tbl) in table_keys:
             rvals = table_ratings.get((sch, tbl)) or []
             qvals = table_quality.get((sch, tbl)) or []
-            if not rvals and not qvals:
+            srank = table_sens.get((sch, tbl))
+            ttinfo = (table_terms or {}).get((tbl or "").lower())
+            if not rvals and not qvals and not srank and not ttinfo:
                 continue
             mean_rating = max(1, min(5, int(round(sum(rvals) / len(rvals))))) if rvals else None
             mean_quality = max(0, min(100, int(round(sum(qvals) / len(qvals))))) if qvals else None
@@ -1242,12 +1272,52 @@ def apply_to_pdc(base_url, token, api_json, version="v2", verify_tls=True,
             # folder is neither a table nor a Trust Score target, so there is nothing to
             # roll up to — report that honestly instead of as a "table not found".
             if (sch, tbl) in object_store_keys:
-                nfiles = max(len(rvals), len(qvals))
-                trow.update(status="file-level", found=True,
-                            message=(f"object store — Trust Score is carried per file; "
-                                     f"{nfiles} file(s) applied directly (rating, DQ, "
-                                     f"lineage, term). A folder isn't a Trust Score "
-                                     f"target, so there's no table-level write."))
+                # Trust Score stays per file, but the FOLDER entity can still
+                # carry the roll-up (rating, DQ, sensitivity) so the canvas
+                # isn't blank at folder level. Folders never join the trust
+                # scope and never take the table term.
+                nfiles = max(len(rvals), len(qvals), 1)
+                try:
+                    def _rdir(tok):
+                        t = tok or cur_token["t"]
+                        if tok:
+                            cur_token["t"] = tok
+                        return resolve_table_entity(base, cur_token["t"], sch, tbl,
+                                                    version, verify_tls, timeout)
+                    dent = _retry_auth(_rdir, reauth)
+                    if not dent or not _eid(dent):
+                        trow.update(status="file-level", found=False,
+                                    message=(f"{nfiles} file(s) applied directly; no matching "
+                                             f"folder entity to roll up to"))
+                        table_results.append(trow)
+                        continue
+                    dfeat = {}
+                    if mean_rating is not None:
+                        dfeat["rating"] = {"value": mean_rating}
+                    if mean_quality is not None:
+                        dfeat["qualityScore"] = mean_quality
+                    if srank:
+                        dfeat["sensitivity"] = _SENS_DN[srank]
+                    dbody = {"attributes": {"features": dfeat}}
+                    trow.update(found=True, id=_eid(dent),
+                                fqdn=dent.get("fqdn") or dent.get("fqdnDisplay"), body=dbody,
+                                message=(f"folder roll-up from {nfiles} file(s); Trust Score "
+                                         f"stays per file"))
+                    if dry_run:
+                        trow["status"] = "planned"
+                    else:
+                        durl = base + f"/api/public/{version}/entities/{_eid(dent)}"
+                        def _dpatch(tok):
+                            t = tok or cur_token["t"]
+                            if tok:
+                                cur_token["t"] = tok
+                            return _req("PATCH", durl, token=cur_token["t"], body=dbody,
+                                        verify_tls=verify_tls, timeout=timeout)
+                        _retry_auth(_dpatch, reauth)
+                        trow["status"] = "applied"
+                except Exception as e:
+                    trow["status"] = "error"
+                    trow["message"] = str(e)[:300]
                 table_results.append(trow)
                 continue
             try:
@@ -1270,9 +1340,32 @@ def apply_to_pdc(base_url, token, api_json, version="v2", verify_tls=True,
                     tfeat["rating"] = {"value": mean_rating}
                 if mean_quality is not None:
                     tfeat["qualityScore"] = mean_quality
+                if srank:
+                    tfeat["sensitivity"] = _SENS_DN[srank]
                 if table_lineage_verified:
                     tfeat["isLineageVerified"] = True
-                tbody = {"attributes": {"features": tfeat}}
+                tattrs = {"features": tfeat}
+                if ttinfo:
+                    # the table's OWN business term (Trust Score's assigned-term
+                    # input) — union-merged with whatever the table already has
+                    bt = {"name": ttinfo["name"]}
+                    if ttinfo.get("id"):
+                        bt["id"] = ttinfo["id"]
+                    if ttinfo.get("glossaryId"):
+                        bt["glossaryId"] = ttinfo["glossaryId"]
+                    if not (skip_unresolved_terms and not (bt.get("id") and bt.get("glossaryId"))):
+                        tattrs["businessTerms"] = [bt]
+                    tdesc = (ttinfo.get("description") or "").strip()
+                    cur_t = _attrs_of(tent)
+                    cur_tdesc = ((cur_t.get("info") or {}).get("description") or "").strip()
+                    if tdesc and desc_mode != "off" and (desc_mode == "overwrite" or not cur_tdesc):
+                        tattrs["info"] = {"description": tdesc}
+                    tattrs = merge_attributes(cur_t, tattrs)
+                    if "info" in tattrs and not ((tattrs.get("info") or {}).get("description") or "").strip():
+                        tattrs.pop("info", None)
+                tbody = {"attributes": tattrs}
+                trow["term"] = (ttinfo or {}).get("name")
+                trow["sensitivity"] = _SENS_DN.get(srank)
                 trow.update(found=True, id=tid,
                             fqdn=tent.get("fqdn") or tent.get("fqdnDisplay"), body=tbody)
                 if dry_run:

@@ -733,8 +733,9 @@ def table_term_rows(tables, col_rows=None):
         human_tbl = humanize(_singularize(tname)).lower()
         rows.append({
             "Keep": "Y", "Category": categorize(tname), "Term": term, "Source_Column": "",
+            "Source_Table": tname,
             "Definition": f"A single {human_tbl} record — the table-level business term for the {tname} table.",
-            "Purpose": f"Link this term to the {tname} table by hand to give its Trust Score the assigned-term input.",
+            "Purpose": f"Linked to the {tname} table at Apply (table roll-up) to give its Trust Score the assigned-term input.",
             "Sensitivity": RANK_SENS[tmax.get(tname, SENS_RANK.get("LOW", 0))],
             "PII_Category": "", "Critical_Data_Element": "No",
             "Abbreviation": _abbrev(term), "Suggested_Tags": ";".join(
@@ -2258,6 +2259,7 @@ def data_element_links(rows, glossary_name="Business Glossary", quality_weights=
                           "category": r.get("Category", ""), "sensitivity": r.get("Sensitivity", ""),
                           "critical_data_element": r.get("Critical_Data_Element", "No"),
                           "rating": rating, "quality": quality,
+                          "definition": (r.get("Definition") or "").strip(),
                           "keys": keys_map.get(sc_key)})
     return links
 
@@ -2312,6 +2314,10 @@ def links_to_api_json(links, glossary_name="Business Glossary", lineage_verified
         # so the link is born fully glossary-bound (id + glossaryId) with no PDC
         # round-trip. Resolve then only has to confirm, and Apply writes a real link
         # instead of attaching by name (which leaves the Glossary column as "—").
+        # entity description: the steward's reviewed definition (PATCHable via
+        # attributes.info.description; Apply decides fill-vs-overwrite)
+        if l.get("definition") and "info" not in rec["attributes"]:
+            rec["attributes"]["info"] = {"description": l["definition"]}
         # PK/FK facts -> attributes.extended. The built-in Is Primary/Foreign Key
         # property (metadata.column.*) is harvest-owned and rejected by the public
         # PATCH schema; extended is the API's writable free-form block, so the
@@ -2329,6 +2335,29 @@ def links_to_api_json(links, glossary_name="Business Glossary", lineage_verified
              "id": det_term_id(gname, l.get("category", ""), l["business_term"]),
              "glossaryId": det_glossary_id(gname)})
     return list(by_col.values())
+
+def table_term_directory(rows, glossary_name="Business Glossary"):
+    """{table_name(lower): term info} for the table-level record terms, so Apply
+       can bind each table's OWN businessTerm — plus its description and
+       sensitivity — onto the TABLE entity. That is the Trust Score's
+       "glossary term assigned" input at table level, automated (it was a
+       documented manual steward step before 1.8.6). Ids are the same
+       deterministic UUID5s the glossary JSONL carries, so the link is born
+       glossary-bound once the glossary is imported."""
+    out = {}
+    for r in _kept_rows(rows):
+        t = (r.get("Source_Table") or "").strip()
+        term = (r.get("Term") or "").strip()
+        if not t or not term:
+            continue
+        out[t.lower()] = {
+            "name": term,
+            "id": det_term_id(glossary_name, r.get("Category", ""), term),
+            "glossaryId": det_glossary_id(glossary_name),
+            "description": (r.get("Definition") or "").strip(),
+            "sensitivity": (r.get("Sensitivity") or "").strip().upper(),
+        }
+    return out
 
 def glossary_to_rows(jsonl_text):
     """Load an exported glossary directly as editable review rows (round-trip / review)."""

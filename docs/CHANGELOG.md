@@ -14,6 +14,32 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.8.6] — 2026-07-13
+
+### Added — Apply fills the canvas (descriptions, table terms, roll-ups)
+Fixes the "everything is blank in PDC" niggles: folders/tables with no
+description, sensitivity, rating, or terms after Apply.
+
+- **Entity descriptions.** Apply now writes each entity's description from the
+  steward's reviewed definition (`attributes.info.description`) — columns,
+  files, and tables. New Apply option: **fill empty** (default — never touches
+  a description someone already wrote in PDC), **overwrite**, or **don't
+  write**.
+- **Table terms auto-link.** The table-level record terms ("Member Account
+  Record", …) used to say *link by hand*; the table roll-up now binds each
+  table's own businessTerm (deterministic id + glossaryId, so it's
+  glossary-bound after import) plus the term's definition as the table
+  description. That is the table Trust Score's assigned-term input, automated.
+- **Table sensitivity roll-up.** Tables get `sensitivity` = the max of their
+  columns' applied sensitivity (no more "Unknown Sensitivity" on tables whose
+  columns are HIGH).
+- **Folder roll-ups.** Object-store folders — previously "nothing to roll up"
+  — now receive mean rating, mean DQ and max sensitivity from their files.
+  Trust Score stays per file (PDC computes it for tables and files only);
+  folders never take terms or join the trust scope.
+- The "Rate tables & columns" toggle is now **"Roll up to tables & folders
+  (rating, sensitivity, table term)"** and governs all of the above.
+
 ## [1.8.5] — 2026-07-13
 
 ### Improved — Generate & apply UX

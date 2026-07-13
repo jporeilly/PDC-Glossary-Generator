@@ -1073,7 +1073,8 @@
       <p class="note" style="margin:-4px 0 12px">Resolve each kept column in PDC, <b>merge</b> the term plus sensitivity / CDE / verified-lineage / rating into whatever the column already carries, and <code>PATCH</code> it back. Existing terms are never dropped. Run a <b>dry-run</b> first to see every change before anything is written.</p>
       <div style="display:flex;flex-wrap:wrap;gap:16px;align-items:center">
         <label class="cbx"><input id="pdc_dryrun" type="checkbox" checked onchange="onDryToggle()"/> Dry-run (preview, no writes)</label>
-        <label class="cbx"><input id="pdc_rate" type="checkbox" checked/> Rate tables &amp; columns (from scan)</label>
+        <label class="cbx" title="Roll the column results up to their table / folder entities: mean rating &amp; DQ, max sensitivity, verified lineage — and bind each table's own record term (+ description), the Trust Score's assigned-term input."><input id="pdc_rate" type="checkbox" checked/> Roll up to tables &amp; folders (rating, sensitivity, table term)</label>
+        <label class="cbx" title="Write each entity's description from the steward's reviewed definition (attributes.info.description). 'Fill empty' never touches a description someone already wrote in PDC.">Descriptions <select id="pdc_desc" style="margin-left:4px"><option value="fill" selected>fill empty</option><option value="overwrite">overwrite</option><option value="off">don't write</option></select></label>
         <label class="cbx" id="trustWrap"><input id="pdc_trust" type="checkbox" disabled/> Calculate Trust Score after apply</label>
         <label class="cbx" title="A term only links to its glossary once it carries a glossaryId (stamped by Resolve, after the glossary is imported into PDC). With this on, terms that haven't resolved are not written, so columns never get an unlinked, glossary-less term (the '—' you see in PDC)."><input id="pdc_skipunresolved" type="checkbox" checked/> Only write glossary-linked terms</label>
         <button class="primary" id="applyBtn" onclick="applyToPdc()">Preview changes (dry-run)</button>
@@ -3499,6 +3500,7 @@ async function applyToPdc(){
               token:$('pdc_token').value.trim(), verify_tls:$('pdc_verify').checked,
               dry_run:dry, calculate_trust:$('pdc_trust').checked,
               apply_table_ratings:$('pdc_rate')?$('pdc_rate').checked:true,
+              desc_mode:$('pdc_desc')?$('pdc_desc').value:'fill', rows:ROWS,
               skip_unresolved_terms:skip, glossary_name:$('gname').value};
   try{
     showApplyProg(0,total,dry?'Building dry-run preview…':'Applying to PDC…');
