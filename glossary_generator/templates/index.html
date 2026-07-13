@@ -384,6 +384,10 @@
   .foot{display:flex;align-items:center;gap:12px;padding:13px 16px;border-top:1px solid var(--line);background:var(--card)}
   .foot .gn{margin-left:auto}
   a.dl{color:var(--blue);font-weight:600}
+  a.dlbig{display:inline-flex;align-items:center;gap:7px;background:var(--dark);color:#fff;font-weight:700;font-size:13.5px;padding:9px 16px;border-radius:8px;text-decoration:none;box-shadow:0 1px 3px rgba(10,61,82,.25)}
+  a.dlbig:hover{filter:brightness(1.12)}
+  .nextsteps{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12px;color:var(--ink);background:#FDF6E7;border:1px solid #EAD9A8;border-radius:8px;padding:7px 11px}
+  .nextsteps b{white-space:nowrap}
   .empty{padding:42px;text-align:center;color:var(--mute);font-size:14px}
   input[type=checkbox]{width:16px;height:16px;accent-color:var(--teal)}
   .seg{display:flex;border:1px solid var(--line);border-radius:7px;overflow:hidden}
@@ -4055,7 +4059,14 @@ async function generate(msgId){
     const url=URL.createObjectURL(new Blob([d.jsonl],{type:'application/json'})); const s=d.stats;
     let gov=''; if(governance&&(governance.default.businessSteward||Object.keys(governance.categories).length)){ const n=Object.keys(governance.categories).length; gov=` · ${governance.status}`+(n?`, ${n} per-cat steward${n>1?'s':''}`:''); }
     LAST_JSONL=d.jsonl;
-    M.innerHTML=`Generated <b>${s.terms}</b> terms + <b>${s.categories}</b> categories (${s.kept} kept)${gov} — <a class="dl" href="${url}" download="Suggested-Glossary.json">download JSON</a> <button class="copybtn" style="margin-left:8px" onclick="copyText(LAST_JSONL,this)">Copy JSONL</button> <span class="hint">(.json file, JSON Lines content for PDC import)</span>`
+    M.innerHTML=`Generated <b>${s.terms}</b> terms + <b>${s.categories}</b> categories (${s.kept} kept)${gov}
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:10px 0 6px">
+        <a class="dlbig" href="${url}" download="Suggested-Glossary.json">&#11015; Download glossary JSONL</a>
+        <button class="copybtn" onclick="copyText(LAST_JSONL,this)">Copy JSONL</button>
+        <span class="hint">(.json file, JSON Lines content)</span>
+      </div>
+      <div class="nextsteps">&#9888;&#65039; The import is what mints the term ids — nothing binds without it:
+        <b>1.</b> Download &rarr; <b>2.</b> PDC: <b>Business Glossary &rarr; Actions &rarr; Import</b> &rarr; <b>3.</b> <b>Resolve Term IDs</b> here &rarr; <b>4.</b> Apply to PDC</div>`
       + renderCheck(d.check);
     GENERATED=true; LAST_REGISTRY=d.registry||null; renderStepper(); syncDupPanel(); renderReady();
   }catch(e){ M.textContent='Generate failed: '+e; } updateKeepUI();

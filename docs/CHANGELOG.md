@@ -16,6 +16,12 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
 
 ## [1.8.5] — 2026-07-13
 
+### Improved — Generate & apply UX
+- **The JSONL download is now unmissable.** Generate's result renders a solid
+  "Download glossary JSONL" button plus a 1-2-3-4 next-steps strip (Download →
+  PDC Import → Resolve Term IDs → Apply) with the warning that the PDC import
+  is what mints the term ids — nothing binds without it.
+
 ### Improved — policy drafter coverage & transparency
 - **Canonical fallback seeds.** Shapes that can never be position-induced from
   samples now draft anyway, double-gated on column name AND PII class: email
