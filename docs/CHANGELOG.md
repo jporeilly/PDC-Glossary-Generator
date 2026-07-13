@@ -14,6 +14,30 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.8.7] — 2026-07-13
+
+### PDC 11 / API v3 — full audit, two fixes, a committed shape test
+- **Audited every endpoint against the official v3 OpenAPI specs** (auth,
+  search, entities get/patch/filter, profiling-info, jobs, data-sources).
+  Verdict table in docs/REVIEW.md §1. New **`v3_selftest.py`**
+  (`python -m v3_selftest`, 34 checks) validates every request builder against
+  the strict v3 whitelists — the entity PATCH is `additionalProperties: false`
+  at every level, so an unknown key is a 400.
+- **Fixed: filter pagination cursor** was sent in the request body; v2/v3
+  define it as a query parameter. Harmless on lab-size catalogs (one page),
+  but would re-fetch page 1 forever on >500 entities.
+- **Improved: v3 job execution goes straight to `/jobs/execute/bulk`** — v3
+  has no per-job endpoints, so the old try-individual-first adapter burned a
+  guaranteed 404 per job call. v1/v2 behavior unchanged.
+- **v3 is now the default API version** for new installs (saved selections
+  preserved); selector tooltips explain the versions.
+
+### Also
+- **Build check names every offender, clickable.** The duplicated/repeated/
+  no-definition/no-category term lists are no longer truncated text — each
+  term is a chip that jumps the review grid straight to it (filter + scroll),
+  so you can resolve the last few without hunting through the glossary.
+
 ## [1.8.6] — 2026-07-13
 
 ### Added — Apply fills the canvas (descriptions, table terms, roll-ups)

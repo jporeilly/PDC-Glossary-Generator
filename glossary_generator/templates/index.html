@@ -384,6 +384,9 @@
   .foot{display:flex;align-items:center;gap:12px;padding:13px 16px;border-top:1px solid var(--line);background:var(--card)}
   .foot .gn{margin-left:auto}
   a.dl{color:var(--blue);font-weight:600}
+  .chkterms{display:flex;flex-wrap:wrap;gap:5px;margin-top:5px}
+  .chkterm{border:1px solid currentColor;background:transparent;color:inherit;font-size:11px;font-weight:600;border-radius:9px;padding:1px 8px;cursor:pointer;opacity:.9}
+  .chkterm:hover{opacity:1;text-decoration:underline}
   a.dlbig{display:inline-flex;align-items:center;gap:7px;background:var(--dark);color:#fff;font-weight:700;font-size:13.5px;padding:9px 16px;border-radius:8px;text-decoration:none;box-shadow:0 1px 3px rgba(10,61,82,.25)}
   a.dlbig:hover{filter:brightness(1.12)}
   .nextsteps{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12px;color:var(--ink);background:#FDF6E7;border:1px solid #EAD9A8;border-radius:8px;padding:7px 11px}
@@ -796,7 +799,7 @@
       <p class="note" style="margin:-4px 0 12px">Per-column data profile — completeness, cardinality, detected type, sensitivity, PII and CDE — to compare against PDC's profiling.</p>
       <div class="barrow" id="cmpbar" style="margin:0 0 12px">
         <input id="cmp_base" type="text" placeholder="PDC base URL (https://pdc…)" style="min-width:220px"/>
-        <select id="cmp_ver"><option>v2</option><option>v1</option><option>v3</option></select>
+        <select id="cmp_ver" title="PDC public API version for this pull — v3 is PDC 11's native version."><option>v3</option><option>v2</option><option>v1</option></select>
         <input id="cmp_user" type="text" placeholder="username" autocomplete="off" style="width:120px"/>
         <input id="cmp_pass" type="password" placeholder="password" autocomplete="off" style="width:120px"/>
         <input id="cmp_token" type="text" placeholder="or bearer token" autocomplete="off" style="min-width:150px"/>
@@ -1017,7 +1020,7 @@
       <p class="note" style="margin:-4px 0 12px">Authenticate once here. The connection (base URL, realm, version, TLS) is <b>remembered</b> for next time; your password and the token are <b>never saved</b> &mdash; the token is held in memory for this session only and expires on its own.</p>
       <div class="grid" style="margin-top:2px">
         <div class="fld" style="flex:1 1 220px"><label>PDC base URL</label><input id="pdc_base" type="text" placeholder="https://pdc.example.com" onchange="savePdcConn()"/></div>
-        <div class="fld" style="flex:0 0 110px"><label>API version</label><select id="pdc_ver" onchange="savePdcConn()"><option>v2</option><option>v1</option><option>v3</option></select></div>
+        <div class="fld" style="flex:0 0 110px"><label>API version</label><select id="pdc_ver" onchange="savePdcConn()" title="PDC 11 serves v1, v2 and v3 side by side. v3 is its native version (job execution runs through /jobs/execute/bulk there — the app adapts automatically); v2 remains fully supported. Every request shape is validated against the v3 spec (python -m v3_selftest)."><option>v3</option><option>v2</option><option>v1</option></select></div>
         <div class="fld" style="flex:1 1 150px"><label>Keycloak realm <span class="hint">default pdc</span></label><input id="pdc_realm" type="text" value="pdc" autocomplete="off" onchange="savePdcConn()"/></div>
         <div class="fld" style="flex:1 1 150px"><label>Username</label><input id="pdc_user" type="text" autocomplete="off"/></div>
         <div class="fld" style="flex:1 1 150px"><label>Password</label><input id="pdc_pass" type="password" autocomplete="off"/></div>
@@ -1385,10 +1388,21 @@ function renderCheck(c){
   if(!c) return '';
   const icon = c.tone==='bad'?'\u2715':(c.tone==='warn'?'\u26a0':'\u2713');
   const kf = (c.rows||[]).map(r=>`<span class="kf"><b>${esc(r.label)}:</b> ${esc(r.value)}</span>`).join('');
-  const iss = (c.issues||[]).map(i=>`<div class="chkissue ${i.tone==='bad'?'bad':'warn'}">${esc(i.text)}</div>`).join('');
+  const iss = (c.issues||[]).map(i=>{
+    // each flagged term is a chip — click to jump to the grid filtered to it
+    const chips=(i.terms||[]).map(t=>`<button class="chkterm" onclick="chkJump(decodeURIComponent('${encodeURIComponent(t.q||t.label||'')}'))" title="Open in the review grid">${esc(t.label||t.q||'')}</button>`).join('');
+    return `<div class="chkissue ${i.tone==='bad'?'bad':'warn'}">${esc(i.text)}${chips?`<div class="chkterms">${chips}</div>`:''}</div>`;
+  }).join('');
   return `<details class="nfwrap" open><summary>${icon} ${esc(c.title||'Check')}</summary>`
     + `<div class="chk ${c.tone||'ok'}"><div class="chkrows">${kf}</div>${iss}`
     + `<div class="verdict">${esc(c.verdict||'')}</div></div></details>`;
+}
+// jump from a check chip to the review grid, filtered to that term
+function chkJump(q){
+  if(typeof showPage==='function') showPage('glossary');
+  const el=$('q'); if(el){ el.value=q; }
+  if(typeof applyFilter==='function') applyFilter();
+  const tbl=$('tbl'); if(tbl&&tbl.scrollIntoView) tbl.scrollIntoView({behavior:'smooth',block:'start'});
 }
 const truthy = v => ["y","yes","true","1"].includes(String(v).toLowerCase());
 // copy text to clipboard with a brief "Copied" confirmation on the button

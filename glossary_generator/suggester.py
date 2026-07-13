@@ -2603,16 +2603,23 @@ def glossary_build_check(rows, recs, glossary_name):
         {"label": "Kept / dropped", "value": f"{len(kept)} / {len(rows) - len(kept)}"},
     ]
     issues = []
+    # every flagged term rides along in full ("terms": [{label, q}]) so the UI can
+    # render clickable chips that jump the grid straight to the offender — no
+    # scrolling the glossary to hunt down the last few
     if dup_pairs:
         issues.append({"tone": "bad", "text": f"{len(dup_pairs)} term(s) duplicated within a category — "
-                       f"these share one generated id and collide on import (one overwrites the other): {_trunc(dup_pairs)}"})
+                       "these share one generated id and collide on import (one overwrites the other):",
+                       "terms": [{"label": p2, "q": p2.split(" / ", 1)[-1]} for p2 in dup_pairs]})
     if dup_names:
         issues.append({"tone": "warn", "text": f"{len(dup_names)} term name(s) repeat across categories — "
-                       f"name-based Resolve can't tell them apart, so a column may link to the wrong one: {_trunc(dup_names)}"})
+                       "name-based Resolve can't tell them apart, so a column may link to the wrong one:",
+                       "terms": [{"label": t, "q": t} for t in dup_names]})
     if no_cat:
-        issues.append({"tone": "warn", "text": f"{len(no_cat)} term(s) have no category — they import under 'Unassigned': {_trunc(no_cat)}"})
+        issues.append({"tone": "warn", "text": f"{len(no_cat)} term(s) have no category — they import under 'Unassigned':",
+                       "terms": [{"label": t, "q": t} for t in sorted(set(no_cat))]})
     if no_def:
-        issues.append({"tone": "warn", "text": f"{len(no_def)} term(s) have no definition: {_trunc(no_def)}"})
+        issues.append({"tone": "warn", "text": f"{len(no_def)} term(s) have no definition:",
+                       "terms": [{"label": t, "q": t} for t in sorted(set(no_def))]})
 
     tone = "bad" if dup_pairs else ("warn" if issues else "ok")
     verdict = ({"ok": f"All {len(terms)} terms are clean — import this JSONL in PDC (Glossary → Actions → Import), then Resolve & Apply.",

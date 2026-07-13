@@ -4,47 +4,42 @@ This is the result of a full pass over the codebase: PDC API version compatibili
 the scenario bundle, roster persistence, module health, regression tests,
 and refactoring notes. It also lists everything changed in this clean build.
 
-## 1. PDC API v3 compatibility
+## 1. PDC API v3 compatibility — full audit (re-verified 2026-07-13, app 1.8.7)
 
-The PDC client (`pdc_api.py`) takes the API version as a parameter (`v1`/`v2`/`v3`)
-and builds `/api/public/<version>/...` paths, and the main Apply-to-PDC UI exposes a
-v1/v2/v3 selector — so requests path-route to whatever version you pick. The question
-is whether the request/response *shapes* still match. Checked against the live PDC API
-reference (v1, v2, v3):
+Every request the app can send was audited against the OFFICIAL PDC 11 v3
+OpenAPI specs (docs.pentaho.com → PDC API Documentation v3), and the shapes are
+now enforced by a committed, repeatable test: **`python -m v3_selftest`**
+(34 checks — strict `additionalProperties: false` whitelists for the entity
+PATCH, filter keys, bulk-job names/payloads, cursor placement).
 
-| Area | Code uses | v2 | v3 | Verdict |
-|---|---|---|---|---|
-| Auth (Keycloak primary; legacy `/auth`) | bearer token | same | same (`/v3/auth`) | Compatible |
-| `entities/filter` | cursor pagination, `size=500`, `extended=true`, reads `cursorInfo.cursor` | cursor + `cursorInfo` | identical, plus new `tags`/`terms`/`termIds` filters | Compatible |
-| `entities/{id}` PATCH | `attributes.features.{sensitivity, rating.value, isCriticalDataElement, isLineageVerified}`, `attributes.businessTerms[]` | same schema | same schema | Compatible |
-| `search` / resolve-terms | search by name | same | same | Compatible |
-| Trust score | `POST /jobs/execute/calculate-trust-score {"scope":[ids]}` then poll `/jobs/{id}/status` | individual endpoint exists | **changed** — v3 moves job execution to a bulk pattern `POST /jobs/execute/bulk` with `{name:"CALCULATE_TRUST_SCORE", type:"START", payload:{scope}}` | **v3 risk** |
-| Trigger profiling / discovery | `POST /jobs/execute/data-discovery` | individual endpoint | likely bulk (`DATA_DISCOVERY` / `DATA_PROFILE` named jobs) | **v3 risk** |
-| Connection test / metadata ingest (harvest) | `/jobs/execute/test-connection`, `/jobs/execute/metadata/ingest` | individual endpoints | likely bulk (`TEST_CONNECTION` / `METADATA_INGEST` named jobs) | **v3 risk** |
+| Area | App call | v3 verdict |
+|---|---|---|
+| Auth | Keycloak token grant; legacy `POST /auth` fallback | ✅ both documented for v3 |
+| Search | `POST /search {searchTerm, perPage}` | ✅ identical schema v1→v3 |
+| Entity read | `GET /entities/{id}` | ✅ |
+| Entity update | `PATCH /entities/{id}` — `features.{sensitivity, rating.value, qualityScore, isCriticalDataElement, isLineageVerified}`, `businessTerms[]` (whitelisted keys), `info.description` (1.8.6), `extended.*` (1.8.2 PK/FK) | ✅ every key in the strict v3 schema |
+| Entity filter | `POST /entities/filter?extended&size=500` + cursor, filters `names/types/fqdns` | ✅ — **fixed in 1.8.7**: the pagination cursor was sent in the body; v2/v3 define it as a query param (never bit on lab-size catalogs, would loop page 1 on >500 entities) |
+| Profiling info | `POST /entities/filter/profiling-info` | ✅ (same cursor fix) |
+| Jobs | v3: `POST /jobs/execute/bulk` with named jobs (`CALCULATE_TRUST_SCORE`, `DATA_DISCOVERY` [scope+configs], `TEST_CONNECTION`, `METADATA_INGEST`) | ✅ all four names + payloads match the bulk `oneOf` schema — **improved in 1.8.7**: v3 now goes straight to bulk (the per-job paths do not exist in v3; the old adapter burned a guaranteed 404 first). v3 bulk returns successes/failures, no job id → status polling is skipped there (watch PDC's Workers page) |
+| Data sources (bulk loader) | `POST /data-sources`, `DELETE /data-sources/{id}`, `POST /data-sources/filter {filters:{resourceNames}}` | ✅ v3 schema identical (wildcards supported) |
 
-**Bottom line:** the read/write core (auth, filter, PATCH, search) is fully v2- and
-v3-compatible. The **job-execution** calls (Calculate Trust Score, trigger
-profiling/discovery, and harvest's test-connection/ingest) follow the v1/v2 style of
-one endpoint per job; **v3 reorganised these into a single bulk endpoint**, so under a
-literal `v3` selection those specific features may 404. **Update (1.8.0): the v3 job
-adapter is implemented** — `_execute_job()` in `pdc_api.py` tries the individual
-endpoint and, under v3, falls back to `POST /jobs/execute/bulk` with the named-job
-payload on 404/405; all four job paths (trust score, data discovery,
-test-connection, metadata ingest) route through it. v2 remains the guides' default
-and is unchanged; v3 is now end-to-end safe.
+**Defaults:** the Apply/harvest version selectors now default to **v3** (PDC 11's
+native version) for new installs; a saved v2 selection is preserved and v2
+remains fully supported. The earlier user-guide contradiction about Calculate
+Trust Score being "not available in public API's" is resolved in the v3 docs —
+`CALCULATE_TRUST_SCORE` is an official bulk job.
 
-> Doc note: the PDC *user guide* states Calculate Trust Score "is not available in
-> public API's", which contradicts the API *reference* (the `calculate-trust-score`
-> job is documented for v1/v2). The app was built against the v2 endpoint; verify on
-> your instance.
+**v3-only opportunities noted for later:** `POST /entities/by-ids` (+ profiling
+variant) would batch our per-name resolution; the `DATA_IDENTIFICATION` bulk
+job accepts `dictionaryIds`/`dataPatternIds` — the natural trigger for the
+Policy Generator to run its imported methods programmatically.
 
-> **Key metadata note (1.8.2):** the built-in *Is Primary Key / Is Foreign Key*
-> column properties live under `metadata.column.*`, which is harvest-owned — the
-> entity PATCH request schema (v1–v3) accepts only the `attributes` block
-> (`additionalProperties: false`), so the public API cannot set them; only PDC's
-> Metadata Ingest can. The app therefore writes its own PK/FK detection to
-> `attributes.extended.{isPrimaryKey, isForeignKey, references}` at Apply time
-> and records the same facts in the Registry (`concepts[].keys`).
+> **Key metadata note (1.8.2, still true in v3):** the built-in *Is Primary
+> Key / Is Foreign Key* column properties live under `metadata.column.*`,
+> which is harvest-owned — the PATCH schema accepts only the `attributes`
+> block, so the app records its own PK/FK detection in
+> `attributes.extended.{isPrimaryKey, isForeignKey, references}` and in the
+> Registry (`concepts[].keys`).
 
 ## 2. Scenario bundle — applied?
 

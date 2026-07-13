@@ -430,14 +430,18 @@ def stamp_ids(api_json, name_map, default_glossary_id=None):
 def filter_entities(base_url, token, filters, version="v2", verify_tls=True,
                     timeout=30, extended=True, size=500, max_pages=6):
     """POST /entities/filter. Returns the flat list of entity dicts (paginated)."""
-    qs = urllib.parse.urlencode({"extended": str(bool(extended)).lower(), "size": size})
-    url = clean_base(base_url) + f"/api/public/{version}/entities/filter?{qs}"
+    base = clean_base(base_url) + f"/api/public/{version}/entities/filter"
     items, cursor, pages = [], None, 0
     while pages < max_pages:
-        body = {"filters": filters}
+        # v2/v3 contract: cursor + size + extended are QUERY params; the body
+        # carries only the filters (an in-body cursor is silently ignored and
+        # would re-fetch page 1 forever on a large catalog)
+        q = {"extended": str(bool(extended)).lower(), "size": size}
         if cursor:
-            body["cursor"] = cursor
-        out = _req("POST", url, token=token, body=body, verify_tls=verify_tls, timeout=timeout)
+            q["cursor"] = cursor
+        url = base + "?" + urllib.parse.urlencode(q)
+        out = _req("POST", url, token=token, body={"filters": filters},
+                   verify_tls=verify_tls, timeout=timeout)
         items.extend(_results(out))
         cursor = _cursor(out)
         pages += 1
@@ -1456,19 +1460,19 @@ _V3_BULK_NAMES = {
 def _execute_job(base_url, token, name, body, version="v2", verify_tls=True, timeout=30):
     """POST a named job. v1/v2 expose one endpoint per job
        (/jobs/execute/<name>); v3 moved job execution to a bulk pattern.
-       Strategy: try the individual path first (PDC 11.0.0 still serves
-       several under /v3/), and on HTTP 404/405 under v3 retry as
-       POST /jobs/execute/bulk with the named-job payload. Returns the
-       response dict, normalized so callers can read data/jobId/id/_id."""
+       Under v1/v2 the individual path is called; under v3 the call goes
+       straight to POST /jobs/execute/bulk with the named-job payload (v3 has
+       no per-job endpoints). Returns the response dict, normalized so callers
+       can read data/jobId/id/_id (v3 bulk returns successes/failures, no job
+       id — polling is skipped there; watch PDC's Workers page instead)."""
     base = clean_base(base_url)
-    url = base + f"/api/public/{version}/jobs/execute/{name}"
-    try:
+    if str(version).lower() not in ("v3", "3"):
+        # v1/v2: one endpoint per job
+        url = base + f"/api/public/{version}/jobs/execute/{name}"
         return _req("POST", url, token=token, body=body,
                     verify_tls=verify_tls, timeout=timeout)
-    except RuntimeError as e:
-        msg = str(e)
-        if str(version).lower() not in ("v3", "3") or            not ("HTTP 404" in msg or "HTTP 405" in msg):
-            raise
+    # v3 reorganised job execution around the bulk endpoint EXCLUSIVELY (the
+    # per-job paths do not exist there), so don't burn a guaranteed 404 first
     bulk_name = _V3_BULK_NAMES.get(name) or         name.replace("/", "_").replace("-", "_").upper()
     out = _req("POST", base + f"/api/public/{version}/jobs/execute/bulk",
                token=token,
@@ -1674,14 +1678,15 @@ def filter_profiling_info(base_url, token, filters, version="v2", verify_tls=Tru
                           timeout=30, sample_limit=20, size=500, max_pages=6):
     """POST /entities/filter/profiling-info. Returns list of items, each with
        identity fields + a nested profilingInfo (stats, sampling, patterns)."""
-    qs = urllib.parse.urlencode({"sampleLimit": sample_limit, "size": size})
-    url = clean_base(base_url) + f"/api/public/{version}/entities/filter/profiling-info?{qs}"
+    base = clean_base(base_url) + f"/api/public/{version}/entities/filter/profiling-info"
     items, cursor, pages = [], None, 0
     while pages < max_pages:
-        body = {"filters": filters}
+        q = {"sampleLimit": sample_limit, "size": size}
         if cursor:
-            body["cursor"] = cursor
-        out = _req("POST", url, token=token, body=body, verify_tls=verify_tls, timeout=timeout)
+            q["cursor"] = cursor                     # query param, per the v3 contract
+        url = base + "?" + urllib.parse.urlencode(q)
+        out = _req("POST", url, token=token, body={"filters": filters},
+                   verify_tls=verify_tls, timeout=timeout)
         items.extend(_results(out))
         cursor = _cursor(out)
         pages += 1

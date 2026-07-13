@@ -331,6 +331,8 @@ nudge per run.
 | `POST /api/qa-definitions`  | lint + AI-judge definitions (stamps QA_Issues / QA_Suggestion) |
 | `POST /api/ai-categorize`   | AI files uncategorized terms into known categories |
 | `POST /api/draft-policies`  | draft PDC pattern/dictionary rules from detection seeds (`format=zip` downloads the bundle) |
+
+PDC API version: the app speaks v1/v2/v3 (selector on Apply & harvest; default **v3**, PDC 11's native version). Every request shape is validated against the official v3 OpenAPI spec by `python -m v3_selftest` — see docs/REVIEW.md §1 for the audit table.
 | `POST /api/generate`        | build import-ready JSONL from the kept rows        |
 
 ---
