@@ -60,8 +60,14 @@ steward-facing and can be taught on its own. Part B (ML inference) is
 administrator-facing and doubles as a platform prerequisite — the same AI/ML
 layer also powers the PDC chatbot, so configuring it once benefits more than
 the similarity feature. The Glossary Generator app applies the same principle
-to *vocabulary*: its **Find similar** feature proposes similarity-scored term
-merges, with the steward deciding.
+to *vocabulary*, and goes a step further than name similarity: its **Find
+similar** feature scores term pairs on names *and the profiled data behind
+them* — a shared induced value format lifts a pair straight to the strong
+band, while look-alike names holding different data are flagged **different
+concepts** and the merge is withheld. Same-named duplicate groups get a
+recommendation too (**Merge / Disambiguate / Keep separate**), escalating from
+scan evidence to a live data-value probe to an AI adjudicator — with the
+steward always deciding.
 
 ## The concept: ML-driven metadata similarity
 

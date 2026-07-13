@@ -1,6 +1,6 @@
 # PDC Glossary Generator
 
-**Version:** 1.7.2 · validated against Pentaho Data Catalog 11.0.0
+**Version:** 1.8.4 · validated against Pentaho Data Catalog 11.0.0
 
 A local-first web app that **scans your data sources, suggests a business
 glossary, lets a steward review and govern it, and exports import-ready JSONL**
@@ -58,7 +58,12 @@ Identification:
    Registry** — with the term ids reconciled after import — and emits PDC's
    Data Identification methods: dictionaries (ZIP) and patterns (JSON), each
    bound to its term and stamping the Registry's tags. It also drift-checks
-   deployed methods against the Registry.
+   deployed methods against the Registry. Since 1.8.x the Registry rows carry
+   ready-made **detection seeds** (the scan's induced value regexes and
+   profiled reference lists) plus PK/FK relationship facts — and the Glossary
+   Generator's **Draft policies (AI)** button already turns those seeds into
+   importable pattern/dictionary files, covering the Policy Generator's
+   authoring half today.
 
 Because both apps draw from the same row, the glossary term, the tags a method
 stamps, and the sensitivity can no longer quietly diverge. The full rationale
@@ -71,16 +76,26 @@ workshop figures are in [diagrams/](glossary_generator/diagrams/).
   Oracle), MinIO/S3 document stores, or a plain DDL file. Or skip direct access
   entirely and **harvest from what PDC has already cataloged**.
 - **Review** — one suggested term per business-meaningful column, with inferred
-  sensitivity, PII category, CDE flag, governed tags, and an evidence-based
-  confidence signal. Edit everything inline; merge or disambiguate duplicates.
+  sensitivity, PII category, CDE flag, governed lower-case tags, and an
+  evidence-based confidence signal. The scan **learns value formats from the
+  data** (position signatures → anchored regexes like `^CSCU-\d{6}$`) and
+  keeps profiled reference lists as evidence on every row. Edit everything
+  inline; duplicate groups come with an evidence-grounded **Merge /
+  Disambiguate / Keep separate recommendation** (escalating to a live
+  data-value probe and an AI adjudicator on demand).
 - **Govern** — steward/owner/custodian assignment (manual or keyword
   auto-assign from a Keycloak-fetched roster), ratings, review dates, and a
   steward approval gate over the vocabulary, with a full audit trail.
 - **Generate & apply** — export the kept terms as PDC-importable JSONL, then
   resolve term ids and **apply term links, tags and sensitivity back onto PDC
   column entities** over the public API, ending with a Trust Score rollup.
-- **Enrich (optional)** — rewrite definitions with a local **Ollama** model.
-  Fully offline-safe: no Ollama, no problem — heuristic definitions remain.
+- **AI agents (optional, local)** — seven guardrailed agents over a local
+  **Ollama** model: definition/purpose enrichment, evidence-grounded term/tag/
+  sensitivity suggestions, duplicate-group adjudication, definition QA (with a
+  deterministic linter that also works offline), category assignment, roster
+  expertise, and **Draft policies (AI)** — detection seeds → ready-to-import
+  PDC pattern/dictionary rule files. Every agent proposes; the steward
+  applies. Fully offline-safe: no Ollama, no problem — heuristics remain.
 
 ## Repository layout
 

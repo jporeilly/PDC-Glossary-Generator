@@ -56,7 +56,29 @@ enriched crosses the network — fine on a lab LAN.
 
 ---
 
-## 2. Trying different models — Enrich is now non-destructive
+## 2. The agent roster — what each AI button does
+
+Every agent follows the same contract: deterministic rules first, the model
+only for judgment, proposals constrained to the governed vocabulary, and the
+steward always clicks — no agent applies its own output.
+
+| Agent (button) | Proposes | Auto-applies? |
+| --- | --- | --- |
+| **Enrich with LLM** | rewritten definitions/purposes, name & tag suggestions | Overwrites definitions (snapshot + Revert, see below) |
+| **AI suggest (evidence)** | name chip, governed tags, tighten-only sensitivity — grounded in the scan evidence | Tags/sensitivity update rows; the name stays a chip |
+| **AI advise** (duplicate groups) | Merge / Disambiguate / Keep separate, per group, from evidence + a live value probe + adjudication | Never — hint on the header only |
+| **AI QA definitions** | quality flags + a rewritten definition per flagged row | Never — you click *Use suggestion* per row |
+| **AI categorize** | a category from the known set for uncategorized terms | Updates Category (off-list answers discarded) |
+| **Suggest expertise** (Govern) | roster expertise keywords | Never — marked unsaved until *Save roster* |
+| **Draft policies (AI)** (Govern) | PDC pattern/dictionary rule files from detection seeds | Never — a zip you review and import in PDC |
+
+Everything works with Ollama offline except the model-judgment parts: QA falls
+back to its deterministic linter, duplicate advice falls back to the scan
+evidence, and enrich/suggest/categorize simply report offline.
+
+---
+
+## 3. Trying different models — Enrich is now non-destructive
 
 **Enrich with LLM** rewrites definitions and purposes (and suggests names/tags) for the
 shown/kept terms using the selected model, **overwriting** any previous enrichment in
@@ -75,7 +97,7 @@ load a different glossary, re-scan, or Reset all.
 
 ---
 
-## 3. What's safe vs. destructive on the review grid
+## 4. What's safe vs. destructive on the review grid
 
 | Action | What it does | Loses work? |
 | --- | --- | --- |

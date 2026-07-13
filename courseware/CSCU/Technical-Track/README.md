@@ -16,8 +16,8 @@ once there is profiled CSCU data to identify.
 | --- | --- | --- |
 | `02-Data-Identification` | **Data Identification (deep dive)** | Understand the engine: Dictionaries (content) + Patterns (shape) → Policies → Tags & Terms |
 | `03-Build-Your-Own-Dictionary-and-Pattern` | **Build Your Own (lab)** | Author a CSCU dictionary + pattern, combine into a policy, run it — 18 dictionaries and 7 patterns ship ready-made |
-| `01-Glossary-Generator-App` | **Glossary Generator App** | Apply the result: build CSCU's governed glossary over the PDC API (app + guide live in the repo) |
-| `04-Similarity & ML` | **Similarity & ML Inference** | Propagate curation to similar columns; Find similar in the app |
+| `01-Glossary-Generator-App` | **Glossary Generator App** | Apply the result: build CSCU's governed glossary over the PDC API — and let its agents draft the Module-03-style rule files from scan evidence |
+| `04-Similarity & ML` | **Similarity & ML Inference** | Propagate curation to similar columns; the app's evidence-aware Find similar + duplicate-group advisor |
 | `05-Visualizations` | **PDC Insights** | Dashboards over the app's governance-summary API |
 
 **Recommended order:** 02 → 03 → 01 → 04 → 05.

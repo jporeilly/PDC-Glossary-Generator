@@ -180,4 +180,11 @@ re-running it after steward overrides clobbers their work.
 methods behind this engine for CSCU's own member numbers, account codes, and
 compliance vocabulary — 18 dictionaries and 7 patterns ship ready-made.
 
+> **The app drafts these now.** The Glossary Generator's **Draft policies
+> (AI)** button (Module 01) turns its scan's detection seeds — induced value
+> regexes and profiled reference lists — into these same `patternsRules` /
+> `dictionariesRules` files automatically. Module 03 is where you learn what
+> every field means, so you can *review and adjust* a draft instead of
+> trusting it.
+
 All Copper State Credit Union data is fictional and generated for training.

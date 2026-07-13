@@ -1,6 +1,6 @@
 # Workshop — Build the Business Glossary with the Glossary Generator
 
-*Copper State Credit Union (CSCU) scenario · app 1.7.x · validated against PDC 11.0.0*
+*Copper State Credit Union (CSCU) scenario · app 1.8.x · validated against PDC 11.0.0*
 
 **Primary role:** Data Steward / Solution Architect
 **Estimated time:** 60–90 min
@@ -86,7 +86,37 @@ sources. On the review grid:
 - Check the tags the CSCU pack derived: `ach_rte_no` → `payments · ach`,
   `risk_rating_cd` → `compliance · aml`, statements folder → `statement ·
   records`. A bare `document` tag means a vocabulary gap — extend the pack,
-  don't hand-edit.
+  don't hand-edit. Tags are standardised **lower-case** (`pci`, never `PCI`) —
+  they are search facets in PDC, and case variants would fragment the facet.
+
+### Step 4a — Put the agents to work
+
+The grid carries a set of local AI agents. They share one contract: the
+deterministic rules run first, the model only adds judgment, every proposal is
+guardrailed to the governed vocabulary, and **nothing applies itself** — you
+click.
+
+- **AI suggest (evidence)** — the model reads each row's *scan evidence* (the
+  induced value format such as `^CSCU-\d{6}$`, profiled reference values, PII
+  class) and proposes the business name (as a suggestion chip), governed tags,
+  and a tighten-only sensitivity.
+- **Duplicate groups come with advice.** Every duplicate header now recommends
+  **Merge / Disambiguate / Keep separate**, with the reason: a foreign key
+  between the columns (same concept by construction), matching or conflicting
+  induced formats, overlapping or disjoint code lists. **AI advise** escalates
+  the ambiguous groups — it samples live values from the member columns over
+  your connection and compares the actual populations, then lets the model
+  adjudicate whatever is still unclear.
+- **AI QA definitions** — a linter (circular, vague, echoed, copy-pasted
+  definitions) plus the model judging whether each definition actually explains
+  the business meaning; flagged rows get a proposed rewrite you apply per row.
+  Run it before Generate — checkpoints 2 and 3 are easier to defend with clean
+  definitions.
+- **AI categorize** — files any uncategorized terms into the known categories.
+- **Find similar** — proposes same-concept merges across *different* names
+  (`phone` vs `cust_phone_no`), and now reads the data evidence too: a shape
+  match is marked *strong*, while look-alike names holding different data are
+  flagged **different concepts** with the merge withheld.
 
 ### Step 5 — Govern
 
@@ -106,6 +136,17 @@ Set ratings (Auto/DQ), review date, and status.
 (**Business Glossary → Actions → Import**), **Resolve term ids**, then
 **Apply to PDC** — dry-run first, always. Finish with the Trust Score rollup.
 
+### Step 7 — Draft the Data Identification rules
+
+Still on the Govern page, click **Draft policies (AI)**. Every kept term whose
+scan produced a detection seed becomes a ready-to-import PDC rule: the induced
+`^CSCU-\d{6}$` becomes a **Data Pattern**, the profiled code lists (risk
+ratings, SAR statuses, …) become **Dictionaries** with their values CSVs — one
+zip, with an INDEX. The AI agent polishes each rule's column-name hint and tag
+pick, guardrailed to the governed vocabulary. Review every rule, then import
+under **Management → Data Identification** (the Technical Track's Module 03
+teaches exactly what each field means).
+
 ## 4. Checkpoints
 
 | # | Check | Evidence |
@@ -116,13 +157,16 @@ Set ratings (Auto/DQ), review date, and status.
 | 4 | Tags all governed (no drift) | Dictionary page: 0 off-vocabulary |
 | 5 | Stewards assigned per domain | Govern page slots |
 | 6 | Registry written at export | `registries/registry.<glossary>.json` |
+| 7 | Definition QA clean, policies drafted | QA panel empty · drafted-policies.zip |
 
 ## 5. Where the story continues
 
 The Registry you just produced is the input contract for the **Policy
-Generator**, which emits the Data Identification dictionaries and patterns
-(card PAN, routing number, SSN) bound to these term ids — and then drift-checks
-them. That is a separate session.
+Generator**. Its *authoring* half already runs inside this app — **Draft
+policies (AI)** turned your detection seeds into importable dictionaries and
+patterns in Step 7. The remaining half — binding the rules to reconciled term
+ids over the API and **drift-checking** deployed methods against the Registry
+— is the separate Policy Generator session.
 
 ---
 

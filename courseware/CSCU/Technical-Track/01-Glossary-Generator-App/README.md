@@ -6,7 +6,11 @@
 The app-driven way to produce CSCU's governed glossary: scan `cscu_core` and
 the `cscu-documents` bucket, review with the steward, govern, generate the
 import JSONL (+ the Classification Registry), and apply term links back to PDC
-over the public API.
+over the public API. Since app 1.8.x the review is agent-assisted — evidence-
+grounded AI suggestions, a Merge/Disambiguate advisor on duplicate groups,
+definition QA, AI categorization — and **Draft policies (AI)** turns the
+scan's detection seeds into Module-03-shape pattern/dictionary files ready
+for PDC's Data Identification import.
 
 **Nothing ships inside this module** — the app and its materials live in the
 repository, always current:

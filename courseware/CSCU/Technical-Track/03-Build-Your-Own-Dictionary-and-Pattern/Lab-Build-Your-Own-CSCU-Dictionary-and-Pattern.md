@@ -5,6 +5,12 @@
 **Primary role:** Data Steward / Data Storage Administrator
 **Estimated time:** 60 min
 
+> **Why author by hand when the app can draft?** The Glossary Generator's
+> **Draft policies (AI)** produces files in exactly these shapes from its scan
+> evidence. This lab teaches the anatomy — signatures, weights, confidence
+> conditions, apply-tags — so a draft is something you can *judge*, not just
+> import. Stewards who can read a rule can also fix one.
+
 ## From concept to authoring
 
 Module 02 covered the engine: how Dictionaries match content, Data Patterns
