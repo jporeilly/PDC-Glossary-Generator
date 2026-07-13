@@ -328,6 +328,9 @@ nudge per run.
 | `POST /api/enrich`          | LLM definition pass (fallback-safe)                |
 | `POST /api/ai-suggest`      | evidence-grounded AI term/tag/sensitivity pass     |
 | `POST /api/recommend-resolutions` | advise Merge / Disambiguate / Keep separate per duplicate group (evidence -> live value probe -> AI adjudicator) |
+| `POST /api/qa-definitions`  | lint + AI-judge definitions (stamps QA_Issues / QA_Suggestion) |
+| `POST /api/ai-categorize`   | AI files uncategorized terms into known categories |
+| `POST /api/draft-policies`  | draft PDC pattern/dictionary rules from detection seeds (`format=zip` downloads the bundle) |
 | `POST /api/generate`        | build import-ready JSONL from the kept rows        |
 
 ---

@@ -14,6 +14,34 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.8.4] — 2026-07-13
+
+### Added — the agent build-out (three new AI agents, all guardrailed)
+- **Policy drafter** (`policy_draft.py`, `POST /api/draft-policies`, "Draft
+  policies (AI)" on the Govern page): the Policy Generator's first working
+  mile. Every kept term with a detection seed becomes a ready-to-import PDC
+  Data Identification rule in the Technical-Track shapes — an induced value
+  regex becomes a **Data Pattern** (`patternsRules` JSON with column-name
+  hints, content pattern + regex, TT-standard weights/thresholds), a profiled
+  reference list becomes a **Dictionary** (`dictionariesRules` JSON + values
+  CSV). Deterministic core; the AI agent polishes each rule's column-name
+  regex and tag pick (guardrails: regex must compile, tags stay governed).
+  One zip download (Patterns/, Dictionaries/, INDEX.csv); drafts only —
+  review, then import in PDC.
+- **Definition QA agent** (`defqa.py` + `llm.qa_definitions_rows`,
+  `POST /api/qa-definitions`, "AI QA definitions" button): a deterministic
+  linter (circular, echoed, vague, too-short, copy-paste-duplicate
+  definitions — works offline) plus the LLM judging whether each definition
+  actually explains the business meaning, with a proposed better sentence.
+  Flags land as `QA_Issues`/`QA_Suggestion`; a review panel lists them with
+  one-click "Use suggestion" — nothing applies itself.
+- **Category assignment agent** (`llm.categorize_rows`,
+  `POST /api/ai-categorize`, "AI categorize" button): files uncategorized
+  terms into the known categories (domain pack + in-use); off-list answers
+  are discarded.
+- All three verified live against qwen2.5:14b-instruct alongside the 1.8.3
+  adjudicator; every agent degrades gracefully when Ollama is offline.
+
 ## [1.8.3] — 2026-07-13
 
 ### Added

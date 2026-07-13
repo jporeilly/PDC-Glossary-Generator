@@ -52,6 +52,8 @@ import suggester
 import tagdict
 import audit
 import similarity
+import policy_draft
+import defqa
 import llm
 import dbconn
 import seed_sample
@@ -1200,6 +1202,95 @@ def api_recommend_resolutions():
                              band="review", source="ai")
     out.sort(key=lambda x: (x["band"] != "high", -x["count"]))
     return jsonify({"groups": out, "probed": probed, "used_llm": used_llm})
+
+@app.post("/api/draft-policies")
+def api_draft_policies():
+    """The Policy Generator's first mile: draft PDC Data Identification rules from
+    the scan's detection seeds — an induced value regex becomes a Data Pattern,
+    a profiled reference list becomes a Dictionary (+ values CSV), in the exact
+    JSON shapes the Technical Track teaches. Deterministic core; with ai=true the
+    LLM agent polishes each rule's column-name regex and tag pick (guard-railed:
+    regex must compile, tags stay governed). format=zip streams the bundle.
+    Body: {rows, glossary_name?, prefix?, ai?, model?, compute?, format?}."""
+    body = request.get_json(force=True, silent=True) or {}
+    rows = body.get("rows") or []
+    gname = body.get("glossary_name") or "Business Glossary"
+    gov = sorted(tagdict.governed_tags())
+    hints, used_llm = {}, False
+    if body.get("ai"):
+        concepts = []
+        for r in rows:
+            if not isinstance(r, dict):
+                continue
+            term = (r.get("Term") or "").strip()
+            vp = (r.get("Value_Pattern") or "").strip()
+            ev = (r.get("Enum_Values") or "").strip()
+            if term and (vp or ";" in ev):
+                concepts.append({"term": term,
+                                 "columns": r.get("Source_Column", ""),
+                                 "evidence": vp or ("values: " + ev[:120])})
+        if concepts:
+            hints, used_llm = llm.policy_hints_rows(
+                concepts, allow_tags=gov, model=body.get("model"),
+                compute=body.get("compute"))
+    draft = policy_draft.draft_from_rows(rows, glossary_name=gname,
+                                         prefix=body.get("prefix"),
+                                         hints=hints, governed_tags=gov)
+    if (body.get("format") or "").lower() == "zip":
+        data = policy_draft.to_zip_bytes(draft)
+        from flask import Response
+        return Response(data, mimetype="application/zip",
+                        headers={"Content-Disposition":
+                                 "attachment; filename=drafted-policies.zip"})
+    return jsonify({"patterns": [{"filename": p["filename"], "term": p["term"],
+                                  "name": p["rule"][0]["name"]} for p in draft["patterns"]],
+                    "dictionaries": [{"filename": d["filename"], "term": d["term"],
+                                      "name": d["rule"][0]["name"],
+                                      "values": d["values_filename"]} for d in draft["dictionaries"]],
+                    "skipped": draft["skipped"], "used_llm": used_llm})
+
+@app.post("/api/qa-definitions")
+def api_qa_definitions():
+    """Definition QA before import: the deterministic linter (circular, echo,
+    vague, too-short, copy-paste duplicates) always runs; with ai=true the LLM
+    agent also judges whether each definition actually explains the business
+    meaning, and proposes a better sentence. Rows come back with QA_Issues /
+    QA_Suggestion stamped — flags and proposals only, the steward applies.
+    Body: {rows, ai?, model?, compute?}."""
+    body = request.get_json(force=True, silent=True) or {}
+    rows = [r for r in (body.get("rows") or []) if isinstance(r, dict)]
+    for r in rows:                                    # a QA run resets prior flags
+        r.pop("QA_Issues", None)
+        r.pop("QA_Suggestion", None)
+    lint = defqa.lint_rows(rows)
+    for i, issues in lint.items():
+        rows[i]["QA_Issues"] = ";".join(issues)
+    used_llm = False
+    if body.get("ai"):
+        rows, _n, used_llm = llm.qa_definitions_rows(
+            rows, model=body.get("model"), compute=body.get("compute"))
+    flagged = sum(1 for r in rows if r.get("QA_Issues"))
+    return jsonify({"rows": rows, "flagged": flagged,
+                    "lint_flagged": len(lint), "used_llm": used_llm,
+                    "llm": {"online": used_llm or not body.get("ai")}})
+
+@app.post("/api/ai-categorize")
+def api_ai_categorize():
+    """AI category assignment for uncategorized rows (or all rows with
+    only_blank=false): the local model picks ONE category per term from the
+    known set — pack categories + the categories already in use — and anything
+    off-list is discarded. Body: {rows, only_blank?, model?, compute?}."""
+    body = request.get_json(force=True, silent=True) or {}
+    rows = [r for r in (body.get("rows") or []) if isinstance(r, dict)]
+    cats = sorted({(r.get("Category") or "").strip() for r in rows} - {""})
+    for c in tagdict.category_tags().keys():
+        if c not in cats:
+            cats.append(c)
+    rows, updated, used_llm = llm.categorize_rows(
+        rows, cats, model=body.get("model"), compute=body.get("compute"),
+        only_blank=body.get("only_blank", True))
+    return jsonify({"rows": rows, "updated": updated,
+                    "llm": {"online": used_llm}})
 
 @app.post("/api/retag")
 def api_retag():

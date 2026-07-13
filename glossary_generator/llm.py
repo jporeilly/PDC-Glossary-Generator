@@ -757,3 +757,209 @@ def adjudicate_groups(groups, model=None, compute=None, workers=None):
         out[g["name"]] = {"action": action,
                           "reason": ("AI: " + why) if why else "AI adjudication"}
     return out, True
+
+
+# ------------------------------------------------------------ AI policy hints
+def _policy_hint_one(concept, allow_tags, model=None, num_gpu=None):
+    """One rule-polish call for the policy drafter: given a concept's term,
+       physical columns and evidence, propose a better column-name regex and
+       the 2-3 most relevant governed tags. Returns the parsed dict or None."""
+    prompt = (
+        "You help author a data-identification rule%s for the business term \"%s\".\n"
+        "Physical columns it was found in: %s.\n"
+        "Value evidence: %s.\n"
+        "Governed tag allow-list (use ONLY these): %s.\n\n"
+        "Return JSON with keys: column_regex (a single case-insensitive regex "
+        "starting with (?i) that matches these column NAMES and their likely "
+        "synonyms/abbreviations, nothing overly broad), tags (array, the 2-3 most "
+        "relevant tags from the allow-list)."
+    ) % (
+        (" at " + COMPANY) if COMPANY else "",
+        concept.get("term", ""),
+        concept.get("columns", "") or "(unknown)",
+        concept.get("evidence", "") or "(none)",
+        ", ".join(allow_tags or []) or "(none)",
+    )
+    return _complete_json(prompt, model=model, num_gpu=num_gpu)
+
+
+def policy_hints_rows(concepts, allow_tags=None, model=None, compute=None, workers=None):
+    """AI polish pass for the policy drafter. concepts: [{term, columns,
+       evidence}]. Returns ({term: {column_regex, tags}}, used_llm). Guardrails
+       live in policy_draft.draft_from_rows (regex must compile, tags must stay
+       governed) — this only proposes."""
+    concepts = [c for c in (concepts or []) if isinstance(c, dict) and c.get("term")]
+    if not concepts or not status(model)["online"]:
+        return {}, False
+    num_gpu = 0 if compute == "cpu" else (99 if compute == "gpu" else None)
+    if workers is None:
+        workers = WORKERS
+    workers = max(1, min(workers, 16))
+    allow = [t for t in (allow_tags or [])]
+    try:
+        _post(OLLAMA_URL + "/api/generate",
+              {"model": model or MODEL, "prompt": "ok", "stream": False,
+               "options": {"num_predict": 1}}, timeout=max(TIMEOUT, 120))
+    except Exception:
+        pass
+
+    def _do(c):
+        try:
+            return c, _policy_hint_one(c, allow, model=model, num_gpu=num_gpu)
+        except Exception:
+            return c, None
+
+    if workers == 1 or len(concepts) <= 1:
+        results = [_do(c) for c in concepts]
+    else:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as ex:
+            results = list(ex.map(_do, concepts))
+    out = {}
+    for c, res in results:
+        if isinstance(res, dict):
+            hint = {}
+            rx = str(res.get("column_regex") or "").strip()
+            if rx:
+                hint["column_regex"] = rx
+            tags = res.get("tags")
+            if isinstance(tags, list):
+                hint["tags"] = [str(t).strip() for t in tags if str(t).strip()][:3]
+            if hint:
+                out[c["term"]] = hint
+    return out, True
+
+
+# ------------------------------------------------------------ AI definition QA
+def _qa_one(row, model=None, num_gpu=None):
+    """One definition-quality judgment. Returns the parsed dict or None."""
+    prompt = (
+        "You review a business glossary definition%s for quality.\n"
+        "Term: \"%s\" (category: %s; physical column(s): %s).\n"
+        "Definition under review: \"%s\"\n\n"
+        "A GOOD definition says what the thing IS in business language, is "
+        "specific to this term, and would let a new analyst use the data "
+        "correctly. It is BAD if it is circular, generic enough to fit any "
+        "term, jargon-only, or wrong for the evidence.\n"
+        "Return JSON with keys: ok (true/false), issue (one short phrase, empty "
+        "when ok), better (an improved one-sentence definition, empty when ok)."
+    ) % (
+        (" at " + COMPANY) if COMPANY else "",
+        row.get("Term", ""), row.get("Category", "") or "-",
+        row.get("Source_Column", "") or "-",
+        str(row.get("Definition") or "")[:300],
+    )
+    return _complete_json(prompt, model=model, num_gpu=num_gpu)
+
+
+def qa_definitions_rows(rows, model=None, compute=None, workers=None):
+    """AI definition-QA pass over kept rows. Stamps QA_Issues / QA_Suggestion on
+       rows the model flags (merging with any linter findings already present).
+       Proposals only — the steward applies a suggestion explicitly. Returns
+       (rows, flagged_count, used_llm)."""
+    rows = [r for r in rows if isinstance(r, dict)]
+    if not status(model)["online"]:
+        return rows, 0, False
+    num_gpu = 0 if compute == "cpu" else (99 if compute == "gpu" else None)
+    if workers is None:
+        workers = WORKERS
+    workers = max(1, min(workers, 16))
+    targets = [r for r in rows
+               if str(r.get("Keep", "Y")).strip().lower() in ("y", "yes", "true", "1")
+               and (r.get("Term") or "").strip()]
+    try:
+        _post(OLLAMA_URL + "/api/generate",
+              {"model": model or MODEL, "prompt": "ok", "stream": False,
+               "options": {"num_predict": 1}}, timeout=max(TIMEOUT, 120))
+    except Exception:
+        pass
+
+    def _do(r):
+        try:
+            return r, _qa_one(r, model=model, num_gpu=num_gpu)
+        except Exception:
+            return r, None
+
+    if workers == 1 or len(targets) <= 1:
+        results = [_do(r) for r in targets]
+    else:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as ex:
+            results = list(ex.map(_do, targets))
+    flagged = 0
+    for r, res in results:
+        if not isinstance(res, dict):
+            continue
+        ok = res.get("ok")
+        issue = str(res.get("issue") or "").strip()
+        if ok is False and issue:
+            cur = [x for x in str(r.get("QA_Issues") or "").split(";") if x.strip()]
+            if issue not in cur:
+                cur.append(issue)
+            r["QA_Issues"] = ";".join(cur)
+            better = _clean_sentence(res.get("better"))
+            if better and better.lower() != str(r.get("Definition") or "").strip().lower():
+                r["QA_Suggestion"] = better
+            flagged += 1
+    return rows, flagged, True
+
+
+# ------------------------------------------------------------ AI categorizer
+def categorize_rows(rows, categories, model=None, compute=None, workers=None,
+                    only_blank=True):
+    """AI category assignment: for rows with no meaningful category (or all rows
+       when only_blank=False) the model picks ONE category from the known list.
+       Guardrails: the choice must be in the list, everything else is ignored.
+       Returns (rows, updated_count, used_llm)."""
+    rows = [r for r in rows if isinstance(r, dict)]
+    cats = [str(c).strip() for c in (categories or []) if str(c).strip()]
+    if not cats or not status(model)["online"]:
+        return rows, 0, False
+    num_gpu = 0 if compute == "cpu" else (99 if compute == "gpu" else None)
+    if workers is None:
+        workers = WORKERS
+    workers = max(1, min(workers, 16))
+    generic = {"", "general", "uncategorized", "uncategorised", "other", "misc"}
+    targets = [r for r in rows
+               if str(r.get("Keep", "Y")).strip().lower() in ("y", "yes", "true", "1")
+               and (r.get("Term") or "").strip()
+               and (not only_blank or str(r.get("Category") or "").strip().lower() in generic)]
+    if not targets:
+        return rows, 0, True
+    try:
+        _post(OLLAMA_URL + "/api/generate",
+              {"model": model or MODEL, "prompt": "ok", "stream": False,
+               "options": {"num_predict": 1}}, timeout=max(TIMEOUT, 120))
+    except Exception:
+        pass
+
+    def _do(r):
+        prompt = (
+            "Assign the business-glossary category%s for the term \"%s\".\n"
+            "Definition: %s\nPhysical column(s): %s\n"
+            "Categories (choose EXACTLY one): %s\n\n"
+            "Return JSON with keys: category."
+        ) % (
+            (" at " + COMPANY) if COMPANY else "",
+            r.get("Term", ""), str(r.get("Definition") or "")[:200],
+            r.get("Source_Column", "") or "-", ", ".join(cats),
+        )
+        try:
+            return r, _complete_json(prompt, model=model, num_gpu=num_gpu)
+        except Exception:
+            return r, None
+
+    if workers == 1 or len(targets) <= 1:
+        results = [_do(r) for r in targets]
+    else:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as ex:
+            results = list(ex.map(_do, targets))
+    updated = 0
+    by_lower = {c.lower(): c for c in cats}
+    for r, res in results:
+        if not isinstance(res, dict):
+            continue
+        cat = by_lower.get(str(res.get("category") or "").strip().lower())
+        if cat and cat != r.get("Category"):
+            r["Category"] = cat
+            r["AI_Suggested"] = "Yes"
+            updated += 1
+    return rows, updated, True

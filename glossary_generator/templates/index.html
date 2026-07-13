@@ -910,6 +910,8 @@
       <button class="ghost" onclick="document.getElementById('reviewfile').click()" title="Open an existing PDC glossary export directly in the grid to review and edit (round-trip).">Open glossary for review&hellip;</button>
       <button class="ghost" id="enrichBtn" onclick="enrich()" disabled title="Rewrite definitions with the local LLM (needs a pulled model).">Enrich with LLM</button>
       <button class="ghost" id="aiSuggestBtn" onclick="aiSuggest()" disabled title="Evidence-grounded AI pass: the local model reads each row's SCAN EVIDENCE (profiled value signature, induced regex, reference values) and proposes the business term (as a suggestion chip), governed tags and a tightened sensitivity.">AI suggest (evidence)</button>
+      <button class="ghost" id="qaBtn" onclick="qaDefs()" disabled title="Definition quality check: a deterministic linter (circular, vague, echoed, duplicated definitions) plus the local AI agent judging whether each definition really explains the business meaning. Flags and proposals only — you apply them.">AI QA definitions</button>
+      <button class="ghost" id="catBtn" onclick="aiCategorize()" disabled title="AI category assignment: the local model files uncategorized terms into the known categories (pack + in-use). Off-list answers are discarded.">AI categorize</button>
       <button class="ghost" id="revertEnrichBtn" onclick="revertEnrich()" style="display:none;border-color:#c98a2b;color:#7a4a00" title="Undo the last Enrich run and restore the pre-enrich definitions/purposes.">↶ Revert enrich</button>
       <input type="file" id="glossfile" accept=".json,.jsonl" style="display:none" onchange="enhanceFromGlossary(this)"/>
       <button class="ghost" id="enhanceBtn" onclick="document.getElementById('glossfile').click()" disabled title="Overlay an existing glossary's real definitions, purpose, tags and sensitivity onto matched scanned terms.">Enhance from glossary&hellip;</button>
@@ -962,6 +964,14 @@
         <button class="ghost sm" onclick="$('simPanel').style.display='none'">Close</button>
       </div>
       <div id="simList"></div>
+    </div>
+    <div class="card" id="qaPanel" style="display:none;border:1px solid #cfe0e8;background:#f7fbfc">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+        <b style="font-size:14px">Definition QA <span class="hint" style="font-weight:400" id="qaSummary"></span></b>
+        <span style="flex:1"></span>
+        <button class="ghost sm" onclick="$('qaPanel').style.display='none'">Close</button>
+      </div>
+      <div id="qaList"></div>
     </div>
     <div id="grpResolve" class="grpresolve" style="display:none"></div>
 
@@ -1192,6 +1202,7 @@
       </div>
       <div class="barrow" style="gap:10px;flex-wrap:wrap;align-items:center;margin-top:6px">
         <button class="go" id="govGenBtn" onclick="generate('govGenMsg')" disabled>Generate JSONL &rarr;</button>
+        <button class="ghost" id="draftPolBtn" onclick="draftPolicies()" title="The Policy Generator's first mile: turn every scan detection seed into a ready-to-import PDC rule — induced value regexes become Data Patterns, profiled reference lists become Dictionaries (+ values CSV), in the Technical-Track JSON shapes. The AI agent polishes column-name hints and tag picks when Ollama is online. Drafts only — review, then import in PDC.">Draft policies (AI) &rarr;</button>
         <span class="hint">then import in PDC, and</span>
         <button class="ghost" onclick="showPage('apply')">Resolve Term IDs &rarr;</button>
         <span class="msg" id="govGenMsg"></span>
@@ -1472,6 +1483,9 @@ function renderHoodGloss(){
       {verb:'POST',url:location.origin+'/api/enhance-glossary \u2014 overlay a real export\u2019s definitions/tags onto matches',headers:{'Content-Type':'application/json'}},
       {verb:'POST',url:location.origin+'/api/retag \u2014 re-derive governed tags for the shown terms ("Suggest tags")',headers:{'Content-Type':'application/json'}},
       {verb:'POST',url:location.origin+'/api/recommend-resolutions \u2014 advise Merge / Disambiguate / Keep separate per duplicate group (evidence \u2192 live value probe \u2192 AI agent)',headers:{'Content-Type':'application/json'}},
+      {verb:'POST',url:location.origin+'/api/qa-definitions \u2014 lint + AI-judge definitions (QA_Issues / QA_Suggestion)',headers:{'Content-Type':'application/json'}},
+      {verb:'POST',url:location.origin+'/api/ai-categorize \u2014 AI files uncategorized terms into known categories',headers:{'Content-Type':'application/json'}},
+      {verb:'POST',url:location.origin+'/api/draft-policies \u2014 draft PDC pattern/dictionary rules from detection seeds (format=zip to download)',headers:{'Content-Type':'application/json'}},
       {verb:'POST',url:location.origin+'/api/similarity \u2014 score shown terms pairwise; suggest same-concept merges ("Find similar")',headers:{'Content-Type':'application/json'}},
       {verb:'POST',url:location.origin+'/api/load-glossary \u2014 open an existing export for review (round-trip)',headers:{'Content-Type':'application/json'}}
     ],
@@ -2088,6 +2102,8 @@ async function llmStatus(){
     const need=s.online&&s.model_present===false;
     $('pullBtn').style.display=need?'':'none';
     $('enrichBtn').disabled=!ROWS.length||!s.online||s.model_present===false; if($('aiSuggestBtn')) $('aiSuggestBtn').disabled=$('enrichBtn').disabled;
+    if($('catBtn')) $('catBtn').disabled=$('enrichBtn').disabled;
+    if($('qaBtn')) $('qaBtn').disabled=!ROWS.length;
   }catch(e){ $('dot').className='dot off'; $('llmtxt').textContent='LLM offline'; $('pullBtn').style.display='none'; }
 }
 function fmtBytes(n){ if(!n||n<0)return'0 B'; if(n>=1e9)return(n/1e9).toFixed(2)+' GB'; if(n>=1e6)return(n/1e6).toFixed(1)+' MB'; if(n>=1e3)return(n/1e3).toFixed(0)+' KB'; return n+' B'; }
@@ -3764,6 +3780,79 @@ function epUpdate(done,total,dd,pp){
   $('epFill').style.width=v+'%';
   $('epLbl').textContent=`Enriching ${done} of ${total} (${v}%)${(dd||pp)?` \u00b7 ${dd} def, ${pp} purpose`:''} \u00b7 ${COMPUTE.toUpperCase()}`;
 }
+/* ---- AI QA definitions: linter + agent flags, steward applies ---- */
+async function qaDefs(){
+  const total=ROWS.length; if(!total) return;
+  const btn=$('qaBtn'); btn.disabled=true; $('msg').textContent='QA-checking definitions\u2026';
+  const CHUNK=6; let offline=false, failed=0;
+  for(let s2=0; s2<total; s2+=CHUNK){
+    const idx=[]; for(let i=s2;i<Math.min(s2+CHUNK,total);i++) idx.push(i);
+    try{
+      const d=await (await fetch('/api/qa-definitions',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({rows:idx.map(i=>ROWS[i]),ai:true,model:currentModel()||null,compute:COMPUTE})})).json();
+      if(d.error){ failed+=idx.length; }
+      else{
+        if(d.llm && d.llm.online===false) offline=true;
+        (d.rows||[]).forEach((nr,j)=>{ const i=idx[j]; if(i==null)return;
+          const old2=ROWS[i]||{};
+          ['_grp','_rid','_res'].forEach(f=>{ if(nr[f]==null&&old2[f]!=null) nr[f]=old2[f]; });
+          if(nr.Keep==null&&old2.Keep!=null) nr.Keep=old2.Keep;
+          ROWS[i]=nr; });
+      }
+      $('msg').textContent=`QA-checking definitions\u2026 ${Math.min(s2+CHUNK,total)}/${total}`;
+    }catch(e){ failed+=idx.length; }
+  }
+  btn.disabled=false; renderQA(offline, failed); applyFilter();
+}
+function renderQA(offline, failed){
+  const flagged=[]; ROWS.forEach((r,i)=>{ if(r&&r.QA_Issues) flagged.push(i); });
+  if($('qaPanel')) $('qaPanel').style.display='';
+  if($('qaSummary')) $('qaSummary').textContent=flagged.length
+    ? `${flagged.length} of ${ROWS.length} definitions flagged`+(offline?' (linter only \u2014 Ollama offline)':'')+(failed?` \u00b7 ${failed} row(s) failed`:'')
+    : 'all definitions look sound'+(offline?' (linter only \u2014 Ollama offline)':'');
+  if($('msg')) $('msg').textContent=flagged.length?`Definition QA: ${flagged.length} flagged.`:'Definition QA: nothing flagged.';
+  if(!$('qaList')) return;
+  $('qaList').innerHTML=flagged.length?flagged.map(i=>{
+    const r=ROWS[i];
+    const sugg=r.QA_Suggestion?`<div style="margin-top:3px;font-size:12px;color:#1B6B45">Suggestion: ${esc(r.QA_Suggestion)}</div>`:'';
+    return `<div style="padding:7px 4px;border-top:1px solid #e4eef2">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="flex:1;min-width:0">
+          <b style="font-size:13px">${esc(r.Term||'')}</b> <span class="hint">${esc(r.Category||'')}</span>
+          <div style="font-size:11px;color:#8a1f1f;margin-top:2px">${esc((r.QA_Issues||'').split(';').join(' \u00b7 '))}</div>
+          <div style="font-size:12px;color:var(--mute);margin-top:2px">Current: ${esc(r.Definition||'')}</div>
+          ${sugg}
+        </div>
+        ${r.QA_Suggestion?`<button class="ghost sm" onclick="qaUse(${i})" style="border-color:#2EC4B6;color:#0A3D52;font-weight:600">Use suggestion</button>`:''}
+        <button class="ghost sm" onclick="qaDismiss(${i})">Dismiss</button>
+      </div>
+    </div>`;
+  }).join(''):'<p class="msg" style="padding:4px">No issues found.</p>';
+}
+function qaUse(i){ const r=ROWS[i]; if(!r||!r.QA_Suggestion)return; r.Definition=r.QA_Suggestion; delete r.QA_Suggestion; delete r.QA_Issues; renderQA(); applyFilter(); }
+function qaDismiss(i){ const r=ROWS[i]; if(!r)return; delete r.QA_Suggestion; delete r.QA_Issues; renderQA(); }
+
+/* ---- AI categorize: file uncategorized terms into known categories ---- */
+async function aiCategorize(){
+  if(!ROWS.length) return;
+  const btn=$('catBtn'); btn.disabled=true; $('msg').textContent='AI categorizing\u2026';
+  try{
+    const d=await (await fetch('/api/ai-categorize',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({rows:ROWS,only_blank:true,model:currentModel()||null,compute:COMPUTE})})).json();
+    if(d.error){ $('msg').textContent='Categorize failed: '+d.error; }
+    else if(d.llm && d.llm.online===false){ $('msg').textContent='Ollama offline \u2014 categorization needs the local model.'; }
+    else{
+      (d.rows||[]).forEach((nr,i)=>{ const old2=ROWS[i]||{};
+        ['_grp','_rid','_res'].forEach(f=>{ if(nr[f]==null&&old2[f]!=null) nr[f]=old2[f]; });
+        if(nr.Keep==null&&old2.Keep!=null) nr.Keep=old2.Keep;
+        ROWS[i]=nr; });
+      buildCategoryFilter(); applyFilter();
+      $('msg').textContent=d.updated?`AI filed ${d.updated} term(s) into categories.`:'No uncategorized terms to file (all rows already have categories).';
+    }
+  }catch(e){ $('msg').textContent='Categorize failed: '+(e.message||e); }
+  finally{ btn.disabled=false; }
+}
+
 async function aiSuggest(){
   const total=ROWS.length; if(!total) return;
   const idx=ROWS.map((_,i)=>i);
@@ -3937,6 +4026,24 @@ async function enhanceFromGlossary(input){
     ROWS=d.rows; buildCategoryFilter(); applyFilter(); renderSummary(computeStats(ROWS)); if(PEOPLE_LOADED)buildCatTable(); snapshotScan();
     const rp=d.report||{}; $('msg').innerHTML=`Enhanced from <b>${esc(rp.glossary||f.name)}</b>: <b>${rp.matched||0}</b> matched, <b>${rp.added||0}</b> added.`;
   }catch(e){ $('msg').textContent='Enhance failed: '+e; } input.value='';
+}
+/* ---- policy drafter: detection seeds -> PDC pattern/dictionary rule files ---- */
+async function draftPolicies(){
+  const M=$('govGenMsg')||$('msg');
+  if(!ROWS.length){ M.textContent='Scan and review terms first \u2014 there are no detection seeds to draft from yet.'; return; }
+  const btn=$('draftPolBtn'); if(btn){ btn.disabled=true; btn.textContent='Drafting\u2026'; }
+  try{
+    const body={rows:ROWS, glossary_name:$('gname')?$('gname').value:'', ai:true, model:currentModel()||null, compute:COMPUTE};
+    const d=await (await fetch('/api/draft-policies',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})).json();
+    const np=(d.patterns||[]).length, nd=(d.dictionaries||[]).length, ns=(d.skipped||[]).length;
+    if(!np&&!nd){ M.textContent=`No detection seeds found \u2014 ${ns} term(s) skipped. Scan a live connection so profiling can induce value formats / reference lists first.`; return; }
+    const zr=await fetch('/api/draft-policies',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(Object.assign({},body,{format:'zip'}))});
+    const url=URL.createObjectURL(await zr.blob());
+    const list=[...(d.patterns||[]).map(x=>`<li><b>${esc(x.name)}</b> <span class="hint">pattern \u00b7 ${esc(x.filename)}</span></li>`),
+                ...(d.dictionaries||[]).map(x=>`<li><b>${esc(x.name)}</b> <span class="hint">dictionary \u00b7 ${esc(x.filename)} + ${esc(x.values)}</span></li>`)].join('');
+    M.innerHTML=`Drafted <b>${np}</b> pattern(s) + <b>${nd}</b> dictionar${nd===1?'y':'ies'}${ns?` (${ns} skipped \u2014 no seed)`:''}${d.used_llm?' \u00b7 AI-polished':''} \u2014 <a class="dl" href="${url}" download="drafted-policies.zip">download zip</a><ul style="margin:6px 0 0 18px;font-size:12px">${list}</ul><span class="hint">Import in PDC: Management \u2192 Data Identification \u2192 Patterns / Dictionaries \u2192 Import. Review each rule first \u2014 these are drafts.</span>`;
+  }catch(e){ M.textContent='Draft failed: '+(e.message||e); }
+  finally{ if(btn){ btn.disabled=false; btn.innerHTML='Draft policies (AI) &rarr;'; } }
 }
 async function generate(msgId){
   const M=$(msgId)||$('msg');
