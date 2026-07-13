@@ -316,7 +316,7 @@
         "patient",
         "phi",
         "identifier",
-        "PII"
+        "pii"
       ]
     },
     "SSN": {
@@ -326,7 +326,7 @@
       "sensitivity": "HIGH",
       "tags": [
         "phi",
-        "PII",
+        "pii",
         "privacy"
       ]
     },

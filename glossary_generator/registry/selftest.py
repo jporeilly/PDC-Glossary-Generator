@@ -23,8 +23,8 @@ def main():
     _c("slug normalises to snake_case", _slug("Customer Account Number") == "customer_account_number")
     _c("sensitivity preserved (HIGH)", by["customer_account_number"]["sensitivity"] == "HIGH")
     _c("lowercase sensitivity parsed (low -> LOW)", by["meter_reading"]["sensitivity"] == "LOW")
-    _c("string tags split on ; and ,", by["meter_reading"]["tags"] == ["Usage", "Operations"])
-    _c("PII_Category forces a PII tag", "PII" in by["customer_account_number"]["tags"])
+    _c("string tags split on ; and , (lower-cased)", by["meter_reading"]["tags"] == ["usage", "operations"])
+    _c("PII_Category forces a pii tag", "pii" in by["customer_account_number"]["tags"])
     _c("term_id is null until reconcile", by["customer_account_number"]["term_id"] is None)
     _c("Sensitivity ordinal (HIGH>LOW)", Sensitivity.HIGH > Sensitivity.LOW)
     # glossary_id embed + resolve-time backfill

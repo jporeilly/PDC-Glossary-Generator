@@ -306,7 +306,7 @@
         "customer",
         "loyalty",
         "identifier",
-        "PII"
+        "pii"
       ]
     },
     "Card Number": {
@@ -319,7 +319,7 @@
       "tags": [
         "pci",
         "card",
-        "PII"
+        "pii"
       ]
     },
     "SKU": {

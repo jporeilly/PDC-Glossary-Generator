@@ -100,7 +100,7 @@ Each dictionary arrives with its value-list and rule already configured.
 > *Simplest* — a closed value list (Account Status, Card Status, SAR Status):
 > no name hint needed beyond the default. *With hints + a term* — Branch
 > Names adds a column-name hint and assigns the **Branch Record** business
-> term. *Compliance-driving* — Risk Ratings tags `Compliance` and assigns
+> term. *Compliance-driving* — Risk Ratings tags `compliance` and assigns
 > **Risk Rating Code**, feeding the BSA/AML story. *Beyond a value list* —
 > Service Cities (16 towns) is the one that also fires on the document store
 > in Part D, matching cities inside correspondence.
@@ -183,12 +183,12 @@ and mirrors how a steward rolls coverage out.
 
 | Column | Method → result |
 | --- | --- |
-| members.mbr_no | Member Number pattern → Member Number, Sensitive + term Member Number |
-| members.mbr_status | Member Status dictionary → Member Status |
-| transactions.txn_type_cd | Transaction Types dictionary → Transaction Type + term Transaction Type Code |
-| cards.card_no | Card Number pattern → Card Number, PCI, Sensitive + term Card Number |
-| ach_payments.ach_rte_no | Routing Number pattern → Routing Number, Payments, Sensitive + term ACH Routing Number |
-| kyc_reviews.risk_rating_cd | Risk Ratings dictionary → Risk Rating, Compliance + term Risk Rating Code |
+| members.mbr_no | Member Number pattern → member number, sensitive + term Member Number |
+| members.mbr_status | Member Status dictionary → member status |
+| transactions.txn_type_cd | Transaction Types dictionary → transaction type + term Transaction Type Code |
+| cards.card_no | Card Number pattern → card number, pci, sensitive + term Card Number |
+| ach_payments.ach_rte_no | Routing Number pattern → routing number, payments, sensitive + term ACH Routing Number |
+| kyc_reviews.risk_rating_cd | Risk Ratings dictionary → risk rating, compliance + term Risk Rating Code |
 
 And note the deliberate miss: `cards.cvv_cd` — three digits, no distinctive
 shape, no value list — matches nothing. The failing PCI business rule
@@ -230,7 +230,7 @@ and on its Document Processing tab you reach identification three ways.
 | --- | --- |
 | correspondence (txt and docx letters) | Member Number present (CSCU-100509) + Service City present (Tempe, Casa Grande) → member correspondence; card dispute letter also fires the Card Number pattern |
 | loan-applications (docx forms) | Member Number + city present → classified Loan Application |
-| compliance/sar_filing_summary_2026Q2.pdf | SAR vocabulary + member references → classified Suspicious Activity Report; Compliance / Confidential |
+| compliance/sar_filing_summary_2026Q2.pdf | SAR vocabulary + member references → classified Suspicious Activity Report; compliance / Confidential |
 | statements (csv) | Member Number + Account Number present (and counted) → classified Member Statement |
 
 ## Verify the results
@@ -279,35 +279,35 @@ Next module: **01 — Glossary Generator App**.
 
 | Dictionary | Matches (column / source) | Size | Tags / term |
 | --- | --- | --- | --- |
-| CSCU Account Types | accounts.acct_type_cd | 5 values | Account Type |
-| CSCU Account Status | accounts.acct_status | 3 values | Account Status |
-| CSCU Member Status | members.mbr_status | 3 values | Member Status |
-| CSCU Transaction Types | transactions.txn_type_cd | 8 values | Transaction Type + term Transaction Type Code |
-| CSCU Card Types | cards.card_type_cd | 2 values | Card Type |
-| CSCU Card Status | cards.card_status | 4 values | Card Status |
-| CSCU Loan Types | loans.ln_type_cd | 5 values | Loan Type, Lending |
-| CSCU Loan Status | loans.ln_status | 5 values | Loan Status, Lending |
-| CSCU Risk Ratings | kyc_reviews.risk_rating_cd | 3 values | Risk Rating, Compliance + term Risk Rating Code |
-| CSCU KYC Status | kyc_reviews.kyc_status | 3 values | KYC Status, Compliance |
-| CSCU SAR Activity Types | suspicious_activity.activity_type_cd | 4 values | SAR Activity, Compliance + term Suspicious Activity Report |
-| CSCU SAR Status | suspicious_activity.sar_status | 3 values | SAR Status, Compliance |
-| CSCU ACH Status | ach_payments.ach_status | 3 values | ACH Status, Payments |
-| CSCU NACHA Return Codes | ach_payments.return_cd | 10 values | NACHA Return Code, Payments |
-| CSCU Branch Names | branches.br_name | 6 values | Branch Name + term Branch Record |
-| CSCU Service Cities | members.city / branches.br_city + correspondence | 16 values | Location, Service City |
-| CSCU Employee Roles | employees.role_cd | 5 values | Employee Role |
-| CSCU Identity Document Types | kyc_reviews.id_doc_type_cd | 3 values | Identity Document, Compliance |
+| CSCU Account Types | accounts.acct_type_cd | 5 values | account type |
+| CSCU Account Status | accounts.acct_status | 3 values | account status |
+| CSCU Member Status | members.mbr_status | 3 values | member status |
+| CSCU Transaction Types | transactions.txn_type_cd | 8 values | transaction type + term Transaction Type Code |
+| CSCU Card Types | cards.card_type_cd | 2 values | card type |
+| CSCU Card Status | cards.card_status | 4 values | card status |
+| CSCU Loan Types | loans.ln_type_cd | 5 values | loan type, lending |
+| CSCU Loan Status | loans.ln_status | 5 values | loan status, lending |
+| CSCU Risk Ratings | kyc_reviews.risk_rating_cd | 3 values | risk rating, compliance + term Risk Rating Code |
+| CSCU KYC Status | kyc_reviews.kyc_status | 3 values | kyc status, compliance |
+| CSCU SAR Activity Types | suspicious_activity.activity_type_cd | 4 values | sar activity, compliance + term Suspicious Activity Report |
+| CSCU SAR Status | suspicious_activity.sar_status | 3 values | sar status, compliance |
+| CSCU ACH Status | ach_payments.ach_status | 3 values | ach status, payments |
+| CSCU NACHA Return Codes | ach_payments.return_cd | 10 values | nacha return code, payments |
+| CSCU Branch Names | branches.br_name | 6 values | branch name + term Branch Record |
+| CSCU Service Cities | members.city / branches.br_city + correspondence | 16 values | location, service city |
+| CSCU Employee Roles | employees.role_cd | 5 values | employee role |
+| CSCU Identity Document Types | kyc_reviews.id_doc_type_cd | 3 values | identity document, compliance |
 
 ### Patterns (match by shape)
 
 | Pattern | Matches (column / source) | Format | Tags / term |
 | --- | --- | --- | --- |
-| CSCU Member Number | members.mbr_no | ^CSCU-\d{6}$ | Member Number, Sensitive + term Member Number |
-| CSCU Account Number | accounts.acct_no | ^ACC-\d{8}$ | Account Number, Sensitive + term Account Number |
-| CSCU Loan Number | loans.ln_no | ^LN-\d{6}$ | Loan Number, Lending + term Loan Number |
-| CSCU ABA Routing Number | ach_payments.ach_rte_no | ^\d{9}$ | Routing Number, Payments, Sensitive + term ACH Routing Number |
-| CSCU Payment Card Number | cards.card_no | ^4\d{3}-\d{4}-\d{4}-\d{4}$ | Card Number, PCI, Sensitive + term Card Number |
-| CSCU Contact Email | members.email / employees.email + correspondence | email regex | Email, PII |
-| CSCU GL Account Number | gl_entries.gl_acct_no | ^[1245]\d{3}$ | GL Account, Ledger |
+| CSCU Member Number | members.mbr_no | ^CSCU-\d{6}$ | member number, sensitive + term Member Number |
+| CSCU Account Number | accounts.acct_no | ^ACC-\d{8}$ | account number, sensitive + term Account Number |
+| CSCU Loan Number | loans.ln_no | ^LN-\d{6}$ | loan number, lending + term Loan Number |
+| CSCU ABA Routing Number | ach_payments.ach_rte_no | ^\d{9}$ | routing number, payments, sensitive + term ACH Routing Number |
+| CSCU Payment Card Number | cards.card_no | ^4\d{3}-\d{4}-\d{4}-\d{4}$ | card number, pci, sensitive + term Card Number |
+| CSCU Contact Email | members.email / employees.email + correspondence | email regex | email, pii |
+| CSCU GL Account Number | gl_entries.gl_acct_no | ^[1245]\d{3}$ | gl account, ledger |
 
 All Copper State Credit Union data is fictional and generated for training.

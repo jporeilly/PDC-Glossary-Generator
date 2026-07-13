@@ -55,10 +55,10 @@
       {
         "applyTags": [
           {
-            "k": "ACH Status"
+            "k": "ach status"
           },
           {
-            "k": "Payments"
+            "k": "payments"
           }
         ]
       }

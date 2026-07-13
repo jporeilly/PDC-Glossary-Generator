@@ -68,13 +68,13 @@
       {
         "applyTags": [
           {
-            "k": "Routing Number"
+            "k": "routing number"
           },
           {
-            "k": "Payments"
+            "k": "payments"
           },
           {
-            "k": "Sensitive"
+            "k": "sensitive"
           }
         ]
       }

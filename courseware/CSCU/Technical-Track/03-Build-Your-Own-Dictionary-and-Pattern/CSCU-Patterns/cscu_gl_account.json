@@ -68,10 +68,10 @@
       {
         "applyTags": [
           {
-            "k": "GL Account"
+            "k": "gl account"
           },
           {
-            "k": "Ledger"
+            "k": "ledger"
           }
         ]
       }

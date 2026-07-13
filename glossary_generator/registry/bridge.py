@@ -29,9 +29,10 @@ def _tags(row) -> list:
     raw = row.get('Suggested_Tags') or row.get('Tags') or []
     if isinstance(raw, str):
         raw = [t.strip() for t in re.split(r'[;,]', raw) if t.strip()]
-    tags = list(dict.fromkeys(raw))
-    if row.get('PII_Category') and not any(str(t).upper() == 'PII' for t in tags):
-        tags.append('PII')
+    # tags are standardised lower-case across the pipeline (facet consistency)
+    tags = list(dict.fromkeys(str(t).strip().lower() for t in raw if str(t).strip()))
+    if row.get('PII_Category') and 'pii' not in tags:
+        tags.append('pii')
     return tags
 
 

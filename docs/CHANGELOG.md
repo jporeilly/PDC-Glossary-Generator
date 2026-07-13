@@ -14,6 +14,31 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.8.1] — 2026-07-13
+
+### Changed
+- **Tags standardised to lower-case, everywhere.** Tags are facet keys in PDC's
+  OpenSearch — `PII` and `pii` would fragment into two buckets — so the whole
+  pipeline now emits and stores one canonical form: trimmed lower-case
+  (`pii`, `cde`, `financial`, …). Display labels keep their casing (the tag
+  `pii` still shows the label "PII").
+  - **Dictionary boundary** (`tagdict.py`): a normalization pass runs at
+    seed/load/steward-save/accretion, folding tag keys, rule tags, category
+    tags and term tags; case-variant duplicates merge (counts summed,
+    sensitivity floors tightened, generic layer wins). An existing pre-1.8.1
+    `tag_dictionary.json` **heals itself on next app start — no reseed needed**.
+  - **Emitters**: name-rule tags (`PII`→`pii`, `Financial`→`financial`),
+    document-classification tags, `suggest_tags()` output, the Registry
+    bridge (`pii` forced by a PII category), the AI evidence pass (governed
+    tags now append lower-case), the PDC glossary JSONL export, and tags
+    ingested back from PDC entities.
+  - **Scenario assets swept**: all four domain packs (+ re-zipped), the four
+    W03 Business-Glossary JSONL imports, the four W05 flat CSVs, and the CSCU
+    Technical-Track pattern/dictionary JSONs (applyTags fold to lower-case;
+    business-term assignments keep Title Case — terms aren't tags) with the
+    lab guide + docx rebuilt to match.
+  - Registry selftest expectations updated (13/13 pass).
+
 ## [1.8.0] — 2026-07-10
 
 Evidence-grounded suggestion: the scan now LEARNS value formats from the data,

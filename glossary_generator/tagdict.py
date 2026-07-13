@@ -24,9 +24,82 @@ DICT_FILE = os.environ.get("GLOSSARY_TAG_DICTIONARY") or os.path.join(HERE, "tag
 SCHEMA = "term-tag-dictionary/1"
 _SENS = ("LOW", "MEDIUM", "HIGH")
 
+
+def norm_tag(t):
+    """Canonical tag form: trimmed, lower-case. Tags are facet keys in PDC's
+    OpenSearch — 'PII' and 'pii' would fragment into two buckets — so the whole
+    pipeline (rules, packs, scans, LLM proposals, registry) standardises on
+    lower-case. Labels keep their display casing; only the tag key is folded."""
+    return str(t or "").strip().lower()
+
+
+def _norm_tag_list(ts):
+    out, seen = [], set()
+    for t in (ts or []):
+        k = norm_tag(t)
+        if k and k not in seen:
+            seen.add(k); out.append(k)
+    return out
+
+
+def _normalize_doc(d):
+    """Fold every tag key/reference in a dictionary document to lower-case,
+    merging case-variant duplicates (counts summed, floors tightened, examples
+    unioned). Runs at seed/load/save time so pre-1.8.1 dictionaries with 'PII'
+    or 'CDE' heal in place — no reseed needed."""
+    tags = d.get("tags") or {}
+    merged = {}
+    for t, meta in tags.items():
+        k = norm_tag(t)
+        if not k:
+            continue
+        meta = dict(meta or {})
+        meta.setdefault("label", str(meta.get("label") or t))
+        cur = merged.get(k)
+        if not cur:
+            merged[k] = meta
+            continue
+        # case-variant duplicate: generic layer and approved status win,
+        # sensitivity floors tighten
+        if meta.get("layer") == "generic":
+            cur["layer"] = "generic"
+        if meta.get("status") == "approved" and cur.get("status") != "approved":
+            cur["status"] = "approved"
+        f_new, f_cur = meta.get("sensitivity_floor"), cur.get("sensitivity_floor")
+        if f_new and (not f_cur or _SENS.index(f_new) > _SENS.index(f_cur)):
+            cur["sensitivity_floor"] = f_new
+    d["tags"] = merged
+    for key in ("counts",):
+        src = d.get(key) or {}
+        folded = {}
+        for t, n in src.items():
+            k = norm_tag(t)
+            if k:
+                folded[k] = folded.get(k, 0) + (n or 0)
+        d[key] = folded
+    ex = {}
+    for t, lst in (d.get("examples") or {}).items():
+        k = norm_tag(t)
+        if not k:
+            continue
+        dst = ex.setdefault(k, [])
+        for e in (lst or []):
+            if e not in dst and len(dst) < 8:
+                dst.append(e)
+    d["examples"] = ex
+    for r in d.get("rules") or []:
+        if isinstance(r, dict):
+            r["tags"] = _norm_tag_list(r.get("tags"))
+    d["category_tags"] = {c: _norm_tag_list(ts)
+                          for c, ts in (d.get("category_tags") or {}).items()}
+    for meta in (d.get("terms") or {}).values():
+        if isinstance(meta, dict) and meta.get("tags"):
+            meta["tags"] = _norm_tag_list(meta["tags"])
+    return d
+
 # --- GENERIC baseline: tags (with common sensitivity floor) ----------------- #
 _SEED_TAGS = {
-    "PII":              {"label": "PII", "sensitivity_floor": "HIGH"},
+    "pii":              {"label": "PII", "sensitivity_floor": "HIGH"},
     "personal-data":    {"label": "Personal data", "sensitivity_floor": "HIGH"},
     "direct-identifier":{"label": "Direct identifier", "sensitivity_floor": "HIGH"},
     "privacy":          {"label": "Privacy", "sensitivity_floor": "MEDIUM"},
@@ -48,7 +121,7 @@ _SEED_TAGS = {
     "customer":         {"label": "Customer"},
     "document":         {"label": "Document"},
     "identifier":       {"label": "Identifier"},
-    "CDE":              {"label": "Critical Data Element"},
+    "cde":              {"label": "Critical Data Element"},
     "maskable":         {"label": "Maskable"},
     "record":           {"label": "Record (table-level)"},
     "table-level":      {"label": "Table-level term"},
@@ -61,17 +134,17 @@ _SEED_TERMS = {
     "Customer ID":     {"aliases": ["Customer Account Number", "Cust ID"],
                         "sensitivity": "LOW",    "tags": ["identifier", "customer"]},
     "Account Number":  {"aliases": ["Acct Number", "Account No"],
-                        "sensitivity": "HIGH",   "tags": ["financial", "identifier", "PII"]},
+                        "sensitivity": "HIGH",   "tags": ["financial", "identifier", "pii"]},
     "Customer Name":   {"aliases": ["Full Name"],
-                        "sensitivity": "MEDIUM", "tags": ["PII", "personal-data", "privacy"]},
+                        "sensitivity": "MEDIUM", "tags": ["pii", "personal-data", "privacy"]},
     "Email":           {"aliases": ["Email Address", "E-mail"],
-                        "sensitivity": "MEDIUM", "tags": ["PII", "contact", "privacy"]},
+                        "sensitivity": "MEDIUM", "tags": ["pii", "contact", "privacy"]},
     "Phone":           {"aliases": ["Phone Number", "Telephone"],
-                        "sensitivity": "MEDIUM", "tags": ["PII", "contact", "privacy"]},
+                        "sensitivity": "MEDIUM", "tags": ["pii", "contact", "privacy"]},
     "Service Address": {"aliases": ["Mailing Address"],
-                        "sensitivity": "MEDIUM", "tags": ["PII", "location", "privacy"]},
+                        "sensitivity": "MEDIUM", "tags": ["pii", "location", "privacy"]},
     "SSN":             {"aliases": ["Social Security Number"],
-                        "sensitivity": "HIGH",   "tags": ["PII", "direct-identifier", "sensitive"]},
+                        "sensitivity": "HIGH",   "tags": ["pii", "direct-identifier", "sensitive"]},
     "Amount":          {"aliases": [], "sensitivity": "MEDIUM", "tags": ["financial", "billing"]},
     "Meter Reading":   {"aliases": ["Usage Reading"], "sensitivity": "LOW", "tags": ["usage", "metering"]},
     "Date":            {"aliases": ["Timestamp"], "sensitivity": "LOW", "tags": ["temporal"]},
@@ -135,9 +208,10 @@ def _seed():
     terms = {n: dict(v, layer="generic") for n, v in _SEED_TERMS.items()}
     for n, v in (pack.get("terms") or {}).items():
         terms[n] = dict(v, layer="company", status="approved")
-    return {"schema": SCHEMA, "domain": pack.get("domain") or "generic",
-            "category_tags": cat, "rules": rules, "tags": tags, "terms": terms,
-            "counts": {}, "term_counts": {}, "examples": {}, "sources": []}
+    return _normalize_doc(
+        {"schema": SCHEMA, "domain": pack.get("domain") or "generic",
+         "category_tags": cat, "rules": rules, "tags": tags, "terms": terms,
+         "counts": {}, "term_counts": {}, "examples": {}, "sources": []})
 
 
 _LOCK = threading.Lock()
@@ -150,6 +224,8 @@ def _merge_seed(d):
     """Non-destructively re-inject the generic baseline (tags, terms, rules) so an
     edit or upgrade can never lose the protected layer or the vocabulary a rule needs."""
     seed = _seed()
+    d.setdefault("tags", {}); d.setdefault("terms", {})
+    _normalize_doc(d)                    # heal pre-1.8.1 mixed-case tag keys
     d.setdefault("schema", SCHEMA)
     d.setdefault("domain", seed["domain"])
     d.setdefault("category_tags", {})
@@ -484,7 +560,7 @@ def accrete(rows, source=None, persist=True):
             if not isinstance(r, dict):
                 continue
             term = (r.get("Term") or "").strip()
-            row_tags = [t.strip() for t in str(r.get("Suggested_Tags") or "").split(";") if t.strip()]
+            row_tags = _norm_tag_list(str(r.get("Suggested_Tags") or "").split(";"))
             for t in row_tags:
                 tags.setdefault(t, {"label": t, "layer": "company", "status": "pending"})
                 counts[t] = counts.get(t, 0) + 1

@@ -16,7 +16,7 @@ LLM. They're built deterministically from:
 - the term/column **name, term text, and category**, matched against the dictionary's
   **rules** (`pattern → tags`);
 - the **category tag** for the term's category;
-- structural signals — PII type, HIGH sensitivity → `maskable`, CDE → `CDE`, key →
+- structural signals — PII type, HIGH sensitivity → `maskable`, CDE → `cde`, key →
   `identifier`.
 
 Everything stays inside the dictionary's allow-list, so tags can't drift into free-text.

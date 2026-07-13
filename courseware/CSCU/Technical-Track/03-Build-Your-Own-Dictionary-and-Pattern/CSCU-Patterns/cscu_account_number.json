@@ -68,10 +68,10 @@
       {
         "applyTags": [
           {
-            "k": "Account Number"
+            "k": "account number"
           },
           {
-            "k": "Sensitive"
+            "k": "sensitive"
           }
         ]
       }

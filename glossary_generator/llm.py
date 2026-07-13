@@ -638,7 +638,8 @@ def suggest_terms_rows(rows, allow_tags=None, categories=None, only_low_confiden
         if isinstance(proposed, list):
             cur = [t for t in (r.get("Suggested_Tags") or "").split(";") if t]
             cur_l = {t.strip().lower() for t in cur}
-            added = [str(t).strip() for t in proposed
+            # append in standardised lower-case (the governed vocabulary's form)
+            added = [str(t).strip().lower() for t in proposed
                      if str(t).strip() and str(t).strip().lower() in allow_set
                      and str(t).strip().lower() not in cur_l]
             if added:

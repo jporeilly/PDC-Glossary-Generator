@@ -55,10 +55,10 @@
       {
         "applyTags": [
           {
-            "k": "Risk Rating"
+            "k": "risk rating"
           },
           {
-            "k": "Compliance"
+            "k": "compliance"
           }
         ]
       }

@@ -68,10 +68,10 @@
       {
         "applyTags": [
           {
-            "k": "Loan Number"
+            "k": "loan number"
           },
           {
-            "k": "Lending"
+            "k": "lending"
           }
         ]
       }

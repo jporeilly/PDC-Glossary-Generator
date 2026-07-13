@@ -278,7 +278,7 @@
       "tags": [
         "member",
         "identifier",
-        "PII"
+        "pii"
       ]
     },
     "Card Number": {
@@ -291,7 +291,7 @@
       "tags": [
         "pci",
         "card",
-        "PII"
+        "pii"
       ]
     },
     "Routing Number": {
@@ -314,7 +314,7 @@
       "tags": [
         "lending",
         "identifier",
-        "PII"
+        "pii"
       ]
     },
     "APR": {

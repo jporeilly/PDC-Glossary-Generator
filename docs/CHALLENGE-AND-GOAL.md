@@ -7,7 +7,7 @@
 ## The challenge
 
 In PDC, the same three facts about a column — **which business term it maps to**,
-**what tags it carries** (like `PII`), and **how sensitive it is** — get decided
+**what tags it carries** (like `pii`), and **how sensitive it is** — get decided
 in more than one place, by hand, at different moments:
 
 - the **Data Identification method** (a dictionary or pattern) stamps tags when
@@ -17,7 +17,7 @@ in more than one place, by hand, at different moments:
 
 Nothing in PDC forces these to agree — tags are free text on both sides. So you
 get **drift** (glossary and method quietly diverge), **wrong sensitivity**
-(`customer_id` guessed LOW when it should be HIGH / `PII`), and **inconsistent
+(`customer_id` guessed LOW when it should be HIGH / `pii`), and **inconsistent
 tags with no compliance context** (`PII` vs `pii` vs `P2`). The result: you
 can't be confident a classification is **correct, consistent, or defensible in an
 audit**, and you reconcile the same facts across several screens.
@@ -31,7 +31,7 @@ single, agreed answer for that concept:
 - its **business term** (and, once created in PDC, the **term id**);
 - its **governed tags**, chosen from a controlled list — so no more `pii` vs `PII`;
 - its **sensitivity**, decided **by rule** against a standard — so `customer_id`
-  is *always* HIGH / `PII`;
+  is *always* HIGH / `pii`;
 - its **category**, any **verified compliance links**, and how to build its
   Data Identification **method**.
 

@@ -55,10 +55,10 @@
       {
         "applyTags": [
           {
-            "k": "KYC Status"
+            "k": "kyc status"
           },
           {
-            "k": "Compliance"
+            "k": "compliance"
           }
         ]
       }

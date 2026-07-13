@@ -55,10 +55,10 @@
       {
         "applyTags": [
           {
-            "k": "Location"
+            "k": "location"
           },
           {
-            "k": "Service City"
+            "k": "service city"
           }
         ]
       }

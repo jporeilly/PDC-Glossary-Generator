@@ -739,16 +739,16 @@ def categorize(tname):
 # guess with what's actually in the data — see classify_values() above.
 # ---------------------------------------------------------------------------
 PII_RULES = [
-    (r"account_number|acct", None, "FINANCIAL", "HIGH", ["PII", "Financial"]),
-    (r"ssn|social_security", None, "GOVERNMENT_ID", "HIGH", ["PII"]),
-    (r"tax_?id|\bein\b|passport|driver_?licen[cs]e", None, "GOVERNMENT_ID", "HIGH", ["PII"]),
-    (r"email|e_mail", None, "CONTACT_INFO", "HIGH", ["PII"]),
-    (r"birth|dob|date_of_birth", None, "DEMOGRAPHIC", "HIGH", ["PII"]),
-    (r"phone|mobile|telephone", None, "CONTACT_INFO", "MEDIUM", ["PII"]),
-    (r"name", r"system|report|file|plan|type|source", "PERSONAL_NAME", "MEDIUM", ["PII"]),
-    (r"address|street", None, "ADDRESS_INFO", "HIGH", ["PII"]),
+    (r"account_number|acct", None, "FINANCIAL", "HIGH", ["pii", "financial"]),
+    (r"ssn|social_security", None, "GOVERNMENT_ID", "HIGH", ["pii"]),
+    (r"tax_?id|\bein\b|passport|driver_?licen[cs]e", None, "GOVERNMENT_ID", "HIGH", ["pii"]),
+    (r"email|e_mail", None, "CONTACT_INFO", "HIGH", ["pii"]),
+    (r"birth|dob|date_of_birth", None, "DEMOGRAPHIC", "HIGH", ["pii"]),
+    (r"phone|mobile|telephone", None, "CONTACT_INFO", "MEDIUM", ["pii"]),
+    (r"name", r"system|report|file|plan|type|source", "PERSONAL_NAME", "MEDIUM", ["pii"]),
+    (r"address|street", None, "ADDRESS_INFO", "HIGH", ["pii"]),
     (r"(?<![a-z])(city|county|zip|postal|province|state)(?![a-z])", None, "ADDRESS_INFO", "MEDIUM", []),
-    (r"amount|charge|tax|due|paid|balance", None, "FINANCIAL", "LOW", ["Financial"]),
+    (r"amount|charge|tax|due|paid|balance", None, "FINANCIAL", "LOW", ["financial"]),
 ]
 ABBREV = {"number": "No.", "identifier": "ID", "amount": "Amt", "account": "Acct",
           "address": "Addr", "quantity": "Qty", "percentage": "Pct"}
@@ -908,13 +908,13 @@ def suggest_tags(category, sens, pii, cde, is_key, base_tags=None, name="", term
       - PII type          -> privacy / contact / location / financial tags,
       - name/term/category-> domain tags via the dictionary's rules,
       - a meaningful category tag (dictionary category_tags), not just the slug,
-      - HIGH sens -> 'maskable', CDE -> 'CDE', key -> 'identifier'.
+      - HIGH sens -> 'maskable', CDE -> 'cde', key -> 'identifier'.
     Everything stays within the dictionary's vocabulary so tags can't drift.
     """
     t = list(base_tags or [])
-    if pii == "PERSONAL_NAME":  t += ["PII", "personal-data", "direct-identifier", "privacy"]
-    elif pii == "CONTACT_INFO": t += ["PII", "contact", "privacy"]
-    elif pii == "ADDRESS_INFO": t += ["PII", "location", "privacy"]
+    if pii == "PERSONAL_NAME":  t += ["pii", "personal-data", "direct-identifier", "privacy"]
+    elif pii == "CONTACT_INFO": t += ["pii", "contact", "privacy"]
+    elif pii == "ADDRESS_INFO": t += ["pii", "location", "privacy"]
     elif pii == "FINANCIAL":    t += ["financial", "sensitive"]
 
     hay = " ".join([str(name or ""), str(term or ""), str(category or "")])
@@ -926,13 +926,14 @@ def suggest_tags(category, sens, pii, cde, is_key, base_tags=None, name="", term
     t += cat_tags if cat_tags else ([_slug(category)] if category else [])
 
     if sens == "HIGH":                              t.append("maskable")
-    if str(cde).lower() == "yes" or cde is True:    t.append("CDE")
+    if str(cde).lower() == "yes" or cde is True:    t.append("cde")
     if is_key:                                      t.append("identifier")
 
-    seen, out = set(), []          # de-dupe case-insensitively, preserve order
+    seen, out = set(), []          # standardised lower-case, de-duped, order kept
     for x in t:
-        if x and x.lower() not in seen:
-            seen.add(x.lower()); out.append(x)
+        k = str(x or "").strip().lower()
+        if k and k not in seen:
+            seen.add(k); out.append(k)
     return out[:7]
 
 
@@ -1862,10 +1863,10 @@ def discover_documents(cfg, max_objects=50000, top_n=8):
     }
 
 DOC_RULES = [
-    (r"complian|legal|audit|regulat|consent|privacy", "HIGH", ["Document", "Compliance"], True),
-    (r"customer|account|billing|invoice|payment|financ", "MEDIUM", ["Document", "PII"], False),
-    (r"qualit|lab|test|sampl|inspect", "MEDIUM", ["Document"], False),
-    (r"public|report|notice|brochure|template", "LOW", ["Document"], False),
+    (r"complian|legal|audit|regulat|consent|privacy", "HIGH", ["document", "compliance"], True),
+    (r"customer|account|billing|invoice|payment|financ", "MEDIUM", ["document", "pii"], False),
+    (r"qualit|lab|test|sampl|inspect", "MEDIUM", ["document"], False),
+    (r"public|report|notice|brochure|template", "LOW", ["document"], False),
 ]
 
 def _doc_classify(folder):
@@ -1874,7 +1875,7 @@ def _doc_classify(folder):
     for pat, sens, tags, cde in DOC_RULES:
         if re.search(pat, fl):
             return sens, list(tags), cde
-    return "LOW", ["Document"], False
+    return "LOW", ["document"], False
 
 def suggest_documents(folders, bucket="documents"):
     """Turn harvested document folders into review rows under 'Records & Documents'.
@@ -2013,7 +2014,8 @@ def parse_glossary(jsonl_text):
             "purpose": _plain_lex(info.get("purpose")),
             "sensitivity": feat.get("sensitivity"), "classification": info.get("classification"),
             "cde": feat.get("isCriticalDataElement"),
-            "tags": [x.get("name") for x in a.get("tags", []) if x.get("name")]}
+            "tags": [str(x.get("name")).strip().lower()
+                     for x in a.get("tags", []) if x.get("name")]}
     return {"name": gname, "categories": list(catname.values()), "terms": terms}
 
 def enhance_from_glossary(rows, jsonl_text, append_missing=True):
@@ -2457,7 +2459,8 @@ def to_jsonl_records(rows, glossary_name="Business Glossary (Suggested)", govern
         attrs = {"features": features, "isSoftCreated": False, "info": info}
         attrs.update(dict(attrX))
         if r.get("Suggested_Tags"):
-            attrs["tags"] = [{"name": t} for t in r["Suggested_Tags"].split(";") if t]
+            attrs["tags"] = [{"name": t.strip().lower()}
+                             for t in r["Suggested_Tags"].split(";") if t.strip()]
         recs.append({"createdAt": GEN_TS, "updatedBy": uby,
                      "fqdn": f"{glossary_name}/{cat}/{r['Term']}", "rootId": root,
                      "createdBy": cby, "name": r["Term"], "attributes": attrs,

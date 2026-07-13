@@ -55,10 +55,10 @@
       {
         "applyTags": [
           {
-            "k": "SAR Status"
+            "k": "sar status"
           },
           {
-            "k": "Compliance"
+            "k": "compliance"
           }
         ]
       }

@@ -55,10 +55,10 @@
       {
         "applyTags": [
           {
-            "k": "Loan Status"
+            "k": "loan status"
           },
           {
-            "k": "Lending"
+            "k": "lending"
           }
         ]
       }

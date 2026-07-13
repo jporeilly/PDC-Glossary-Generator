@@ -55,10 +55,10 @@
       {
         "applyTags": [
           {
-            "k": "NACHA Return Code"
+            "k": "nacha return code"
           },
           {
-            "k": "Payments"
+            "k": "payments"
           }
         ]
       }

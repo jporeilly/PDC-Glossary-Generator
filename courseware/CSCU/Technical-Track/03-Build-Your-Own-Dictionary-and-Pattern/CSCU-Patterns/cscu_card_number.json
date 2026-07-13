@@ -68,13 +68,13 @@
       {
         "applyTags": [
           {
-            "k": "Card Number"
+            "k": "card number"
           },
           {
-            "k": "PCI"
+            "k": "pci"
           },
           {
-            "k": "Sensitive"
+            "k": "sensitive"
           }
         ]
       }

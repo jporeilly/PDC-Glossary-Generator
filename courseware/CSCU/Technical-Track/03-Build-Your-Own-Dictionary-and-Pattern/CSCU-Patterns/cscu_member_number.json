@@ -68,10 +68,10 @@
       {
         "applyTags": [
           {
-            "k": "Member Number"
+            "k": "member number"
           },
           {
-            "k": "Sensitive"
+            "k": "sensitive"
           }
         ]
       }
