@@ -18,6 +18,9 @@ shared lab stack:
 | **HEALTH** — Lakeshore Health Partners | Healthcare | [data_sources/HEALTH/](data_sources/HEALTH/) | [courseware/HEALTH/](courseware/HEALTH/) |
 | **MFG** — Cascade Precision Components | Manufacturing | [data_sources/MFG/](data_sources/MFG/) | [courseware/MFG/](courseware/MFG/) |
 
+<img width="1530" height="952" alt="image" src="https://github.com/user-attachments/assets/d0bfe011-ecb3-402e-8345-dd7747858a50" />
+
+
 Each scenario carries Workshops 0–5 at full depth, its own cast across all
 seven PDC roles, planted data defects the workshops expose, and a custom
 identification-pattern family; CSCU additionally carries the Technical Track
