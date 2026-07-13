@@ -297,6 +297,50 @@ def keymap_from_tables(tables):
     return km
 
 
+def sample_distinct_values(cfg, sources, limit=200):
+    """Live-data probe for the duplicate-group recommender: sample up to `limit`
+       DISTINCT non-null values for each 'schema.table.column' source. Direct
+       value overlap between two same-named columns is the strongest same-vs-
+       different-concept evidence there is (better than cached profile shapes,
+       because it compares the actual populations). Returns {source: [values]};
+       sources that fail to read are simply absent. Postgres/MySQL/MSSQL via
+       dbconn (Oracle uses FETCH FIRST)."""
+    import dbconn
+    eng = cfg.get("engine", "postgresql")
+    conn = dbconn._connect(cfg)
+    out = {}
+    try:
+        with conn.cursor() as cur:
+            for src in sources or []:
+                bits = str(src).strip().split(".")
+                if len(bits) < 3:
+                    continue
+                schema, table, col = bits[-3], bits[-2], bits[-1]
+                if not all(re.fullmatch(r"[A-Za-z0-9_$]+", x) for x in (schema, table, col)):
+                    continue                      # identifiers only — never quote-inject
+                n = max(1, min(int(limit), 1000))
+                if eng == "oracle":
+                    q = (f'SELECT DISTINCT "{col.upper()}" FROM "{schema.upper()}"."{table.upper()}" '
+                         f'WHERE "{col.upper()}" IS NOT NULL FETCH FIRST {n} ROWS ONLY')
+                else:
+                    q = (f'SELECT DISTINCT "{col}" FROM "{schema}"."{table}" '
+                         f'WHERE "{col}" IS NOT NULL LIMIT {n}')
+                try:
+                    cur.execute(q)
+                    out[src] = [str(r[0]) for r in cur.fetchall()]
+                except Exception:
+                    try:
+                        conn.rollback()
+                    except Exception:
+                        pass
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+    return out
+
+
 def apply_keys_live(cfg, schema, keymap, dry_run=True):
     """Add the PRIMARY KEY / FOREIGN KEY constraints in `keymap` to a live PostgreSQL
        schema via ALTER TABLE, so PDC's catalog ingest (and our own scan) can read

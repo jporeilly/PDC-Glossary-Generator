@@ -14,6 +14,37 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.8.3] — 2026-07-13
+
+### Added
+- **Merge / Disambiguate / Keep separate decision aid.** The duplicate-group
+  headers in the review grid now carry a *recommendation* with its reason, and
+  the matching action is pre-highlighted (hints only — the steward still
+  clicks). Three-stage escalation ladder, cheapest first:
+  1. **Cached scan evidence** (`similarity.recommend_groups`): FK links between
+     the columns (same concept by construction), profiled reference-value
+     overlap, induced value formats/signatures, PII class. Runs automatically
+     (debounced) whenever the duplicate groups change. Rubric: evidence-same →
+     Merge; evidence-different → Disambiguate when the members share a category
+     (import collides there) or Keep separate across categories; no evidence →
+     weak Merge on matching context.
+  2. **Live data-value probe** (`suggester.sample_distinct_values`): for groups
+     the cached evidence can't settle, sample distinct values from each member
+     column over the active database connection and compare the actual
+     populations (containment ≥60% → same; zero overlap → different).
+  3. **AI adjudicator** (`llm.adjudicate_groups`): a local-LLM agent weighs the
+     definitions + evidence side by side for whatever is still ambiguous and
+     proposes one of the three actions with a rationale (guardrailed to those
+     actions; marked "AI" in the hint).
+  Stages 2–3 run from the new **AI advise** button; endpoint
+  `POST /api/recommend-resolutions`.
+- **Find similar knows the data now.** `/api/similarity` rolls up each term's
+  scan evidence; a shape match lifts a pair straight to the strong band, and a
+  shape **conflict** ("Card Number" vs "Care Number" with different formats)
+  is flagged *different concepts* with the merge button withheld.
+- **Pentaho blue theme.** Settings → Theme gains a "Pentaho blue" option —
+  PDC's deep navy chrome with the bright action blue.
+
 ## [1.8.2] — 2026-07-13
 
 ### Added

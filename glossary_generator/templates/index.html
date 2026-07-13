@@ -20,6 +20,10 @@
     --dark:#0a3d52; --teal:#0f7d99; --blue:#0a5a82; --ink:#13323b; --mute:#4a6b75;
     --card:#dbeef3; --line:#bcdde7; --bg:#e9f3f6; --panel:#fff; --side:#0a3d52; --sideink:#cfe3ec;
   }
+  body[data-theme="pentaho"]{ /* Pentaho Data Catalog blues: deep navy chrome, bright action blue */
+    --dark:#0D2A5C; --teal:#2563EB; --blue:#1D4ED8; --ink:#1E2A3A; --mute:#5B6B7F;
+    --card:#EDF3FE; --line:#CFDEF7; --bg:#F5F8FE; --panel:#fff; --side:#0D2A5C; --sideink:#C7D7F5;
+  }
   *{box-sizing:border-box}
   body{margin:0;font-family:Calibri,'Segoe UI',system-ui,sans-serif;color:var(--ink);background:var(--bg);display:flex;min-height:100vh}
   /* sidebar */
@@ -303,6 +307,9 @@
   .gsegs{display:inline-flex;border:1px solid var(--line);border-radius:7px;overflow:hidden}
   .gseg{border:0;border-right:1px solid var(--line);background:var(--card);color:var(--blue);font-weight:600;font-size:12px;padding:4px 10px;cursor:pointer}
   .gseg:last-child{border-right:0} .gseg:hover{filter:brightness(.97)} .gseg.on{background:var(--dark);color:#fff;box-shadow:inset 0 0 0 1px var(--dark)}
+  .gseg.rec{box-shadow:inset 0 0 0 2px #2EC4B6}
+  tr.gclhead .grec{flex-basis:100%;font-size:11px;color:#0A3D52;background:#EAF7F5;border:1px solid #bfe6e0;border-radius:7px;padding:3px 9px;line-height:1.5}
+  tr.gclhead .grec .gband{font-size:9.5px;font-weight:700;padding:0 6px;border-radius:8px;margin-left:6px;vertical-align:middle}
   /* inline duplicate-cluster header row, rendered INSIDE the review grid above each group's candidates */
   tr.gclhead>td{background:var(--card);border-top:2px solid var(--dark);border-bottom:1px solid var(--line);padding:7px 12px}
   tr.gclhead .gclwrap{display:flex;flex-wrap:wrap;align-items:center;gap:12px;min-width:0}
@@ -939,6 +946,7 @@
       <span style="font-size:11px;color:var(--mute);font-weight:700;letter-spacing:.03em">DUPLICATES</span>
       <button class="ghost sm" id="mergeDupBtn" onclick="toggleMerge()" title="Collapse same-named terms (across categories) into one term linked to all their columns — PDC's one-term-many-data-elements model.">Merge duplicates</button>
       <button class="ghost sm" id="disambigBtn" onclick="toggleDisambig()" title="Make every term name unique by appending its source table, so name-based Resolve can't mis-link.">Auto-disambiguate</button>
+      <button class="ghost sm" id="aiAdviseBtn" onclick="fetchRecos(true)" title="Escalate the duplicate-group advice: probe LIVE data values for ambiguous groups (when a database connection exists) and let the local AI agent adjudicate what's left. Hints only — nothing is applied until you click.">AI advise</button>
       <button class="ghost sm" id="simBtn" onclick="findSimilar()" title="Score the shown terms pairwise and suggest same-concept names to merge (e.g. Phone / Customer Phone / Cust Phone No). PDC treats these as unrelated — this catches them first. Steward-gated.">Find similar</button>
       <span style="width:1px;height:20px;background:var(--line);margin:0 4px"></span>
       <span style="font-size:11px;color:var(--mute);font-weight:700;letter-spacing:.03em">TAGS</span>
@@ -1342,6 +1350,7 @@
           <div class="seg" id="themeseg">
             <button type="button" data-t="light" onclick="applyTheme('light',true)">Light</button>
             <button type="button" data-t="teal" onclick="applyTheme('teal',true)">Teal</button>
+            <button type="button" data-t="pentaho" onclick="applyTheme('pentaho',true)">Pentaho blue</button>
             <button type="button" data-t="dark" onclick="applyTheme('dark',true)">Dark</button>
           </div></div>
         <div class="fld" style="flex:0 0 auto"><label>Help banner</label><label class="sslbox" style="width:fit-content"><input id="s_help" type="checkbox" onchange="saveSettings()"/> show on Glossary</label></div>
@@ -1462,6 +1471,7 @@ function renderHoodGloss(){
       {verb:'GET',url:'http://localhost:11434/api/tags \u2014 is the model available?',headers:{}},
       {verb:'POST',url:location.origin+'/api/enhance-glossary \u2014 overlay a real export\u2019s definitions/tags onto matches',headers:{'Content-Type':'application/json'}},
       {verb:'POST',url:location.origin+'/api/retag \u2014 re-derive governed tags for the shown terms ("Suggest tags")',headers:{'Content-Type':'application/json'}},
+      {verb:'POST',url:location.origin+'/api/recommend-resolutions \u2014 advise Merge / Disambiguate / Keep separate per duplicate group (evidence \u2192 live value probe \u2192 AI agent)',headers:{'Content-Type':'application/json'}},
       {verb:'POST',url:location.origin+'/api/similarity \u2014 score shown terms pairwise; suggest same-concept merges ("Find similar")',headers:{'Content-Type':'application/json'}},
       {verb:'POST',url:location.origin+'/api/load-glossary \u2014 open an existing export for review (round-trip)',headers:{'Content-Type':'application/json'}}
     ],
@@ -2378,6 +2388,7 @@ async function seedConn(id){
 }
 async function scanConn(id, mode){
   const c=CONNS.find(x=>x.id===id); if(!c)return;
+  if(c.type==='db') _lastDbConn=c.config;
   const adding=mode==='add'&&ROWS.length>0; const el=$('st-'+id);
   el.textContent=adding?'Scanning to add…':'Scanning…';
   try{
@@ -2658,6 +2669,7 @@ function applyFilter(){
     if(q){ const h=((r.Term||'')+' '+(r.Definition||'')+' '+(r.Source_Column||'')+' '+(r.Category||'')+' '+(r.Suggested_Tags||'')).toLowerCase(); if(!h.includes(q))return; }
     SHOWN.push(i);
   }); lastShownPos=null; drawRows(); updateKeepUI(); if(typeof renderGroupResolve==='function') renderGroupResolve();
+  scheduleRecos();
 }
 // One data row of the review grid.
 function _rowHtml(r, i, pos){ const tt=isTableTerm(r); return `
@@ -2692,6 +2704,37 @@ function _gridClusters(){
 
 // Draw the review grid with duplicate candidates clustered under an inline header
 // row (the Merge / Disambiguate / Keep separate control lives on that header).
+
+/* ---- duplicate-group decision aid: evidence -> live probe -> AI agent ---- */
+let RECO={}, _recoFP='', _recoTimer=null, _lastDbConn=null;
+function _dupFingerprint(){
+  const by={}; (ROWS||[]).forEach(r=>{ if(!r||!truthy(r.Keep))return; const t=(r.Term||'').trim(); if(t) by[t]=(by[t]||0)+1; });
+  return Object.keys(by).filter(t=>by[t]>1).sort().map(t=>t+':'+by[t]).join('|');
+}
+// background pass: cached scan evidence only (cheap, no DB, no LLM), debounced on data change
+function scheduleRecos(){
+  const fp=_dupFingerprint();
+  if(fp===_recoFP) return;
+  _recoFP=fp; clearTimeout(_recoTimer);
+  if(!fp){ RECO={}; return; }
+  _recoTimer=setTimeout(()=>fetchRecos(false), 500);
+}
+// full pass (the "AI advise" button): + live data-value probe + AI adjudication
+async function fetchRecos(full){
+  const btn=$('aiAdviseBtn');
+  try{
+    if(full&&btn){ btn.disabled=true; btn.textContent='Advising\u2026'; }
+    const conn=full?(_lastDbConn||((CONNS||[]).find(c=>c.type==='db')||{}).config||null):null;
+    const d=await (await fetch('/api/recommend-resolutions',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({rows:ROWS, conn:conn, ai:!!full})})).json();
+    RECO={}; (d.groups||[]).forEach(g=>{ RECO[g.name]=g; });
+    drawRows();
+    if(full&&$('msg')) $('msg').textContent = d.used_llm
+      ? `AI adjudicated the ambiguous duplicate groups${d.probed?` (live-probed ${d.probed} group${d.probed!==1?'s':''})`:''}.`
+      : (d.probed?`Live-probed ${d.probed} group(s); Ollama offline so evidence decides.`:'Evidence-only recommendations (Ollama offline, no ambiguous groups probed).');
+  }catch(e){ if(full&&$('msg')) $('msg').textContent='Advise failed: '+(e.message||e); }
+  finally{ if(btn){ btn.disabled=false; btn.textContent='AI advise'; } }
+}
 function drawRows(){
   if(!ROWS.length){ $('rows').innerHTML='<tr><td colspan="10" class="empty">Scan a connection to suggest glossary terms.</td></tr>'; return; }
   if(!SHOWN.length){ $('rows').innerHTML='<tr><td colspan="10" class="empty">No terms match the filter.</td></tr>'; return; }
@@ -2708,11 +2751,20 @@ function drawRows(){
     if(cluster){
       const gk=_GRIDGRP.length; _GRIDGRP.push(k);
       const tag=act==='merge'?' &rarr; merged into one':act==='split'?' &rarr; split &amp; renamed':'';
-      const seg=(v,l)=>`<button class="gseg${act===v?' on':''}" onclick="gridGroupSet(${gk},'${v}')">${l}</button>`;
+      const rec=(idxs.length>1)?RECO[k]:null;   // advice only while undecided candidates exist
+      const seg=(v,l)=>`<button class="gseg${act===v?' on':''}${rec&&rec.action===v&&act==='separate'?' rec':''}" onclick="gridGroupSet(${gk},'${v}')">${l}</button>`;
+      let recHtml='';
+      if(rec&&rec.action){
+        const lbl=rec.action==='merge'?'Merge':rec.action==='split'?'Disambiguate':'Keep separate';
+        const band=rec.band==='high'?'':'<span class="gband" style="background:#fdecc8;color:#7a4a00">check</span>';
+        const src=rec.source==='ai'?'<span class="gband" style="background:#EDE7F6;color:#4527A0">AI</span>':'';
+        recHtml=`<span class="grec">Recommended: <b>${lbl}</b>${band}${src} &mdash; ${esc(rec.reason||'')}</span>`;
+      }
       html+=`<tr class="gclhead"><td colspan="10"><div class="gclwrap">`
           +`<span class="gclname" title="${esc(k)}">${esc(k)}<span class="gcldup">duplicate</span></span>`
           +`<span class="gclcnt">${idxs.length} candidate${idxs.length!==1?'s':''}${tag}</span>`
           +`<span class="gsegs">${seg('merge','Merge')}${seg('split','Disambiguate')}${seg('separate','Keep separate')}</span>`
+          +recHtml
           +`</div></td></tr>`;
     }
     idxs.forEach(i=>{ html+=_rowHtml(ROWS[i], i, pos); pos++; });
@@ -2745,7 +2797,10 @@ function renderSim(){
   const el=$('simList'); if(!el) return;
   if(!SIM.length){ el.innerHTML='<p class="msg" style="padding:4px">No same-concept name pairs above the threshold — lower it to widen the net.</p>'; return; }
   el.innerHTML=SIM.map((s,idx)=>{
-    const band=s.band==='high'?'<span style="font-size:9.5px;font-weight:700;padding:1px 6px;border-radius:8px;background:#DDF0E4;color:#1B6B45">strong</span>':'<span style="font-size:9.5px;font-weight:700;padding:1px 6px;border-radius:8px;background:#fdecc8;color:#7a4a00">review</span>';
+    const band=s.band==='high'?'<span style="font-size:9.5px;font-weight:700;padding:1px 6px;border-radius:8px;background:#DDF0E4;color:#1B6B45">strong</span>'
+      :s.band==='conflict'?'<span style="font-size:9.5px;font-weight:700;padding:1px 6px;border-radius:8px;background:#fdeeee;color:#8a1f1f">different concepts</span>'
+      :'<span style="font-size:9.5px;font-weight:700;padding:1px 6px;border-radius:8px;background:#fdecc8;color:#7a4a00">review</span>';
+    const evLine=s.evidence_reason?`<div style="margin-top:3px;font-size:10.5px;color:${s.evidence==='different'?'#8a1f1f':'#1B6B45'}">${esc(s.evidence_reason)}${s.evidence==='different'?' \u2014 do not merge; rename with qualifiers if they collide':''}</div>`:'';
     const sg=s.signals||{};
     return `<div style="display:flex;align-items:center;gap:10px;padding:7px 4px;border-top:1px solid #e4eef2">
       <div style="flex:1;min-width:0">
@@ -2756,9 +2811,10 @@ function renderSim(){
           <span>tokens ${_simBar(sg.token,'#2EC4B6')}</span>
           <span>context ${_simBar(sg.structural,'#14333F')}</span>
         </div>
+        ${evLine}
       </div>
-      <button class="ghost sm" title="Swap which name is kept" onclick="simFlip(${idx})">&#8646;</button>
-      <button class="ghost sm" onclick="simMerge(${idx})" style="border-color:#2EC4B6;color:#0A3D52;font-weight:600">Merge</button>
+      ${s.band==='conflict'?'':`<button class="ghost sm" title="Swap which name is kept" onclick="simFlip(${idx})">&#8646;</button>
+      <button class="ghost sm" onclick="simMerge(${idx})" style="border-color:#2EC4B6;color:#0A3D52;font-weight:600">Merge</button>`}
       <button class="ghost sm" onclick="simDismiss(${idx})">Dismiss</button>
     </div>`;
   }).join('');
@@ -2985,7 +3041,7 @@ function _ensureRids(){ (ROWS||[]).forEach(r=>{ if(r && r._rid==null) r._rid='r'
 function snapshotScan(){ _ensureRids(); (ROWS||[]).forEach(r=>{ if(r&&r._grp==null) r._grp = isTableTerm(r) ? ((r.Term||'').trim()+'\u0000'+(r._rid||'')) : (r.Term||'').trim(); }); GRP={}; SCAN_SNAPSHOT=_deep(ROWS); TXN=null; HM_SNAP=null; RVW={hm:false,merge:false,disambig:false}; PRE_ENRICH=null; if(typeof updateRevertEnrichUI==='function') updateRevertEnrichUI(); refreshToggleUI(); if(typeof renderGroupResolve==='function') renderGroupResolve(); }
 function refreshToggleUI(){
   const set=(id,on)=>{ const b=document.getElementById(id); if(b) b.classList.toggle('applied',!!on); };
-  set('hmBtn',RVW.hm); set('mergeDupBtn',RVW.merge); set('disambigBtn',RVW.disambig);
+  set('hmBtn',RVW.hm); set('mergeDupBtn',RVW.merge); set('disambigBtn',RVW.disambig); set('aiAdviseBtn',RVW.merge||RVW.disambig);
   const rb=document.getElementById('resetAllBtn'); if(rb) rb.disabled=!SCAN_SNAPSHOT;
   if(typeof renderGroupResolve==='function') renderGroupResolve();
 }

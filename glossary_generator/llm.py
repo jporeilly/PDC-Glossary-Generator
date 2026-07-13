@@ -662,3 +662,98 @@ def suggest_terms_rows(rows, allow_tags=None, categories=None, only_low_confiden
                 if "AI(evidence)" not in base:
                     r["Suggested_Reason"] = (base + " · " if base else "") + "AI(evidence): " + why[:180]
     return rows, counts, True
+
+
+# ------------------------------------------------------------ AI merge adjudicator
+_ADJ_ACTIONS = {"merge": "merge", "split": "split", "disambiguate": "split",
+                "separate": "separate", "keep separate": "separate"}
+
+def _adjudicate_one(group, model=None, num_gpu=None):
+    """One duplicate-group judgment call. The prompt lays out each candidate's
+       scan evidence side by side and asks for ONE of the grid's three actions.
+       Returns the parsed proposal dict or None."""
+    lines = []
+    for i, m in enumerate(group.get("members") or [], 1):
+        bits = []
+        if m.get("Category"):
+            bits.append("category: %s" % m["Category"])
+        if m.get("Source_Column"):
+            bits.append("column(s): %s" % m["Source_Column"])
+        if m.get("Definition"):
+            bits.append("definition: %s" % str(m["Definition"])[:180])
+        if m.get("Value_Pattern"):
+            bits.append("induced format: %s" % m["Value_Pattern"])
+        elif m.get("Value_Signature"):
+            bits.append("value signature: %s" % m["Value_Signature"])
+        ev = (m.get("Enum_Values") or "").strip()
+        if ev:
+            bits.append("profiled values: %s" % ev[:160])
+        if m.get("PII_Category"):
+            bits.append("PII class: %s" % m["PII_Category"])
+        lines.append("Candidate %d - %s" % (i, "; ".join(bits) or "(name only)"))
+    prompt = (
+        "You are a data-governance steward%s. %d glossary term candidates share "
+        "the name \"%s\" but come from different scans/tables. Decide ONE action:\n"
+        "- merge: they are the SAME business concept; one term should link all columns.\n"
+        "- disambiguate: the same word hides DIFFERENT concepts; rename with qualifiers.\n"
+        "- separate: different concepts in different categories; both can stand as-is.\n\n"
+        "%s\n\n"
+        "Judge by MEANING and by the data evidence (formats, value lists, PII class), "
+        "not by the shared name. Return JSON with keys: action (merge, disambiguate "
+        "or separate), rationale (one short sentence grounded in the evidence)."
+    ) % (
+        (" at " + COMPANY) if COMPANY else "",
+        len(group.get("members") or []),
+        group.get("name", ""),
+        "\n".join(lines),
+    )
+    return _complete_json(prompt, model=model, num_gpu=num_gpu)
+
+
+def adjudicate_groups(groups, model=None, compute=None, workers=None):
+    """AI agent pass over AMBIGUOUS duplicate groups — the ones the deterministic
+       evidence rubric could not settle. For each group the model weighs the
+       members' definitions and scan evidence and proposes merge / disambiguate /
+       separate; the code applies guardrails (action must be one of the grid's
+       three; rationale trimmed) and NEVER auto-applies — the result is a hint on
+       the group header, the steward still clicks. Returns ({name: {action,
+       reason}}, used_llm)."""
+    groups = [g for g in (groups or []) if isinstance(g, dict) and g.get("name")]
+    if not groups or not status(model)["online"]:
+        return {}, False
+    num_gpu = 0 if compute == "cpu" else (99 if compute == "gpu" else None)
+    if workers is None:
+        workers = WORKERS
+    workers = max(1, min(workers, 16))
+
+    # warm the model first (a cold load can outlive LLM_TIMEOUT and fail silently)
+    try:
+        _post(OLLAMA_URL + "/api/generate",
+              {"model": model or MODEL, "prompt": "ok", "stream": False,
+               "options": {"num_predict": 1}}, timeout=max(TIMEOUT, 120))
+    except Exception:
+        pass
+
+    def _do(g):
+        try:
+            return g, _adjudicate_one(g, model=model, num_gpu=num_gpu)
+        except Exception:
+            return g, None
+
+    if workers == 1 or len(groups) <= 1:
+        results = [_do(g) for g in groups]
+    else:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as ex:
+            results = list(ex.map(_do, groups))
+
+    out = {}
+    for g, res in results:
+        if not isinstance(res, dict):
+            continue
+        action = _ADJ_ACTIONS.get(str(res.get("action") or "").strip().lower())
+        if not action:
+            continue
+        why = str(res.get("rationale") or "").strip()[:200]
+        out[g["name"]] = {"action": action,
+                          "reason": ("AI: " + why) if why else "AI adjudication"}
+    return out, True

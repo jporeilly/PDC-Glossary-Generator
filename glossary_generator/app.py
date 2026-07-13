@@ -1102,9 +1102,104 @@ def api_similarity():
             t = t.strip()
             if t:
                 d["tags"].add(t)
+        # evidence rollup (first-wins for shapes, union for values/columns/FKs) so
+        # score_pair can let profiled data outrank name similarity
+        ev = d.setdefault("evidence_row", {"Value_Signature": "", "Value_Pattern": "",
+                                           "Enum_Values": "", "PII_Category": "",
+                                           "Source_Column": "", "Source_Keys": {}})
+        for f in ("Value_Signature", "Value_Pattern", "PII_Category"):
+            if not ev[f] and r.get(f):
+                ev[f] = str(r[f]).strip()
+        if r.get("Enum_Values"):
+            have = set(x for x in ev["Enum_Values"].split(";") if x)
+            have |= {x.strip() for x in str(r["Enum_Values"]).split(";") if x.strip()}
+            ev["Enum_Values"] = ";".join(sorted(have))
+        if r.get("Source_Column"):
+            cols = [c.strip() for c in str(r["Source_Column"]).split(";") if c.strip()]
+            have = [c.strip() for c in ev["Source_Column"].split(";") if c.strip()]
+            ev["Source_Column"] = "; ".join(dict.fromkeys(have + cols))
+        for sc, k in (r.get("Source_Keys") or {}).items():
+            if isinstance(k, dict):
+                ev["Source_Keys"][sc] = k
     terms = [dict(v, tags=sorted(v["tags"])) for v in agg.values()]
     sugg = similarity.suggest_merges(terms, threshold=body.get("threshold", similarity.DEFAULT_THRESHOLD))
     return jsonify({"suggestions": sugg, "term_count": len(terms)})
+
+@app.post("/api/recommend-resolutions")
+def api_recommend_resolutions():
+    """Advise Merge / Disambiguate / Keep separate for every same-named duplicate
+    group in the review rows — the decision aid behind the cluster headers.
+    Escalation ladder, cheapest first:
+      1. cached scan evidence (FK links, profiled value sets, induced formats),
+      2. a LIVE data probe when a connection is supplied (sample distinct values
+         from each member column and compare the actual populations),
+      3. the AI adjudicator (Ollama) for groups still ambiguous, when ai=true.
+    Recommendations are hints only — nothing is auto-applied.
+    Body: {rows, conn?, ai?, model?, compute?}."""
+    body = request.get_json(force=True, silent=True) or {}
+    rows = body.get("rows") or []
+    groups = similarity.group_rows(rows)
+    probed = 0
+    probes_by_name = {}
+
+    # live probe: only for groups the cached evidence leaves ambiguous
+    cfg = body.get("conn") or {}
+    if cfg.get("host") or cfg.get("database"):
+        need = {}
+        for nm, members in groups.items():
+            base = similarity.recommend_resolution(members)
+            if base["band"] == "high":
+                continue
+            srcs = []
+            for m in members:
+                first = str(m.get("Source_Column") or "").split(";")[0].strip()
+                if first.count(".") >= 2:
+                    srcs.append(first)
+            if len(srcs) >= 2:
+                need[nm] = srcs
+        if need:
+            try:
+                flat = sorted({s for ss in need.values() for s in ss})
+                samples = suggester.sample_distinct_values(cfg, flat)
+                for nm, srcs in need.items():
+                    pr = []
+                    for i in range(len(srcs)):
+                        for j in range(i + 1, len(srcs)):
+                            v, why = similarity.compare_value_sets(
+                                samples.get(srcs[i]), samples.get(srcs[j]))
+                            if v:
+                                pr.append((v, why))
+                    if pr:
+                        probes_by_name[nm] = pr
+                        probed += 1
+            except Exception:
+                pass                      # probe is best-effort; evidence still applies
+
+    out = []
+    for nm, members in groups.items():
+        rec = similarity.recommend_resolution(members, probes=probes_by_name.get(nm))
+        rec.update(name=nm, count=len(members), source="evidence")
+        out.append(rec)
+
+    # AI adjudicator for whatever is STILL ambiguous
+    used_llm = False
+    if body.get("ai"):
+        fields = ("Term", "Category", "Definition", "Source_Column", "Value_Signature",
+                  "Value_Pattern", "Enum_Values", "PII_Category")
+        ambiguous = [{"name": r["name"],
+                      "members": [{f: m.get(f, "") for f in fields}
+                                  for m in groups[r["name"]]]}
+                     for r in out if r["band"] != "high" or not r["action"]]
+        if ambiguous:
+            verdicts, used_llm = llm.adjudicate_groups(
+                ambiguous, model=body.get("model"), compute=body.get("compute"))
+            for r in out:
+                v = verdicts.get(r["name"])
+                if v:
+                    r.update(action=v["action"], reason=v["reason"],
+                             band="review", source="ai")
+    out.sort(key=lambda x: (x["band"] != "high", -x["count"]))
+    return jsonify({"groups": out, "probed": probed, "used_llm": used_llm})
 
 @app.post("/api/retag")
 def api_retag():

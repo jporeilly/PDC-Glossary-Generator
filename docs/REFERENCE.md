@@ -327,6 +327,7 @@ nudge per run.
 | `POST /api/scan`            | harvest + suggest -> rows + stats                  |
 | `POST /api/enrich`          | LLM definition pass (fallback-safe)                |
 | `POST /api/ai-suggest`      | evidence-grounded AI term/tag/sensitivity pass     |
+| `POST /api/recommend-resolutions` | advise Merge / Disambiguate / Keep separate per duplicate group (evidence -> live value probe -> AI adjudicator) |
 | `POST /api/generate`        | build import-ready JSONL from the kept rows        |
 
 ---
