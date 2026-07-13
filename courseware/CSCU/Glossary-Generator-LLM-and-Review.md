@@ -54,6 +54,22 @@ then set the app's Ollama base URL to `http://<windows-host-ip>:11434`.
 Trade-offs: the app now depends on this host being up, and the text to be
 enriched crosses the network — fine on a lab LAN.
 
+### Multilingual models answer in English (and what to do if they didn't)
+
+Multilingual local models — qwen2.5 included — can drift into their home
+language mid-batch, which used to leave rows with Chinese definitions and an
+`LLM` chip. Two defences now stand (app 1.8.4+):
+
+- every prompt pins **English output**, and
+- a **language guardrail** discards any non-Latin proposal before it touches a
+  row — definitions, names, QA rewrites, rationales — so the existing English
+  text simply stays.
+
+If a grid already has non-English text from an earlier run: **↶ Revert
+enrich** if it was the last Enrich, otherwise just run **Enrich with LLM**
+again — the new run overwrites the drifted text with English (or reload your
+last **Save glossary** checkpoint).
+
 ---
 
 ## 2. The agent roster — what each AI button does

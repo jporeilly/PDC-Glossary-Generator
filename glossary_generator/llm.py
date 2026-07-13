@@ -32,7 +32,8 @@ WORKERS = _clampint(os.environ.get("LLM_WORKERS", "4"), 4, 1, 16)
 BATCH   = _clampint(os.environ.get("LLM_BATCH", "6"), 6, 1, 20)
 
 SYSTEM = ("You are a data-governance analyst writing entries for a business "
-          "glossary. Definitions are precise, business-facing, and one sentence.")
+          "glossary. Definitions are precise, business-facing, and one sentence. "
+          "Always write in English, whatever language the model was trained in.")
 
 def configure(ollama_url=None, model=None, timeout=None, company=None,
               workers=None, batch=None):
@@ -146,6 +147,20 @@ def _complete_json(prompt, model=None, num_gpu=None):
         return None
 
 
+_NON_LATIN = re.compile(r"[Ͱ-᳿　-鿿가-힯぀-ヿ豈-﫿]")
+
+def _mostly_english(text):
+    """Language guardrail: True when the text is essentially Latin-script.
+       Multilingual local models (qwen, deepseek, ...) sometimes drift into
+       their home language mid-batch; a proposal that fails this check is
+       DISCARDED so the existing English text stays."""
+    t = str(text or "")
+    if not t:
+        return True
+    hits = len(_NON_LATIN.findall(t))
+    return hits == 0 or hits / len(t) < 0.05
+
+
 def _clean_sentence(text, *prefixes):
     """Trim a model sentence: first line, strip quotes and a leading label."""
     if not text:
@@ -154,6 +169,8 @@ def _clean_sentence(text, *prefixes):
     for p in prefixes:
         if text.lower().startswith(p.lower()):
             text = text[len(p):].strip()
+    if not _mostly_english(text):
+        return None
     return text if 8 <= len(text) <= 300 else None
 
 def _clean_name(text, current):
@@ -167,7 +184,7 @@ def _clean_name(text, current):
         if t.lower().startswith(p.lower()):
             t = t[len(p):].strip()
     t = re.sub(r"\s+", " ", t).strip(" .")
-    if not t or len(t) > 60 or len(t.split()) > 8:
+    if not t or len(t) > 60 or len(t.split()) > 8 or not _mostly_english(t):
         return None
     cur = re.sub(r"\s+", " ", str(current or "")).strip()
     if t.lower() == cur.lower():                 # no change proposed
@@ -657,6 +674,8 @@ def suggest_terms_rows(rows, allow_tags=None, categories=None, only_low_confiden
             r["AI_Suggested"] = "Yes"
             r["LLM_Enriched"] = "Yes"
             why = str(out.get("rationale") or "").strip()
+            if not _mostly_english(why):
+                why = ""
             if why:
                 base = r.get("Suggested_Reason") or ""
                 if "AI(evidence)" not in base:
@@ -754,6 +773,8 @@ def adjudicate_groups(groups, model=None, compute=None, workers=None):
         if not action:
             continue
         why = str(res.get("rationale") or "").strip()[:200]
+        if not _mostly_english(why):
+            why = ""
         out[g["name"]] = {"action": action,
                           "reason": ("AI: " + why) if why else "AI adjudication"}
     return out, True
@@ -890,6 +911,8 @@ def qa_definitions_rows(rows, model=None, compute=None, workers=None):
             continue
         ok = res.get("ok")
         issue = str(res.get("issue") or "").strip()
+        if not _mostly_english(issue):
+            continue
         if ok is False and issue:
             cur = [x for x in str(r.get("QA_Issues") or "").split(";") if x.strip()]
             if issue not in cur:

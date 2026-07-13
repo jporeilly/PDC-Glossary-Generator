@@ -16,6 +16,13 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
 
 ## [1.8.4] — 2026-07-13
 
+### Fixed
+- **LLM language drift.** Multilingual models (qwen2.5 et al.) could answer in
+  Chinese mid-batch, overwriting English definitions. Every prompt now pins
+  English output AND a language guardrail discards any non-Latin proposal
+  (definitions, names, QA rewrites, rationales) before it touches a row —
+  re-running Enrich rewrites previously drifted text back to English.
+
 ### Added — the agent build-out (three new AI agents, all guardrailed)
 - **Policy drafter** (`policy_draft.py`, `POST /api/draft-policies`, "Draft
   policies (AI)" on the Govern page): the Policy Generator's first working
