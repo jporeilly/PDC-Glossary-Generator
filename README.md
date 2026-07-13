@@ -1,4 +1,4 @@
-# PDC Glossary Generator
+# Pentaho Data Catalog Glossary Generator
 
 **Version:** 1.8.4 · validated against Pentaho Data Catalog 11.0.0
 
