@@ -1000,9 +1000,18 @@ def merge_attributes(current, incoming):
                 f[k] = v
         out["features"] = f
 
+    # extended: object-merge (current then incoming overlay), so key facts land
+    # without clobbering unrelated extended attributes already on the entity
+    cur_e = cur.get("extended") if isinstance(cur.get("extended"), dict) else {}
+    inc_e = inc.get("extended") if isinstance(inc.get("extended"), dict) else {}
+    if cur_e or inc_e:
+        e = dict(cur_e)
+        e.update({k: v for k, v in inc_e.items() if v is not None})
+        out["extended"] = e
+
     # any other incoming attribute keys overwrite
     for k, v in inc.items():
-        if k in ("businessTerms", "features"):
+        if k in ("businessTerms", "features", "extended"):
             continue
         out[k] = v
     return out

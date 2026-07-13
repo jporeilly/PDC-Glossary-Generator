@@ -94,6 +94,12 @@ def build_registry(rows, glossary_name: str, glossary_id: str = None) -> dict:
         enum_vals = [v.strip() for v in (r.get('Enum_Values') or '').split(';') if v.strip()]
         if enum_vals:
             detect.append({"type": "dictionary", "values": enum_vals, "source": "profiled"})
+        # physical key facts per source column — relationship context for the
+        # Policy Generator (which columns are identity vs reference joins)
+        keys = {sc: {"pk": bool(k.get("pk")), "fk": bool(k.get("fk")),
+                     "ref": k.get("ref") or None}
+                for sc, k in (r.get('Source_Keys') or {}).items()
+                if isinstance(k, dict)}
         concepts.append({
             "concept": concept,
             "term_name": term,
@@ -104,6 +110,7 @@ def build_registry(rows, glossary_name: str, glossary_id: str = None) -> dict:
             "category": (r.get('Category') or None),
             "definition": (r.get('Definition') or ''),
             "detect": detect,
+            "keys": keys,
             "method": None,
         })
     return {"schema": "classification-registry/1", "glossary": glossary_name,

@@ -1146,6 +1146,16 @@ def suggest(tables, schema=None):
                          # per-column DQ score + the raw dimensions behind it
                          "Suggested_Quality": quality,
                          "Source_Quality_Dims": {src: qdims},
+                         # physical key facts (PK/FK + referenced column). PDC's
+                         # built-in Is Primary/Foreign Key is harvest-owned metadata
+                         # the public API cannot PATCH, so Apply lands these under
+                         # attributes.extended and the Registry records them for
+                         # the Policy Generator's relationship context.
+                         "Source_Keys": ({src: {"pk": bool(c["pk"]), "fk": bool(c["fk"]),
+                                                "ref": (f"{c['ref_table']}.{c['ref_col']}"
+                                                        if c.get("fk") and c.get("ref_table")
+                                                        else None)}}
+                                         if (c["pk"] or c["fk"]) else {}),
                          "Status": "Draft", "Confidence": conf, "Suggested_Reason": reason,
                          # scan evidence: the induced value format / reference list —
                          # carried through save + export so the Registry can hand the
@@ -1160,6 +1170,7 @@ def suggest(tables, schema=None):
             seen[key]["Source_Column"] += "; " + r["Source_Column"]
             # carry each merged column's own rating; representative = best of them
             seen[key].setdefault("Source_Ratings", {}).update(r.get("Source_Ratings", {}))
+            seen[key].setdefault("Source_Keys", {}).update(r.get("Source_Keys", {}))
             seen[key]["Suggested_Rating"] = max(seen[key].get("Suggested_Rating", 0),
                                                 r.get("Suggested_Rating", 0))
             # carry each merged column's own DQ dimensions
@@ -2183,6 +2194,7 @@ def data_element_links(rows, glossary_name="Business Glossary", quality_weights=
         ratings_map = r.get("Source_Ratings") or {}
         fallback = int(r.get("Suggested_Rating", 0) or 0)
         qdims_map = r.get("Source_Quality_Dims") or {}
+        keys_map = r.get("Source_Keys") or {}
         for sc in str(r.get("Source_Column", "")).split(";"):
             sc_key = sc.strip()
             de = _parse_source(sc_key)
@@ -2201,7 +2213,8 @@ def data_element_links(rows, glossary_name="Business Glossary", quality_weights=
             links.append({**de, "business_term": r["Term"], "glossary": glossary_name,
                           "category": r.get("Category", ""), "sensitivity": r.get("Sensitivity", ""),
                           "critical_data_element": r.get("Critical_Data_Element", "No"),
-                          "rating": rating, "quality": quality})
+                          "rating": rating, "quality": quality,
+                          "keys": keys_map.get(sc_key)})
     return links
 
 DE_COLS = ["schema_name", "table_name", "column_name", "entity_type", "business_term",
@@ -2255,6 +2268,17 @@ def links_to_api_json(links, glossary_name="Business Glossary", lineage_verified
         # so the link is born fully glossary-bound (id + glossaryId) with no PDC
         # round-trip. Resolve then only has to confirm, and Apply writes a real link
         # instead of attaching by name (which leaves the Glossary column as "—").
+        # PK/FK facts -> attributes.extended. The built-in Is Primary/Foreign Key
+        # property (metadata.column.*) is harvest-owned and rejected by the public
+        # PATCH schema; extended is the API's writable free-form block, so the
+        # scan's own key detection is recorded there.
+        kk = l.get("keys")
+        if isinstance(kk, dict) and (kk.get("pk") or kk.get("fk")):
+            ext = rec["attributes"].setdefault("extended", {})
+            ext["isPrimaryKey"] = bool(kk.get("pk"))
+            ext["isForeignKey"] = bool(kk.get("fk"))
+            if kk.get("ref"):
+                ext["references"] = kk["ref"]
         gname = l.get("glossary", glossary_name) or glossary_name
         rec["attributes"]["businessTerms"].append(
             {"name": l["business_term"], "glossary": gname,

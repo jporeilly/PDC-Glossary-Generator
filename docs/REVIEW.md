@@ -38,6 +38,14 @@ and is unchanged; v3 is now end-to-end safe.
 > job is documented for v1/v2). The app was built against the v2 endpoint; verify on
 > your instance.
 
+> **Key metadata note (1.8.2):** the built-in *Is Primary Key / Is Foreign Key*
+> column properties live under `metadata.column.*`, which is harvest-owned — the
+> entity PATCH request schema (v1–v3) accepts only the `attributes` block
+> (`additionalProperties: false`), so the public API cannot set them; only PDC's
+> Metadata Ingest can. The app therefore writes its own PK/FK detection to
+> `attributes.extended.{isPrimaryKey, isForeignKey, references}` at Apply time
+> and records the same facts in the Registry (`concepts[].keys`).
+
 ## 2. Scenario bundle — applied?
 
 **Not by default.** The engine ships generic. `suggester._load_domain_pack()` reads

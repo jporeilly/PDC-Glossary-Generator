@@ -14,6 +14,27 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.8.2] — 2026-07-13
+
+### Added
+- **PK/FK facts flow to PDC and the Registry.** The scan has always detected
+  primary/foreign keys (DDL parsing, Postgres `pg_catalog`, Oracle
+  `all_constraints`) for the schema diagram — now the facts are carried, not
+  dropped:
+  - Review rows record `Source_Keys` per physical column
+    (`{pk, fk, ref: "table.column"}`), surviving term merges and save/load.
+  - **Apply to PDC** PATCHes them onto each key column as
+    `attributes.extended.{isPrimaryKey, isForeignKey, references}`. Note:
+    PDC's built-in *Is Primary Key / Is Foreign Key* properties live under
+    `metadata.column.*`, which is harvest-owned — the public API's PATCH
+    schema (v1–v3, `additionalProperties: false`) rejects it, so those
+    built-ins can only be set by PDC's own Metadata Ingest. `extended` is
+    the API's writable free-form block and is where the app's detection
+    lands (visible on the entity, merge-safe with existing extended keys).
+  - **Registry concepts** gain a `keys` map (per source column), giving the
+    Policy Generator relationship context: which columns are identity vs
+    reference joins.
+
 ## [1.8.1] — 2026-07-13
 
 ### Changed
