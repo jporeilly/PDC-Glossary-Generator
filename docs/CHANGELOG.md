@@ -14,6 +14,23 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.8.5] — 2026-07-13
+
+### Improved — policy drafter coverage & transparency
+- **Canonical fallback seeds.** Shapes that can never be position-induced from
+  samples now draft anyway, double-gated on column name AND PII class: email
+  columns (`CONTACT_INFO`) get the classic email regex + `aaaa@aaaa.aaa`
+  content pattern; SSN columns (`GOVERNMENT_ID`) get `^\d{3}-\d{2}-\d{4}$`.
+  Marked "(canonical shape)" in the panel; profiled evidence still wins when
+  present.
+- **Precise skip reasons, visible.** "96 skipped — no seed" is now an
+  expandable list stating *why* per term: table-level term (no column),
+  document term (identify documents with vocabulary dictionaries), no stable
+  shape in the data (free text / names / amounts — expected), or **no profiled
+  evidence on the row** — the tell that a glossary predates 1.8.0 evidence
+  capture and needs a re-scan.
+- The draft summary explains that skipped terms are normal, not failures.
+
 ## [1.8.4] — 2026-07-13
 
 ### Fixed

@@ -120,6 +120,33 @@ def _dictionary_rule(name, category, col_rx, tags, term):
     return [rule]
 
 
+# Canonical seeds for the classic shapes that CANNOT be position-induced from
+# samples (every email is a different length) or that arrive masked. Keyed by
+# a (column-name regex, PII category) gate; kept deliberately short — the
+# scan's own induced evidence always wins when present.
+_CANONICAL_SEEDS = [
+    {"gate_name": re.compile(r"e[-_]?mail", re.I), "gate_pii": {"CONTACT_INFO"},
+     "signature": "aaaa@aaaa.aaa",
+     "regex": r"^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$",
+     "label": "canonical email shape"},
+    {"gate_name": re.compile(r"(^|_)ssn(_|$)|social_?security", re.I), "gate_pii": {"GOVERNMENT_ID"},
+     "signature": "nnn-nn-nnnn",
+     "regex": r"^\d{3}-\d{2}-\d{4}$",
+     "label": "canonical SSN shape"},
+]
+
+
+def _canonical_seed(r):
+    """A well-known fallback seed for a row with no profiled evidence, gated on
+    BOTH the column name and the PII classification so it never fires loosely."""
+    names = " ".join(_col_names(r))
+    pii = (r.get("PII_Category") or "").strip()
+    for c in _CANONICAL_SEEDS:
+        if c["gate_name"].search(names) and pii in c["gate_pii"]:
+            return c
+    return None
+
+
 def _valid_regex(rx):
     if not rx or not isinstance(rx, str):
         return False
@@ -152,13 +179,27 @@ def draft_from_rows(rows, glossary_name="Business Glossary", prefix=None,
         if not term or term in seen:
             continue
         seen.add(term)
-        if not str(r.get("Source_Column") or "").strip():
-            continue                                   # table-level record terms
+        src = str(r.get("Source_Column") or "").strip()
+        if not src:
+            skipped.append({"term": term, "why": "table-level term — no physical column to identify"})
+            continue
         vp = (r.get("Value_Pattern") or "").strip()
+        sig = (r.get("Value_Signature") or "").strip() or None
+        seed_kind = "profiled"
         enums = [v.strip() for v in str(r.get("Enum_Values") or "").split(";") if v.strip()]
         if not vp and len(enums) < 2:
-            skipped.append({"term": term, "why": "no detection seed (no induced format, fewer than 2 reference values)"})
-            continue
+            canon = _canonical_seed(r)
+            if canon:
+                vp, sig, seed_kind = canon["regex"], canon["signature"], "canonical"
+            elif not any(c.count(".") >= 2 for c in _cols_of(r)):
+                skipped.append({"term": term, "why": "document term — identify documents with vocabulary dictionaries, not value shapes"})
+                continue
+            elif not sig and not (r.get("Enum_Values") or "").strip():
+                skipped.append({"term": term, "why": "no profiled evidence on the row — re-scan the live source (evidence capture needs app 1.8.0+)"})
+                continue
+            else:
+                skipped.append({"term": term, "why": "no stable shape in the data (free text, names, amounts, dates)"})
+                continue
         h = hints.get(term) or {}
         col_rx = h.get("column_regex")
         if not (_valid_regex(col_rx)):
@@ -171,10 +212,10 @@ def draft_from_rows(rows, glossary_name="Business Glossary", prefix=None,
         name = f"{prefix} {term}"
         category = f"{_slug(prefix).upper()}_{_slug(r.get('Category') or 'General').title().replace('_', '')}"
         if vp:
-            sig = (r.get("Value_Signature") or "").strip() or None
             patterns.append({
                 "filename": f"{_slug(prefix)}_{_slug(term)}.json",
                 "term": term,
+                "seed": seed_kind,
                 "rule": _pattern_rule(name, category, col_rx, sig, vp, tags, term),
             })
         else:

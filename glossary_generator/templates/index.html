@@ -4039,9 +4039,10 @@ async function draftPolicies(){
     if(!np&&!nd){ M.textContent=`No detection seeds found \u2014 ${ns} term(s) skipped. Scan a live connection so profiling can induce value formats / reference lists first.`; return; }
     const zr=await fetch('/api/draft-policies',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(Object.assign({},body,{format:'zip'}))});
     const url=URL.createObjectURL(await zr.blob());
-    const list=[...(d.patterns||[]).map(x=>`<li><b>${esc(x.name)}</b> <span class="hint">pattern \u00b7 ${esc(x.filename)}</span></li>`),
+    const list=[...(d.patterns||[]).map(x=>`<li><b>${esc(x.name)}</b> <span class="hint">pattern${x.seed==='canonical'?" (canonical shape)":''} \u00b7 ${esc(x.filename)}</span></li>`),
                 ...(d.dictionaries||[]).map(x=>`<li><b>${esc(x.name)}</b> <span class="hint">dictionary \u00b7 ${esc(x.filename)} + ${esc(x.values)}</span></li>`)].join('');
-    M.innerHTML=`Drafted <b>${np}</b> pattern(s) + <b>${nd}</b> dictionar${nd===1?'y':'ies'}${ns?` (${ns} skipped \u2014 no seed)`:''}${d.used_llm?' \u00b7 AI-polished':''} \u2014 <a class="dl" href="${url}" download="drafted-policies.zip">download zip</a><ul style="margin:6px 0 0 18px;font-size:12px">${list}</ul><span class="hint">Import in PDC: Management \u2192 Data Identification \u2192 Patterns / Dictionaries \u2192 Import. Review each rule first \u2014 these are drafts.</span>`;
+    const skiplist=ns?`<details style="margin-top:6px"><summary style="cursor:pointer;font-size:12px;color:var(--mute)">${ns} term(s) skipped \u2014 why?</summary><ul style="margin:4px 0 0 18px;font-size:11.5px;color:var(--mute)">${(d.skipped||[]).map(x=>`<li><b>${esc(x.term)}</b> \u2014 ${esc(x.why)}</li>`).join('')}</ul></details>`:'';
+    M.innerHTML=`Drafted <b>${np}</b> pattern(s) + <b>${nd}</b> dictionar${nd===1?'y':'ies'}${d.used_llm?' \u00b7 AI-polished':''} \u2014 <a class="dl" href="${url}" download="drafted-policies.zip">download zip</a><ul style="margin:6px 0 0 18px;font-size:12px">${list}</ul>${skiplist}<span class="hint">Import in PDC: Management \u2192 Data Identification \u2192 Patterns / Dictionaries \u2192 Import. Review each rule first \u2014 these are drafts. Skipped terms are normal: free text, names and amounts have no stable shape \u2014 identify those with dictionaries or business rules.</span>`;
   }catch(e){ M.textContent='Draft failed: '+(e.message||e); }
   finally{ if(btn){ btn.disabled=false; btn.innerHTML='Draft policies (AI) &rarr;'; } }
 }

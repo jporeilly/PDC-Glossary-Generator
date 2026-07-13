@@ -1243,6 +1243,7 @@ def api_draft_policies():
                         headers={"Content-Disposition":
                                  "attachment; filename=drafted-policies.zip"})
     return jsonify({"patterns": [{"filename": p["filename"], "term": p["term"],
+                                  "seed": p.get("seed", "profiled"),
                                   "name": p["rule"][0]["name"]} for p in draft["patterns"]],
                     "dictionaries": [{"filename": d["filename"], "term": d["term"],
                                       "name": d["rule"][0]["name"],
