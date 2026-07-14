@@ -14,6 +14,31 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.8.12] — 2026-07-14
+
+### Govern — the roster now drives everything
+- **Function toggles on every roster row** (Steward / Owner / Custodian).
+  Your setting overrides the Keycloak-derived role and persists with Save
+  roster — so Owner is no longer locked to whoever carries the Keycloak
+  `data_steward` role (previously only catalog.admin).
+- **Defaults populate from the roster.** The defaults-row prefill picks
+  role-holders from the effective functions (jordan marked Owner → Owner
+  default = jordan; omar marked Custodian → Custodian default = omar). Saved
+  defaults still win over the prefill.
+- **Functions are exclusive capabilities.** Someone scoped to Custodian only
+  (omar) is never selectable — or auto-assigned, even via the expertise-only
+  fallback — as Steward or Owner. Every people dropdown (defaults row and all
+  per-category overrides) now offers only function-eligible people; unscoped
+  people remain available everywhere. Node-tested with the page's real
+  functions: pools, prefill, exclusion, unscoped fallback.
+- **Domain sets itself from company data.** New ⚡ auto button beside DOMAIN
+  (and Set-up-stewardship fills it when unsaved): the installed pack's domain
+  key + company name map deterministically (credit_union→Banking,
+  healthcare→Healthcare, manufacturing→Manufacturing, retail→E-commerce, …);
+  the local AI classifies unmapped businesses from the glossary content
+  (guardrail: must be in the PDC domain list). All four scenarios verified
+  deterministic; LLM fallback live-tested.
+
 ## [1.8.11] — 2026-07-14
 
 ### Fixed — Auto-assign routes by expertise again, without trampling defaults

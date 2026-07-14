@@ -1078,3 +1078,32 @@ def review_pending_terms(pending, governed, model=None, compute=None, workers=No
         out[item["name"]] = {"action": action, "target": target,
                              "reason": ("AI: " + why) if why else "AI review"}
     return out, True
+
+
+# ------------------------------------------------------------ AI domain pick
+def suggest_domain(company, categories, terms, domains, model=None, compute=None):
+    """Pick the ONE PDC business-domain classifier that best fits this company,
+       from the caller-supplied list. Guardrail: the answer must be in the list
+       (else None). Returns (domain|None, used_llm)."""
+    doms = [str(d) for d in (domains or []) if str(d).strip()]
+    if not doms or not status(model)["online"]:
+        return None, False
+    num_gpu = 0 if compute == "cpu" else (99 if compute == "gpu" else None)
+    prompt = (
+        "Classify the business domain of this organization for a data catalog.\n"
+        "Company: %s\n"
+        "Glossary categories: %s\n"
+        "Sample business terms: %s\n\n"
+        "Choose EXACTLY one domain from this list: %s\n"
+        "Return JSON with keys: domain."
+    ) % (
+        company or "(unknown)",
+        ", ".join((categories or [])[:12]) or "(none)",
+        ", ".join((terms or [])[:15]) or "(none)",
+        ", ".join(doms),
+    )
+    res = _complete_json(prompt, model=model, num_gpu=num_gpu)
+    if isinstance(res, dict):
+        by_lower = {d.lower(): d for d in doms}
+        return by_lower.get(str(res.get("domain") or "").strip().lower()), True
+    return None, True

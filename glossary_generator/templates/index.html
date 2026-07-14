@@ -391,6 +391,8 @@
   .sens-md,b.sens-md,.chip b.sens-md{color:#B9770E}
   .sens-lo,b.sens-lo,.chip b.sens-lo{color:#1C7293}
   .conf.default{background:#EAF7F5;color:#0A3D52;border:1px solid #bfe6e0}
+  .fnbtn{border:1px solid var(--line);background:var(--card);color:var(--mute);font-size:9.5px;font-weight:700;border-radius:8px;padding:0 6px;margin:2px 3px 0 0;cursor:pointer;text-transform:uppercase;letter-spacing:.02em}
+  .fnbtn.on{background:var(--dark);border-color:var(--dark);color:#fff}
   a.dlbig{display:inline-flex;align-items:center;gap:7px;background:var(--dark);color:#fff;font-weight:700;font-size:13.5px;padding:9px 16px;border-radius:8px;text-decoration:none;box-shadow:0 1px 3px rgba(10,61,82,.25)}
   a.dlbig:hover{filter:brightness(1.12)}
   .nextsteps{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12px;color:var(--ink);background:#FDF6E7;border:1px solid #EAD9A8;border-radius:8px;padding:7px 11px}
@@ -1179,7 +1181,7 @@
       <h3>Stewardship defaults</h3>
       <p class="note">Applied to every kept term (and category). Override the steward per category below.</p>
       <div class="grid" style="margin-top:10px">
-        <div class="fld" style="flex:0 0 200px"><label>Domain <span class="hint">PDC classifier</span></label><select id="g_domain"></select></div>
+        <div class="fld" style="flex:0 0 200px"><label>Domain <span class="hint">PDC classifier</span> <button class="ghost sm" style="padding:0 7px;font-size:10.5px" onclick="autoDomain(true)" title="Pick the domain classifier from the company data: the installed pack + company name (deterministic keyword map), the local AI as fallback. Saved with the defaults.">&#9889; auto</button></label><select id="g_domain"></select></div>
         <div class="fld"><label>Business steward</label><select id="g_steward"></select></div>
         <div class="fld"><label>Owner</label><select id="g_owner"></select></div>
         <div class="fld"><label>Custodian</label><select id="g_custodian"></select></div>
@@ -1197,7 +1199,7 @@
           <button class="primary sm" onclick="setupStewardship()" title="One click: generate any missing expertise (LLM), then auto-assign steward/owner/custodian across every category. Rating stays on Auto (DQ) and the reviewed date is already set. Won't touch slots you set by hand.">&#9889; Set up stewardship</button>
           <button class="ghost sm" onclick="autoAssign()" title="Match each person's role + expertise against each category and fill the steward, owner and custodian slots. Only fields you haven't changed by hand are touched.">Auto-assign all slots</button>
           <button class="ghost sm" onclick="clearAuto()" title="Clear the auto-filled picks and unlock everything (your manual edits are kept).">Clear auto</button>
-          <label class="cbx"><input id="auto_fallback" type="checkbox" checked/> expertise-only fallback when no role match</label>
+          <label class="cbx" title="When no roster member holds a slot's function, fall back to expertise matching across the roster — but only over people who are NOT scoped to other functions (someone marked only Custodian is never considered for Steward/Owner)."><input id="auto_fallback" type="checkbox" checked/> expertise-only fallback when no role match</label>
           <label class="cbx" title="Expertise routing competes against your defaults: a category override is written only when a candidate's expertise for that category STRICTLY BEATS the default person's own score — otherwise the slot stays on (use default). Untick to let role/expertise picks override defaults unconditionally."><input id="auto_respect" type="checkbox" checked/> respect defaults</label>
           <span class="grow note" id="autoMsg">Keyword match on role + expertise &mdash; deterministic and offline. Won&rsquo;t overwrite slots you set by hand.</span>
         </div>
@@ -4210,11 +4212,14 @@ let ROSTER_DIRTY=false;
 function markRosterDirty(){ ROSTER_DIRTY=true; updateRosterDirtyUI(); }
 function updateRosterDirtyUI(){ const el=$('rosterDirty'); if(el) el.innerHTML=ROSTER_DIRTY?'<span class="dirtydot" title="Unsaved roster changes — click Save roster"></span> <span class="hint" style="color:#C25E00">unsaved</span>':''; }
 function renderRoster(){
-  const fns=p=>{const r=rolesShort(p.roles); return r.length?`<div class="rrole">${r.map(x=>`<span>${esc(x)}</span>`).join('')}</div>`:'';};
+  const fns=(p,i)=>{
+    const f=personFns(p), m=[['businessSteward','Steward'],['owner','Owner'],['custodian','Custodian']];
+    return `<div class="rrole">${m.map(([k,l])=>`<button class="fnbtn${f[k]?' on':''}" onclick="toggleFn(${i},'${k}')" title="Toggle the ${l} function for this person — your setting overrides the Keycloak role and persists with Save roster. The Govern pools (defaults prefill, Auto-assign candidates) draw from these.">${l}</button>`).join('')}</div>`;
+  };
   const q=(($('rosterFilter')&&$('rosterFilter').value)||'').trim().toLowerCase();
   const match=p=>!q||[p.name,p.display_name,p.email,p.expertise].some(x=>String(x||'').toLowerCase().includes(q));
   const rows=PEOPLE.map((p,i)=>({p,i})).filter(({p})=>match(p));
-  $('rosterRows').innerHTML=PEOPLE.length?(rows.length?rows.map(({p,i})=>`<tr><td>${esc(p.name||'')}${fns(p)}</td><td>${esc(p.display_name||'')}</td><td>${esc(p.email||'')}</td><td><code>${esc(p.id||'(none)')}</code></td><td><input type="text" class="exp-inp" value="${esc(p.expertise||'')}" placeholder="add expertise…" oninput="setExpertise(${i},this.value)" style="width:100%;min-width:180px;font-size:12px;padding:4px 7px;border:1px solid var(--line);border-radius:6px"/></td><td><button class="danger sm" onclick="rmPerson(${i})">Remove</button></td></tr>`).join(''):`<tr><td colspan="6" class="msg">No matches for &ldquo;${esc(q)}&rdquo;.</td></tr>`):'<tr><td colspan="6" class="msg">No people yet.</td></tr>';
+  $('rosterRows').innerHTML=PEOPLE.length?(rows.length?rows.map(({p,i})=>`<tr><td>${esc(p.name||'')}${fns(p,i)}</td><td>${esc(p.display_name||'')}</td><td>${esc(p.email||'')}</td><td><code>${esc(p.id||'(none)')}</code></td><td><input type="text" class="exp-inp" value="${esc(p.expertise||'')}" placeholder="add expertise…" oninput="setExpertise(${i},this.value)" style="width:100%;min-width:180px;font-size:12px;padding:4px 7px;border:1px solid var(--line);border-radius:6px"/></td><td><button class="danger sm" onclick="rmPerson(${i})">Remove</button></td></tr>`).join(''):`<tr><td colspan="6" class="msg">No matches for &ldquo;${esc(q)}&rdquo;.</td></tr>`):'<tr><td colspan="6" class="msg">No people yet.</td></tr>';
 }
 function setExpertise(i,v){ if(PEOPLE[i]){ PEOPLE[i].expertise=v; markRosterDirty(); } }
 async function suggestExpertise(){
@@ -4261,20 +4266,50 @@ function roleFns(roles){
 // account (fewest governance functions) so a dedicated Business Steward is chosen
 // ahead of an all-roles admin; tie-break by name.
 function pickByFn(fn){
-  const c=PEOPLE.filter(p=>p.id&&roleFns(p.roles)[fn]);
+  const c=PEOPLE.filter(p=>p.id&&personFns(p)[fn]);
   if(!c.length) return null;
-  const gcount=p=>{const f=roleFns(p.roles);return (f.businessSteward?1:0)+(f.owner?1:0)+(f.custodian?1:0);};
+  const gcount=p=>{const f=personFns(p);return (f.businessSteward?1:0)+(f.owner?1:0)+(f.custodian?1:0);};
   return c.slice().sort((a,b)=>gcount(a)-gcount(b)||String(a.display_name||a.name).localeCompare(b.display_name||b.name))[0];
 }
 function rolesShort(roles){
   const m={businessSteward:'Business Steward',owner:'Owner',custodian:'Custodian'};
   const f=roleFns(roles); return Object.keys(m).filter(k=>f[k]).map(k=>m[k]);
 }
+// Effective governance functions for a person: the steward's explicit roster
+// toggles (p.fns, persisted in people.json) OVERRIDE the Keycloak-derived
+// roles — so anyone can be made an Owner/Custodian/Steward without touching
+// Keycloak (whose realm roles often mark only the admin account).
+function personFns(p){
+  const base=roleFns(p&&p.roles), o=(p&&p.fns)||{};
+  return {businessSteward:(o.businessSteward!=null?!!o.businessSteward:base.businessSteward),
+          owner:(o.owner!=null?!!o.owner:base.owner),
+          custodian:(o.custodian!=null?!!o.custodian:base.custodian)};
+}
+function toggleFn(i,key){
+  const p=PEOPLE[i]; if(!p) return;
+  p.fns=p.fns||{};
+  p.fns[key]=!personFns(p)[key];
+  markRosterDirty(); renderRoster(); fillGovSelects();
+}
 const PDC_DOMAINS=["Human Resources","Marketing","Sales","Finance","Logistics and supply chain Management","Technology","Construction","E-commerce","Engineering","Energy","Utilities","Sustainability","Renewable Energy","Healthcare","LifeSciences","Manufacturing","Semiconductor","Telecommunication","Automotive","Banking","Real estate","Gaming","Cybersecurity","Business","Fitness","Legal","Biology","Services","Transportation","Government sector","Online services"];
+function autoDomain(explicit){
+  const cats=[...new Set(ROWS.map(r=>(r.Category||'').trim()).filter(Boolean))];
+  const terms=ROWS.slice(0,60).map(r=>r.Term).filter(Boolean).slice(0,15);
+  return fetch('/api/suggest-domain',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({domains:PDC_DOMAINS,categories:cats,terms:terms,model:currentModel()||null,compute:COMPUTE})})
+    .then(r=>r.json()).then(d=>{
+      if(d.domain&&$('g_domain')){ $('g_domain').value=d.domain; saveGovDefaults(); }
+      if(explicit&&$('govDefMsg')) $('govDefMsg').textContent=d.domain?('\u2713 domain: '+d.domain+' \u2014 '+(d.reason||'')):(d.reason||'no suggestion');
+      return !!d.domain;
+    }).catch(e=>{ if(explicit&&$('govDefMsg')) $('govDefMsg').textContent='Domain suggestion failed: '+(e.message||e); return false; });
+}
 function fillGovSelects(){
   const dsel=$('g_domain'); if(dsel && !dsel.options.length){ dsel.innerHTML=PDC_DOMAINS.map(d=>`<option ${d==='Utilities'?'selected':''}>${esc(d)}</option>`).join(''); }
-  const b=PEOPLE.filter(p=>p.id); const opts='<option value="">(none)</option>'+b.map(p=>`<option value="${esc(p.id)}">${esc(p.display_name||p.name)}</option>`).join('');
-  ['g_steward','g_owner','g_custodian'].forEach(id=>{$(id).innerHTML=opts;});
+  const b=PEOPLE.filter(p=>p.id);
+  const optsFor=slot=>'<option value="">(none)</option>'+b.filter(p=>eligibleFor(p,slot)).map(p=>`<option value="${esc(p.id)}">${esc(p.display_name||p.name)}</option>`).join('');
+  $('g_steward').innerHTML=optsFor('businessSteward');
+  $('g_owner').innerHTML=optsFor('owner');
+  $('g_custodian').innerHTML=optsFor('custodian');
   if(b.length){
     // default each function to a role-matched account, else the first account
     const bs=pickByFn('businessSteward')||b[0], ow=pickByFn('owner')||b[0], cu=pickByFn('custodian')||b[0];
@@ -4378,8 +4413,11 @@ function buildCatTable(){
   const shOpts=b.map(p=>`<label><input type="checkbox" class="cc-sh" value="${esc(p.id)}" onchange="ccUpdate(this)"> ${esc(p.display_name||p.name)}</label>`).join('');
   $('g_catcards').innerHTML=cats.map(c=>{
     const pf=prefillFor(c);              // suggested steward for this category
-    const stewOpts=ccPeopleOpts(b,pf.id);
-    const defOpts=ccPeopleOpts(b,'');
+    // each slot's dropdown offers only roster-eligible people (function match,
+    // or unscoped) — the same dynamic rule the auto-assign pools follow
+    const stewOpts=ccPeopleOpts(b.filter(p=>eligibleFor(p,'businessSteward')),pf.id);
+    const ownOpts=ccPeopleOpts(b.filter(p=>eligibleFor(p,'owner')),'');
+    const cusOpts=ccPeopleOpts(b.filter(p=>eligibleFor(p,'custodian')),'');
     return `<div class="catcard" data-cat="${esc(c)}">
       <button type="button" class="catcard-h" onclick="toggleCatCard(this)">
         <span class="cc-name">${esc(c)}</span><span class="cc-sum"></span><span class="cc-car">&#9656;</span>
@@ -4387,8 +4425,8 @@ function buildCatTable(){
       <div class="catcard-b" style="display:none">
         <div class="grid">
           <div class="fld"><label>Business steward</label><select class="cc-field" data-f="businessSteward" onchange="ccUpdate(this)">${stewOpts}</select></div>
-          <div class="fld"><label>Owner</label><select class="cc-field" data-f="owner" onchange="ccUpdate(this)">${defOpts}</select></div>
-          <div class="fld"><label>Custodian</label><select class="cc-field" data-f="custodian" onchange="ccUpdate(this)">${defOpts}</select></div>
+          <div class="fld"><label>Owner</label><select class="cc-field" data-f="owner" onchange="ccUpdate(this)">${ownOpts}</select></div>
+          <div class="fld"><label>Custodian</label><select class="cc-field" data-f="custodian" onchange="ccUpdate(this)">${cusOpts}</select></div>
           <div class="fld" style="flex:0 0 150px"><label>Status</label><select class="cc-field" data-f="status" onchange="ccUpdate(this)">${statusOpts}</select></div>
           <div class="fld" style="flex:0 0 120px"><label>Rating</label><select class="cc-field" data-f="rating" onchange="ccUpdate(this)">${ratingOpts}</select></div>
           <div class="fld" style="flex:0 0 185px"><label>Reviewed date</label><input class="cc-field" data-f="reviewedAt" type="date" onchange="ccUpdate(this)"/></div>
@@ -4479,11 +4517,20 @@ function scorePC(pv,cv){
   return {score, matched, bHits:bHits.length};
 }
 function confOf(s){ return s>=6?'high':s>=3?'med':s>0?'low':'none'; }
-function candidatesFor(slot){ return PEOPLE.filter(p=>p.id&&roleFns(p.roles)[slot]); }
+function candidatesFor(slot){ return PEOPLE.filter(p=>p.id&&personFns(p)[slot]); }
 // choose the best person for one slot in one category
+// Dynamic roster rule: a person's functions are EXCLUSIVE capabilities when
+// present — someone marked (or role-derived) only as Custodian must never be
+// swept into Steward/Owner slots, even by the expertise-only fallback. People
+// with NO functions at all remain fair game for any slot in fallback mode.
+function eligibleFor(p,slot){
+  const f=personFns(p);
+  const scoped=f.businessSteward||f.owner||f.custodian;
+  return !scoped || f[slot];
+}
 function pickSlot(cat,cv,slot,fallbackOn){
   let pool=candidatesFor(slot), fallback=false;
-  if(!pool.length&&fallbackOn){ pool=PEOPLE.filter(p=>p.id); fallback=true; }
+  if(!pool.length&&fallbackOn){ pool=PEOPLE.filter(p=>p.id&&eligibleFor(p,slot)); fallback=true; }
   if(!pool.length) return {id:'',name:'',conf:'none',reason:'no '+slot+' candidate in roster',fallback:false};
   const scored=pool.map(p=>({p,...scorePC(personVocab(p),cv)}));
   scored.sort((a,b)=> b.score-a.score
@@ -4534,6 +4581,8 @@ async function setupStewardship(){
   if(!PEOPLE.filter(p=>p.id).length){ $('autoMsg').textContent='Add at least one account with a UUID first.'; return; }
   const blanks=PEOPLE.filter(p=>p.id&&!(p.expertise||'').trim()).length;
   if(blanks){ $('autoMsg').textContent='Generating expertise for '+blanks+' people…'; await suggestExpertise(); }
+  // classify the DOMAIN from the company's own data unless the steward saved one
+  if(!(SETTINGS.gov_defaults&&SETTINGS.gov_defaults.domain)) await autoDomain(false);
   autoAssign();
 }
 function autoAssign(){

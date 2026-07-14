@@ -1351,6 +1351,48 @@ def api_tagdict_review():
     out = tagdict.summary(); out["changed"] = changed
     return jsonify(out)
 
+# pack-domain / company-name keywords -> PDC business-domain classifier
+_DOMAIN_MAP = [
+    (r"credit.?union|\bbank", "Banking"),
+    (r"health|clinic|hospital|medical|patient", "Healthcare"),
+    (r"manufactur|precision|component|factory", "Manufacturing"),
+    (r"retail|outfitter|merchandis|\bshop|e.?commerce", "E-commerce"),
+    (r"utilit|water|electric|\bgas\b", "Utilities"),
+    (r"energy|oil|solar|wind", "Energy"),
+    (r"insur|financ|invest|capital", "Finance"),
+    (r"telecom", "Telecommunication"),
+    (r"logistic|supply.?chain|freight", "Logistics and supply chain Management"),
+    (r"government|municipal|county|federal", "Government sector"),
+    (r"legal|law\b", "Legal"),
+    (r"transport|transit|rail|airline", "Transportation"),
+    (r"real.?estate|property", "Real estate"),
+    (r"software|saas|technolog", "Technology"),
+]
+
+@app.post("/api/suggest-domain")
+def api_suggest_domain():
+    """Pick the PDC business-domain classifier from the company's OWN data: the
+    installed pack's domain key + the company name first (deterministic keyword
+    map), the local AI as fallback for unmapped businesses (guardrail: the
+    answer must be in the supplied list). Advice for the Govern page's DOMAIN
+    default. Body: {domains, categories?, terms?, model?, compute?}."""
+    import re as _re
+    body = request.get_json(force=True, silent=True) or {}
+    domains = [str(d) for d in (body.get("domains") or []) if str(d).strip()]
+    company = llm.COMPANY if llm.COMPANY != "your organization" else ""
+    pack_domain = str(tagdict.load().get("domain") or "")
+    hay = (pack_domain + " " + company).lower()
+    if hay.strip() and domains:
+        for rx, dom in _DOMAIN_MAP:
+            if _re.search(rx, hay) and dom in domains:
+                return jsonify({"domain": dom, "used_llm": False,
+                                "reason": f"matched the installed pack/company ({pack_domain or company})"})
+    dom, used = llm.suggest_domain(company, body.get("categories"), body.get("terms"),
+                                   domains, model=body.get("model"), compute=body.get("compute"))
+    return jsonify({"domain": dom, "used_llm": used,
+                    "reason": ("AI classification from company + glossary content" if dom else
+                               "no match — pick manually (Ollama offline and no keyword hit)")})
+
 @app.post("/api/tagdict/ai-review")
 def api_tagdict_ai_review():
     """Advise on the pending scan-found terms: a deterministic near-duplicate
