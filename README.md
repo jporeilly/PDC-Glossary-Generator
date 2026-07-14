@@ -120,6 +120,18 @@ install/reset-scenario scripts moved to the PDC-Scenarios repo)
 **Requirements:** Python 3.9+ (or Docker). Everything runs locally; PDC and
 Ollama are reached over the network only when you use those features.
 
+### Lab VM (one command)
+
+On the Ubuntu lab VM, one script stands up / refreshes the whole `~/PDC-Demo`
+checkout **and** the selected vertical (sparse-pulled from PDC-Scenarios):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/jporeilly/PDC-Glossary-Generator/main/install-into-pdc-demo.sh | bash -s -- CSCU
+```
+
+Re-run it bare to update everything (it remembers the vertical); the Policy
+Generator's own `install-into-pdc-demo.sh` adds the second app the same way.
+
 ### 1. Pick a scenario (PDC-Scenarios repo)
 
 ```bash
