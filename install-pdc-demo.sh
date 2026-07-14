@@ -9,13 +9,13 @@
 #   - detects the already-selected vertical from the sparse state, so a
 #     bare re-run refreshes everything
 #
-#   ./install-into-pdc-demo.sh                     # uses ~/PDC-Demo
-#   ./install-into-pdc-demo.sh CSCU                # select/switch vertical
-#   ./install-into-pdc-demo.sh /path/to/PDC-Demo RETAIL
-#   PDC_DEMO_DIR=/srv/PDC-Demo ./install-into-pdc-demo.sh
+#   ./install-pdc-demo.sh                     # uses ~/PDC-Demo
+#   ./install-pdc-demo.sh CSCU                # select/switch vertical
+#   ./install-pdc-demo.sh /path/to/PDC-Demo RETAIL
+#   PDC_DEMO_DIR=/srv/PDC-Demo ./install-pdc-demo.sh
 #
 # One-liner on a fresh VM (no checkout needed):
-#   curl -fsSL https://raw.githubusercontent.com/jporeilly/PDC-Glossary-Generator/main/install-into-pdc-demo.sh | bash -s -- CSCU
+#   curl -fsSL https://raw.githubusercontent.com/jporeilly/PDC-Glossary-Generator/main/install-pdc-demo.sh | bash -s -- CSCU
 #
 # The Policy Generator has the same script in its repo — run either; both
 # keep the shared PDC-Scenarios checkout fresh.
@@ -112,4 +112,4 @@ if [ -n "$VERTICAL" ] && [ -d "$SCEN_DIR" ]; then
 else
   printf "  ${TEAL}select a vertical first:  $0 CSCU${RS}\n"
 fi
-printf "  ${DIM}Policy Generator: its install-into-pdc-demo.sh installs the second app the same way.${RS}\n\n"
+printf "  ${DIM}Policy Generator: its install-pdc-demo.sh installs the second app the same way.${RS}\n\n"

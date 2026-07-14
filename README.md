@@ -126,11 +126,11 @@ On the Ubuntu lab VM, one script stands up / refreshes the whole `~/PDC-Demo`
 checkout **and** the selected vertical (sparse-pulled from PDC-Scenarios):
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/jporeilly/PDC-Glossary-Generator/main/install-into-pdc-demo.sh | bash -s -- CSCU
+curl -fsSL https://raw.githubusercontent.com/jporeilly/PDC-Glossary-Generator/main/install-pdc-demo.sh | bash -s -- CSCU
 ```
 
 Re-run it bare to update everything (it remembers the vertical); the Policy
-Generator's own `install-into-pdc-demo.sh` adds the second app the same way.
+Generator's own `install-pdc-demo.sh` adds the second app the same way.
 
 ### 1. Pick a scenario (PDC-Scenarios repo)
 
