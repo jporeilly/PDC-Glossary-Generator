@@ -42,6 +42,8 @@ and a **Classification Registry** written at export time
 
 ![Two apps, one handoff — Glossary Generator writes the Registry, Policy Generator reads it](glossary_generator/diagrams/two-apps.png)
 
+![The Term & Tag dictionary — the governed vocabulary, search-facet preview and governance audit trail](image/README/dictionary-page.png)
+
 The Registry is the **contract between two separate apps**, used in order —
 mirroring PDC's own split between the Business Glossary and Data
 Identification:
@@ -74,7 +76,7 @@ workshop figures are in [diagrams/](glossary_generator/diagrams/).
   Oracle), MinIO/S3 document stores, or a plain DDL file. Or skip direct access
   entirely and **harvest from what PDC has already cataloged**.
 
-    ![1783944990502](image/README/1783944990502.png)
+    ![The Connections page — bulk loader, harvest from PDC, live scan, data discovery and column profiling](image/README/connect-page.png)
 
 - **Review** — one suggested term per business-meaningful column, with inferred
   sensitivity, PII category, CDE flag, governed lower-case tags, and an
@@ -85,13 +87,13 @@ workshop figures are in [diagrams/](glossary_generator/diagrams/).
   Disambiguate / Keep separate recommendation** (escalating to a live
   data-value probe and an AI adjudicator on demand).
 
-    ![1783945275542](image/README/1783945275542.png)
+    ![The review grid — AI agent toolbar, duplicate groups with Merge / Disambiguate / Keep separate recommendations](image/README/review-grid.png)
 
 - **Govern** — steward/owner/custodian assignment (manual or keyword
   auto-assign from a Keycloak-fetched roster), ratings, review dates, and a
   steward approval gate over the vocabulary, with a full audit trail.
 
-    ![1783946028446](image/README/1783946028446.png)
+    ![The Govern page — Keycloak roster, stewardship defaults and per-category overrides, generate & apply](image/README/govern-page.png)
 
 - **Generate & apply** — export the kept terms as PDC-importable JSONL, then
   resolve term ids and **apply term links, tags and sensitivity back onto PDC
