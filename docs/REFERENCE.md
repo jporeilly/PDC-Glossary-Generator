@@ -13,7 +13,7 @@
 > domain packs; and non-destructive **Enrich** with **↶ Revert enrich**. Since 1.7.0
 > the workshop scenario is **Copper State Credit Union** (financial services) — see
 > `CHANGELOG.md` and the CSCU workshop in the PDC-Scenarios repo
-> (`courseware/CSCU/Workshop-Glossary-Generator-CSCU.md`).
+> (`courseware/CSCU/Glossary/Workshop-Glossary-Generator-CSCU.md`).
 >
 > **Integrations:** a consolidated read-only `GET /api/governance-summary` exposes
 > vocabulary health (governed vs pending, the tag facet, empty + fragmenting tags),
