@@ -14,6 +14,18 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.8.8] — 2026-07-13
+
+### UX
+- **Progress bars for every agent pass.** AI QA definitions, AI categorize and
+  AI suggest (evidence) now drive the same progress bar as Enrich — percentage,
+  N/total, and a working **Cancel** that finishes the current batch and keeps
+  what's already applied. AI categorize is now chunked (6 rows per call) so its
+  progress is real; the whole glossary's category list travels with every chunk
+  so each slice picks from the same known set.
+- **Sensitivity counts are color-coded** wherever the HIGH/MED/LOW rollup
+  appears (summary chip, scan/build checks): HIGH red, MED orange, LOW blue.
+
 ## [1.8.7] — 2026-07-13
 
 ### PDC 11 / API v3 — full audit, two fixes, a committed shape test

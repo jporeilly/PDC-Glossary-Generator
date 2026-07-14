@@ -387,6 +387,7 @@
   .chkterms{display:flex;flex-wrap:wrap;gap:5px;margin-top:5px}
   .chkterm{border:1px solid currentColor;background:transparent;color:inherit;font-size:11px;font-weight:600;border-radius:9px;padding:1px 8px;cursor:pointer;opacity:.9}
   .chkterm:hover{opacity:1;text-decoration:underline}
+  .sens-hi{color:#C0392B} .sens-md{color:#B9770E} .sens-lo{color:#1C7293}
   a.dlbig{display:inline-flex;align-items:center;gap:7px;background:var(--dark);color:#fff;font-weight:700;font-size:13.5px;padding:9px 16px;border-radius:8px;text-decoration:none;box-shadow:0 1px 3px rgba(10,61,82,.25)}
   a.dlbig:hover{filter:brightness(1.12)}
   .nextsteps{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12px;color:var(--ink);background:#FDF6E7;border:1px solid #EAD9A8;border-radius:8px;padding:7px 11px}
@@ -1387,7 +1388,15 @@ const esc = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;')
 function renderCheck(c){
   if(!c) return '';
   const icon = c.tone==='bad'?'\u2715':(c.tone==='warn'?'\u26a0':'\u2713');
-  const kf = (c.rows||[]).map(r=>`<span class="kf"><b>${esc(r.label)}:</b> ${esc(r.value)}</span>`).join('');
+  const kf = (c.rows||[]).map(r=>{
+    let v=esc(r.value);
+    if(/sensitivity/i.test(r.label)){
+      v=v.replace(/HIGH (\d+)/,'HIGH <b class="sens-hi">$1</b>')
+         .replace(/MED (\d+)/,'MED <b class="sens-md">$1</b>')
+         .replace(/LOW (\d+)/,'LOW <b class="sens-lo">$1</b>');
+    }
+    return `<span class="kf"><b>${esc(r.label)}:</b> ${v}</span>`;
+  }).join('');
   const iss = (c.issues||[]).map(i=>{
     // each flagged term is a chip — click to jump to the grid filtered to it
     const chips=(i.terms||[]).map(t=>`<button class="chkterm" onclick="chkJump(decodeURIComponent('${encodeURIComponent(t.q||t.label||'')}'))" title="Open in the review grid">${esc(t.label||t.q||'')}</button>`).join('');
@@ -2652,7 +2661,7 @@ function renderSummary(s, scanned){
     `<span class="chip">Categories <b>${s.categories}</b></span>`,
     `<span class="chip click ${$('fpii').checked?'active':''}" onclick="$('fpii').checked=!$('fpii').checked;applyFilter()">PII <b>${s.pii}</b></span>`,
     `<span class="chip">Confidence H<b>${c.High||0}</b> M<b>${c.Medium||0}</b> L<b>${c.Low||0}</b></span>`,
-    `<span class="chip">Sensitivity HIGH<b>${sv.HIGH||0}</b> MED<b>${sv.MEDIUM||0}</b> LOW<b>${sv.LOW||0}</b></span>`,
+    `<span class="chip">Sensitivity HIGH<b class="sens-hi">${sv.HIGH||0}</b> MED<b class="sens-md">${sv.MEDIUM||0}</b> LOW<b class="sens-lo">${sv.LOW||0}</b></span>`,
     s.enriched?`<span class="chip">LLM-enriched <b>${s.enriched}</b></span>`:''
   ].join('');
 }
@@ -3795,6 +3804,25 @@ function renderCompare(profiles){
 /* ---------- enrich + enhance + generate ---------- */
 let ENRICH_CANCEL=false;
 function cancelEnrich(){ ENRICH_CANCEL=true; $('epCancel').disabled=true; $('epLbl').textContent='Finishing current batch…'; }
+
+/* ---- shared AI progress bar: QA / categorize / AI suggest reuse the enrich bar ---- */
+let AI_CANCEL=false;
+function aiProgStart(label,total){
+  AI_CANCEL=false;
+  const c=$('epCancel');
+  if(c){ c.disabled=false; c.onclick=()=>{ AI_CANCEL=true; c.disabled=true; $('epLbl').textContent='Finishing current batch…'; }; }
+  $('enrichProg').style.display='flex';
+  aiProgUpdate(0,total,label);
+}
+function aiProgUpdate(done,total,label){
+  const pct=Math.round(100*done/Math.max(total,1));
+  $('epFill').style.width=pct+'%';
+  if(!AI_CANCEL) $('epLbl').textContent=`${label} — ${done}/${total} (${pct}%)`;
+}
+function aiProgEnd(){
+  $('enrichProg').style.display='none';
+  const c=$('epCancel'); if(c){ c.onclick=cancelEnrich; c.disabled=false; }
+}
 function epUpdate(done,total,dd,pp){
   const v=total?Math.round(done/total*100):0;
   $('epFill').style.width=v+'%';
@@ -3803,9 +3831,10 @@ function epUpdate(done,total,dd,pp){
 /* ---- AI QA definitions: linter + agent flags, steward applies ---- */
 async function qaDefs(){
   const total=ROWS.length; if(!total) return;
-  const btn=$('qaBtn'); btn.disabled=true; $('msg').textContent='QA-checking definitions\u2026';
+  const btn=$('qaBtn'); btn.disabled=true; $('msg').textContent='';
+  aiProgStart('QA-checking definitions',total);
   const CHUNK=6; let offline=false, failed=0;
-  for(let s2=0; s2<total; s2+=CHUNK){
+  for(let s2=0; s2<total && !AI_CANCEL; s2+=CHUNK){
     const idx=[]; for(let i=s2;i<Math.min(s2+CHUNK,total);i++) idx.push(i);
     try{
       const d=await (await fetch('/api/qa-definitions',{method:'POST',headers:{'Content-Type':'application/json'},
@@ -3819,10 +3848,11 @@ async function qaDefs(){
           if(nr.Keep==null&&old2.Keep!=null) nr.Keep=old2.Keep;
           ROWS[i]=nr; });
       }
-      $('msg').textContent=`QA-checking definitions\u2026 ${Math.min(s2+CHUNK,total)}/${total}`;
+      aiProgUpdate(Math.min(s2+CHUNK,total),total,'QA-checking definitions');
     }catch(e){ failed+=idx.length; }
   }
-  btn.disabled=false; renderQA(offline, failed); applyFilter();
+  aiProgEnd(); btn.disabled=false; renderQA(offline, failed); applyFilter();
+  if(AI_CANCEL && $('msg')) $('msg').textContent+=' (stopped early — rows already checked keep their flags)';
 }
 function renderQA(offline, failed){
   const flagged=[]; ROWS.forEach((r,i)=>{ if(r&&r.QA_Issues) flagged.push(i); });
@@ -3854,31 +3884,42 @@ function qaDismiss(i){ const r=ROWS[i]; if(!r)return; delete r.QA_Suggestion; de
 
 /* ---- AI categorize: file uncategorized terms into known categories ---- */
 async function aiCategorize(){
-  if(!ROWS.length) return;
-  const btn=$('catBtn'); btn.disabled=true; $('msg').textContent='AI categorizing\u2026';
-  try{
-    const d=await (await fetch('/api/ai-categorize',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({rows:ROWS,only_blank:true,model:currentModel()||null,compute:COMPUTE})})).json();
-    if(d.error){ $('msg').textContent='Categorize failed: '+d.error; }
-    else if(d.llm && d.llm.online===false){ $('msg').textContent='Ollama offline \u2014 categorization needs the local model.'; }
-    else{
-      (d.rows||[]).forEach((nr,i)=>{ const old2=ROWS[i]||{};
-        ['_grp','_rid','_res'].forEach(f=>{ if(nr[f]==null&&old2[f]!=null) nr[f]=old2[f]; });
-        if(nr.Keep==null&&old2.Keep!=null) nr.Keep=old2.Keep;
-        ROWS[i]=nr; });
-      buildCategoryFilter(); applyFilter();
-      $('msg').textContent=d.updated?`AI filed ${d.updated} term(s) into categories.`:'No uncategorized terms to file (all rows already have categories).';
-    }
-  }catch(e){ $('msg').textContent='Categorize failed: '+(e.message||e); }
-  finally{ btn.disabled=false; }
+  const total=ROWS.length; if(!total) return;
+  const btn=$('catBtn'); btn.disabled=true; $('msg').textContent='';
+  aiProgStart('AI categorizing',total);
+  const CHUNK=6; let updated=0, offline=false, failed=0;
+  // whole-glossary category list travels with every chunk so each slice chooses
+  // from the SAME known set, not just its own categories
+  const cats=[...new Set(ROWS.map(r=>(r.Category||'').trim()).filter(Boolean))];
+  for(let s2=0; s2<total && !AI_CANCEL; s2+=CHUNK){
+    const idx=[]; for(let i=s2;i<Math.min(s2+CHUNK,total);i++) idx.push(i);
+    try{
+      const d=await (await fetch('/api/ai-categorize',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({rows:idx.map(i=>ROWS[i]),categories:cats,only_blank:true,model:currentModel()||null,compute:COMPUTE})})).json();
+      if(d.error){ failed+=idx.length; }
+      else if(d.llm && d.llm.online===false){ offline=true; break; }
+      else{
+        (d.rows||[]).forEach((nr,j2)=>{ const i=idx[j2]; if(i==null)return; const old2=ROWS[i]||{};
+          ['_grp','_rid','_res'].forEach(f=>{ if(nr[f]==null&&old2[f]!=null) nr[f]=old2[f]; });
+          if(nr.Keep==null&&old2.Keep!=null) nr.Keep=old2.Keep;
+          ROWS[i]=nr; });
+        updated+=d.updated||0;
+      }
+      aiProgUpdate(Math.min(s2+CHUNK,total),total,'AI categorizing');
+    }catch(e){ failed+=idx.length; }
+  }
+  aiProgEnd(); btn.disabled=false; buildCategoryFilter(); applyFilter();
+  $('msg').textContent = offline ? 'Ollama offline — categorization needs the local model.'
+    : `AI filed ${updated} term(s) into categories`+(AI_CANCEL?' (stopped early)':'')+(failed?` · ${failed} row(s) failed`:'')+(updated?'.':' — all rows already have categories.');
 }
 
 async function aiSuggest(){
   const total=ROWS.length; if(!total) return;
   const idx=ROWS.map((_,i)=>i);
-  $('aiSuggestBtn').disabled=true; $('msg').textContent='AI suggesting from scan evidence\u2026';
+  $('aiSuggestBtn').disabled=true; $('msg').textContent='';
+  aiProgStart('AI suggesting from scan evidence',total);
   const CHUNK=6; let done=0, cn={names:0,tags:0,sensitivity:0,category:0}, offline=false, failed=0;
-  for(let s2=0; s2<idx.length; s2+=CHUNK){
+  for(let s2=0; s2<idx.length && !AI_CANCEL; s2+=CHUNK){
     const slice=idx.slice(s2,s2+CHUNK);
     const payload=slice.map(i=>ROWS[i]);
     try{
@@ -3897,11 +3938,12 @@ async function aiSuggest(){
       }
     }catch(e){ failed+=slice.length; }
     done+=slice.length;
-    $('msg').textContent=`AI suggesting from scan evidence\u2026 ${done}/${total}`;
+    aiProgUpdate(done,total,'AI suggesting from scan evidence');
     applyFilter(); renderSummary(computeStats(ROWS));
     await new Promise(r=>requestAnimationFrame(r));
   }
-  $('aiSuggestBtn').disabled=false;
+  aiProgEnd(); $('aiSuggestBtn').disabled=false;
+  if(AI_CANCEL && !offline){ const any0=cn.names+cn.tags+cn.sensitivity+cn.category; $('msg').textContent=`Stopped early — ${any0} change(s) applied so far.`; return; }
   if(offline){ $('msg').textContent='LLM offline \u2014 start Ollama and pull a model, then try again.'; return; }
   const any=cn.names+cn.tags+cn.sensitivity+cn.category;
   $('msg').textContent=any?`AI(evidence): suggested ${cn.names} name${cn.names!==1?'s':''} (\u2192 chips), added governed tags on ${cn.tags} row${cn.tags!==1?'s':''}, tightened sensitivity on ${cn.sensitivity}, moved ${cn.category} categor${cn.category!==1?'ies':'y'}${failed?` (${failed} skipped)`:''}.`:'AI made no changes \u2014 the scan evidence already agrees with the suggestions.';

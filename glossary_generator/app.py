@@ -1283,7 +1283,11 @@ def api_ai_categorize():
     off-list is discarded. Body: {rows, only_blank?, model?, compute?}."""
     body = request.get_json(force=True, silent=True) or {}
     rows = [r for r in (body.get("rows") or []) if isinstance(r, dict)]
-    cats = sorted({(r.get("Category") or "").strip() for r in rows} - {""})
+    # the UI sends the WHOLE glossary's category list (it may post rows in
+    # chunks for progress; a slice's own categories would be too narrow)
+    cats = [str(c).strip() for c in (body.get("categories") or []) if str(c).strip()]
+    if not cats:
+        cats = sorted({(r.get("Category") or "").strip() for r in rows} - {""})
     for c in tagdict.category_tags().keys():
         if c not in cats:
             cats.append(c)
