@@ -3543,7 +3543,8 @@ async function resolveTermIds(){
     if(d.error){ $('resolveMsg').textContent='Resolve failed: '+d.error; $('resolveBtn').disabled=false; return; }
     LAST_DE_JSON=d.json;
     const url=URL.createObjectURL(new Blob([JSON.stringify(d.json,null,2)],{type:'application/json'}));
-    let m=`Fully linked <b>${d.linked}</b> of ${d.links} term links (id + glossaryId) \u00b7 <b>${d.matched_with_glossary}</b> of ${d.terms} terms had a glossaryId from PDC — <a class="dl" href="${url}" download="Data-Elements-API-resolved.json">download POST-ready JSON</a>`;
+    const allLinked=d.linked===d.links;
+    let m=`${allLinked?'<b style="color:#1C7C54">\u2713 All '+d.linked+' term links are bound (id + glossaryId) — ready to Apply.</b>':'Fully linked <b>'+d.linked+'</b> of '+d.links+' term links (id + glossaryId).'} \u00b7 <b>${d.matched_with_glossary}</b> of ${d.terms} terms confirmed by PDC by name — <a class="dl" href="${url}" download="Data-Elements-API-resolved.json">download POST-ready JSON</a>`;
     if(d.linked && d.glossary_id && d.matched_with_glossary < d.matched){
       m+=`<div class="msg" style="color:#1C7C54;margin-top:4px">PDC's API doesn't return a term's glossaryId, so it was filled deterministically from the glossary you imported (<code>${esc(d.glossary_id)}</code>). These links are ready to Apply.</div>`;
     }
@@ -3558,6 +3559,13 @@ async function resolveTermIds(){
       m+=`<details class="nfwrap" open><summary>${d.unresolved.length} term(s) not found in PDC by name — renamed locally after import? <button class="ghost sm" style="margin-left:8px" onclick="resolveFuzzy()" id="fuzzyBtn" title="Match each outstanding name against the terms that actually exist in PDC — name similarity first, then the local AI judging with the term's definition. Proposals only; you bind each match.">AI match in PDC</button></summary>`
        + `<div class="nflist">${chips}</div><div id="fuzzyList"></div></details>`;
     } else { RESOLVE_UNRESOLVED=[]; }
+    const unconf=(d.unconfirmed||[]).filter(n=>!(d.unresolved||[]).includes(n));
+    if(unconf.length){
+      RESOLVE_UNRESOLVED=RESOLVE_UNRESOLVED.concat(unconf);
+      const chips=unconf.map(n=>`<span>${esc(n)}</span>`).join('');
+      m+=`<details class="nfwrap" open><summary style="color:#C25E00">\u26a0 ${unconf.length} term(s) could not be CONFIRMED in PDC by name — their links fall back to the deterministic import ids, which only exist if the term kept its name since import (renamed terms would Apply a dead id) <button class="ghost sm" style="margin-left:8px" onclick="resolveFuzzy()" id="fuzzyBtn" title="Match each unconfirmed name against the terms that actually exist in PDC — name similarity first, then the local AI judging with the term's definition. Binding replaces the deterministic id with PDC's real one.">AI match in PDC</button></summary>`
+       + `<div class="nflist">${chips}</div><div id="fuzzyList"></div></details>`;
+    }
     if(d.probe&&d.probe.length){
       const anyHit=d.probe.some(p=>(p.search_hits>0)||(p.filter_hits>0));
       const anyGid=d.probe.some(p=>p.search_has_glossaryId);
@@ -3573,7 +3581,7 @@ async function resolveTermIds(){
         : (anyGid
           ? 'PDC has these terms WITH a glossaryId, so they should link. If Apply still skips them, send me this probe — the field the glossaryId lands in may differ.'
           : 'PDC found these terms but exposes NO glossaryId on them (only an id). The term may be imported as a stand-alone/Unassigned term (no parent glossary). Re-import the JSONL so each term sits under the business glossary, or send me this probe and a sample term\u2019s API JSON so the matcher can read its glossary from another field.');
-      m+=`<details class="nfwrap" open><summary>PDC probe — term shape in PDC</summary><div class="probe">${rows}<div class="verdict">${verdict}</div></div></details>`;
+      m+=`<details class="nfwrap"><summary>PDC probe — confirmation diagnostics for the first ${d.probe.length} unconfirmed name(s)</summary><div class="probe">${rows}<div class="verdict">${verdict}</div></div></details>`;
     }
     $('resolveMsg').innerHTML=m;
   }catch(e){ $('resolveMsg').textContent='Resolve failed: '+e; }

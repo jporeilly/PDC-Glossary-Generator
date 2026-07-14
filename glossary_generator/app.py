@@ -1047,7 +1047,11 @@ def resolve_terms():
         # probe only when terms are genuinely missing from PDC (not just missing a
         # glossaryId, which we now fill deterministically).
         probe = []
-        probe_names = [n for n in names if n not in name_map][:3]
+        # names PDC could not CONFIRM by exact-name lookup — their links still
+        # carry the deterministic import ids, which only exist in PDC if the
+        # term kept its name since import. The UI offers AI matching for these.
+        unconfirmed = [n for n in names if n not in name_map]
+        probe_names = unconfirmed[:3]
         if probe_names:
             try:
                 probe = pdc_api.diagnose_terms(base, token, probe_names,
@@ -1074,7 +1078,7 @@ def resolve_terms():
     return jsonify({"json": resolved_json, "map": name_map, "linked": linked,
                     "unresolved": unresolved, "id_only": id_only, "terms": len(names),
                     "matched": len(name_map), "matched_with_glossary": gid_terms,
-                    "glossary_id": default_gid, "links": links_total, "probe": probe,
+                    "glossary_id": default_gid, "links": links_total, "probe": probe, "unconfirmed": unconfirmed,
                     "registry_backfilled": registry_backfilled})
 
 def _pdc_token_and_reauth(body, base, version, verify):
