@@ -86,7 +86,10 @@ if [ -d "$SCEN_DIR/.git" ]; then
   [ -n "$VERTICAL" ] || VERTICAL="$CUR"
   if [ -n "$VERTICAL" ]; then
     if (cd "$SCEN_DIR" && bash select-vertical.sh "$VERTICAL" >/dev/null); then
-      ok "Vertical $VERTICAL — data kit + domain pack + courseware pulled"
+      # flat view: courseware/ at the top level beside the apps
+      ln -sfn "PDC-Scenarios/courseware" "$DEMO/courseware"
+      grep -qx "courseware" "$DEMO/.git/info/exclude" 2>/dev/null || echo "courseware" >> "$DEMO/.git/info/exclude"
+      ok "Vertical $VERTICAL — data kit + domain pack + courseware (linked at $DEMO/courseware)"
     else
       warn "select-vertical.sh $VERTICAL failed — is '$VERTICAL' a valid scenario id?"
     fi
