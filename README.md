@@ -122,15 +122,17 @@ Ollama are reached over the network only when you use those features.
 
 ### Lab VM (one command)
 
-On the Ubuntu lab VM, one script stands up / refreshes the whole `~/PDC-Demo`
-checkout **and** the selected vertical (sparse-pulled from PDC-Scenarios):
+On the Ubuntu lab VM, **one bootstrap** (PDC-Scenarios repo) stands up /
+refreshes the whole `~/PDC-Demo` checkout — this app, the **Policy
+Generator**, and the selected vertical's assets (sparse-pulled):
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/jporeilly/PDC-Glossary-Generator/main/install-pdc-demo.sh | bash -s -- CSCU
+curl -fsSL https://raw.githubusercontent.com/jporeilly/PDC-Scenarios/main/install-pdc-demo.sh | bash -s -- CSCU
+cd ~/PDC-Demo/PDC-Scenarios && make scenario ID=CSCU   # lab up + data loaded
 ```
 
-Re-run it bare to update everything (it remembers the vertical); the Policy
-Generator's own `install-pdc-demo.sh` adds the second app the same way.
+Re-run the curl bare to update everything (it remembers the vertical). This
+repo's own `install-pdc-demo.sh` updates just this checkout + the vertical.
 
 ### 1. Pick a scenario (PDC-Scenarios repo)
 
