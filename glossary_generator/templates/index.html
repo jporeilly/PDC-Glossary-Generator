@@ -3479,6 +3479,57 @@ async function exportDataElements(){
   }catch(e){ m.textContent='Data Elements failed: '+e; }
 }
 
+/* ---- AI match for outstanding term names (renamed after import) ---- */
+let RESOLVE_UNRESOLVED=[], FUZZY={};
+async function resolveFuzzy(){
+  const btn=$('fuzzyBtn'); if(!RESOLVE_UNRESOLVED.length) return;
+  if(btn){ btn.disabled=true; btn.textContent='Matching…'; }
+  try{
+    const defs={}; (ROWS||[]).forEach(r=>{ if(r&&r.Term&&r.Definition&&!defs[r.Term]) defs[r.Term]=r.Definition; });
+    const body={names:RESOLVE_UNRESOLVED, definitions:defs,
+                base_url:$('pdc_base').value.trim(), version:$('pdc_ver').value,
+                realm:(($('pdc_realm')&&$('pdc_realm').value.trim())||'pdc'),
+                username:$('pdc_user').value, password:$('pdc_pass').value,
+                token:$('pdc_token').value.trim(), verify_tls:$('pdc_verify').checked,
+                glossary_name:$('gname').value, model:currentModel()||null, compute:COMPUTE};
+    const d=await (await fetch('/api/resolve-fuzzy',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})).json();
+    if(d.error){ if($('fuzzyList')) $('fuzzyList').innerHTML=`<div class="msg">${esc(d.error)}</div>`; return; }
+    FUZZY=d.matches||{};
+    renderFuzzy(d.used_llm);
+  }catch(e){ if($('fuzzyList')) $('fuzzyList').innerHTML=`<div class="msg">AI match failed: ${esc(String(e.message||e))}</div>`; }
+  finally{ if(btn){ btn.disabled=false; btn.textContent='AI match in PDC'; } }
+}
+function renderFuzzy(usedLlm){
+  const el=$('fuzzyList'); if(!el) return;
+  const names=Object.keys(FUZZY);
+  const matched=names.filter(n=>FUZZY[n]&&FUZZY[n].match);
+  const rows=names.map(n=>{
+    const f=FUZZY[n]||{};
+    if(!f.match) return `<div class="prow"><b>${esc(n)}</b> — <span style="color:var(--mute)">${esc(f.reason||'no match')}</span></div>`;
+    const src=f.source==='ai'?'<span class="gband" style="background:#EDE7F6;color:#4527A0">AI</span>':`<span class="gband" style="background:#DDF0E4;color:#1B6B45">${esc(f.reason||'match')}</span>`;
+    return `<div class="prow"><b>${esc(n)}</b> &rarr; <b>${esc(f.match)}</b> ${src} ${f.source==='ai'?`<span class="hint">${esc(f.reason||'')}</span>`:''} <button class="ghost sm" style="padding:1px 8px;border-color:#2EC4B6;color:#0A3D52;font-weight:600" onclick="bindFuzzy('${esc(n).replace(/'/g,"&#39;")}')">Bind id</button></div>`;
+  }).join('');
+  const all=matched.length>1?`<button class="ghost sm" onclick="bindFuzzyAll()" style="margin:4px 0;border-color:#2EC4B6;color:#0A3D52;font-weight:600">Bind all ${matched.length} matches</button>`:'';
+  el.innerHTML=`<div class="probe" style="margin-top:6px">${rows}${all}<div class="hint" style="margin-top:4px">Binding stamps the PDC term's id + glossaryId into these links (your local name stays). ${usedLlm?'':'Ollama offline — similarity matches only. '}Then re-download the POST-ready JSON or go straight to Apply.</div></div>`;
+}
+function bindFuzzy(name){
+  const f=FUZZY[name]; if(!f||!f.match||!f.id||!LAST_DE_JSON) return 0;
+  let n=0;
+  LAST_DE_JSON.forEach(el=>{ ((el.attributes||{}).businessTerms||[]).forEach(bt=>{
+    if((bt.name||'')===name){ bt.id=f.id; if(f.glossaryId) bt.glossaryId=f.glossaryId; n++; } }); });
+  delete FUZZY[name];
+  RESOLVE_UNRESOLVED=RESOLVE_UNRESOLVED.filter(x=>x!==name);
+  renderFuzzy(true);
+  if($('resolveMsg')&&n) $('resolveMsg').insertAdjacentHTML('beforeend',
+    `<div class="msg" style="color:#1C7C54">Bound “${esc(name)}” &rarr; “${esc(f.match)}” on ${n} link(s).</div>`);
+  return n;
+}
+function bindFuzzyAll(){
+  let total=0;
+  Object.keys(FUZZY).forEach(n=>{ if(FUZZY[n]&&FUZZY[n].match) total+=bindFuzzy(n); });
+  if($('resolveMsg')) $('resolveMsg').insertAdjacentHTML('beforeend',
+    `<div class="msg" style="color:#1C7C54">All matches bound (${total} link(s)) — the links are ready to Apply.</div>`);
+}
 async function resolveTermIds(){
   if(!LAST_DE_JSON){ $('resolveMsg').textContent='Export the Data Elements JSON first.'; return; }
   const base=$('pdc_base').value.trim();
@@ -3502,10 +3553,11 @@ async function resolveTermIds(){
        + `<div class="nflist">${chips}</div></details>`;
     }
     if(d.unresolved&&d.unresolved.length){
+      RESOLVE_UNRESOLVED=d.unresolved.slice();
       const chips=d.unresolved.map(n=>`<span>${esc(n)}</span>`).join('');
-      m+=`<details class="nfwrap"><summary>${d.unresolved.length} term(s) not found in PDC — import the glossary first, then re-resolve</summary>`
-       + `<div class="nflist">${chips}</div></details>`;
-    }
+      m+=`<details class="nfwrap" open><summary>${d.unresolved.length} term(s) not found in PDC by name — renamed locally after import? <button class="ghost sm" style="margin-left:8px" onclick="resolveFuzzy()" id="fuzzyBtn" title="Match each outstanding name against the terms that actually exist in PDC — name similarity first, then the local AI judging with the term's definition. Proposals only; you bind each match.">AI match in PDC</button></summary>`
+       + `<div class="nflist">${chips}</div><div id="fuzzyList"></div></details>`;
+    } else { RESOLVE_UNRESOLVED=[]; }
     if(d.probe&&d.probe.length){
       const anyHit=d.probe.some(p=>(p.search_hits>0)||(p.filter_hits>0));
       const anyGid=d.probe.some(p=>p.search_has_glossaryId);
@@ -3517,7 +3569,7 @@ async function resolveTermIds(){
           + ` · filter ${p.filter_hits} hit(s)${ft}${p.search_error?(' · search error: '+esc(p.search_error)):''}</div>`;
       }).join('');
       const verdict = !anyHit
-        ? 'PDC returned nothing for these names — the glossary is not imported, or under a different name/instance. In PDC: <b>Glossary → Actions → Import</b> → drop the JSONL → Submit, then re-resolve.'
+        ? 'PDC returned nothing for these names — either the glossary is not imported (In PDC: <b>Glossary → Actions → Import</b> → drop the JSONL → Submit, then re-resolve), or these terms were RENAMED locally after import — use <b>AI match in PDC</b> above to bind them without re-importing.'
         : (anyGid
           ? 'PDC has these terms WITH a glossaryId, so they should link. If Apply still skips them, send me this probe — the field the glossaryId lands in may differ.'
           : 'PDC found these terms but exposes NO glossaryId on them (only an id). The term may be imported as a stand-alone/Unassigned term (no parent glossary). Re-import the JSONL so each term sits under the business glossary, or send me this probe and a sample term\u2019s API JSON so the matcher can read its glossary from another field.');
@@ -4189,7 +4241,7 @@ async function draftPolicies(){
     const list=[...(d.patterns||[]).map(x=>`<li><b>${esc(x.name)}</b> <span class="hint">pattern${x.seed==='canonical'?" (canonical shape)":''} \u00b7 ${esc(x.filename)}</span></li>`),
                 ...(d.dictionaries||[]).map(x=>`<li><b>${esc(x.name)}</b> <span class="hint">dictionary \u00b7 ${esc(x.filename)} + ${esc(x.values)}</span></li>`)].join('');
     const skiplist=ns?`<details style="margin-top:6px"><summary style="cursor:pointer;font-size:12px;color:var(--mute)">${ns} term(s) skipped \u2014 why?</summary><ul style="margin:4px 0 0 18px;font-size:11.5px;color:var(--mute)">${(d.skipped||[]).map(x=>`<li><b>${esc(x.term)}</b> \u2014 ${esc(x.why)}</li>`).join('')}</ul></details>`:'';
-    M.innerHTML=`Drafted <b>${np}</b> pattern(s) + <b>${nd}</b> dictionar${nd===1?'y':'ies'}${d.used_llm?' \u00b7 AI-polished':''} \u2014 <a class="dl" href="${url}" download="drafted-policies.zip">download zip</a><ul style="margin:6px 0 0 18px;font-size:12px">${list}</ul>${skiplist}<span class="hint">Import in PDC: Management \u2192 Data Identification \u2192 Patterns / Dictionaries \u2192 Import. Review each rule first \u2014 these are drafts. Skipped terms are normal: free text, names and amounts have no stable shape \u2014 identify those with dictionaries or business rules.</span>`;
+    M.innerHTML=`Drafted <b>${np}</b> pattern(s) + <b>${nd}</b> dictionar${nd===1?'y':'ies'}${d.used_llm?' · AI-polished':''}<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:10px 0 6px"><a class="dlbig" href="${url}" download="drafted-policies.zip">&#11015; Download drafted policies (zip)</a><span class="hint">Patterns/ + Dictionaries/ + INDEX.csv</span></div><div class="nextsteps">&#9888;&#65039; These ARE the draft Data Identification policies: <b>1.</b> Download &rarr; <b>2.</b> review each rule &rarr; <b>3.</b> PDC: <b>Management &rarr; Data Identification &rarr; Patterns / Dictionaries &rarr; Import</b> &rarr; <b>4.</b> run identification on your sources</div><ul style="margin:8px 0 0 18px;font-size:12px">${list}</ul>${skiplist}<span class="hint">Skipped terms are normal: free text, names and amounts have no stable shape — identify those with dictionaries or business rules.</span>`;
   }catch(e){ M.textContent='Draft failed: '+(e.message||e); }
   finally{ if(btn){ btn.disabled=false; btn.innerHTML='Draft policies (AI) &rarr;'; } }
 }

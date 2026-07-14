@@ -1107,3 +1107,67 @@ def suggest_domain(company, categories, terms, domains, model=None, compute=None
         by_lower = {d.lower(): d for d in doms}
         return by_lower.get(str(res.get("domain") or "").strip().lower()), True
     return None, True
+
+
+# ------------------------------------------------------------ AI term matcher
+def match_terms(items, model=None, compute=None, workers=None):
+    """Resolve-stage adjudicator: an outstanding term name (usually renamed or
+       disambiguated locally AFTER the glossary was imported) against the
+       candidate term names that actually exist in PDC. The model picks the
+       candidate that is the SAME business concept, or none. Guardrails: the
+       answer must be one of the candidates; nothing is bound automatically —
+       the steward clicks. items: [{name, definition?, candidates: [names]}].
+       Returns ({name: {match|None, reason}}, used_llm)."""
+    items = [x for x in (items or [])
+             if isinstance(x, dict) and x.get("name") and x.get("candidates")]
+    if not items or not status(model)["online"]:
+        return {}, False
+    num_gpu = 0 if compute == "cpu" else (99 if compute == "gpu" else None)
+    if workers is None:
+        workers = WORKERS
+    workers = max(1, min(workers, 16))
+    try:
+        _post(OLLAMA_URL + "/api/generate",
+              {"model": model or MODEL, "prompt": "ok", "stream": False,
+               "options": {"num_predict": 1}}, timeout=max(TIMEOUT, 120))
+    except Exception:
+        pass
+
+    def _do(it):
+        prompt = (
+            "A business glossary term was renamed locally AFTER the glossary was "
+            "imported into the data catalog, so its old name still lives there.\n"
+            "Local term: \"%s\"\n%s"
+            "Candidate terms that exist in the catalog: %s\n\n"
+            "Pick the ONE candidate that is the SAME business concept (an earlier "
+            "name, a less/more qualified form, an abbreviation), or none if none "
+            "match. Return JSON with keys: match (the candidate name or empty), "
+            "rationale (one short sentence)."
+        ) % (
+            it["name"],
+            ("Definition: %s\n" % str(it["definition"])[:200]) if it.get("definition") else "",
+            ", ".join(it["candidates"][:25]),
+        )
+        try:
+            return it, _complete_json(prompt, model=model, num_gpu=num_gpu)
+        except Exception:
+            return it, None
+
+    if workers == 1 or len(items) <= 1:
+        results = [_do(x) for x in items]
+    else:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as ex:
+            results = list(ex.map(_do, items))
+
+    out = {}
+    for it, res in results:
+        if not isinstance(res, dict):
+            continue
+        by_lower = {c.lower(): c for c in it["candidates"]}
+        match = by_lower.get(str(res.get("match") or "").strip().lower())
+        why = str(res.get("rationale") or "").strip()[:200]
+        if not _mostly_english(why):
+            why = ""
+        out[it["name"]] = {"match": match,
+                           "reason": ("AI: " + why) if why else ("AI match" if match else "AI: no candidate is the same concept")}
+    return out, True

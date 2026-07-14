@@ -30,6 +30,25 @@ sparse-pulls a single vertical. Docs swept (README, GUIDE, REFERENCE,
 PDC-VM-TROUBLESHOOTING, app README). The Policy Generator's courseware
 moved there too (`courseware/CSCU/Policy-Generator/`).
 
+## [1.8.13] — 2026-07-14
+
+### Resolve — AI matching for outstanding terms, in place
+- **"AI match in PDC"** on the unresolved list: terms renamed or
+  disambiguated locally AFTER the glossary import used to dead-end at
+  "0 hits — go re-import". Now the app harvests candidate TERM entities from
+  PDC (token searches), proposes the best name-similarity match (≥78%
+  normalized), and lets the local AI adjudicate the rest using each term's
+  definition ("Branch Identifier → Branch ID"). One-click **Bind id** (or
+  Bind all) stamps the real PDC id + glossaryId into the links — your local
+  name stays; no round-trip through the Glossary page or a re-import.
+  Endpoint: `POST /api/resolve-fuzzy`. The probe verdict points at the button.
+
+### UX
+- **Drafted-policies zip promoted to a primary button** ("Download drafted
+  policies (zip)") with a 1-2-3-4 next-steps strip (download → review →
+  PDC Data Identification Import → run identification) — it IS the draft
+  policy set, so it reads like one now.
+
 ## [1.8.12] — 2026-07-14
 
 ### Govern — the roster now drives everything

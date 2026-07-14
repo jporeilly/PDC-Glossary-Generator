@@ -942,6 +942,78 @@ def suggest_expertise_route():
     return jsonify({"people": people, "updated": updated, "used_llm": used_llm,
                     "saved": bool(body.get("save")), "llm": llm.status(model)})
 
+@app.post("/api/resolve-fuzzy")
+def api_resolve_fuzzy():
+    """Match OUTSTANDING term names (renamed/disambiguated locally after the
+    glossary was imported) against the terms that actually exist in PDC —
+    without a round-trip through the Glossary page. Ladder: harvest candidate
+    term entities via token searches, propose the best NAME-similarity match
+    (>=0.78 normalized), let the local AI adjudicate the rest with the term's
+    definition as context. Proposals only — the steward binds each one.
+    Body: {names, definitions?, base_url, username/password|token, realm?,
+    version?, verify_tls?, glossary_name?, model?, compute?}."""
+    import pdc_api
+    body = request.get_json(force=True) or {}
+    names = [str(n).strip() for n in (body.get("names") or []) if str(n).strip()]
+    base = (body.get("base_url") or "").strip()
+    version = body.get("version") or "v2"
+    verify = bool(body.get("verify_tls", False))
+    if not base or not names:
+        return jsonify({"error": "base_url and names are required"}), 400
+    defs = body.get("definitions") or {}
+    try:
+        token = (body.get("token") or "").strip()
+        if not token:
+            token = pdc_api.auth(base, body.get("username", ""), body.get("password", ""),
+                                 version=version, verify_tls=verify,
+                                 realm=(body.get("realm") or "pdc").strip(),
+                                 client_id=(body.get("client_id") or "pdc-client").strip(),
+                                 method=body.get("auth_method") or "auto")
+    except Exception as e:
+        return jsonify({"error": f"auth failed: {e}"}), 502
+    gname = (body.get("glossary_name") or "").strip()
+    default_gid = suggester.det_glossary_id(gname) if gname else None
+    matches, ambiguous = {}, []
+    for name in names[:40]:
+        try:
+            cands = pdc_api.fuzzy_term_candidates(base, token, name,
+                                                  version=version, verify_tls=verify)
+        except Exception:
+            cands = []
+        if not cands:
+            matches[name] = {"match": None, "reason": "no term candidates in PDC for these tokens"}
+            continue
+        a = similarity._norm(name)
+        scored = sorted(((similarity._lev_ratio(a, similarity._norm(c["name"])), c)
+                         for c in cands), key=lambda x: -x[0])
+        best_s, best = scored[0]
+        if best_s >= 0.78 and best["name"].strip().lower() != name.lower():
+            matches[name] = {"match": best["name"], "id": best.get("id"),
+                             "glossaryId": best.get("glossaryId") or default_gid,
+                             "score": round(best_s, 2), "source": "similarity",
+                             "reason": f"{int(best_s * 100)}% name match"}
+        else:
+            ambiguous.append({"name": name, "definition": defs.get(name, ""),
+                              "candidates": [c["name"] for c in cands],
+                              "_cands": {c["name"]: c for c in cands}})
+    used_llm = False
+    if ambiguous:
+        verdicts, used_llm = llm.match_terms(
+            [{k: v for k, v in a.items() if k != "_cands"} for a in ambiguous],
+            model=body.get("model"), compute=body.get("compute"))
+        for a in ambiguous:
+            v = verdicts.get(a["name"]) or {}
+            m = v.get("match")
+            c = a["_cands"].get(m) if m else None
+            if c:
+                matches[a["name"]] = {"match": c["name"], "id": c.get("id"),
+                                      "glossaryId": c.get("glossaryId") or default_gid,
+                                      "source": "ai", "reason": v.get("reason", "AI match")}
+            else:
+                matches[a["name"]] = {"match": None,
+                                      "reason": v.get("reason", "no confident match")}
+    return jsonify({"matches": matches, "used_llm": used_llm})
+
 @app.post("/api/resolve-terms")
 def resolve_terms():
     """Resolve each businessTerm's id + glossaryId in PDC and stamp them into the Data-Elements JSON."""

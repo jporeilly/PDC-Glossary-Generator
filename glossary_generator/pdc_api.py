@@ -254,6 +254,41 @@ def _bt_match(item, name):
 # --------------------------------------------------------------------------- #
 #  Resolve terms (name -> id + glossaryId)
 # --------------------------------------------------------------------------- #
+def fuzzy_term_candidates(base_url, token, name, version="v2",
+                          verify_tls=True, timeout=20, max_candidates=25):
+    """Candidate TERM entities for an outstanding name, harvested by searching
+    the name AND its significant tokens (PDC has no list-glossary-terms
+    endpoint). 'Branch Identifier' searches 'Branch Identifier', 'branch',
+    'identifier' and collects every result that IS a term — the pool a fuzzy/AI
+    matcher chooses from. Returns [{name, id, glossaryId}] deduped by name."""
+    import re as _re
+    base = clean_base(base_url)
+    surl = base + f"/api/public/{version}/search"
+    tokens = [t for t in _re.split(r"[^A-Za-z0-9]+", str(name)) if len(t) > 2][:3]
+    queries = [name] + tokens
+    seen, out = set(), []
+    for q in queries:
+        try:
+            res = _req("POST", surl, token=token,
+                       body={"searchTerm": q, "perPage": 50},
+                       verify_tls=verify_tls, timeout=timeout)
+            hits = _results(res)
+        except Exception:
+            hits = []
+        for it in hits:
+            if "term" not in str(it.get("type") or it.get("originalType") or "").lower():
+                continue
+            nm = str(it.get("name") or "").strip()
+            key = nm.lower()
+            if not nm or key in seen:
+                continue
+            seen.add(key)
+            out.append({"name": nm, "id": _eid(it), "glossaryId": _glossary_id(it)})
+            if len(out) >= max_candidates:
+                return out
+    return out
+
+
 def resolve_terms(base_url, token, names, glossary_name=None, version="v2",
                   verify_tls=True, timeout=20):
     """Look up each term name in PDC. Returns {name: {id, glossaryId}} for hits.
