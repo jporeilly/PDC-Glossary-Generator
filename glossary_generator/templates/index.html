@@ -2662,8 +2662,8 @@ function renderSummary(s, scanned){
     srcChip,
     `<span class="chip">Terms <b>${s.terms}</b></span>`,
     `<span class="chip">Categories <b>${s.categories}</b></span>`,
-    `<span class="chip click ${$('fpii').checked?'active':''}" onclick="$('fpii').checked=!$('fpii').checked;applyFilter()">PII <b>${s.pii}</b></span>`,
-    `<span class="chip">Confidence H<b>${c.High||0}</b> M<b>${c.Medium||0}</b> L<b>${c.Low||0}</b></span>`,
+    `<span class="chip click ${$('fpii').checked?'active':''}" onclick="$('fpii').checked=!$('fpii').checked;applyFilter()">PII <b class="sens-hi">${s.pii}</b></span>`,
+    `<span class="chip">Confidence H<b class="sens-lo">${c.High||0}</b> M<b class="sens-md">${c.Medium||0}</b> L<b class="sens-hi">${c.Low||0}</b></span>`,
     `<span class="chip">Sensitivity HIGH<b class="sens-hi">${sv.HIGH||0}</b> MED<b class="sens-md">${sv.MEDIUM||0}</b> LOW<b class="sens-lo">${sv.LOW||0}</b></span>`,
     s.enriched?`<span class="chip">LLM-enriched <b>${s.enriched}</b></span>`:''
   ].join('');

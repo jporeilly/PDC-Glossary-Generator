@@ -16,6 +16,11 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
 
 ## [1.8.9] — 2026-07-14
 
+### UX
+- **All summary metrics color-coded.** PII count red; Confidence chip colored
+  by attention (H blue, M orange, L red — low confidence is the one that needs
+  review); Sensitivity HIGH/MED/LOW red/orange/blue (from 1.8.8).
+
 ### Fixed — stewardship defaults now mean what they say
 - **Auto-assign respects explicit defaults.** It used to fill every category's
   steward/owner/custodian override from roster roles + expertise — so a
