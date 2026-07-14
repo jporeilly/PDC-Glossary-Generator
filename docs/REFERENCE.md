@@ -371,3 +371,105 @@ open("glossary.jsonl", "w").write(records_to_jsonl(to_jsonl_records(rows)))
   `ALL_COL_COMMENTS` dictionary views, since 1.6.20). Oracle's schema is the owner —
   it defaults to the connecting user, uppercased; set it on the connection to scan
   a different owner.
+
+---
+
+## Repository manifest
+
+The Flask app, with the **Registry writer** hooked in at export time, plus the
+**Copper State Credit Union (CSCU)**, **Canyon Trail Outfitters (RETAIL)**,
+**Lakeshore Health Partners (HEALTH)** and **Cascade Precision Components (MFG)**
+training scenarios (additional scenarios plug in as data folders). The **Policy Generator** ships
+**separately** as its own standalone app (`policy_generator/`). Validated
+against **PDC 11.0.0**.
+
+### The model
+
+**Glossary Generator** (this repo) creates the **Registry** at export →
+**Policy Generator** (separate app) reads it and builds the Data Identification
+policy (dictionaries + patterns).
+
+### Where the hand-off happens
+
+`POST /api/generate` (glossary export) authors the Registry from the final reviewed
+rows and writes **`registries/registry.<glossary>.json`** — one concept per kept
+term: term name, governed tags, sensitivity, category, and a null `term_id`
+(UNKNOWN until PDC mints ids and the Policy Generator's reconcile backfills them).
+The response includes a `registry` path.
+
+### Layout
+
+```text
+PDC-Glossary/
+  README.md                     repo landing page
+  docs/                         all documentation
+    GUIDE.md                    THE manual: why (Registry thesis) + install/setup
+                                + full walkthrough + real-PDC operating notes
+    REFERENCE.md                app reference (env vars, drivers, LLM/GPU, API
+                                table, repository manifest — this section)
+    PDC-VM-TROUBLESHOOTING.md   PDC platform errors on the lab VM (opensearch-cluster-init, ...)
+    REVIEW.md                   code review & PDC v3 compatibility audit
+    CHANGELOG.md                release history
+  glossary_generator/           the app (scenario-generic)
+    app.py  run.sh  run.bat  run.ps1
+    llm.py  pdc_api.py  dbconn.py  suggester.py  cli_suggester.py
+    build_roster.py  seed_sample.py  audit.py  similarity.py  tagdict.py
+    policy_draft.py  defqa.py  v3_selftest.py
+    templates/index.html
+    registry/                   app-side Registry WRITER (hooked at /api/generate)
+    registries/                 (created at runtime: registry.<glossary>.json)
+    domain_packs/README.md      pack format reference (packs live per scenario)
+    diagrams/                   six figures, PNG + SVG
+    datasources.sample.csv      generic bulk-load starter CSV
+    Dockerfile  docker-compose.yml  requirements.txt  .env.example  VERSION
+  data_sources/                 scenario data + the shared lab
+    lab/                        SHARED stack: one PostgreSQL + one MinIO for all
+                                scenarios (make load SCENARIO=<ID> creates that
+                                scenario's database + bucket + documents)
+    CSCU/                       Copper State Credit Union (financial) — data only
+      postgres-init/  cscu-documents/  domain_pack/
+      cscu-domain-pack.zip  cscu-datasources.csv  scenario.json
+    RETAIL/                     Canyon Trail Outfitters (retail) — same kit shape
+      postgres-init/  cto-documents/  domain_pack/
+      cto-domain-pack.zip  cto-datasources.csv  scenario.json
+    HEALTH/                     Lakeshore Health Partners (healthcare) — same kit shape
+      postgres-init/  lhp-documents/  domain_pack/
+      lhp-domain-pack.zip  lhp-datasources.csv  scenario.json
+    MFG/                        Cascade Precision Components (manufacturing) — same kit shape
+      postgres-init/  cpc-documents/  domain_pack/
+      cpc-domain-pack.zip  cpc-datasources.csv  scenario.json
+  courseware/
+    CSCU/                       workshop guides (markdown masters) + Technical Track
+    RETAIL/                     the retail workshop set (W00-W05 + assets)
+    HEALTH/                     the healthcare workshop set (W00-W05 + assets)
+    MFG/                        the manufacturing workshop set (W00-W05 + assets)
+```
+
+The **Policy Generator** is delivered separately as `policy_generator/` (its own zip):
+the standalone engine that reads the Registry and emits/drift-checks the policy.
+
+### Run the app
+
+Local: `./run.sh` (or `run.bat` / `run.ps1`) → http://127.0.0.1:5000.
+Docker: `docker compose up --build`. Full setup is in **`GUIDE.md` Part B**.
+
+### Install a scenario
+
+Run `install-scenario.ps1` / `install-scenario.sh` and pick a scenario —
+or unzip the scenario's pack into `glossary_generator/`
+(`data_sources/<ID>/*-domain-pack.zip`), delete any previous
+`tag_dictionary.json`, restart. **One scenario at a time.**
+
+### Test the Registry writer (offline)
+
+```bash
+python -m registry.selftest      # rows -> Registry mapping checks
+```
+
+### What the app does NOT contain
+
+The classify / emit / drift / reconcile engine is **not** in the app — the app already
+classifies via `suggester.py`, so its Registry half only *writes* the reviewed rows as
+the artifact. All method-building lives in the separate **Policy Generator**.
+
+*All scenario data is fictional and generated for training.*

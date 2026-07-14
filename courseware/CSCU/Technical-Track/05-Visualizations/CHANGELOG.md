@@ -103,7 +103,7 @@
   with Pentaho's AWS/K8s config port-forward; original default 8080 is Tomcat).
   8660 clears the Pentaho/Tomcat and PDC port ranges. Fully overridable via
   `INSIGHTS_PORT`; the container always listens on 8660 internally. MCP server
-  stays on 8765. See the Ports table in INSTALL.md for the reserved list.
+  stays on 8765. See the Ports table in docs/GUIDE.md (Install & set up) for the reserved list.
 
 ## 1.0.1 — port change
 

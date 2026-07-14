@@ -65,7 +65,7 @@ Identification:
 
 Because both apps draw from the same row, the glossary term, the tags a method
 stamps, and the sensitivity can no longer quietly diverge. The full rationale
-is in [CHALLENGE-AND-GOAL.md](docs/CHALLENGE-AND-GOAL.md), and the other
+is in [GUIDE.md](docs/GUIDE.md) (Part A), and the other
 workshop figures are in [diagrams/](glossary_generator/diagrams/).
 
 ## What it does
@@ -194,12 +194,8 @@ optional.
 
 | Document                                                   | What it covers                                                                       |
 | ---------------------------------------------------------- | ------------------------------------------------------------------------------------ |
-| [REFERENCE.md](docs/REFERENCE.md)                           | App details: env vars, drivers, Ollama/GPU, API reference                            |
-| [GUIDE.md](docs/GUIDE.md)                                   | Full walkthrough of every page and workflow                                          |
-| [INSTALL.md](docs/INSTALL.md)                               | Setup against your own PDC instance (Docker + local)                                 |
-| [CHALLENGE-AND-GOAL.md](docs/CHALLENGE-AND-GOAL.md)         | The Registry thesis, plain language                                                  |
-| [SUPPLEMENT.md](docs/SUPPLEMENT.md)                         | Operating notes for a real PDC instance                                              |
-| [MANIFEST.md](docs/MANIFEST.md)                             | Full repository layout and packaging                                                 |
+| [REFERENCE.md](docs/REFERENCE.md)                           | App reference: env vars, drivers, Ollama/GPU, API, repository manifest               |
+| [GUIDE.md](docs/GUIDE.md)                                   | THE manual: why (Registry) + install/setup + walkthrough + real-PDC operating notes  |
 | [CHANGELOG.md](docs/CHANGELOG.md)                           | Release history                                                                      |
 | [PDC-VM-TROUBLESHOOTING.md](docs/PDC-VM-TROUBLESHOOTING.md) | PDC platform errors on the lab VM (OpenSearch init, site-wide 404, certs, licensing) |
 | [lab-setup.docx](data_sources/lab/lab-setup.docx)           | The consolidated lab install & configuration guide (Parts A–I)                      |

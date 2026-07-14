@@ -32,6 +32,16 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
 - **v3 is now the default API version** for new installs (saved selections
   preserved); selector tooltips explain the versions.
 
+### Docs consolidated (9 files -> 5)
+- `GUIDE.md` is now THE manual — it absorbed `CHALLENGE-AND-GOAL.md` (Part A:
+  the why), `INSTALL.md` (Part B: install & set up, refreshed to 1.8.x), and
+  the still-current operating notes from `SUPPLEMENT.md` (Part D: run order,
+  identify-once lifecycle, tag-array write semantics). `REFERENCE.md` absorbed
+  `MANIFEST.md` (repository manifest section, file list refreshed). The four
+  merged files are deleted; every cross-reference repointed. `CHANGELOG.md`,
+  `REVIEW.md` and `PDC-VM-TROUBLESHOOTING.md` remain separate on purpose
+  (release history, engineering audit, VM platform ops).
+
 ### Also
 - **Build check names every offender, clickable.** The duplicated/repeated/
   no-definition/no-category term lists are no longer truncated text — each

@@ -10,5 +10,5 @@ PDC-importable glossary JSONL (+ the Classification Registry).
 - **Documentation:** lives in [`../docs/`](../docs/) —
   [REFERENCE](../docs/REFERENCE.md) (env vars, drivers, LLM/GPU, API table),
   [GUIDE](../docs/GUIDE.md) (full walkthrough),
-  [INSTALL](../docs/INSTALL.md) (against your own PDC instance).
+  [GUIDE](../docs/GUIDE.md) Part B (against your own PDC instance).
 - **Offline test:** `python -m registry.selftest`
