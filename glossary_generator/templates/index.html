@@ -2968,7 +2968,11 @@ function tdRenderFacet(){
     flags+=`<div style="margin:0 0 8px;padding:8px 10px;border-radius:8px;background:#fff6e6;border:1px solid #f0d9a8;color:#7a4a00;font-size:12.5px"><b>May fragment the facet</b> — these split into separate buckets a single filter won't merge: ${parts.map(p=>`<code>${esc(p)}</code>`).join(', ')}. Consolidate to one tag (add the other as a rule that emits it).</div>`;
   }
   if(empties.length){
-    flags+=`<div style="margin:0 0 8px;padding:8px 10px;border-radius:8px;background:#f3f6f8;border:1px solid var(--line);color:var(--mute);font-size:12.5px"><b>${empties.length} governed tag${empties.length>1?'s':''} with no reviewed usage</b> — empty facet bucket${empties.length>1?'s':''}: ${empties.slice(0,12).map(t=>`<code>${esc(t)}</code>`).join(', ')}${empties.length>12?' …':''}. Fine if data will match later; otherwise consider removing.</div>`;
+    // split by layer: only COMPANY tags can be retired (the generic baseline is protected)
+    const layerOf={}; (TAGDICT.tags||[]).forEach(t=>{ layerOf[t.tag]=t.layer; });
+    const companyEmpties=empties.filter(t=>layerOf[t]!=='generic');
+    const retire=companyEmpties.length?` <button class="ghost sm" style="padding:1px 8px" onclick="tdRetireEmpty(${JSON.stringify(companyEmpties).replace(/"/g,'&quot;')})" title="Remove the ${companyEmpties.length} empty COMPANY-layer tag(s) from the vocabulary. The generic baseline can't be removed. A tag a rule still emits will be re-added with a warning on the next save.">Retire ${companyEmpties.length} empty company tag${companyEmpties.length>1?'s':''}</button>`:'';
+    flags+=`<div style="margin:0 0 8px;padding:8px 10px;border-radius:8px;background:#f3f6f8;border:1px solid var(--line);color:var(--mute);font-size:12.5px"><b>${empties.length} governed tag${empties.length>1?'s':''} with no reviewed usage</b> — empty facet bucket${empties.length>1?'s':''}: ${empties.slice(0,12).map(t=>`<code>${esc(t)}</code>`).join(', ')}${empties.length>12?' …':''}.<br>“Usage” here is <b>reviewed usage inside this app</b> (accreted on every scan), not live PDC data — counts reset with a dictionary reseed and rebuild on the next scan+review. All tags empty usually just means “freshly reseeded”. Retire only what stays empty after a full scan of every source.${retire}</div>`;
   }
   if(!flags) flags=`<div style="margin:0 0 4px;color:#1B6B45;font-size:12.5px;font-weight:600">✓ No empty or fragmenting governed tags — the facet looks clean.</div>`;
   $('facetFlags').innerHTML=flags;
@@ -3029,6 +3033,19 @@ async function tdAiReview(){
 async function tdAlias(name,target){
   try{ TAGDICT=await (await fetch('/api/tagdict/review',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({kind:'term',names:[name],action:'alias',target:target,actor:STEWARD_ACTOR})})).json(); delete TD_ADVICE[name]; tdRender(); renderAudit(); $('tdMsg').textContent='“'+name+'” folded into “'+target+'” as an alias.'; }
   catch(e){ $('tdMsg').textContent='Alias failed: '+(e.message||e); }
+}
+async function tdRetireEmpty(names){
+  if(!names||!names.length) return;
+  if(!confirm('Retire '+names.length+' empty company tag(s) from the governed vocabulary?
+
+'+names.join(', ')+'
+
+The generic baseline is untouched; a tag still emitted by a rule will be re-added with a warning.')) return;
+  try{
+    TAGDICT=await (await fetch('/api/tagdict/review',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({kind:'tag',names:names,action:'reject',actor:STEWARD_ACTOR})})).json();
+    tdRender(); renderAudit();
+    $('tdMsg').textContent='Retired '+names.length+' empty company tag(s).';
+  }catch(e){ $('tdMsg').textContent='Retire failed: '+(e.message||e); }
 }
 async function tdReview(kind,name,action){
   try{ TAGDICT=await (await fetch('/api/tagdict/review',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({kind,names:[name],action,actor:STEWARD_ACTOR})})).json(); tdRender(); renderAudit(); $('tdMsg').textContent=(action==='approve'?'Approved ':'Rejected ')+kind+' “'+name+'”.'; }
