@@ -17,9 +17,12 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
 ## [1.8.9] — 2026-07-14
 
 ### UX
-- **All summary metrics color-coded.** PII count red; Confidence chip colored
-  by attention (H blue, M orange, L red — low confidence is the one that needs
-  review); Sensitivity HIGH/MED/LOW red/orange/blue (from 1.8.8).
+- **All summary metrics color-coded.** PII count red; Confidence H red /
+  M orange / L blue (matching the Sensitivity mapping, per user preference);
+  Sensitivity HIGH/MED/LOW red/orange/blue (from 1.8.8).
+- **Definition QA bulk actions.** The QA panel gains per-row checkboxes with
+  Select/deselect all, plus **Use selected suggestions** and **Dismiss
+  selected** — resolve a whole QA run in two clicks.
 
 ### Fixed — stewardship defaults now mean what they say
 - **Auto-assign respects explicit defaults.** It used to fill every category's

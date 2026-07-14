@@ -2663,7 +2663,7 @@ function renderSummary(s, scanned){
     `<span class="chip">Terms <b>${s.terms}</b></span>`,
     `<span class="chip">Categories <b>${s.categories}</b></span>`,
     `<span class="chip click ${$('fpii').checked?'active':''}" onclick="$('fpii').checked=!$('fpii').checked;applyFilter()">PII <b class="sens-hi">${s.pii}</b></span>`,
-    `<span class="chip">Confidence H<b class="sens-lo">${c.High||0}</b> M<b class="sens-md">${c.Medium||0}</b> L<b class="sens-hi">${c.Low||0}</b></span>`,
+    `<span class="chip">Confidence H<b class="sens-hi">${c.High||0}</b> M<b class="sens-md">${c.Medium||0}</b> L<b class="sens-lo">${c.Low||0}</b></span>`,
     `<span class="chip">Sensitivity HIGH<b class="sens-hi">${sv.HIGH||0}</b> MED<b class="sens-md">${sv.MEDIUM||0}</b> LOW<b class="sens-lo">${sv.LOW||0}</b></span>`,
     s.enriched?`<span class="chip">LLM-enriched <b>${s.enriched}</b></span>`:''
   ].join('');
@@ -3865,11 +3865,18 @@ function renderQA(offline, failed){
     : 'all definitions look sound'+(offline?' (linter only \u2014 Ollama offline)':'');
   if($('msg')) $('msg').textContent=flagged.length?`Definition QA: ${flagged.length} flagged.`:'Definition QA: nothing flagged.';
   if(!$('qaList')) return;
-  $('qaList').innerHTML=flagged.length?flagged.map(i=>{
+  const bulkbar=flagged.length?`<div style="display:flex;align-items:center;gap:10px;padding:5px 4px 7px;border-bottom:1px solid #cfe0e8">
+      <label style="font-size:12px;font-weight:600"><input type="checkbox" id="qaAll" checked onchange="qaToggleAll(this)"> Select / deselect all</label>
+      <span style="flex:1"></span>
+      <button class="ghost sm" onclick="qaUseSelected()" style="border-color:#2EC4B6;color:#0A3D52;font-weight:600">Use selected suggestions</button>
+      <button class="ghost sm" onclick="qaDismissSelected()">Dismiss selected</button>
+    </div>`:'';
+  $('qaList').innerHTML=flagged.length?bulkbar+flagged.map(i=>{
     const r=ROWS[i];
     const sugg=r.QA_Suggestion?`<div style="margin-top:3px;font-size:12px;color:#1B6B45">Suggestion: ${esc(r.QA_Suggestion)}</div>`:'';
     return `<div style="padding:7px 4px;border-top:1px solid #e4eef2">
       <div style="display:flex;align-items:center;gap:10px">
+        <input type="checkbox" class="qasel" data-i="${i}" checked style="flex:0 0 auto" aria-label="select ${esc(r.Term||'')}">
         <div style="flex:1;min-width:0">
           <b style="font-size:13px">${esc(r.Term||'')}</b> <span class="hint">${esc(r.Category||'')}</span>
           <div style="font-size:11px;color:#8a1f1f;margin-top:2px">${esc((r.QA_Issues||'').split(';').join(' \u00b7 '))}</div>
@@ -3881,6 +3888,21 @@ function renderQA(offline, failed){
       </div>
     </div>`;
   }).join(''):'<p class="msg" style="padding:4px">No issues found.</p>';
+}
+function qaToggleAll(cb){ document.querySelectorAll('#qaList .qasel').forEach(c=>{ c.checked=cb.checked; }); }
+function _qaSelected(){ return [...document.querySelectorAll('#qaList .qasel:checked')].map(c=>parseInt(c.dataset.i,10)).filter(i=>!isNaN(i)); }
+function qaUseSelected(){
+  let used=0;
+  _qaSelected().forEach(i=>{ const r=ROWS[i];
+    if(r&&r.QA_Suggestion){ r.Definition=r.QA_Suggestion; delete r.QA_Suggestion; delete r.QA_Issues; used++; } });
+  renderQA(); applyFilter();
+  if($('msg')) $('msg').textContent=used?`Applied ${used} suggested definition${used!==1?'s':''}.`:'None of the selected rows carried a suggestion \u2014 dismiss or edit them instead.';
+}
+function qaDismissSelected(){
+  let n=0;
+  _qaSelected().forEach(i=>{ const r=ROWS[i]; if(r){ delete r.QA_Suggestion; delete r.QA_Issues; n++; } });
+  renderQA();
+  if($('msg')) $('msg').textContent=`Dismissed ${n} flag${n!==1?'s':''}.`;
 }
 function qaUse(i){ const r=ROWS[i]; if(!r||!r.QA_Suggestion)return; r.Definition=r.QA_Suggestion; delete r.QA_Suggestion; delete r.QA_Issues; renderQA(); applyFilter(); }
 function qaDismiss(i){ const r=ROWS[i]; if(!r)return; delete r.QA_Suggestion; delete r.QA_Issues; renderQA(); }
