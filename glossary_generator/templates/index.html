@@ -1198,7 +1198,7 @@
           <button class="ghost sm" onclick="autoAssign()" title="Match each person's role + expertise against each category and fill the steward, owner and custodian slots. Only fields you haven't changed by hand are touched.">Auto-assign all slots</button>
           <button class="ghost sm" onclick="clearAuto()" title="Clear the auto-filled picks and unlock everything (your manual edits are kept).">Clear auto</button>
           <label class="cbx"><input id="auto_fallback" type="checkbox" checked/> expertise-only fallback when no role match</label>
-          <label class="cbx" title="When a slot has an explicit default above (e.g. Owner: elena ramirez), Auto-assign leaves that slot on (use default) for every category instead of overriding it with a role/expertise pick. Untick to let expertise routing override defaults too."><input id="auto_respect" type="checkbox" checked/> respect defaults</label>
+          <label class="cbx" title="Expertise routing competes against your defaults: a category override is written only when a candidate's expertise for that category STRICTLY BEATS the default person's own score — otherwise the slot stays on (use default). Untick to let role/expertise picks override defaults unconditionally."><input id="auto_respect" type="checkbox" checked/> respect defaults</label>
           <span class="grow note" id="autoMsg">Keyword match on role + expertise &mdash; deterministic and offline. Won&rsquo;t overwrite slots you set by hand.</span>
         </div>
         <div id="g_catcards" class="catcards"></div>
@@ -4493,10 +4493,28 @@ function pickSlot(cat,cv,slot,fallbackOn){
   const top=scored[0];
   if(top.score===0){
     const def=pickByFn(slot);
-    if(def) return {id:def.id,name:def.display_name||def.name,conf:'low',reason:fallback?'no role/expertise match — role default':'role default (no expertise match)',fallback};
-    return {id:'',name:'',conf:'none',reason:'no match',fallback};
+    if(def) return {id:def.id,name:def.display_name||def.name,conf:'low',score:0,reason:fallback?'no role/expertise match — role default':'role default (no expertise match)',fallback};
+    return {id:'',name:'',conf:'none',score:0,reason:'no match',fallback};
   }
-  return {id:top.p.id,name:top.p.display_name||top.p.name,conf:confOf(top.score),reason:(fallback?'expertise-only: ':'')+'matched '+top.matched.join(', '),fallback};
+  return {id:top.p.id,name:top.p.display_name||top.p.name,conf:confOf(top.score),score:top.score,reason:(fallback?'expertise-only: ':'')+'matched '+top.matched.join(', '),fallback};
+}
+
+// One slot's decision when the steward set a DEFAULT: expertise routing still
+// runs, but a candidate must STRICTLY BEAT the default person's own expertise
+// score for this category to override — otherwise the default holds. Pure
+// (no DOM) so it is unit-testable.
+function slotDecision(cat,cv,slot,fb,defId){
+  const pk=pickSlot(cat,cv,slot,fb);
+  if(!defId) return {mode:'assign',pk};
+  const defP=personById(defId);
+  const defScore=defP?scorePC(personVocab(defP),cv).score:0;
+  if(pk.id && pk.id!==defId && (pk.score||0)>0 && (pk.score||0)>defScore){
+    return {mode:'override',pk:Object.assign({},pk,{reason:pk.reason+' — beats your default '+ccName(defId)+' ('+(pk.score||0).toFixed(1)+' vs '+defScore.toFixed(1)+')'}),defScore};
+  }
+  const why = (pk.id===defId && (pk.score||0)>0) ? ('your default is also the best expertise match — '+(pk.reason||''))
+            : (pk.id && (pk.score||0)>0) ? ('default holds — '+pk.name+' matched but not better ('+(pk.score||0).toFixed(1)+' vs '+defScore.toFixed(1)+')')
+            : ('left on your default — '+ccName(defId));
+  return {mode:'default',pk:{id:'',name:'',conf:'default',reason:why},defScore};
 }
 function renderAutoCard(card,picks){
   const body=card.querySelector('.catcard-b'); if(!body) return;
@@ -4532,13 +4550,13 @@ function autoAssign(){
     ['businessSteward','owner','custodian'].forEach(slot=>{
       const field=card.querySelector('.cc-field[data-f="'+slot+'"]');
       if(field&&field.dataset.src==='user'){ picks[slot]={conf:'low',reason:'kept your manual pick',locked:true,id:field.value,name:ccName(field.value)}; locked++; return; }
-      if(respect&&defs[slot]){
+      const dec=slotDecision(cat,cv,slot,fb,respect?defs[slot]:'');
+      picks[slot]=dec.pk;
+      if(dec.mode==='default'){
         if(field){ if(field.tagName==='SELECT') field.value=''; field.dataset.src=''; field.classList.remove('is-auto'); }
-        picks[slot]={id:'',name:'',conf:'default',reason:'left on your default — '+ccName(defs[slot])}; defaulted++; return;
+        defaulted++; return;
       }
-      const pk=pickSlot(cat,cv,slot,fb);
-      picks[slot]=pk;
-      if(field&&pk.id){ field.value=pk.id; field.dataset.src='auto'; field.classList.add('is-auto'); field.classList.remove('is-locked'); filled++; }
+      if(field&&dec.pk.id){ field.value=dec.pk.id; field.dataset.src='auto'; field.classList.add('is-auto'); field.classList.remove('is-locked'); filled++; }
     });
     renderAutoCard(card,picks);
   });

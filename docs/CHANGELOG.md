@@ -14,6 +14,27 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.8.11] — 2026-07-14
+
+### Fixed — Auto-assign routes by expertise again, without trampling defaults
+1.8.9's "respect defaults" was too blunt: with defaults set it suppressed ALL
+routing (0 slots filled). The rule is now a fair contest, factored into a
+pure, unit-tested `slotDecision()`:
+
+- a category override is written only when a candidate's expertise for that
+  category **strictly beats the default person's own score** — the rationale
+  shows the matched terms and both scores ("matched compliance, aml, kyc —
+  beats your default elena ramirez (15.0 vs 0.0)");
+- when the default is also the best match (or nothing scores higher), the
+  slot stays on *(use default)* with the reason;
+- role-only fallbacks never override a default (the original 1.8.9 bug where
+  the Owner-role holder swept every category);
+- "Set up stewardship" still LLM-generates any missing roster expertise
+  first, so the contest runs on real keywords.
+
+Verified with the page's actual functions extracted into a node harness:
+expertise override, default-holds, tie, and no-default cases all pass.
+
 ## [1.8.10] — 2026-07-14
 
 ### Pending steward review — context, junk control, and an AI reviewer
