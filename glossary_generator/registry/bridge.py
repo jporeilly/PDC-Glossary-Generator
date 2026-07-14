@@ -64,11 +64,33 @@ def _tag_vocabulary():
         return {"allow_list": [], "sensitivity_floors": {}, "terms": {}, "source": None}
 
 
+def _curated_seeds():
+    """Curated detection seeds from the installed domain pack — vetted
+    canonical shapes (SSN, email, …) and reference lists (service cities)
+    for concepts profiling can't induce. This is the custom-only program's
+    replacement for PDC's built-ins: the seed lives in the versioned pack,
+    travels through the Registry with source 'curated', and the Policy
+    Generator authors it like any other evidence. {term_name_lower: [seeds]}"""
+    path = os.environ.get("GLOSSARY_DOMAIN_PACK") or \
+        os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "domain_pack.json")
+    try:
+        with open(path, encoding="utf-8") as f:
+            cur = (json.load(f) or {}).get("curated_seeds") or {}
+    except Exception:
+        return {}
+    out = {}
+    for name, seed in cur.items():
+        seeds = seed if isinstance(seed, list) else [seed]
+        out[str(name).strip().lower()] = [s for s in seeds if isinstance(s, dict)]
+    return out
+
+
 def build_registry(rows, glossary_name: str, glossary_id: str = None) -> dict:
     """rows -> Registry dict (one concept per kept term)."""
     concepts, seen = [], set()
     vocab = _tag_vocabulary()
     allow = set(vocab.get("allow_list") or [])
+    curated = _curated_seeds()
     for r in rows or []:
         if r.get('type') == 'category':
             continue
@@ -94,6 +116,21 @@ def build_registry(rows, glossary_name: str, glossary_id: str = None) -> dict:
         enum_vals = [v.strip() for v in (r.get('Enum_Values') or '').split(';') if v.strip()]
         if enum_vals:
             detect.append({"type": "dictionary", "values": enum_vals, "source": "profiled"})
+        # curated seeds fill the gaps profiling can't induce — but profiled
+        # evidence always wins over a canonical shape for the same seed type
+        for s in curated.get(term.lower(), []):
+            kind = s.get("type")
+            if kind not in ("pattern", "dictionary"):
+                continue
+            if any(d.get("type") == kind for d in detect):
+                continue
+            if kind == "pattern" and not (s.get("regex") or "").strip():
+                continue
+            if kind == "dictionary" and len(s.get("values") or []) < 2:
+                continue
+            seed = dict(s)
+            seed["source"] = "curated"
+            detect.append(seed)
         # physical key facts per source column — relationship context for the
         # Policy Generator (which columns are identity vs reference joins)
         keys = {sc: {"pk": bool(k.get("pk")), "fk": bool(k.get("fk")),

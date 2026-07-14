@@ -8,8 +8,8 @@ core stays generic. Point the app at one with:
 or (the default) drop a file named `domain_pack.json` beside `suggester.py`. If
 `GLOSSARY_DOMAIN_PACK` is unset, the app loads `./domain_pack.json` automatically.
 
-A pack is read by **two** engines, each picking out its own keys from the same file —
-so a complete pack carries both sets:
+A pack is read by **three** engines, each picking out its own keys from the same file —
+so a complete pack carries all three sets:
 
 ## Categorization & naming (read by `suggester.py`)
 
@@ -69,3 +69,9 @@ scenario's `*-domain-pack.zip` into `glossary_generator/`), then reseed.
 Additional scenario packs plug in the same way: a `data_sources/<ID>/domain_pack/`
 folder plus a `scenario.json` manifest. Don't mix scenarios: install one pack at a
 time and reseed.
+
+## Curated detection seeds (read by `registry/bridge.py` at Generate time)
+
+| Key | Purpose |
+| --- | --- |
+| `curated_seeds` | `{term_name: seed}` (or a list of seeds) — vetted canonical shapes and reference lists for concepts the scan can't induce. Each seed is `{type: "pattern", regex, signature?}` or `{type: "dictionary", values: [...]}`. At Generate, seeds are merged into the Registry's `concepts[].detect` with `source: "curated"` — **profiled evidence always wins** over a curated seed of the same type. This is how a custom-only identification program covers the shapes PDC's built-ins would otherwise handle (SSN, email, phone, service cities): the seed lives in the versioned pack, so the Policy Generator's authored method is fully tracked and auditable. |
