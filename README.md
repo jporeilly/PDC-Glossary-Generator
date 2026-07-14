@@ -7,6 +7,8 @@ glossary, lets a steward review and govern it, and exports import-ready JSONL**
 for **Pentaho Data Catalog → Business Glossary → Import** — so the glossary and
 its tags stay governed instead of drifting.
 
+![1784027695571](image/README/1784027695571.png)
+
 The app is **scenario-generic**; each training scenario ships as a separate,
 self-contained bundle — data kit, domain pack and courseware — served by one
 shared lab stack:
@@ -54,8 +56,8 @@ Identification:
    export it **authors the Registry** — one row per concept with the business
    term, governed tags (from a controlled allow-list), rule-based sensitivity,
    and category.
-2. **Policy Generator** (a separate app, shipped independently) **reads the
-   Registry** — with the term ids reconciled after import — and emits PDC's
+2. **[Policy Generator](https://github.com/jporeilly/PDC-Policy)** (a separate
+   app, its own repo) **reads the Registry** — with the term ids reconciled after import — and emits PDC's
    Data Identification methods: dictionaries (ZIP) and patterns (JSON), each
    bound to its term and stamping the Registry's tags. It also drift-checks
    deployed methods against the Registry. Since 1.8.x the Registry rows carry
@@ -76,8 +78,7 @@ workshop figures are in [diagrams/](glossary_generator/diagrams/).
   Oracle), MinIO/S3 document stores, or a plain DDL file. Or skip direct access
   entirely and **harvest from what PDC has already cataloged**.
 
-    ![The Connections page — bulk loader, harvest from PDC, live scan, data discovery and column profiling](image/README/connect-page.png)
-
+  ![The Connections page — bulk loader, harvest from PDC, live scan, data discovery and column profiling](image/README/connect-page.png)
 - **Review** — one suggested term per business-meaningful column, with inferred
   sensitivity, PII category, CDE flag, governed lower-case tags, and an
   evidence-based confidence signal. The scan **learns value formats from the
@@ -87,14 +88,12 @@ workshop figures are in [diagrams/](glossary_generator/diagrams/).
   Disambiguate / Keep separate recommendation** (escalating to a live
   data-value probe and an AI adjudicator on demand).
 
-    ![The review grid — AI agent toolbar, duplicate groups with Merge / Disambiguate / Keep separate recommendations](image/README/review-grid.png)
-
+  ![The review grid — AI agent toolbar, duplicate groups with Merge / Disambiguate / Keep separate recommendations](image/README/review-grid.png)
 - **Govern** — steward/owner/custodian assignment (manual or keyword
   auto-assign from a Keycloak-fetched roster), ratings, review dates, and a
   steward approval gate over the vocabulary, with a full audit trail.
 
-    ![The Govern page — Keycloak roster, stewardship defaults and per-category overrides, generate & apply](image/README/govern-page.png)
-
+  ![The Govern page — Keycloak roster, stewardship defaults and per-category overrides, generate & apply](image/README/govern-page.png)
 - **Generate & apply** — export the kept terms as PDC-importable JSONL, then
   resolve term ids and **apply term links, tags and sensitivity back onto PDC
   column entities** over the public API, ending with a Trust Score rollup.
