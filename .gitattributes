@@ -1,6 +1,9 @@
 # Auto detect text files and perform LF normalization
 * text=auto
 
+# Shell scripts must stay LF and keep exec bits — they run on the lab VM
+*.sh text eol=lf
+
 # Binary formats — never CRLF-convert or diff as text.
 # (The generated PDFs are byte-offset sensitive: CRLF conversion
 # would break their xref tables.)
