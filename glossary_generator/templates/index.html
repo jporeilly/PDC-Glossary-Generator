@@ -388,6 +388,7 @@
   .chkterm{border:1px solid currentColor;background:transparent;color:inherit;font-size:11px;font-weight:600;border-radius:9px;padding:1px 8px;cursor:pointer;opacity:.9}
   .chkterm:hover{opacity:1;text-decoration:underline}
   .sens-hi{color:#C0392B} .sens-md{color:#B9770E} .sens-lo{color:#1C7293}
+  .conf.default{background:#EAF7F5;color:#0A3D52;border:1px solid #bfe6e0}
   a.dlbig{display:inline-flex;align-items:center;gap:7px;background:var(--dark);color:#fff;font-weight:700;font-size:13.5px;padding:9px 16px;border-radius:8px;text-decoration:none;box-shadow:0 1px 3px rgba(10,61,82,.25)}
   a.dlbig:hover{filter:brightness(1.12)}
   .nextsteps{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12px;color:var(--ink);background:#FDF6E7;border:1px solid #EAD9A8;border-radius:8px;padding:7px 11px}
@@ -1184,6 +1185,7 @@
         <div class="fld" style="flex:0 0 210px;position:relative"><label>Rating</label><select id="g_rating" onchange="onGlobalRatingChange()"><option value="0">None</option><option value="auto" selected>Auto (DQ)</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option></select><span id="g_rating_hint" class="hint" style="position:absolute;top:100%;left:0;margin-top:3px;white-space:nowrap"></span></div>
         <div class="fld" style="flex:0 0 185px"><label>Reviewed date</label><input id="g_reviewed" type="date"/></div>
         <div class="fld" style="flex:0 0 auto"><label>Apply to categories</label><label class="sslbox" style="width:fit-content"><input id="g_applycats" type="checkbox" checked/> categories too</label></div>
+        <div class="fld" style="flex:0 0 auto"><label>&nbsp;</label><span><button class="ghost sm" onclick="saveGovDefaults(true)" title="Persist these defaults (steward, owner, custodian, status, domain, rating, reviewed date, stakeholders) to settings.json — they restore on every restart, and Auto-assign respects them.">Save defaults</button> <span class="hint" id="govDefMsg"></span></span></div>
       </div>
       <div class="fld" style="margin-top:12px"><label>Stakeholders</label><div id="g_stakeholders" class="stakelist"></div></div>
       <div id="g_cattbl_wrap" style="margin-top:14px;display:none">
@@ -1194,6 +1196,7 @@
           <button class="ghost sm" onclick="autoAssign()" title="Match each person's role + expertise against each category and fill the steward, owner and custodian slots. Only fields you haven't changed by hand are touched.">Auto-assign all slots</button>
           <button class="ghost sm" onclick="clearAuto()" title="Clear the auto-filled picks and unlock everything (your manual edits are kept).">Clear auto</button>
           <label class="cbx"><input id="auto_fallback" type="checkbox" checked/> expertise-only fallback when no role match</label>
+          <label class="cbx" title="When a slot has an explicit default above (e.g. Owner: elena ramirez), Auto-assign leaves that slot on (use default) for every category instead of overriding it with a role/expertise pick. Untick to let expertise routing override defaults too."><input id="auto_respect" type="checkbox" checked/> respect defaults</label>
           <span class="grow note" id="autoMsg">Keyword match on role + expertise &mdash; deterministic and offline. Won&rsquo;t overwrite slots you set by hand.</span>
         </div>
         <div id="g_catcards" class="catcards"></div>
@@ -4210,7 +4213,39 @@ function fillGovSelects(){
     const bs=pickByFn('businessSteward')||b[0], ow=pickByFn('owner')||b[0], cu=pickByFn('custodian')||b[0];
     $('g_steward').value=bs.id; $('g_owner').value=ow.id; $('g_custodian').value=cu.id;
   }
-  $('g_stakeholders').innerHTML=b.length?b.map(p=>`<label><input type="checkbox" class="stk" value="${esc(p.id)}"> ${esc(p.display_name||p.name)}</label>`).join(''):'<span class="msg">No accounts with a UUID yet.</span>';
+  $('g_stakeholders').innerHTML=b.length?b.map(p=>`<label><input type="checkbox" class="stk" value="${esc(p.id)}" onchange="saveGovDefaults()"> ${esc(p.display_name||p.name)}</label>`).join(''):'<span class="msg">No accounts with a UUID yet.</span>';
+  applyGovDefaults();       // saved defaults beat the role-based prefill
+  wireGovDefaults();
+}
+
+/* ---- stewardship defaults persist to settings.json and restore on start ---- */
+let GOV_WIRED=false;
+function wireGovDefaults(){
+  if(GOV_WIRED) return; GOV_WIRED=true;
+  ['g_steward','g_owner','g_custodian','g_status','g_domain','g_rating','g_reviewed','g_applycats'].forEach(id=>{
+    const el=$(id); if(el) el.addEventListener('change',()=>saveGovDefaults());
+  });
+}
+function saveGovDefaults(explicit){
+  const gd={steward:$('g_steward')?$('g_steward').value:'',owner:$('g_owner')?$('g_owner').value:'',
+            custodian:$('g_custodian')?$('g_custodian').value:'',status:$('g_status')?$('g_status').value:'',
+            domain:$('g_domain')?$('g_domain').value:'',rating:$('g_rating')?$('g_rating').value:'',
+            reviewed:$('g_reviewed')?$('g_reviewed').value:'',applycats:$('g_applycats')?$('g_applycats').checked:true,
+            stakeholders:[...document.querySelectorAll('#g_stakeholders .stk:checked')].map(c=>c.value)};
+  SETTINGS.gov_defaults=gd;
+  fetch('/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({gov_defaults:gd})}).catch(()=>{});
+  const m=$('govDefMsg'); if(m){ m.textContent=explicit?'\u2713 defaults saved \u2014 they restore on restart and Auto-assign respects them':'\u2713 saved'; if(!explicit) setTimeout(()=>{ if(m.textContent==='\u2713 saved') m.textContent=''; },2500); }
+}
+function applyGovDefaults(){
+  const gd=(typeof SETTINGS!=='undefined'&&SETTINGS.gov_defaults)||null; if(!gd) return;
+  const setSel=(id,v)=>{ const el=$(id); if(el&&v!=null&&v!==''&&[...el.options].some(o=>o.value===v)) el.value=v; };
+  setSel('g_steward',gd.steward); setSel('g_owner',gd.owner); setSel('g_custodian',gd.custodian);
+  setSel('g_status',gd.status); setSel('g_domain',gd.domain); setSel('g_rating',gd.rating);
+  if(gd.reviewed&&$('g_reviewed')) $('g_reviewed').value=gd.reviewed;
+  if(gd.applycats!=null&&$('g_applycats')) $('g_applycats').checked=!!gd.applycats;
+  (gd.stakeholders||[]).forEach(id=>{ const c=document.querySelector('#g_stakeholders .stk[value="'+CSS.escape(id)+'"]'); if(c) c.checked=true; });
+  if(gd.rating&&typeof onGlobalRatingChange==='function') onGlobalRatingChange();
+  GOV_DEFAULTS_DONE=true;   // saved defaults replace the one-time date/rating seeding
 }
 function addPerson(){
   if(!valPerson()) return;
@@ -4420,13 +4455,21 @@ function autoAssign(){
   if(!ROWS.length){ $('autoMsg').textContent='Scan a source first — auto-assign reads each category\u2019s columns.'; return; }
   if(!PEOPLE.filter(p=>p.id).length){ $('autoMsg').textContent='Add at least one account with a UUID first.'; return; }
   const fb=$('auto_fallback')?$('auto_fallback').checked:true;
-  AUTO_ASSIGNING=true; let filled=0, cards=0, locked=0;
+  const respect=$('auto_respect')?$('auto_respect').checked:true;
+  // explicit defaults are the steward's word — with "respect defaults" on, a slot
+  // that has one stays on (use default) everywhere instead of being overridden
+  const defs={businessSteward:$('g_steward').value||'',owner:$('g_owner').value||'',custodian:$('g_custodian').value||''};
+  AUTO_ASSIGNING=true; let filled=0, cards=0, locked=0, defaulted=0;
   document.querySelectorAll('#g_catcards .catcard').forEach(card=>{
     cards++; const cat=card.dataset.cat, cv=catVocab(cat), picks={};
     ['businessSteward','owner','custodian'].forEach(slot=>{
       const field=card.querySelector('.cc-field[data-f="'+slot+'"]');
+      if(field&&field.dataset.src==='user'){ picks[slot]={conf:'low',reason:'kept your manual pick',locked:true,id:field.value,name:ccName(field.value)}; locked++; return; }
+      if(respect&&defs[slot]){
+        if(field){ if(field.tagName==='SELECT') field.value=''; field.dataset.src=''; field.classList.remove('is-auto'); }
+        picks[slot]={id:'',name:'',conf:'default',reason:'left on your default — '+ccName(defs[slot])}; defaulted++; return;
+      }
       const pk=pickSlot(cat,cv,slot,fb);
-      if(field&&field.dataset.src==='user'){ picks[slot]={conf:pk.conf,reason:'kept your manual pick',locked:true,id:field.value,name:ccName(field.value)}; locked++; return; }
       picks[slot]=pk;
       if(field&&pk.id){ field.value=pk.id; field.dataset.src='auto'; field.classList.add('is-auto'); field.classList.remove('is-locked'); filled++; }
     });
@@ -4434,7 +4477,7 @@ function autoAssign(){
   });
   AUTO_ASSIGNING=false;
   document.querySelectorAll('#g_catcards .catcard').forEach(c=>ccUpdate(c));
-  $('autoMsg').innerHTML='&#9889; Filled <b>'+filled+'</b> slot(s) across <b>'+cards+'</b> categories'+(locked?(', kept <b>'+locked+'</b> manual pick(s)'):'')+'. Expand a category to see why each person was chosen.';
+  $('autoMsg').innerHTML='&#9889; Filled <b>'+filled+'</b> slot(s) across <b>'+cards+'</b> categories'+(defaulted?(', left <b>'+defaulted+'</b> on your defaults'):'')+(locked?(', kept <b>'+locked+'</b> manual pick(s)'):'')+'. Expand a category to see why each person was chosen.';
 }
 function clearAuto(){
   AUTO_ASSIGNING=true;

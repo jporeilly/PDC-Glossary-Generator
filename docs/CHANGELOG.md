@@ -14,6 +14,23 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.8.9] — 2026-07-14
+
+### Fixed — stewardship defaults now mean what they say
+- **Auto-assign respects explicit defaults.** It used to fill every category's
+  steward/owner/custodian override from roster roles + expertise — so a
+  default like *Owner: elena ramirez* was silently shadowed by the Owner-role
+  holder (catalog admin) in all categories. With the new **respect defaults**
+  toggle (on by default), any slot that has an explicit default stays on
+  *(use default)* everywhere; re-running Auto-assign also clears its earlier
+  auto-fills on those slots. The rationale panel shows "left on your default —
+  <name>". Untick to restore full expertise routing.
+- **Defaults persist.** The whole defaults block (steward, owner, custodian,
+  status, domain, rating, reviewed date, apply-to-categories, stakeholders)
+  now saves to settings.json — automatically on change, and via the new
+  **Save defaults** button — and restores on every restart, beating the
+  role-based prefill.
+
 ## [1.8.8] — 2026-07-13
 
 ### UX
