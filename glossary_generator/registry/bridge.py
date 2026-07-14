@@ -110,6 +110,7 @@ def build_registry(rows, glossary_name: str, glossary_id: str = None) -> dict:
             "category": (r.get('Category') or None),
             "definition": (r.get('Definition') or ''),
             "detect": detect,
+            "sources": [c.strip() for c in str(r.get('Source_Column') or '').split(';') if c.strip()],
             "keys": keys,
             "method": None,
         })
