@@ -2978,10 +2978,53 @@ function tdRenderPending(){
   if(!pterms.length && !ptags.length){ wrap.style.display='none'; return; }
   wrap.style.display='';
   const chip=(kind,nm)=>`<span style="display:inline-flex;align-items:center;gap:5px;border:1px solid var(--line);border-radius:14px;padding:2px 4px 2px 10px;margin:2px 4px 2px 0;background:#fff">${esc(nm)}<button class="ghost sm" style="padding:1px 7px" title="Approve — starts governing" onclick="tdReview('${kind}','${esc(nm).replace(/'/g,"\\'")}','approve')">✓</button><button class="ghost sm" style="padding:1px 7px" title="Reject — discard" onclick="tdReview('${kind}','${esc(nm).replace(/'/g,"\\'")}','reject')">✕</button></span>`;
+  // pending TERMS render as rows with the context a steward decides on:
+  // where the scan saw it, the category it carried, sensitivity/conf, tags, definition
+  const sensCls={HIGH:'sens-hi',MEDIUM:'sens-md',LOW:'sens-lo'};
+  const trow=t=>{
+    const meta=[t.category?`category <b>${esc(t.category)}</b>`:'',
+                t.sensitivity?`sensitivity <b class="${sensCls[t.sensitivity]||''}">${esc(t.sensitivity)}</b>`:'',
+                t.confidence?`conf <b>${esc(t.confidence)}</b>`:'',
+                (t.tags&&t.tags.length)?`tags ${t.tags.map(esc).join('; ')}`:'',
+                (t.sources&&t.sources.length)?`seen in <code style="font-size:10.5px">${t.sources.map(esc).join('; ')}</code>`:''
+               ].filter(Boolean).join(' · ');
+    const adv=TD_ADVICE[t.term];
+    const advLbl=adv?({approve:'Approve',reject:'Reject',alias:'Alias of '+esc(adv.target||'')})[adv.action]:'';
+    const advHtml=adv?`<div style="font-size:11px;margin-top:2px;color:#0A3D52"><span class="gband" style="background:#EDE7F6;color:#4527A0;margin-left:0">AI</span> Recommended: <b>${advLbl}</b> — ${esc(adv.reason||'')}</div>`:'';
+    const aliasBtn=(adv&&adv.action==='alias'&&adv.target)?`<button class="ghost sm" style="padding:1px 8px;border-color:#2EC4B6;color:#0A3D52;font-weight:600" title="Fold into '${esc(adv.target)}' as an alias" onclick="tdAlias('${esc(t.term).replace(/'/g,"\\'")}','${esc(adv.target).replace(/'/g,"\\'")}')">→ alias</button>`:'';
+    return `<div style="display:flex;align-items:flex-start;gap:8px;padding:5px 2px;border-top:1px solid #efe3c8">
+      <div style="flex:1;min-width:0"><b style="font-size:12.5px">${esc(t.term)}</b>
+        ${meta?`<span class="hint" style="margin-left:8px">${meta}</span>`:''}
+        ${t.definition?`<div class="hint" style="margin-top:1px">${esc(t.definition)}</div>`:''}
+        ${advHtml}
+      </div>
+      ${aliasBtn}
+      <button class="ghost sm" style="padding:1px 8px" title="Approve — starts governing" onclick="tdReview('term','${esc(t.term).replace(/'/g,"\\'")}','approve')">✓</button>
+      <button class="ghost sm" style="padding:1px 8px" title="Reject — discard" onclick="tdReview('term','${esc(t.term).replace(/'/g,"\\'")}','reject')">✕</button>
+    </div>`;
+  };
   let html='';
-  if(pterms.length) html+=`<div><b>Terms (${pterms.length})</b> <button class="ghost sm" onclick="tdReviewAll('term','approve')">Approve all</button><div style="margin-top:4px">${pterms.map(n=>chip('term',n)).join('')}</div></div>`;
+  const ptermObjs=(TAGDICT.terms||[]).filter(t=>t.status==='pending');
+  if(pterms.length) html+=`<div><b>Terms (${pterms.length})</b> <button class="ghost sm" onclick="tdReviewAll('term','approve')">Approve all</button> <button class="ghost sm" onclick="tdAiReview()" id="tdAiBtn" title="Advise per candidate: a deterministic near-duplicate check against the governed vocabulary, then the local AI judges the rest from the captured context (category, definition, sources). Advice only — you still click.">AI review</button> <span class="hint">approve only what belongs in the company vocabulary — reject scan noise</span><div style="margin-top:4px">${ptermObjs.map(trow).join('')}</div></div>`;
   if(ptags.length) html+=`<div><b>Tags (${ptags.length})</b> <button class="ghost sm" onclick="tdReviewAll('tag','approve')">Approve all</button><div style="margin-top:4px">${ptags.map(n=>chip('tag',n)).join('')}</div></div>`;
   $('tdPendList').innerHTML=html;
+}
+let TD_ADVICE={};
+async function tdAiReview(){
+  const btn=$('tdAiBtn'); if(btn){ btn.disabled=true; btn.textContent='Reviewing…'; }
+  try{
+    const d=await (await fetch('/api/tagdict/ai-review',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({model:currentModel()||null,compute:COMPUTE})})).json();
+    TD_ADVICE=d.advice||{};
+    tdRenderPending();
+    const n=Object.keys(TD_ADVICE).length;
+    $('tdMsg').textContent=n?`AI reviewed ${d.pending} candidate(s) — ${n} recommendation(s)${d.used_llm?'':' (Ollama offline — duplicate check only)'}.`:'No recommendations — nothing pending or Ollama offline.';
+  }catch(e){ $('tdMsg').textContent='AI review failed: '+(e.message||e); }
+  finally{ if(btn){ btn.disabled=false; btn.textContent='AI review'; } }
+}
+async function tdAlias(name,target){
+  try{ TAGDICT=await (await fetch('/api/tagdict/review',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({kind:'term',names:[name],action:'alias',target:target,actor:STEWARD_ACTOR})})).json(); delete TD_ADVICE[name]; tdRender(); renderAudit(); $('tdMsg').textContent='“'+name+'” folded into “'+target+'” as an alias.'; }
+  catch(e){ $('tdMsg').textContent='Alias failed: '+(e.message||e); }
 }
 async function tdReview(kind,name,action){
   try{ TAGDICT=await (await fetch('/api/tagdict/review',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({kind,names:[name],action,actor:STEWARD_ACTOR})})).json(); tdRender(); renderAudit(); $('tdMsg').textContent=(action==='approve'?'Approved ':'Rejected ')+kind+' “'+name+'”.'; }

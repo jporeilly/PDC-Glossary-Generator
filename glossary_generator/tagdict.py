@@ -214,6 +214,10 @@ def _seed():
          "counts": {}, "term_counts": {}, "examples": {}, "sources": []})
 
 
+# synthetic names PDC/profilers invent for headerless CSV columns — scan noise,
+# never vocabulary. Blocked at accretion and healed out of pending on load.
+_JUNK_TERM = re.compile(r"^(column|field|col|unnamed)[-_ ]?\d+$", re.I)
+
 _LOCK = threading.Lock()
 _DICT = None
 _COMPILED = None
@@ -255,6 +259,11 @@ def _merge_seed(d):
             cur["layer"] = "generic"
     d.setdefault("counts", {}); d.setdefault("term_counts", {})
     d.setdefault("examples", {}); d.setdefault("sources", [])
+    for nm in [n for n, m in list(d.get("terms", {}).items())
+               if isinstance(m, dict) and m.get("status") == "pending"
+               and m.get("layer") != "generic" and _JUNK_TERM.match(str(n).strip())]:
+        d["terms"].pop(nm, None)
+        d.get("term_counts", {}).pop(nm, None)
     return d
 
 
@@ -493,10 +502,13 @@ def canonical_name(name):
     return None
 
 
-def review(kind, names, action="approve"):
+def review(kind, names, action="approve", target=None):
     """Steward decision on pending items. kind in {'tag','term'}, action in
-    {'approve','reject'}. Approve -> status 'approved' (now governs). Reject ->
-    remove the company item. Generic baseline is never touched."""
+    {'approve','reject','alias'}. Approve -> status 'approved' (now governs).
+    Reject -> remove the company item. Alias (terms only) -> the pending name
+    becomes an ALIAS of the governed `target` term and the pending entry is
+    removed - the duplicate folds into the canonical concept. Generic baseline
+    is never touched."""
     global _COMPILED, _COMPILED_KEY
     d = load()
     coll = d.get("tags" if kind == "tag" else "terms", {})
@@ -506,7 +518,15 @@ def review(kind, names, action="approve"):
             meta = coll.get(nm)
             if not meta or meta.get("layer") == "generic":
                 continue
-            if action == "reject":
+            if action == "alias" and kind == "term":
+                tgt = d.get("terms", {}).get(target or "")
+                if not tgt or nm == target:
+                    continue
+                als = tgt.setdefault("aliases", [])
+                if nm not in als:
+                    als.append(nm)
+                coll.pop(nm, None); changed += 1
+            elif action == "reject":
                 coll.pop(nm, None); changed += 1
             elif action == "approve" and meta.get("status") != "approved":
                 meta["status"] = "approved"; changed += 1
@@ -568,21 +588,38 @@ def accrete(rows, source=None, persist=True):
                 if term and term not in lst and len(lst) < 8:
                     lst.append(term)
                 n += 1
-            # company term (skip conceptual table-level record terms)
-            if term and not (not str(r.get("Source_Column") or "").strip()
-                             and re.search(r"\bRecord$", term)):
+            # company term (skip conceptual table-level record terms and the
+            # synthetic Column-N names headerless CSVs produce)
+            if term and not _JUNK_TERM.match(term) and not (
+                    not str(r.get("Source_Column") or "").strip()
+                    and re.search(r"\bRecord$", term)):
                 canon = idx.get(term.lower(), term)
                 tcounts[canon] = tcounts.get(canon, 0) + 1
+                srcs = [c.strip() for c in str(r.get("Source_Column") or "").split(";") if c.strip()]
                 if canon not in terms:
                     terms[canon] = {"aliases": [], "sensitivity": r.get("Sensitivity", "LOW"),
-                                    "tags": row_tags[:4], "layer": "company", "status": "pending"}
+                                    "tags": row_tags[:4], "layer": "company", "status": "pending",
+                                    "category": (r.get("Category") or "").strip(),
+                                    "definition": str(r.get("Definition") or "").strip()[:200],
+                                    "confidence": (r.get("Confidence") or "").strip(),
+                                    "sources": srcs[:3]}
                     idx[canon.lower()] = canon
                 else:
-                    # raise the recorded sensitivity to the observed floor
+                    # raise the recorded sensitivity to the observed floor and
+                    # top up the steward context from later sightings
                     cur = terms[canon]
-                    if _SENS.index(str(r.get("Sensitivity", "LOW")).upper()) > \
-                       _SENS.index(str(cur.get("sensitivity", "LOW")).upper()):
+                    if _SENS.index(str(r.get("Sensitivity", "LOW")).upper()) > _SENS.index(str(cur.get("sensitivity", "LOW")).upper()):
                         cur["sensitivity"] = str(r.get("Sensitivity")).upper()
+                    if not cur.get("category"):
+                        cur["category"] = (r.get("Category") or "").strip()
+                    if not cur.get("definition"):
+                        cur["definition"] = str(r.get("Definition") or "").strip()[:200]
+                    if not cur.get("confidence"):
+                        cur["confidence"] = (r.get("Confidence") or "").strip()
+                    have = cur.setdefault("sources", [])
+                    for c in srcs:
+                        if c not in have and len(have) < 5:
+                            have.append(c)
         if source:
             srcs = d.setdefault("sources", [])
             if source not in srcs:
@@ -660,6 +697,8 @@ def summary():
         terms.append({"term": n, "aliases": meta.get("aliases", []), "layer": meta.get("layer", "company"),
                       "status": ("generic" if meta.get("layer") == "generic" else meta.get("status", "approved")),
                       "sensitivity": meta.get("sensitivity", "LOW"), "tags": meta.get("tags", []),
+                      "category": meta.get("category", ""), "definition": meta.get("definition", ""),
+                      "confidence": meta.get("confidence", ""), "sources": meta.get("sources", []),
                       "count": tcounts.get(n, 0)})
     pend = pending()
     return {"schema": d.get("schema", SCHEMA), "domain": d.get("domain"),

@@ -14,6 +14,22 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.8.10] — 2026-07-14
+
+### Pending steward review — context, junk control, and an AI reviewer
+- **Pending terms now show what a steward needs to decide**: the category the
+  scan saw, sensitivity (color-coded), confidence, tags, the source columns/
+  files it appeared in, and the captured definition — no more bare name chips.
+- **Scan noise never enters.** Synthetic names from headerless CSVs
+  (`Column-0…N`, `Field-N`, `Unnamed-N`) are blocked at accretion AND healed
+  out of existing pending lists on next start (approved items untouched).
+- **AI review button**: a deterministic near-duplicate pass against the
+  governed vocabulary first (normalized name match ≥85% — "Dividend Rates" vs
+  "Dividend Rate"), then the local AI judges the rest from the captured
+  context: **Approve / Reject / Alias of <term>** with a rationale. Advice
+  only — and a one-click **→ alias** action folds a duplicate into the
+  governed term as an alias (new `alias` review action, audit-logged).
+
 ## [1.8.9] — 2026-07-14
 
 ### UX

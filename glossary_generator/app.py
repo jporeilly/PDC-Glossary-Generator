@@ -1345,11 +1345,50 @@ def api_tagdict_review():
     names = body.get("names") or []
     if kind not in ("tag", "term"):
         return jsonify({"error": "kind must be 'tag' or 'term'"}), 400
-    changed = tagdict.review(kind, names, action)
+    changed = tagdict.review(kind, names, action, target=body.get("target"))
     if changed:
         audit.record("%s.%s" % (kind, action), actor=body.get("actor"), names=names, changed=changed)
     out = tagdict.summary(); out["changed"] = changed
     return jsonify(out)
+
+@app.post("/api/tagdict/ai-review")
+def api_tagdict_ai_review():
+    """Advise on the pending scan-found terms: a deterministic near-duplicate
+    pass against the governed vocabulary (similarity scoring - 'Apy' vs 'APR
+    Rate'), then the local AI agent judges the rest with the captured context
+    (category, definition, sources). Advice only - the steward clicks approve /
+    reject / alias. Body: {model?, compute?}."""
+    body = request.get_json(force=True, silent=True) or {}
+    d = tagdict.load()
+    gov = sorted(tagdict.governed_terms())
+    pending = []
+    for n, m in (d.get("terms") or {}).items():
+        if (m or {}).get("status") == "pending" and (m or {}).get("layer") != "generic":
+            pending.append({"name": n, "category": m.get("category", ""),
+                            "definition": m.get("definition", ""),
+                            "sources": m.get("sources", []),
+                            "sensitivity": m.get("sensitivity", ""),
+                            "tags": m.get("tags", [])})
+    advice = {}
+    # deterministic near-duplicate pass first (cheap, explainable): normalized
+    # edit distance on the names alone — 'Dividend Rates' vs 'Dividend Rate'
+    for item in pending:
+        best, best_s = None, 0.0
+        a = similarity._norm(item["name"])
+        for g in gov:
+            r = similarity._lev_ratio(a, similarity._norm(g))
+            if r > best_s:
+                best, best_s = g, r
+        if best and best_s >= 0.85:
+            advice[item["name"]] = {"action": "alias", "target": best,
+                                    "reason": f"near-duplicate of governed term '{best}' ({int(best_s*100)}% name match)"}
+    used_llm = False
+    rest = [x for x in pending if x["name"] not in advice]
+    if rest:
+        llm_advice, used_llm = llm.review_pending_terms(
+            rest, gov, model=body.get("model"), compute=body.get("compute"))
+        advice.update(llm_advice)
+    return jsonify({"advice": advice, "pending": len(pending), "used_llm": used_llm})
 
 @app.post("/api/tagdict/reset")
 def api_tagdict_reset():

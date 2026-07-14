@@ -986,3 +986,95 @@ def categorize_rows(rows, categories, model=None, compute=None, workers=None,
             r["AI_Suggested"] = "Yes"
             updated += 1
     return rows, updated, True
+
+
+# ------------------------------------------------------------ AI pending-term review
+_PENDING_ACTIONS = {"approve": "approve", "reject": "reject", "alias": "alias"}
+
+def _pending_one(item, governed, model=None, num_gpu=None):
+    """One candidate-term judgment. Returns the parsed proposal dict or None."""
+    bits = []
+    if item.get("category"):
+        bits.append("category seen: %s" % item["category"])
+    if item.get("definition"):
+        bits.append("definition: %s" % str(item["definition"])[:200])
+    if item.get("sources"):
+        bits.append("seen in: %s" % "; ".join(item["sources"][:3]))
+    if item.get("sensitivity"):
+        bits.append("sensitivity: %s" % item["sensitivity"])
+    if item.get("tags"):
+        bits.append("tags: %s" % "; ".join(item["tags"][:5]))
+    prompt = (
+        "You are the data steward%s reviewing a CANDIDATE business term a scan "
+        "found, deciding whether it enters the governed vocabulary.\n"
+        "Candidate: \"%s\"\n- %s\n\n"
+        "Existing governed terms: %s\n\n"
+        "Decide ONE action:\n"
+        "- approve: a genuine, well-named business concept that belongs in the vocabulary.\n"
+        "- alias: the SAME concept as one existing governed term (a synonym, "
+        "abbreviation or misspelling of it) - name that term as target.\n"
+        "- reject: scan noise, a fragment, a technical artifact, or too vague "
+        "to govern.\n\n"
+        "Return JSON with keys: action (approve, alias or reject), target (the "
+        "existing governed term when action is alias, else empty), rationale "
+        "(one short sentence)."
+    ) % (
+        (" at " + COMPANY) if COMPANY else "",
+        item.get("name", ""),
+        "\n- ".join(bits) if bits else "(no context captured)",
+        ", ".join(governed[:80]) or "(none)",
+    )
+    return _complete_json(prompt, model=model, num_gpu=num_gpu)
+
+
+def review_pending_terms(pending, governed, model=None, compute=None, workers=None):
+    """AI adjudication of scan-found candidate terms. For each pending item the
+       model proposes approve / alias-of / reject with a rationale; guardrails:
+       the action must be one of the three, an alias target must be an existing
+       governed term (else the advice downgrades to approve), and nothing is
+       applied - the steward clicks. Returns ({name: {action, target, reason}},
+       used_llm)."""
+    pending = [x for x in (pending or []) if isinstance(x, dict) and x.get("name")]
+    gov = [str(g) for g in (governed or []) if str(g).strip()]
+    if not pending or not status(model)["online"]:
+        return {}, False
+    num_gpu = 0 if compute == "cpu" else (99 if compute == "gpu" else None)
+    if workers is None:
+        workers = WORKERS
+    workers = max(1, min(workers, 16))
+    gov_lower = {g.lower(): g for g in gov}
+    try:
+        _post(OLLAMA_URL + "/api/generate",
+              {"model": model or MODEL, "prompt": "ok", "stream": False,
+               "options": {"num_predict": 1}}, timeout=max(TIMEOUT, 120))
+    except Exception:
+        pass
+
+    def _do(item):
+        try:
+            return item, _pending_one(item, gov, model=model, num_gpu=num_gpu)
+        except Exception:
+            return item, None
+
+    if workers == 1 or len(pending) <= 1:
+        results = [_do(x) for x in pending]
+    else:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as ex:
+            results = list(ex.map(_do, pending))
+
+    out = {}
+    for item, res in results:
+        if not isinstance(res, dict):
+            continue
+        action = _PENDING_ACTIONS.get(str(res.get("action") or "").strip().lower())
+        if not action:
+            continue
+        target = gov_lower.get(str(res.get("target") or "").strip().lower(), "")
+        if action == "alias" and not target:
+            action = "approve"                     # bad target: fail safe
+        why = str(res.get("rationale") or "").strip()[:200]
+        if not _mostly_english(why):
+            why = ""
+        out[item["name"]] = {"action": action, "target": target,
+                             "reason": ("AI: " + why) if why else "AI review"}
+    return out, True
