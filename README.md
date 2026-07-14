@@ -56,7 +56,7 @@ Identification:
    export it **authors the Registry** — one row per concept with the business
    term, governed tags (from a controlled allow-list), rule-based sensitivity,
    and category.
-2. **[Policy Generator](https://github.com/jporeilly/PDC-Policy)** (a separate
+2. **[Policy Generator](https://github.com/jporeilly/PDC-Policy-Generator)** (a separate
    app, its own repo) **reads the Registry** — with the term ids reconciled after import — and emits PDC's
    Data Identification methods: dictionaries (ZIP) and patterns (JSON), each
    bound to its term and stamping the Registry's tags. It also drift-checks
