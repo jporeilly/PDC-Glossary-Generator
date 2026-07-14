@@ -2,7 +2,7 @@
 
 Notes for the PDC 11.0.0 instance running in the lab's Ubuntu VM
 (`/opt/pentaho/pdc-docker-deployment`, served at `https://pentaho.io`).
-These are **platform** issues — the demo lab stack (`data_sources/lab/`)
+These are **platform** issues — the demo lab stack (PDC-Scenarios' `data_sources/lab/`)
 and the Glossary Generator have their own troubleshooting sections.
 Ordered checklists: work top to bottom, the first failing check is almost
 always the cause. Confirm specifics against the Pentaho documentation for
@@ -343,7 +343,7 @@ endpoint is `v1` on earlier builds and `/api/public/v3/licensing/upload`
 on v3 — the Swagger page shows which your instance exposes).
 `pdc-reset.sh` does this automatically when `LICENSE_BIN` and the admin
 password are supplied. The full Swagger walkthrough is in the lab setup
-guide (`data_sources/lab/lab-setup.docx`, Part I).
+guide (PDC-Scenarios' `data_sources/lab/lab-setup.docx`, Part I).
 
 ---
 

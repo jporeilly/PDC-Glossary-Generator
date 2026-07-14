@@ -1,3 +1,0 @@
-kind,resourceName,host,port,databaseName,userName,password,schemaNames,endpoint,region,accessKey,secretKey,container,path,includePatterns,excludePatterns,databaseType,fqdnId,description
-postgres,CanyonTrail_Retail_Ops,192.168.1.200,5433,cto_retail,pdc_user,catalog123!,cto_retail,,,,,,,,,,,CTO retail operations database - stores; customers; products; orders; payments; loss prevention
-minio,CanyonTrail_Documents,,,,,,,http://192.168.1.200:9000,us-east-1,cto_minio_user,minio_secret_123!,cto-documents,/,,*.md,,,CTO document store - compliance; correspondence; invoices; POS exports; pricing; receipts

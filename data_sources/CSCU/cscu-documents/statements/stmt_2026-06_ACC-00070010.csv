@@ -1,3 +1,0 @@
-statement_month,member_no,account_no,post_date,description,txn_type,amount,running_balance
-2026-06,CSCU-100509,ACC-00070010,2026-06-11,Check 1044,CHECK,-230.00,5091.90
-2026-06,CSCU-100509,ACC-00070010,2026-06-12,Overdraft fee,FEE,-35.00,5056.90

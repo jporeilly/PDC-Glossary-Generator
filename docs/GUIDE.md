@@ -179,7 +179,8 @@ touching code:
   for both scenarios; copy and swap for any sector — no code changes.
 
 For **CSCU**, the simplest install is the pack zip — unzip
-`data_sources/CSCU/cscu-domain-pack.zip` into `glossary_generator/` (it drops
+`CSCU/cscu-domain-pack.zip` from the PDC-Scenarios repo
+(`data_sources/CSCU/`) into `glossary_generator/` (it drops
 `domain_pack.json`, auto-loaded, plus the `people.json` roster), then set:
 
 ```
@@ -189,7 +190,7 @@ GLOSSARY_COMPANY="Copper State Credit Union"
 The same pack can be referenced in place instead:
 
 ```
-GLOSSARY_DOMAIN_PACK=../data_sources/CSCU/domain_pack/credit_union.example.json
+GLOSSARY_DOMAIN_PACK=/path/to/PDC-Scenarios/data_sources/CSCU/domain_pack/credit_union.example.json
 ```
 
 The CSCU vocabulary covers Member Record, Loan Record, KYC Review Record, the
@@ -248,7 +249,7 @@ customer, copy the pack, edit the vocabulary, and point at your copy. See
    ./run.sh --port 8080     # choose a port
    ```
 
-   (Scenario vocabulary: unzip `data_sources/CSCU/cscu-domain-pack.zip` into the
+   (Scenario vocabulary: unzip PDC-Scenarios' `data_sources/CSCU/cscu-domain-pack.zip` into the
    app folder first, or export `GLOSSARY_DOMAIN_PACK` pointing at the pack file.)
 
    `run.sh` does a pre-flight check (Python version, free port, whether Ollama is
@@ -319,7 +320,7 @@ On the **Connections** screen, add one connection per source:
 
 **Bulk-load the connections.** A starter CSV is downloadable from the app
 (`/api/pdc/bulk-load/sample.csv`) or shipped as `datasources.sample.csv`. The CSCU
-scenario also ships **`data_sources/CSCU/cscu-datasources.csv`** — the same format
+scenario also ships **`data_sources/CSCU/cscu-datasources.csv`** (PDC-Scenarios repo) — the same format
 pre-filled with the two CSCU lab connections, ready to load:
 
 | kind | resourceName | reaches |
@@ -671,7 +672,7 @@ The engine is scenario-agnostic. Two knobs tailor it without code changes:
   table→term, keyword rules, abbreviations, category definitions). Point at it with
   `GLOSSARY_DOMAIN_PACK=path/to/pack.json`, or drop `domain_pack.json` beside
   `suggester.py`. The **Copper State Credit Union** pack ships with a
-  ready-to-install zip (`data_sources/CSCU/domain_pack/`). See
+  ready-to-install zip (PDC-Scenarios' `data_sources/CSCU/domain_pack/`). See
   `glossary_generator/domain_packs/README.md` for the pack format.
 
 Connections, buckets, and the glossary name are all set in the app UI or via the

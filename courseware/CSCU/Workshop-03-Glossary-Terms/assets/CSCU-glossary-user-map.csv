@@ -1,8 +1,0 @@
-name,email,uuid,roles
-Elena Ramirez,elena.ramirez@copperstatecu.org,7f2a91c4-3b8e-4d16-9a57-c1e84f02ab31,Data Steward; Business Steward
-Marcus Webb,marcus.webb@copperstatecu.org,5c0d7e92-64af-4b3a-8d21-90b7f3ce6a48,Business Steward
-Nadia Flores,nadia.flores@copperstatecu.org,b81f4a06-2c95-4e7d-a3b8-64d0e92c517f,Business Steward
-Tom Callahan,tom.callahan@copperstatecu.org,e93c25b7-08d1-4f6a-bc94-27a5f80d3e62,Business Steward
-Business Analyst,business.analyst@copperstatecu.org,,Data User
-Catalog Admin,catalog.admin@copperstatecu.org,,Admin
-Data Analyst,data.analyst@copperstatecu.org,,Data Steward

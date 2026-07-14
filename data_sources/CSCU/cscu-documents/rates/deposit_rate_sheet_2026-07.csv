@@ -1,6 +1,0 @@
-effective_date,product_code,product_name,dividend_rate,apy,min_balance
-2026-07-01,SHARE,Regular Share Savings,0.0150,0.0151,25
-2026-07-01,CHECKING,Share Draft Checking,0.0005,0.0005,0
-2026-07-01,MONEY_MKT,Money Market,0.0325,0.0330,2500
-2026-07-01,CERT_12MO,12-Month Certificate,0.0410,0.0418,1000
-2026-07-01,CERT_36MO,36-Month Certificate,0.0450,0.0459,1000

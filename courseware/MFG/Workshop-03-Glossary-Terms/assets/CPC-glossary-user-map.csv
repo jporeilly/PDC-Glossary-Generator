@@ -1,8 +1,0 @@
-name,email,uuid,roles
-Nora Whitaker,nora.whitaker@cascadeprecision.com,e1ae3614-24cc-53b6-9ca3-30d3480742bc,Data Steward; Business Steward
-Felix Okonkwo,felix.okonkwo@cascadeprecision.com,75c1969a-d558-500e-9a08-1b450859e0e6,Business Steward
-Yuki Mori,yuki.mori@cascadeprecision.com,8cd5358a-5c45-55c3-8941-0adaad711673,Business Steward
-Silas Grant,silas.grant@cascadeprecision.com,46593e77-2779-5005-b1c9-2c662fe80736,Business Steward
-Business Analyst,business.analyst@cascadeprecision.com,,Data User
-Catalog Admin,catalog.admin@cascadeprecision.com,,Admin
-Data Analyst,data.analyst@cascadeprecision.com,,Data Steward

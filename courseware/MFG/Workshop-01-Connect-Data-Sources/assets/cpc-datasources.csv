@@ -1,3 +1,0 @@
-kind,resourceName,host,port,databaseName,userName,password,schemaNames,endpoint,region,accessKey,secretKey,container,path,includePatterns,excludePatterns,databaseType,fqdnId,description
-postgres,Cascade_Manufacturing,192.168.1.200,5433,cpc_mfg,pdc_user,catalog123!,cpc_mfg,,,,,,,,,,,CPC manufacturing database - parts; BOM; suppliers; work orders; lots; NCRs; shipments
-minio,Cascade_Documents,,,,,,,http://192.168.1.200:9000,us-east-1,cpc_minio_user,minio_secret_123!,cpc-documents,/,,*.md,,,CPC document store - quality certs; ISO/AS audits; NCR reports; correspondence; ERP exports; price lists

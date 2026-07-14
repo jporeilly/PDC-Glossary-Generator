@@ -14,6 +14,22 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.8.13] — 2026-07-14
+
+### Changed — scenarios carved out into PDC-Scenarios
+
+All per-scenario assets moved to the new
+[PDC-Scenarios](https://github.com/jporeilly/PDC-Scenarios) repo:
+`data_sources/` (all four verticals **and** the shared lab), `courseware/`
+(all sets + the consolidated roster), the `install-scenario` /
+`reset-scenario` scripts, and copies of the app diagrams the courseware
+builders embed. This repo is now the app only. The scenario scripts were
+adapted to discover the app (`GLOSSARY_APP_DIR` or the usual
+beside/inside layouts), and PDC-Scenarios' new `select-vertical.sh <ID>`
+sparse-pulls a single vertical. Docs swept (README, GUIDE, REFERENCE,
+PDC-VM-TROUBLESHOOTING, app README). The Policy Generator's courseware
+moved there too (`courseware/CSCU/Policy-Generator/`).
+
 ## [1.8.12] — 2026-07-14
 
 ### Govern — the roster now drives everything

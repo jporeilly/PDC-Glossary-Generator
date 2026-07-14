@@ -1,3 +1,0 @@
-kind,resourceName,host,port,databaseName,userName,password,schemaNames,endpoint,region,accessKey,secretKey,container,path,includePatterns,excludePatterns,databaseType,fqdnId,description
-postgres,CopperState_Core_Banking,192.168.1.200,5433,cscu_core,pdc_user,catalog123!,cscu_core,,,,,,,,,,,CSCU core banking database - members; accounts; cards; transactions; loans; compliance
-minio,CopperState_Documents,,,,,,,http://192.168.1.200:9000,us-east-1,cscu_minio_user,minio_secret_123!,cscu-documents,/,,*.md,,,CSCU document store - loan applications; statements; KYC; SAR; correspondence; policies

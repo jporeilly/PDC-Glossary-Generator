@@ -12,7 +12,8 @@
 > **Harvest from PDC** picker that scales to 100+ sources; installable scenario
 > domain packs; and non-destructive **Enrich** with **↶ Revert enrich**. Since 1.7.0
 > the workshop scenario is **Copper State Credit Union** (financial services) — see
-> `CHANGELOG.md` and `courseware/CSCU/Workshop-Glossary-Generator-CSCU.md`.
+> `CHANGELOG.md` and the CSCU workshop in the PDC-Scenarios repo
+> (`courseware/CSCU/Workshop-Glossary-Generator-CSCU.md`).
 >
 > **Integrations:** a consolidated read-only `GET /api/governance-summary` exposes
 > vocabulary health (governed vs pending, the tag facet, empty + fragmenting tags),
@@ -49,9 +50,10 @@ glossary_generator/
   run.ps1 / run.bat       Windows launcher (PowerShell; .bat wrapper)
   requirements.txt
 docs/                     this reference + GUIDE, INSTALL, SUPPLEMENT, ...
-data_sources/lab/         SHARED PostgreSQL + MinIO for all scenarios
-data_sources/<scenario>/  scenario data + installable domain pack (CSCU)
-courseware/<scenario>/    workshop guides and topic notes per scenario
+PDC-Scenarios repo        every vertical's data kit, domain pack and courseware
+  data_sources/lab/       SHARED PostgreSQL + MinIO for all scenarios
+  data_sources/<ID>/      scenario data + installable domain pack
+  courseware/<ID>/        workshop guides and topic notes per scenario
 ```
 
 The core (`suggester.py`, `dbconn.py`, `llm.py`) is Flask-free and importable, so
@@ -219,10 +221,10 @@ Pack `tag_rules` are company-layer and pre-approved (governed). Then **apply**:
 2. **Glossary** grid → **Suggest tags** (re-derives tags for the current rows).
 
 The app ships **generic** — install a scenario pack to get one: unzip
-`data_sources/CSCU/cscu-domain-pack.zip` (Copper State Credit Union — cards/PCI, ACH,
+PDC-Scenarios' `data_sources/CSCU/cscu-domain-pack.zip` (Copper State Credit Union — cards/PCI, ACH,
 KYC/AML, lending, ledger rules) into the app folder. See `domain_packs/README.md`
 for the full pack schema (categorization keys *and* tag keys), and
-`data_sources/CSCU/domain_pack/credit_union.example.json` for a complete example.
+PDC-Scenarios' `data_sources/CSCU/domain_pack/credit_union.example.json` for a complete example.
 
 ---
 
@@ -422,7 +424,7 @@ PDC-Glossary/
     diagrams/                   six figures, PNG + SVG
     datasources.sample.csv      generic bulk-load starter CSV
     Dockerfile  docker-compose.yml  requirements.txt  .env.example  VERSION
-  data_sources/                 scenario data + the shared lab
+  (data_sources/ + courseware/  moved to the PDC-Scenarios repo)
     lab/                        SHARED stack: one PostgreSQL + one MinIO for all
                                 scenarios (make load SCENARIO=<ID> creates that
                                 scenario's database + bucket + documents)
@@ -438,7 +440,6 @@ PDC-Glossary/
     MFG/                        Cascade Precision Components (manufacturing) — same kit shape
       postgres-init/  cpc-documents/  domain_pack/
       cpc-domain-pack.zip  cpc-datasources.csv  scenario.json
-  courseware/
     CSCU/                       workshop guides (markdown masters) + Technical Track
     RETAIL/                     the retail workshop set (W00-W05 + assets)
     HEALTH/                     the healthcare workshop set (W00-W05 + assets)
@@ -455,9 +456,9 @@ Docker: `docker compose up --build`. Full setup is in **`GUIDE.md` Part B**.
 
 ### Install a scenario
 
-Run `install-scenario.ps1` / `install-scenario.sh` and pick a scenario —
+Run `install-scenario.ps1` / `install-scenario.sh` (PDC-Scenarios repo) and pick a scenario —
 or unzip the scenario's pack into `glossary_generator/`
-(`data_sources/<ID>/*-domain-pack.zip`), delete any previous
+(PDC-Scenarios' `data_sources/<ID>/*-domain-pack.zip`), delete any previous
 `tag_dictionary.json`, restart. **One scenario at a time.**
 
 ### Test the Registry writer (offline)
