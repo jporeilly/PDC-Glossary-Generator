@@ -3036,11 +3036,7 @@ async function tdAlias(name,target){
 }
 async function tdRetireEmpty(names){
   if(!names||!names.length) return;
-  if(!confirm('Retire '+names.length+' empty company tag(s) from the governed vocabulary?
-
-'+names.join(', ')+'
-
-The generic baseline is untouched; a tag still emitted by a rule will be re-added with a warning.')) return;
+  if(!confirm('Retire '+names.length+' empty company tag(s) from the governed vocabulary?\n\n'+names.join(', ')+'\n\nThe generic baseline is untouched; a tag still emitted by a rule will be re-added with a warning.')) return;
   try{
     TAGDICT=await (await fetch('/api/tagdict/review',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({kind:'tag',names:names,action:'reject',actor:STEWARD_ACTOR})})).json();
     tdRender(); renderAudit();
