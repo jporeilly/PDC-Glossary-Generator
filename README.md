@@ -131,8 +131,15 @@ curl -fsSL https://raw.githubusercontent.com/jporeilly/PDC-Scenarios/main/instal
 cd ~/PDC-Demo/PDC-Scenarios && make scenario ID=CSCU   # lab up + data loaded
 ```
 
-Re-run the curl bare to update everything (it remembers the vertical). This
-repo's own `install-pdc-demo.sh` updates just this checkout + the vertical.
+Re-run the curl bare to update everything (it remembers the vertical). On
+the **Windows host** (where the apps normally run) the PowerShell twin does
+the same and installs the vertical's pack into this app:
+
+```powershell
+iex "& { $(irm https://raw.githubusercontent.com/jporeilly/PDC-Scenarios/main/install-pdc-demo.ps1) } CSCU"
+```
+
+This repo's own `install-pdc-demo.sh` updates just this checkout + the vertical.
 
 ### 1. Pick a scenario (PDC-Scenarios repo)
 
