@@ -1933,9 +1933,17 @@ def trigger_profiling():
             return jsonify({"error": "could not resolve any document folders/files in "
                             "PDC — confirm the object store has been scanned into the "
                             "catalog first"}), 404
+        baseline = {}
+        try:
+            baseline = pdc_api.profiled_snapshot(base, token, scope_ids,
+                                                 version=version, verify_tls=verify)
+        except Exception:
+            baseline = {}
         res = pdc_api.trigger_data_discovery(
             base, token, scope_ids, version=version, verify_tls=verify,
             poll=bool(body.get("poll", False)))
+        res["baseline"] = baseline
+        res["scope_ids"] = [str(x) for x in scope_ids][:20]
     except Exception as e:
         return jsonify({"error": str(e)}), 502
     res.pop("raw", None)
@@ -1955,6 +1963,30 @@ def trigger_profiling():
                     "(or the app-vs-PDC side-by-side) to see each file's Data Quality — the fourth Trust-Score input."),
     }
     return jsonify(res)
+
+@app.post("/api/discovery-progress")
+def api_discovery_progress():
+    """Version-agnostic Data Discovery progress: compare each scoped entity's
+    system.profiledAt against the pre-submission baseline — v3's bulk job
+    endpoint returns no job id, so the entities themselves are the truth.
+    Body: {ids, baseline, base_url, auth...}. Returns {profiled, total, done}."""
+    import pdc_api
+    body = request.get_json(force=True) or {}
+    ids = [str(x) for x in (body.get("ids") or []) if str(x).strip()]
+    baseline = body.get("baseline") or {}
+    base = (body.get("base_url") or "").strip()
+    version = body.get("version") or "v2"
+    verify = bool(body.get("verify_tls", False))
+    if not base or not ids:
+        return jsonify({"error": "base_url and ids are required"}), 400
+    try:
+        token, _ = _pdc_token_and_reauth(body, base, version, verify)
+        snap = pdc_api.profiled_snapshot(base, token, ids, version=version, verify_tls=verify)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 502
+    changed = [i for i in ids if snap.get(i) and snap.get(i) != baseline.get(i)]
+    return jsonify({"profiled": len(changed), "total": len(ids),
+                    "done": len(changed) == len(ids) and bool(ids)})
 
 @app.post("/api/job-status")
 def job_status_route():

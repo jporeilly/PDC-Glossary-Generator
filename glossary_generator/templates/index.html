@@ -3767,12 +3767,36 @@ async function triggerProfiling(){
     const sc=(d.scope||[]).slice(0,6).join(', ')+((d.scope||[]).length>6?'…':'');
     $('profMsg').innerHTML=`Started Data Discovery on <b>${d.submitted}</b> target(s)${sc?` (${esc(sc)})`:''}`
       + (d.job_id?` · job <code>${esc(String(d.job_id).slice(0,8))}…</code>`:'')
-      + (d.activity?` · ${esc(d.activity)}`:'')
-      + ` — watch the Workers page in PDC, or check status here.`;
+      + (d.activity?` · ${esc(d.activity)}`:'');
     if($('profChk')) $('profChk').innerHTML = renderCheck(d.check);
     $('profStatusBtn').style.display = d.job_id ? '' : 'none';
+    // v3's bulk endpoint returns no job id — poll the ENTITIES instead: their
+    // profiledAt flips when discovery finishes. Works on every API version.
+    if(d.scope_ids&&d.scope_ids.length) await watchDiscovery(d.scope_ids, d.baseline||{});
   }catch(e){ $('profMsg').textContent='Profiling failed: '+e; }
   $('profBtn').disabled=false;
+}
+async function watchDiscovery(ids, baseline){
+  aiProgStart('PDC Data Discovery',ids.length);
+  const bodyBase=Object.assign(_pdcAuthBody(),{ids:ids,baseline:baseline});
+  const started=Date.now(); let last=0;
+  while(!AI_CANCEL && (Date.now()-started)<10*60*1000){
+    await new Promise(r=>setTimeout(r,6000));
+    if(AI_CANCEL) break;
+    try{
+      const d=await (await fetch('/api/discovery-progress',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(bodyBase)})).json();
+      if(d.error){ $('profMsg').innerHTML+=`<div class="msg">progress check failed: ${esc(d.error)}</div>`; break; }
+      last=d.profiled; aiProgUpdate(d.profiled,d.total,'PDC Data Discovery');
+      if(d.done){
+        aiProgEnd();
+        $('profMsg').innerHTML=`<b style="color:#1C7C54">\u2713 Data Discovery complete — ${d.total} of ${d.total} profiled.</b> Re-pull the Data Elements (step 1) or the app-vs-PDC side-by-side to see each file's Data Quality — then re-Apply and recalculate Trust.`;
+        return;
+      }
+    }catch(e){ break; }
+  }
+  aiProgEnd();
+  if(AI_CANCEL){ $('profMsg').innerHTML+=`<div class="msg">Stopped watching — the job keeps running in PDC (Workers page); ${last} profiled so far.</div>`; }
+  else { $('profMsg').innerHTML+=`<div class="msg">Still running after 10 min (${last} profiled) — folders sometimes don't report per-entity timestamps; check PDC's Workers page for the job itself.</div>`; }
 }
 async function checkProfilingJob(){
   if(!LAST_PROFILE_JOB||!LAST_PROFILE_JOB.job_id){ $('profMsg').textContent='No profiling job to check yet.'; return; }

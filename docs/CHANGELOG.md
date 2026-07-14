@@ -14,6 +14,25 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.8.15] — 2026-07-14
+
+### Fixed — document Data Discovery completes its workflow again
+Under API v3 the bulk job endpoint returns **no job id**, so after "Started
+Data Discovery…" the status button hid and the step dead-ended — submitted,
+never confirmed, no follow-through. The step now watches the **entities
+themselves** (each one's `system.profiledAt` flips when its profiling
+finishes), which works on every API version:
+
+- pre-submission snapshot travels with the trigger; a new
+  `POST /api/discovery-progress` compares live timestamps against it;
+- the UI drives the shared progress bar ("PDC Data Discovery — 12/18"),
+  polls every 6s up to 10 minutes, Cancel stops watching (the PDC job keeps
+  running);
+- on completion: "✓ Data Discovery complete — N of N profiled" with the
+  next steps (re-pull Data Elements / side-by-side → re-Apply → recalculate
+  Trust). Honest timeout message when folders don't report per-entity
+  timestamps (check PDC's Workers page).
+
 ## [1.8.14] — 2026-07-14
 
 ### Resolve — unconfirmed terms surfaced honestly, AI match now reaches them

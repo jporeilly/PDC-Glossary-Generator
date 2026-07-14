@@ -1629,6 +1629,29 @@ _DISCOVERY_DEFAULTS = {
 }
 
 
+def profiled_snapshot(base_url, token, ids, version="v2", verify_tls=True,
+                      timeout=20, cap=20):
+    """{entity_id: profiledAt|None} for up to `cap` entities — the version-
+    agnostic way to watch a Data Discovery run finish. v3's bulk job endpoint
+    returns no job id to poll, but each entity's system.profiledAt flips when
+    its profiling completes, so progress = how many timestamps changed since
+    the pre-submission snapshot."""
+    base = clean_base(base_url)
+    out = {}
+    for eid in list(ids)[:cap]:
+        try:
+            ent = _req("GET", base + f"/api/public/{version}/entities/{eid}",
+                       token=token, verify_tls=verify_tls, timeout=timeout)
+            e = ent.get("data", ent)
+            if isinstance(e, list):
+                e = e[0] if e else {}
+            out[str(eid)] = ((e.get("system") or {}).get("profiledAt")
+                             or (e.get("system") or {}).get("scannedAt"))
+        except Exception:
+            out[str(eid)] = None
+    return out
+
+
 def trigger_data_discovery(base_url, token, scope_ids, version="v2", verify_tls=True,
                            timeout=30, configs=None, poll=False, poll_tries=30,
                            poll_wait=3.0):
