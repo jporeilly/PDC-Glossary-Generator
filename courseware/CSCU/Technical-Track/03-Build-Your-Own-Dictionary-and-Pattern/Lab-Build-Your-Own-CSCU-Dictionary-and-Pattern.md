@@ -5,6 +5,14 @@
 **Primary role:** Data Steward / Data Storage Administrator
 **Estimated time:** 60 min
 
+> **Tags stay governed.** Every `applyTags` value in this lab comes from the
+> app's governed vocabulary, and the app's Dictionary page previews how those
+> tags will look as search facets — including which buckets are still empty.
+> Empty there means *no reviewed app usage yet*, not "no PDC assets": running
+> the policies you author here is exactly what fills PDC's real facet. See
+> *Tags & the Domain Pack → Reading the Search facet preview* for the retire
+> rules.
+
 > **Why author by hand when the app can draft?** The Glossary Generator's
 > **Draft policies (AI)** produces files in exactly these shapes from its scan
 > evidence. This lab teaches the anatomy — signatures, weights, confidence

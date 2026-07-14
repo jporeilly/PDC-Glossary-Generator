@@ -108,6 +108,33 @@ Then the rows pick up the new domain tags.
 
 ---
 
+### Reading the Search facet preview (and when to retire a tag)
+
+The Dictionary page previews how the governed tags will look as **OpenSearch
+facets** in PDC (a filter on `attributes.tags.name`). Read it correctly:
+
+- **The counts are reviewed usage inside this app** — accreted on every scan —
+  **not live PDC data**. "Empty" means *no reviewed scan row has carried the
+  tag since the dictionary was last (re)seeded*; it does **not** mean no PDC
+  asset carries it.
+- **Every tag empty at once = freshly reseeded**, not broken. A dictionary
+  reseed (scenario reinstall, the Reseed button) zeroes the counters; the next
+  scan + review cycle rebuilds them.
+- **Retire nothing right after a reseed.** After a full scan of *every*
+  source, tags still empty are genuine facet clutter — the panel's **Retire
+  empty company tags** button removes them in one click (audit-logged). The
+  generic baseline is protected, and a tag a rule still emits is re-added
+  with a warning, so the vocabulary can't break.
+- **Where the policies fit.** When the drafted Data Identification methods
+  run, they stamp these governed tags onto real PDC entities — PDC's *actual*
+  facet fills from policy runs regardless of this preview. The authoritative
+  "this tag is dead" signal is the Policy Generator's **drift-check** (its
+  reconciliation half): deployed methods' Assign-Tags and PDC's live facet
+  compared against the Registry vocabulary. Until that ships, the
+  after-full-scan rule of thumb above is the manual equivalent.
+
+---
+
 ### Quick reference
 
 | Want to… | Do this |
