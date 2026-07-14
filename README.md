@@ -7,7 +7,7 @@ glossary, lets a steward review and govern it, and exports import-ready JSONL**
 for **Pentaho Data Catalog → Business Glossary → Import** — so the glossary and
 its tags stay governed instead of drifting.
 
-![1784027695571](images/1784027695571.png)
+![The result in PDC: an imported CSCU glossary term with governed tags, stewardship, domain, rating and review date all set by the pipeline](images/pdc-imported-glossary.png)
 
 The app is **scenario-generic**; each training scenario ships as a separate,
 self-contained bundle — data kit, domain pack and courseware — served by one
