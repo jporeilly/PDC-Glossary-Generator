@@ -14,6 +14,26 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.8.18] — 2026-07-15
+
+### Changed — pack merge: conflicts surface, steward decides
+The pack generator's merge no longer silently drops the losing side when the
+scan disagrees with the installed pack. Every disagreement is now listed in
+the export report (`report.conflicts`: pack value vs scan value vs who won)
+and rendered as a checkbox row in the Export dialog — tick to take the
+scan's value, untick to keep the pack's; toggling regenerates the pack so
+the download and **Apply** always reflect the choices
+(`resolutions: {"key::name": "scan"|"pack"}` on `POST /api/export-pack`).
+
+Defaults per key: curation-bearing keys keep the pack's value (a steward's
+recorded decision beats the machine's newest opinion); **curated_seeds
+prefer the scan** — machine-derived evidence, fresher profiling wins, the
+replaced seed stays visible. A sensitivity *loosening* on an existing pack
+term is now a reported conflict instead of a silent block; list-valued keys
+(category_tags) union instead of conflicting. Docs updated (pack README +
+GUIDE Part C), including how to **bootstrap a base pack from nothing**:
+run packless, scan + review once — the first export IS the base pack.
+
 ## [1.8.17] — 2026-07-14
 
 ### Added — the domain pack generator (the loop closes)

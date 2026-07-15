@@ -1294,7 +1294,7 @@
         <button class="primary" onclick="tdSave()">Save dictionary</button>
         <button class="ghost" onclick="tdLoad()">Reload</button>
         <a class="ghost" href="/api/tagdict/export.json" style="text-decoration:none;padding:7px 12px;border-radius:8px">Export JSON</a>
-        <button class="ghost" onclick="exportPack()" title="Generate a domain pack from what the scans learned: table mappings, abbreviations, the governed company vocabulary, and curated_seeds carrying the induced value patterns / reference lists — detection seeds specific to THIS company. Merges over the installed pack (hand-curated entries win) and reports the additions; review, then commit to the scenario repo.">Export domain pack</button>
+        <button class="ghost" onclick="exportPack()" title="Generate a domain pack from what the scans learned: table mappings, abbreviations, the governed company vocabulary, and curated_seeds carrying the induced value patterns / reference lists — detection seeds specific to THIS company. Merges over the installed pack; where the scan disagrees with the pack, each conflict is listed for you to decide (curated seeds default to the fresher scan evidence). Review, then commit to the scenario repo.">Export domain pack</button>
         <span style="flex:1"></span>
         <button class="ghost" onclick="tdReset()" title="Reseed from the domain pack + built-in defaults. Approved company items and rules are kept; pending items are discarded; a backup file is taken first.">Reseed</button>
         <span class="msg" id="tdMsg"></span>
@@ -3044,14 +3044,21 @@ async function tdRetireEmpty(names){
     $('tdMsg').textContent='Retired '+names.length+' empty company tag(s).';
   }catch(e){ $('tdMsg').textContent='Retire failed: '+(e.message||e); }
 }
+let PACK_RES={}, PACK_CONF=[];
+function packVal(x){ const s=(typeof x==='string')?x:JSON.stringify(x); return s.length>80?s.slice(0,77)+'…':s; }
+function packResolve(i,useScan){
+  const c=PACK_CONF[i]; if(!c) return;
+  PACK_RES[c.key+'::'+c.name]=useScan?'scan':'pack';
+  exportPack();  // regenerate so the download link and Apply reflect the choice
+}
 async function exportPack(apply){
   if(apply && !confirm('Apply the refreshed pack to this app?\n\nThis overwrites the installed domain_pack.json (a timestamped backup is kept) and reseeds the dictionary from it. Approved company terms/tags and company rules SURVIVE the reseed; pending scan-noise is discarded.')) return;
   try{
-    const d=await (await fetch('/api/export-pack',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({rows:(typeof ROWS!=='undefined'&&ROWS)||[], apply:!!apply})})).json();
+    const d=await (await fetch('/api/export-pack',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({rows:(typeof ROWS!=='undefined'&&ROWS)||[], apply:!!apply, resolutions:PACK_RES})})).json();
     if(d.error){ $('tdMsg').textContent='Pack export failed: '+d.error; return; }
     const url=URL.createObjectURL(new Blob([JSON.stringify(d.pack,null,2)],{type:'application/json'}));
-    const rep=Object.entries(d.report||{}).filter(([k,v])=>v>0).map(([k,v])=>`${k} +${v}`).join(' · ');
-    let m=`Domain pack generated${d.merged_over?' (merged over the installed pack — hand-curated entries kept)':''}: <b>${d.learned}</b> learned addition(s)${rep?` — ${rep}`:''} · <a class="dl" href="${url}" download="domain_pack.json">download domain_pack.json</a>`;
+    const rep=Object.entries(d.report||{}).filter(([k,v])=>typeof v==='number'&&v>0&&k!=='scan_overrides').map(([k,v])=>`${k} +${v}`).join(' · ');
+    let m=`Domain pack generated${d.merged_over?' (merged over the installed pack)':''}: <b>${d.learned}</b> learned addition(s)${rep?` — ${rep}`:''} · <a class="dl" href="${url}" download="domain_pack.json">download domain_pack.json</a>`;
     if(d.applied){
       m+=`<div class="msg" style="color:#1C7C54">✓ Applied: pack written to <code>${esc(d.pack_path||'')}</code>${d.pack_backup?' (backup kept)':''} and the dictionary reseeded from it. Also commit the file to the scenario's domain_pack/ folder so the next install starts from it.</div>`;
       if(typeof tdLoad==='function') tdLoad();
@@ -3059,6 +3066,13 @@ async function exportPack(apply){
       m+=` · <button class="ghost sm" onclick="exportPack(true)" style="border-color:#2EC4B6;color:#0A3D52;font-weight:600">Apply to this app</button> <span class="hint">writes the pack + reseeds the dictionary (approved items survive)</span>`;
     }
     m+=((typeof ROWS==='undefined'||!ROWS.length)?' <span class="hint">(no scan rows loaded — table mappings and curated seeds need a scanned glossary)</span>':'');
+    PACK_CONF=(d.report&&d.report.conflicts)||[];
+    if(PACK_CONF.length){
+      m+=`<div class="msg" style="margin-top:6px"><b>${PACK_CONF.length} disagreement(s)</b> — the scan proposes a different value than the installed pack. Tick a row to take the scan's value, untick to keep the pack's (curated seeds default to the scan — they're machine-derived evidence, fresher data wins):</div>`;
+      m+='<div style="max-height:220px;overflow:auto;border:1px solid var(--line);border-radius:8px;padding:6px 10px;margin-top:4px">'
+        +PACK_CONF.map((c,i)=>`<label style="display:flex;gap:8px;align-items:baseline;font-size:12px;padding:2px 0;cursor:pointer"><input type="checkbox" ${c.use==='scan'?'checked':''} onchange="packResolve(${i},this.checked)"><span><code>${esc(c.key)}</code> · <b>${esc(c.name)}</b> — pack: <code>${esc(packVal(c.pack))}</code> → scan: <code>${esc(packVal(c.scan))}</code></span></label>`).join('')
+        +'</div>';
+    }
     $('tdMsg').innerHTML=m;
   }catch(e){ $('tdMsg').textContent='Pack export failed: '+(e.message||e); }
 }

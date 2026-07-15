@@ -1607,10 +1607,14 @@ def api_export_pack():
     learned abbreviations, the governed company vocabulary, and — the point —
     curated_seeds carrying the induced value patterns and profiled reference
     lists, so the pack's detection seeds are specific to THIS company's data.
-    MERGES over the installed pack (hand-curated entries always win; learned
-    content fills gaps) and reports what was added. Body: {rows}."""
+    MERGES over the installed pack: learned content fills gaps; where the scan
+    DISAGREES with the pack the conflict is reported (pack vs scan value) and
+    the steward's resolutions decide — curation keeps the pack's value by
+    default, curated_seeds prefer the fresher scan evidence.
+    Body: {rows, resolutions?: {"key::name": "scan"|"pack"}, apply?}."""
     body = request.get_json(force=True, silent=True) or {}
     rows = body.get("rows") or []
+    resolutions = body.get("resolutions") or {}
     base = {}
     try:
         import json as _json
@@ -1619,9 +1623,10 @@ def api_export_pack():
             base = _json.load(f)
     except Exception:
         base = {}
-    pack, report = packgen.build_pack(rows, base=base)
+    pack, report = packgen.build_pack(rows, base=base, resolutions=resolutions)
     out = {"pack": pack, "report": report, "merged_over": bool(base),
-           "learned": sum(report.values())}
+           "learned": sum(v for k, v in report.items()
+                          if isinstance(v, int) and k != "scan_overrides")}
     if body.get("apply"):
         # write the refreshed pack where the app reads it (backing up the old
         # one) and reseed the dictionary from it — approved company items and

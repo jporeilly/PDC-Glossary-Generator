@@ -60,9 +60,17 @@ the **governed company vocabulary** (approved items only), and
 **`curated_seeds`** carrying the induced value patterns and profiled
 reference lists per term — detection seeds specific to this company's data.
 
-Semantics: **merge, never overwrite** — hand-curated entries in the installed
-pack always win; learned content fills gaps, and the report counts additions
-per key. Two ways to use the result:
+Semantics: **merge, never silently overwrite** — learned content fills gaps
+and adds new entries, and where the scan **disagrees** with the installed pack
+the conflict is listed (pack value vs scan value) with a checkbox per row, so
+the steward decides each one. Defaults: curation-bearing keys keep the pack's
+value (a steward's recorded decision beats the machine's newest opinion);
+**`curated_seeds` prefer the scan** — those entries are machine-derived
+evidence in the first place, so fresher profiling wins and the replaced seed
+stays visible in the conflict list. Term entries take safe unions (aliases
+and tags union in; sensitivity tightens automatically, and a *loosening* is
+surfaced as a conflict rather than applied or dropped). Two ways to use the
+result:
 
 1. **Apply to this app** (one click, confirmed): writes the refreshed pack
    over the installed `domain_pack.json` (timestamped backup) and reseeds the
@@ -70,6 +78,16 @@ per key. Two ways to use the result:
 2. **Commit it** to the scenario's `domain_pack/` folder (PDC-Scenarios) so
    every future install starts from the evolved pack. Do this even after
    applying locally — an uncommitted improvement dies with the install.
+
+### Starting from nothing (bootstrapping a base pack)
+
+You don't need to hand-author a pack for a new company or scenario. Run the
+app **packless** (the built-in generic defaults still route obvious columns),
+do one scan → review → govern cycle, then **Export domain pack**: with no
+installed pack to merge over, the export *is* your first base pack —
+table mappings, learned abbreviations, the approved vocabulary, and
+company-specific detection seeds, all from evidence. Commit it as the
+scenario's pack and every later cycle refines it through the merge above.
 
 ## Shipped packs
 

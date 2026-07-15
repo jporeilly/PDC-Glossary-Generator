@@ -768,11 +768,15 @@ After a full scan + review cycle, **Export domain pack** exports the reviewed
 state back into pack format: table mappings, learned abbreviations, the
 governed company vocabulary, and `curated_seeds` carrying the induced value
 patterns and profiled reference lists — detection seeds specific to this
-company. It **merges over the installed pack** (hand-curated entries win) and
-reports the additions; **Apply to this app** writes it and reseeds the
-dictionary in one click (approved items survive), and committing the file to
-the scenario repo makes the next install start from evidence instead of
-guesses. Full detail: `glossary_generator/domain_packs/README.md`.
+company. It **merges over the installed pack**: additions fill gaps, and any
+**disagreement** between scan and pack is listed with a checkbox per row so
+the steward picks the winner (curation keeps the pack's value by default;
+`curated_seeds` default to the fresher scan evidence). **Apply to this app**
+writes it and reseeds the dictionary in one click (approved items survive),
+and committing the file to the scenario repo makes the next install start
+from evidence instead of guesses. No pack yet? Run packless, scan + review
+once, and the first export **is** your base pack.
+Full detail: `glossary_generator/domain_packs/README.md`.
 
 ---
 

@@ -16,10 +16,15 @@ guess. Learned content:
                                        profiled reference lists, per term —
                                        the company-specific detection seeds
 
-MERGE semantics, never blind overwrite: hand-curated entries in the base pack
-always win; learned content fills gaps and adds new entries, and the report
-says exactly what was added — the steward reviews the diff, then commits the
-pack to the scenario repo.
+MERGE semantics, never blind overwrite: learned content fills gaps and adds
+new entries. Where the scan DISAGREES with the base pack, the disagreement is
+surfaced as a conflict (pack value vs scan value, side by side) instead of a
+silent drop — the steward decides each one. Defaults per key: curation-bearing
+keys keep the pack's value (a steward's recorded decision beats the machine's
+newest opinion); curated_seeds prefer the scan's value (those entries are
+machine-derived evidence in the first place — fresher data wins, and the
+replaced seed is still visible in the conflict report). Pass `resolutions`
+({"key::name": "scan"|"pack"}) to override any default.
 """
 from __future__ import annotations
 import re
@@ -27,6 +32,11 @@ import re
 import tagdict
 
 _NON = re.compile(r"[^A-Za-z0-9]+")
+
+# conflict keys where the scan's value wins by default: these entries are
+# machine-derived detection evidence, not hand-authored intent — fresher
+# profiling beats a stale seed, and the old value stays visible in the report
+_SCAN_WINS = {"curated_seeds"}
 
 
 def _kept(r):
@@ -75,14 +85,26 @@ def _abbrev_pairs(col, term):
     return out
 
 
-def build_pack(rows, base=None):
+def build_pack(rows, base=None, resolutions=None):
     """Reviewed rows + governed dictionary -> a domain pack dict, merged over
-    `base` (hand-curated wins). Returns (pack, report) where report counts the
-    learned additions per key."""
+    `base`. Returns (pack, report); report counts the learned additions per
+    key and carries report["conflicts"] — every place the scan disagreed with
+    the base, with the side that won ("use"). `resolutions` maps "key::name"
+    -> "scan"|"pack" to override the per-key defaults (_SCAN_WINS)."""
     base = dict(base or {})
     rows = [r for r in (rows or []) if isinstance(r, dict)]
+    res = {str(k): ("scan" if str(v).strip().lower() == "scan" else "pack")
+           for k, v in (resolutions or {}).items()}
     d = tagdict.load()
     report = {}
+    conflicts = []
+
+    def resolve(key, name, packv, scanv):
+        """Record a pack-vs-scan disagreement; return the side that wins."""
+        use = res.get(f"{key}::{name}", "scan" if key in _SCAN_WINS else "pack")
+        conflicts.append({"key": key, "name": name,
+                          "pack": packv, "scan": scanv, "use": use})
+        return use
 
     def merge_map(key, learned):
         cur = dict(base.get(key) or {})
@@ -91,6 +113,14 @@ def build_pack(rows, base=None):
             if k not in cur:
                 cur[k] = v
                 added += 1
+            elif isinstance(cur[k], list) and isinstance(v, list):
+                # list values (e.g. category_tags) union — additive, no conflict
+                extra = [x for x in v if x not in cur[k]]
+                if extra:
+                    cur[k] = list(cur[k]) + extra
+            elif cur[k] != v:
+                if resolve(key, k, cur[k], v) == "scan":
+                    cur[k] = v
         if cur:
             base[key] = cur
         report[key] = added
@@ -182,8 +212,15 @@ def build_pack(rows, base=None):
         for t in v["tags"]:
             if t not in tg:
                 tg.append(t); changed = True
-        if _rank.get(str(v.get("sensitivity", "LOW")).upper(), 0) > _rank.get(str(e.get("sensitivity", "LOW")).upper(), 0):
+        sr = _rank.get(str(v.get("sensitivity", "LOW")).upper(), 0)
+        er = _rank.get(str(e.get("sensitivity", "LOW")).upper(), 0)
+        if sr > er:
             e["sensitivity"] = v["sensitivity"]; changed = True
+        elif sr < er:
+            # loosening is a conflict, not a silent block — steward decides
+            if resolve("terms.sensitivity", n,
+                       e.get("sensitivity", "LOW"), v["sensitivity"]) == "scan":
+                e["sensitivity"] = v["sensitivity"]; changed = True
         if changed:
             e["aliases"], e["tags"] = al, tg
             cur_terms[n] = e
@@ -213,4 +250,6 @@ def build_pack(rows, base=None):
     base.setdefault("domain", d.get("domain") or "generic")
     base["note"] = (str(base.get("note") or "").split(" [refreshed")[0]
                     + " [refreshed from scan results by the pack generator — review the additions, then commit]")
+    report["conflicts"] = conflicts
+    report["scan_overrides"] = sum(1 for c in conflicts if c["use"] == "scan")
     return base, report
