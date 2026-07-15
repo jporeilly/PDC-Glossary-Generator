@@ -492,7 +492,7 @@ what **PDC has already cataloged**. The **Harvest from PDC** card on Connections
    overwrite existing work.
 
 This is the most PDC-native path: the catalog is the source of truth and the
-generator reads from it. Endpoints live in `pdc_api.py`
+generator reads from it. Endpoints live in the `pdc_api/` package
 (`list_data_sources`, `harvest_from_catalog`) and `app.py`
 (`/api/pdc/data-sources`, `/api/pdc/harvest`); the "Under the hood — reading
 PDC's catalog" panel shows the exact calls.

@@ -44,7 +44,10 @@ glossary_generator/
   suggester.py            core: harvest -> suggest -> JSONL (importable, no Flask)
   dbconn.py               driver-aware DB connections + test + driver status
   llm.py                  Ollama client: definition enrichment + model pull
-  templates/index.html    single-page review UI
+  pdc_api/                PDC Public API client (core/entities/terms/jobs/apply/bulkload)
+  templates/index.html    single-page UI (markup only)
+  static/style.css        the UI stylesheet
+  static/js/00..12-*.js   the UI logic, split per area, loaded in numbered order
   cli_suggester.py        headless CLI version of the pipeline
   run.sh                  Linux/macOS launcher (venv + deps + run)
   run.ps1 / run.bat       Windows launcher (PowerShell; .bat wrapper)
@@ -416,10 +419,15 @@ PDC-Glossary/
     CHANGELOG.md                release history
   glossary_generator/           the app (scenario-generic)
     app.py  run.sh  run.bat  run.ps1
-    llm.py  pdc_api.py  dbconn.py  suggester.py  cli_suggester.py
+    llm.py  dbconn.py  suggester.py  cli_suggester.py
+    pdc_api/                    PDC Public API client package (core, entities,
+                                terms, jobs, apply, bulkload)
     build_roster.py  seed_sample.py  audit.py  similarity.py  tagdict.py
-    policy_draft.py  defqa.py  v3_selftest.py
-    templates/index.html
+    policy_draft.py  defqa.py  packgen.py
+    selftest.py                 offline engine checks (run after a pull)
+    v3_selftest.py              PDC v3 API shape checks
+    templates/index.html        markup; logic in static/js/, styles in static/style.css
+    static/                     style.css + js/00-bulkload..12-init (numbered load order)
     registry/                   app-side Registry WRITER (hooked at /api/generate)
     registries/                 (created at runtime: registry.<glossary>.json)
     domain_packs/README.md      pack format reference (packs live per scenario)

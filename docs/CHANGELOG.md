@@ -14,6 +14,29 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.8.21] — 2026-07-15
+
+### Changed — structural pass (no behavior changes)
+The feature-freeze housekeeping, in three pieces:
+
+- **Committed offline selftest** (`selftest.py`, 42 checks — no PDC, no
+  Ollama, no network, temp-dir state): version-vs-changelog discipline,
+  the tagdict lifecycle, the duplicate advisor's evidence rubric, the
+  definition linter, the pack merge (conflict defaults + overrides + safe
+  unions), policy-draft guard-rails, and the offline endpoints. Run it
+  after every VM pull: `python selftest.py`.
+- **index.html split** (4,920 → 849 lines): styles to `static/style.css`,
+  logic to `static/js/00-bulkload … 12-init` (numbered load order, one
+  shared global scope, no build step). Every asset URL carries
+  `?v=<version>`, so browser caches bust on release — a stale cached
+  script against new endpoints was the classic VM failure mode.
+- **`pdc_api.py` → `pdc_api/` package**: core (transport/auth), entities,
+  terms, jobs, apply, bulkload — dependency graph verified acyclic,
+  import surface identical (`import pdc_api` unchanged everywhere).
+
+Verified end to end: `v3_selftest` 34/34, `selftest` 42/42, `node --check`
+on all 13 JS modules, and a headless-Chrome boot smoke test.
+
 ## [1.8.20] — 2026-07-15
 
 ### Added — progress bar on the pending-terms AI review
