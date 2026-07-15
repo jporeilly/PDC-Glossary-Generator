@@ -762,7 +762,21 @@ saved state. They're local to the app folder.
 
 ---
 
-## Part D — Operating against a real PDC
+### The pack generator (Dictionary → Export domain pack)
+
+After a full scan + review cycle, **Export domain pack** exports the reviewed
+state back into pack format: table mappings, learned abbreviations, the
+governed company vocabulary, and `curated_seeds` carrying the induced value
+patterns and profiled reference lists — detection seeds specific to this
+company. It **merges over the installed pack** (hand-curated entries win) and
+reports the additions; **Apply to this app** writes it and reseeds the
+dictionary in one click (approved items survive), and committing the file to
+the scenario repo makes the next install start from evidence instead of
+guesses. Full detail: `glossary_generator/domain_packs/README.md`.
+
+---
+
+## Part D## Part D — Operating against a real PDC
 
 ### Why it runs after Data Identification, not at the Workshop 3 manual-glossary slot
 

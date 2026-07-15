@@ -44,6 +44,33 @@ pack, **reseed** so the changes take effect:
 Tags are governed vocabulary, **not** LLM output — so *Enrich with LLM* won't change them;
 the domain pack is how you enrich the tag set.
 
+## The pack generator — packs evolve from scan results (1.8.17)
+
+Packs don't have to stay hand-authored. After a full scan + review cycle,
+**Dictionary → Export domain pack** exports the reviewed state back into pack
+format — the flywheel:
+
+    shipped pack → scan → review/approve → Export domain pack → next install
+    starts from evidence, not guesses
+
+What it learns: `table_category`/`table_terms` from the reviewed rows,
+`cat_keywords` from table tokens, **abbreviations** by aligning column tokens
+with term words (`mbr_no` + "Member Number" → `mbr: Member`, 2+ sightings),
+the **governed company vocabulary** (approved items only), and
+**`curated_seeds`** carrying the induced value patterns and profiled
+reference lists per term — detection seeds specific to this company's data.
+
+Semantics: **merge, never overwrite** — hand-curated entries in the installed
+pack always win; learned content fills gaps, and the report counts additions
+per key. Two ways to use the result:
+
+1. **Apply to this app** (one click, confirmed): writes the refreshed pack
+   over the installed `domain_pack.json` (timestamped backup) and reseeds the
+   dictionary — approved company items and rules survive the reseed.
+2. **Commit it** to the scenario's `domain_pack/` folder (PDC-Scenarios) so
+   every future install starts from the evolved pack. Do this even after
+   applying locally — an uncommitted improvement dies with the install.
+
 ## Shipped packs
 
 Scenario packs ship with their scenario, not with the app (the app stays clean):
