@@ -27,6 +27,28 @@ for _var, _name in [("GLOSSARY_TAG_DICTIONARY", "tag_dictionary.json"),
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 
+
+def _flask_available():
+    """The endpoint checks need Flask, which usually lives in the app's .venv.
+    If this interpreter lacks it, re-exec into the venv python so a bare
+    `python3 selftest.py` after a pull still runs the FULL suite; with no
+    venv either, the endpoint section is skipped (engine checks still run)."""
+    try:
+        import flask  # noqa: F401
+        return True
+    except ImportError:
+        pass
+    if os.environ.get("_GLOSSARY_SELFTEST_REEXEC") != "1":
+        for cand in (os.path.join(HERE, ".venv", "bin", "python"),
+                     os.path.join(HERE, ".venv", "Scripts", "python.exe")):
+            if os.path.exists(cand) and os.path.abspath(cand) != os.path.abspath(sys.executable):
+                os.environ["_GLOSSARY_SELFTEST_REEXEC"] = "1"
+                os.execv(cand, [cand, os.path.abspath(__file__)] + sys.argv[1:])
+    return False
+
+
+_HAS_FLASK = _flask_available()
+
 import tagdict, packgen, similarity, defqa, policy_draft, llm  # noqa: E402
 
 PASS = FAIL = 0
@@ -232,36 +254,39 @@ def main():
 
     # ---- app endpoints that run offline ----------------------------------------
     print("app (offline endpoints)")
-    from app import app, APP_VERSION
-    tc = app.test_client()
-    _c("/ renders", tc.get("/").status_code == 200)
-    _c("/api/version == VERSION file",
-       tc.get("/api/version").get_json().get("version") == ver == APP_VERSION)
-    wn = tc.get("/api/whatsnew").get_json()
-    if os.path.exists(chlog):
-        _c("/api/whatsnew top release matches the running version",
-           wn["releases"] and wn["releases"][0]["version"] == APP_VERSION,
-           wn["releases"][0]["version"] if wn["releases"] else "none")
-    ep = tc.post("/api/export-pack", json={"rows": scan}).get_json()
-    _c("/api/export-pack returns pack + conflict-aware report",
-       isinstance(ep.get("pack"), dict) and "conflicts" in ep.get("report", {}))
-    ar = tc.post("/api/tagdict/ai-review", json={"names": ["no-such-term"]}).get_json()
-    _c("/api/tagdict/ai-review names filter scopes the pass", ar.get("pending") == 0, ar)
-    snap = zipfile.ZipFile(io.BytesIO(tc.get("/api/state-snapshot").data))
-    mani = json.loads(snap.read("manifest.json"))
-    _c("state snapshot carries the dictionary + a versioned manifest",
-       "tag_dictionary.json" in snap.namelist() and mani.get("app_version") == APP_VERSION,
-       snap.namelist())
-    # round-trip: snapshot -> mutate state -> restore -> state reverted
-    tagdict.accrete([_row("Snapshot Marker", "s.t.snapmark")], persist=True)
-    snap2 = tc.get("/api/state-snapshot").data           # contains the marker
-    tagdict.review("term", ["Snapshot Marker"], "reject")
-    rr = tc.post("/api/state-restore", data=snap2).get_json()
-    _c("state restore round-trips the dictionary (backup taken)",
-       "Snapshot Marker" in tagdict.load().get("terms", {})
-       and "tag_dictionary.json" in rr.get("restored", []) and rr.get("backed_up", 0) >= 1, rr)
-    bad = tc.post("/api/state-restore", data=b"not a zip")
-    _c("state restore rejects non-zip input", bad.status_code == 400)
+    if not _HAS_FLASK:
+        print("  [skip] Flask not in this Python and no .venv found - run ./run.sh once, then rerun for the endpoint checks")
+    else:
+        from app import app, APP_VERSION
+        tc = app.test_client()
+        _c("/ renders", tc.get("/").status_code == 200)
+        _c("/api/version == VERSION file",
+           tc.get("/api/version").get_json().get("version") == ver == APP_VERSION)
+        wn = tc.get("/api/whatsnew").get_json()
+        if os.path.exists(chlog):
+            _c("/api/whatsnew top release matches the running version",
+               wn["releases"] and wn["releases"][0]["version"] == APP_VERSION,
+               wn["releases"][0]["version"] if wn["releases"] else "none")
+        ep = tc.post("/api/export-pack", json={"rows": scan}).get_json()
+        _c("/api/export-pack returns pack + conflict-aware report",
+           isinstance(ep.get("pack"), dict) and "conflicts" in ep.get("report", {}))
+        ar = tc.post("/api/tagdict/ai-review", json={"names": ["no-such-term"]}).get_json()
+        _c("/api/tagdict/ai-review names filter scopes the pass", ar.get("pending") == 0, ar)
+        snap = zipfile.ZipFile(io.BytesIO(tc.get("/api/state-snapshot").data))
+        mani = json.loads(snap.read("manifest.json"))
+        _c("state snapshot carries the dictionary + a versioned manifest",
+           "tag_dictionary.json" in snap.namelist() and mani.get("app_version") == APP_VERSION,
+           snap.namelist())
+        # round-trip: snapshot -> mutate state -> restore -> state reverted
+        tagdict.accrete([_row("Snapshot Marker", "s.t.snapmark")], persist=True)
+        snap2 = tc.get("/api/state-snapshot").data           # contains the marker
+        tagdict.review("term", ["Snapshot Marker"], "reject")
+        rr = tc.post("/api/state-restore", data=snap2).get_json()
+        _c("state restore round-trips the dictionary (backup taken)",
+           "Snapshot Marker" in tagdict.load().get("terms", {})
+           and "tag_dictionary.json" in rr.get("restored", []) and rr.get("backed_up", 0) >= 1, rr)
+        bad = tc.post("/api/state-restore", data=b"not a zip")
+        _c("state restore rejects non-zip input", bad.status_code == 400)
 
     print("\n%d passed, %d failed" % (PASS, FAIL))
     return 1 if FAIL else 0

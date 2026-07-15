@@ -30,6 +30,13 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   skipped it. Pack-seeded entries now keep `company/approved` through
   every load; mislabeled dictionaries self-heal on the next read.
 
+- **`python3 selftest.py` works outside the venv.** On the VM the system
+  python lacks Flask, which crashed the endpoint section mid-run. The
+  selftest now re-execs itself into `.venv`'s python when it finds one
+  (so a bare `python3 selftest.py` runs all 47 checks), and with no venv
+  it skips just the endpoint section with a note — the 41 engine checks
+  still run.
+
 ### Changed — Dictionary page reads in workflow order
 The main card (was "Tag dictionary" over a Terms table) is now
 **Governed vocabulary** with three self-contained numbered groups, each
