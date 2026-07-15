@@ -36,6 +36,11 @@ evolve from real company data instead of staying hand-authored guesses:
 pack always win; learned content fills gaps and adds, and the report counts
 the additions per key — review, then commit to the scenario repo.
 
+**Apply to this app** (one click, confirmed): writes the refreshed pack over
+the installed `domain_pack.json` (timestamped backup kept) and reseeds the
+dictionary from it — approved company items and rules survive the reseed.
+Commit the file to the scenario repo so the next install starts from it.
+
 ## [1.8.16] — 2026-07-14
 
 ### Added — curated detection seeds (domain pack → Registry)

@@ -1620,9 +1620,27 @@ def api_export_pack():
     except Exception:
         base = {}
     pack, report = packgen.build_pack(rows, base=base)
-    return jsonify({"pack": pack, "report": report,
-                    "merged_over": bool(base),
-                    "learned": sum(report.values())})
+    out = {"pack": pack, "report": report, "merged_over": bool(base),
+           "learned": sum(report.values())}
+    if body.get("apply"):
+        # write the refreshed pack where the app reads it (backing up the old
+        # one) and reseed the dictionary from it — approved company items and
+        # company rules survive the reseed, pending scan-noise is discarded
+        import json as _json, shutil, time
+        path = os.environ.get("GLOSSARY_DOMAIN_PACK") or os.path.join(HERE, "domain_pack.json")
+        backup = None
+        try:
+            if os.path.exists(path):
+                backup = path + ".backup-" + time.strftime("%Y%m%d-%H%M%S")
+                shutil.copy2(path, backup)
+        except Exception:
+            backup = None
+        with open(path, "w", encoding="utf-8") as f:
+            _json.dump(pack, f, indent=2, ensure_ascii=False)
+        rs = tagdict.reset(preserve_approved=True)
+        out.update({"applied": True, "pack_path": path, "pack_backup": backup,
+                    "reseed_kept": rs.get("kept")})
+    return jsonify(out)
 
 @app.get("/api/tagdict/export.json")
 def api_tagdict_export():
