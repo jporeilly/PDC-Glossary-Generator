@@ -14,6 +14,20 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.8.16] — 2026-07-14
+
+### Resolve — unconfirmed terms surfaced honestly, AI match now reaches them
+- With deterministic pre-stamping, links are never "unresolved" — so a term
+  PDC could not CONFIRM by name (e.g. a generic single word like "State", or
+  a term renamed after import) hid behind a green "fully linked" headline
+  while its links quietly fell back to the deterministic import ids. Renamed
+  terms would Apply a **dead id**.
+- The panel now: states plainly "✓ All N links are bound — ready to Apply",
+  lists unconfirmed names in their own amber section with the det-id-fallback
+  risk spelled out, and offers **AI match in PDC** for exactly those names
+  (binding replaces the deterministic id with PDC's real one). The probe is
+  reframed as confirmation diagnostics, collapsed by default.
+
 ## [1.8.15] — 2026-07-14
 
 ### Fixed — document Data Discovery completes its workflow again
@@ -32,20 +46,6 @@ finishes), which works on every API version:
   next steps (re-pull Data Elements / side-by-side → re-Apply → recalculate
   Trust). Honest timeout message when folders don't report per-entity
   timestamps (check PDC's Workers page).
-
-## [1.8.14] — 2026-07-14
-
-### Resolve — unconfirmed terms surfaced honestly, AI match now reaches them
-- With deterministic pre-stamping, links are never "unresolved" — so a term
-  PDC could not CONFIRM by name (e.g. a generic single word like "State", or
-  a term renamed after import) hid behind a green "fully linked" headline
-  while its links quietly fell back to the deterministic import ids. Renamed
-  terms would Apply a **dead id**.
-- The panel now: states plainly "✓ All N links are bound — ready to Apply",
-  lists unconfirmed names in their own amber section with the det-id-fallback
-  risk spelled out, and offers **AI match in PDC** for exactly those names
-  (binding replaces the deterministic id with PDC's real one). The probe is
-  reframed as confirmation diagnostics, collapsed by default.
 
 ## [1.8.14] — 2026-07-14
 
