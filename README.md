@@ -67,8 +67,7 @@ Identification:
    ready-made **detection seeds** (the scan's induced value regexes and
    profiled reference lists) plus PK/FK relationship facts — and the Glossary
    Generator's **Draft policies (AI)** button already turns those seeds into
-   importable pattern/dictionary files, covering the Policy Generator's
-   authoring half today.
+   importable pattern/dictionary files.
 
 Because both apps draw from the same row, the glossary term, the tags a method
 stamps, and the sensitivity can no longer quietly diverge. The full rationale
