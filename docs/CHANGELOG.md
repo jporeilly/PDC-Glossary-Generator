@@ -14,6 +14,16 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.8.26] — 2026-07-15
+
+### Changed — bulk "Retire empty company tags" gated until a scan has run
+Right after a (re)seed every usage counter is zero by definition, so the
+facet preview offered to bulk-retire the ENTIRE curated allow-list — and
+with 1.8.25's durable tombstones a click would have stripped it from the
+pack at the next export. The bulk button now appears only once the
+dictionary has grown from at least one scan; before that a hint explains
+why. Per-item ✕ retire on the tables remains available at all times.
+
 ## [1.8.25] — 2026-07-15
 
 ### Added — steward mistakes are now recoverable in-product
