@@ -1,6 +1,7 @@
 # Pentaho Data Catalog Glossary Generator
 
-**Version:** 1.8.4 · validated against Pentaho Data Catalog 11.0.0
+**Version:** 1.8.18 · validated against Pentaho Data Catalog 11.0.0 (public
+API v3, shape-checked by the committed `v3_selftest.py`)
 
 A local-first web app that **scans your data sources, suggests a business
 glossary, lets a steward review and govern it, and exports import-ready JSONL**
@@ -87,21 +88,42 @@ workshop figures are in [diagrams/](glossary_generator/diagrams/).
   data-value probe and an AI adjudicator on demand).
 
   ![The review grid — AI agent toolbar, duplicate groups with Merge / Disambiguate / Keep separate recommendations](images/review-grid.png)
-- **Govern** — steward/owner/custodian assignment (manual or keyword
-  auto-assign from a Keycloak-fetched roster), ratings, review dates, and a
-  steward approval gate over the vocabulary, with a full audit trail.
+- **Govern** — steward/owner/custodian assignment driven by the
+  Keycloak-fetched roster: candidate pools are **constrained to each person's
+  actual roster roles**, expertise beats defaults only on a strict win, and
+  the business domain auto-derives from the company data. Plus ratings,
+  review dates, and a steward approval gate over the vocabulary with a full
+  audit trail.
 
   ![The Govern page — Keycloak roster, stewardship defaults and per-category overrides, generate & apply](images/govern-page.png)
 - **Generate & apply** — export the kept terms as PDC-importable JSONL, then
-  resolve term ids and **apply term links, tags and sensitivity back onto PDC
-  column entities** over the public API, ending with a Trust Score rollup.
-- **AI agents (optional, local)** — seven guardrailed agents over a local
+  resolve term ids (fuzzy + **in-place AI matching** for renamed or
+  outstanding terms — no round-trip through the PDC glossary UI) and **apply
+  term links, tags, sensitivity and descriptions back onto PDC entities**
+  over the public API v3: column links, table terms and sensitivity rollups,
+  folder rating/DQ/sensitivity rollups, a Data Discovery completion watcher,
+  and a Trust Score rollup to finish.
+- **AI agents (optional, local)** — ten guardrailed agents over a local
   **Ollama** model: definition/purpose enrichment, evidence-grounded term/tag/
   sensitivity suggestions, duplicate-group adjudication, definition QA (with a
   deterministic linter that also works offline), category assignment, roster
-  expertise, and **Draft policies (AI)** — detection seeds → ready-to-import
-  PDC pattern/dictionary rule files. Every agent proposes; the steward
-  applies. Fully offline-safe: no Ollama, no problem — heuristics remain.
+  expertise, business-domain suggestion, pending-vocabulary review (with
+  alias folding), term-id matching at resolve time, and **Draft policies
+  (AI)** — detection seeds → ready-to-import PDC pattern/dictionary rule
+  files. Every agent proposes; the steward applies. Fully offline-safe: no
+  Ollama, no problem — heuristics remain.
+- **The pack flywheel** — packs start hand-authored but don't stay that way:
+  **Export domain pack** (Dictionary page) merges the reviewed scan state
+  back into the installed pack — table mappings, learned abbreviations, the
+  approved vocabulary, and `curated_seeds` carrying the induced value
+  patterns and reference lists, detection seeds specific to *your* data.
+  Additions fill gaps; where the scan **disagrees** with the pack, each
+  conflict is listed for the steward to decide (curated seeds default to the
+  fresher scan evidence). **Apply to this app** installs the refreshed pack
+  and reseeds the dictionary (approved items survive); commit it to the
+  scenario repo and every future install starts from evidence instead of
+  guesses. No pack yet? Run packless, scan + review once — the first export
+  *is* your base pack.
 
 ## Repository layout
 
