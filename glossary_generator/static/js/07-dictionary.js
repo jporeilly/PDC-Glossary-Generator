@@ -152,15 +152,35 @@ function tdTagRetire(i){
   if(!confirm(`Retire tag "${t.tag}" from the governed allow-list?\n\nDurable across reseeds (tombstoned); the next Export domain pack will offer to remove it from the pack. A rule that still emits it will re-add it with a warning. Recorded in the audit trail.`)) return;
   tdReview('tag',t.tag,'reject');
 }
+let TD_FOLD_PAIRS=[];
+async function tdFoldAll(){
+  const pairs=(TD_FOLD_PAIRS||[]).filter(p=>p.confidence==='high');
+  if(!pairs.length) return;
+  if(!confirm(`Fold all ${pairs.length} high-confidence twin(s) into their canonical terms?
+
+Each twin becomes an ALIAS of its canonical — durable across reseeds, one audit entry per fold. Review-band suggestions are NOT included. If any canonical name looked wrong in the list, dismiss that pair first.`)) return;
+  let done=0;
+  for(const p of pairs){
+    try{
+      const d=await (await fetch('/api/tagdict/review',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({kind:'term',names:[p.fold],action:'alias',target:p.keep,actor:STEWARD_ACTOR})})).json();
+      if(d&&!d.error){ TAGDICT=d; done++; }
+    }catch(e){}
+  }
+  TD_FOLD_PAIRS=[]; if($('tdFoldOut')) $('tdFoldOut').innerHTML='';
+  tdRender(); renderAudit();
+  $('tdMsg').textContent=`Folded ${done} twin(s) into their canonical terms — aliases now resolve those names on every future scan.`;
+}
 async function tdFoldAdvisor(){
   const btn=$('tdFoldBtn'); if(btn){btn.disabled=true;btn.textContent='Analyzing…';}
   try{
     const d=await (await fetch('/api/tagdict/fold-advisor',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'})).json();
     const out=$('tdFoldOut'), pairs=d.pairs||[];
+    TD_FOLD_PAIRS=pairs;
     if(!pairs.length){
       out.innerHTML=`<p class="msg">No fold candidates among the ${d.governed||0} governed company terms — every name is distinct even after abbreviation expansion.</p>`;
     }else{
-      out.innerHTML=`<div class="msg" style="margin-bottom:2px"><b>${pairs.length} fold candidate(s)</b> — each click folds the twin into the canonical term as an alias (durable; audit-logged):</div>`
+      const nHigh=pairs.filter(p=>p.confidence==='high').length;
+      out.innerHTML=`<div class="msg" style="margin-bottom:2px;display:flex;gap:10px;align-items:baseline"><b>${pairs.length} fold candidate(s)</b><span>each click folds the twin into the canonical term as an alias (durable; audit-logged)</span>${nHigh>1?`<button class="ghost sm" style="padding:1px 10px" onclick="tdFoldAll()" title="Fold every HIGH-confidence pair (identical after abbreviation expansion) in one pass. Review-band suggestions are never included. Glance at the canonical names first — fold-all trusts the advisor's pick of which spelling survives; dismiss (✕) any pair whose canonical looks wrong before clicking.">Fold all ${nHigh} high-confidence</button>`:''}</div>`
         +pairs.map(p=>`<div class="msg" style="display:flex;gap:8px;align-items:baseline;padding:2px 0">
           <b style="color:${p.confidence==='high'?'#1B6B45':'#7a4a00'};min-width:44px">${p.confidence==='high'?'fold':'review'}</b>
           <span style="flex:1">fold <b>${esc(p.fold)}</b> into <b>${esc(p.keep)}</b> <span class="hint">— ${esc(p.reason)}</span></span>

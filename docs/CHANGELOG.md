@@ -14,6 +14,17 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.8.28] — 2026-07-15
+
+### Added — Fold all (high-confidence) on the AI fold advisor
+One click folds every HIGH-confidence pair (identical after abbreviation
+expansion) into its canonical term — one audit entry per fold, durable
+aliases. Review-band suggestions are never included, and the confirm
+reminds you to dismiss any pair whose canonical spelling looks wrong
+before running (the advisor picks the unabbreviated name, which on an
+uncurated vocabulary can itself be junk — e.g. "Merchant Category Code
+Code").
+
 ## [1.8.27] — 2026-07-15
 
 ### Added — AI fold advisor over the governed vocabulary
