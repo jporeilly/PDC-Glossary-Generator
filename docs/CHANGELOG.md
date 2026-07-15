@@ -36,6 +36,11 @@ evolve from real company data instead of staying hand-authored guesses:
 pack always win; learned content fills gaps and adds, and the report counts
 the additions per key — review, then commit to the scenario repo.
 
+**Re-merge propagates review improvements** into existing pack terms via
+safe unions: aliases and tags union in, sensitivity tightens but never
+loosens - curation can be enriched, never removed or weakened
+(report: terms_enriched).
+
 **Apply to this app** (one click, confirmed): writes the refreshed pack over
 the installed `domain_pack.json` (timestamped backup kept) and reseeds the
 dictionary from it — approved company items and rules survive the reseed.

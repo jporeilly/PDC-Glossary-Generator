@@ -160,7 +160,38 @@ def build_pack(rows, base=None):
             learned_terms[n] = {"aliases": list(m.get("aliases") or []),
                                 "sensitivity": m.get("sensitivity", "LOW"),
                                 "tags": list(m.get("tags") or [])}
-    merge_map("terms", learned_terms)
+    # terms merge is richer than add-only: review improvements PROPAGATE into
+    # existing entries through safe unions — aliases and tags union in,
+    # sensitivity tightens but never loosens. Curation can't be removed or
+    # weakened; it can only be enriched.
+    cur_terms = dict(base.get("terms") or {})
+    added = updated = 0
+    _rank = {"LOW": 0, "MEDIUM": 1, "HIGH": 2}
+    for n, v in learned_terms.items():
+        if n not in cur_terms:
+            cur_terms[n] = v
+            added += 1
+            continue
+        e = dict(cur_terms[n])
+        changed = False
+        al = list(e.get("aliases") or [])
+        for a in v["aliases"]:
+            if a not in al:
+                al.append(a); changed = True
+        tg = list(e.get("tags") or [])
+        for t in v["tags"]:
+            if t not in tg:
+                tg.append(t); changed = True
+        if _rank.get(str(v.get("sensitivity", "LOW")).upper(), 0) > _rank.get(str(e.get("sensitivity", "LOW")).upper(), 0):
+            e["sensitivity"] = v["sensitivity"]; changed = True
+        if changed:
+            e["aliases"], e["tags"] = al, tg
+            cur_terms[n] = e
+            updated += 1
+    if cur_terms:
+        base["terms"] = cur_terms
+    report["terms"] = added
+    report["terms_enriched"] = updated
 
     # curated_seeds: the company-specific detection seeds the scan induced
     learned_seeds = {}
