@@ -14,6 +14,17 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.8.24] — 2026-07-15
+
+### Fixed — AI buttons stayed greyed after loading a saved glossary
+The AI toolbar (Enrich, AI suggest, AI QA, **AI categorize**) is enabled by
+the LLM status check, which re-ran after a scan but NOT after **Load
+saved…** / auto-resume / **Open glossary for review** — so on a loaded
+glossary the buttons sat disabled even with Ollama online. There was also
+a boot race: the status check could read an empty grid moments before the
+session snapshot restored it. All three load paths now re-evaluate the
+buttons once rows exist.
+
 ## [1.8.23] — 2026-07-15
 
 ### Added — state snapshot + auto-resume

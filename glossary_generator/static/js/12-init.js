@@ -21,6 +21,7 @@ function restoreGrid(){
     ROWS=d.rows; if(typeof CUR_GLOSS!=='undefined' && d.gloss) CUR_GLOSS=d.gloss;
     buildCategoryFilter(); clearFilters(); snapshotScan();
     if(typeof renderSummary==='function'&&typeof computeStats==='function') renderSummary(computeStats(ROWS));
+    llmStatus();  // boot's own llmStatus may have raced this restore with ROWS still empty
     if($('msg')) $('msg').textContent=`Restored ${ROWS.length} terms from this browser session — unsaved work; Save glossary to keep it.`;
   }catch(e){ /* corrupt snapshot — start clean */ }
 }

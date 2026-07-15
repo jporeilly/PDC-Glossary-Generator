@@ -267,6 +267,7 @@ async function loadGlossary(id,quiet){
     if(!PEOPLE_LOADED) await loadPeople();
     if(ROWS.length) buildCatTable();
     applyGovernance(d.governance);
+    llmStatus();  // re-evaluate the AI buttons now that ROWS exist (enrich/suggest/QA/categorize)
     if(!quiet) showPage('glossary');
     $('msg').innerHTML=`${quiet?'Auto-resumed':'Loaded'} <b>${esc(d.name||d.glossary_name)}</b> — ${ROWS.length} terms${d.discovery?', with discovery':''}${d.governance?', governance restored':''}${quiet?' <span class="hint">(your last saved glossary — Load saved… to open a different one)</span>':''}.`;
   }catch(e){ $('msg').textContent='Load failed: '+e; }
@@ -301,6 +302,7 @@ async function loadGlossaryForReview(input){
     ROWS=d.rows; buildCategoryFilter(); clearFilters(); renderSummary(computeStats(ROWS)); renderOwnership(null); snapshotScan();
     if(PEOPLE_LOADED)buildCatTable(); renderDiscovery();
     $('enhanceBtn').disabled=!ROWS.length; $('saveGlossBtn').disabled=!ROWS.length; $('filterbar').style.display=''; $('keepbar').style.display=''; $('glossHint').textContent='';
+    llmStatus();  // re-evaluate the AI buttons now that ROWS exist
     const rp=d.report||{}; $('msg').innerHTML=`Loaded <b>${rp.terms||0}</b> terms from <b>${esc(rp.glossary||f.name)}</b> for review.`;
   }catch(e){ $('glossHint').textContent='Load failed: '+e; } input.value='';
 }
