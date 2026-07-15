@@ -46,6 +46,13 @@ function tdRender(){
     <td style="padding:4px 8px">${t.count||0}</td>
     <td style="padding:4px 8px;color:var(--mute);word-break:break-word">${esc((t.examples||[]).join(', '))}</td></tr>`).join('');
   $('tdRows').innerHTML=rows||'<tr><td colspan="4" class="msg" style="padding:8px">No tags yet.</td></tr>';
+  if($('tdRuleRows')){
+    const rrows=(TAGDICT.rules||[]).map(r=>`<tr>
+      <td style="padding:4px 8px;word-break:break-all"><code>${esc(r.pattern||'')}</code></td>
+      <td style="padding:4px 8px;word-break:break-word">${esc((r.tags||[]).join('; '))}</td>
+      <td style="padding:4px 8px">${badge(r.layer==='generic'?'generic':'approved')}</td></tr>`).join('');
+    $('tdRuleRows').innerHTML=rrows||'<tr><td colspan="3" class="msg" style="padding:8px">No rules yet — add one below, or seed them from the domain pack.</td></tr>';
+  }
   tdRenderFacet();
 }
 function _lev(a,b){ const m=a.length,n=b.length; if(!m)return n; if(!n)return m; const d=Array.from({length:m+1},(_,i)=>[i,...Array(n).fill(0)]); for(let j=0;j<=n;j++)d[0][j]=j;

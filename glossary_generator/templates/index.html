@@ -691,7 +691,7 @@
         <div id="tdPendList" style="margin-top:8px;display:flex;flex-direction:column;gap:8px;font-size:12.5px"></div>
       </div>
 
-      <h4 style="margin:6px 0 4px">Terms <span class="hint" style="font-weight:400">canonical business terms &mdash; <span style="color:var(--mute)">generic</span> baseline + company. Aliases resolve divergent names to one term.</span></h4>
+      <h4 style="margin:6px 0 4px">1 &middot; Terms <span class="hint" style="font-weight:400">canonical business terms &mdash; <span style="color:var(--mute)">generic</span> baseline + company. Aliases resolve divergent names to one term.</span></h4>
       <div style="max-height:220px;overflow:auto;border:1px solid var(--line);border-radius:8px">
         <table style="width:100%;border-collapse:collapse;font-size:12.5px;table-layout:fixed">
           <colgroup><col style="width:24%"/><col style="width:10%"/><col style="width:11%"/><col style="width:31%"/><col style="width:16%"/><col style="width:8%"/></colgroup>
@@ -707,7 +707,7 @@
         <button class="ghost sm" onclick="tdAddTerm()">Add term</button>
       </div>
 
-      <h4 style="margin:12px 0 4px">Tags <span class="hint" style="font-weight:400">controlled allow-list</span></h4>
+      <h4 style="margin:12px 0 4px">2 &middot; Tags <span class="hint" style="font-weight:400">the controlled allow-list tagging draws from</span></h4>
       <div style="max-height:260px;overflow:auto;border:1px solid var(--line);border-radius:8px">
         <table id="tdTable" style="width:100%;border-collapse:collapse;font-size:12.5px;table-layout:fixed">
           <colgroup><col style="width:20%"/><col style="width:12%"/><col style="width:10%"/><col style="width:58%"/></colgroup>
@@ -719,7 +719,17 @@
         <div class="fld" style="flex:0 1 150px"><label>Add tag</label><input id="td_newtag" type="text" placeholder="e.g. chargeback"/></div>
         <div class="fld" style="flex:0 1 130px"><label>Sensitivity floor</label><select id="td_newfloor"><option value="">none</option><option>LOW</option><option>MEDIUM</option><option>HIGH</option></select></div>
         <button class="ghost sm" onclick="tdAddTag()">Add tag</button>
-        <span style="flex:1"></span>
+      </div>
+
+      <h4 style="margin:12px 0 4px">3 &middot; Rules <span class="hint" style="font-weight:400">name/term regex patterns that emit governed tags automatically on every scan</span></h4>
+      <div style="max-height:220px;overflow:auto;border:1px solid var(--line);border-radius:8px">
+        <table style="width:100%;border-collapse:collapse;font-size:12.5px;table-layout:fixed">
+          <colgroup><col style="width:52%"/><col style="width:34%"/><col style="width:14%"/></colgroup>
+          <thead><tr style="text-align:left"><th style="padding:5px 8px">Pattern</th><th>Emits tags</th><th>Layer</th></tr></thead>
+          <tbody id="tdRuleRows"><tr><td colspan="3" class="msg" style="padding:8px">Loading&hellip;</td></tr></tbody>
+        </table>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;margin-top:10px">
         <div class="fld" style="flex:1 1 220px"><label>Rule pattern <span class="hint">regex on name/term</span></label><input id="td_rulepat" type="text" placeholder="chargeback|dispute|reversal"/></div>
         <div class="fld" style="flex:0 1 180px"><label>Rule tags <span class="hint">;-separated</span></label><input id="td_ruletags" type="text" placeholder="fraud;payments"/></div>
         <button class="ghost sm" onclick="tdAddRule()">Add rule</button>
