@@ -64,22 +64,6 @@ finishes), which works on every API version:
 
 ## [1.8.13] — 2026-07-14
 
-### Changed — scenarios carved out into PDC-Scenarios
-
-All per-scenario assets moved to the new
-[PDC-Scenarios](https://github.com/jporeilly/PDC-Scenarios) repo:
-`data_sources/` (all four verticals **and** the shared lab), `courseware/`
-(all sets + the consolidated roster), the `install-scenario` /
-`reset-scenario` scripts, and copies of the app diagrams the courseware
-builders embed. This repo is now the app only. The scenario scripts were
-adapted to discover the app (`GLOSSARY_APP_DIR` or the usual
-beside/inside layouts), and PDC-Scenarios' new `select-vertical.sh <ID>`
-sparse-pulls a single vertical. Docs swept (README, GUIDE, REFERENCE,
-PDC-VM-TROUBLESHOOTING, app README). The Policy Generator's courseware
-moved there too (`courseware/CSCU/Policy-Generator/`).
-
-## [1.8.13] — 2026-07-14
-
 ### Resolve — AI matching for outstanding terms, in place
 - **"AI match in PDC"** on the unresolved list: terms renamed or
   disambiguated locally AFTER the glossary import used to dead-end at
@@ -96,6 +80,20 @@ moved there too (`courseware/CSCU/Policy-Generator/`).
   policies (zip)") with a 1-2-3-4 next-steps strip (download → review →
   PDC Data Identification Import → run identification) — it IS the draft
   policy set, so it reads like one now.
+
+### Changed — scenarios carved out into PDC-Scenarios
+
+All per-scenario assets moved to the new
+[PDC-Scenarios](https://github.com/jporeilly/PDC-Scenarios) repo:
+`data_sources/` (all four verticals **and** the shared lab), `courseware/`
+(all sets + the consolidated roster), the `install-scenario` /
+`reset-scenario` scripts, and copies of the app diagrams the courseware
+builders embed. This repo is now the app only. The scenario scripts were
+adapted to discover the app (`GLOSSARY_APP_DIR` or the usual
+beside/inside layouts), and PDC-Scenarios' new `select-vertical.sh <ID>`
+sparse-pulls a single vertical. Docs swept (README, GUIDE, REFERENCE,
+PDC-VM-TROUBLESHOOTING, app README). The Policy Generator's courseware
+moved there too (`courseware/CSCU/Policy-Generator/`).
 
 ## [1.8.12] — 2026-07-14
 
