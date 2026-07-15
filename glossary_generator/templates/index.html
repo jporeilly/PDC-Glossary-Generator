@@ -503,6 +503,10 @@
         <button class="primary" id="resolveBtn" onclick="resolveTermIds()">Resolve &amp; stamp IDs</button>
         <span class="msg" id="resolveMsg"></span>
       </div>
+      <div class="barrow" id="resolveProg" style="display:none;gap:10px;align-items:center;margin-top:12px">
+        <div class="bar" style="flex:0 0 320px"><i id="resolveBar"></i></div>
+        <span class="msg" id="resolveProgLbl" style="flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Resolving&hellip;</span>
+      </div>
     </div>
 
     <div class="card">
@@ -518,8 +522,8 @@
         <span class="msg" id="applyMsg"></span>
       </div>
       <div class="barrow" id="applyProg" style="display:none;gap:10px;align-items:center;margin-top:12px">
-        <span class="msg" id="applyProgLbl" style="min-width:280px">Applying…</span>
-        <div class="bar"><i id="applyBar"></i></div>
+        <div class="bar" style="flex:0 0 320px"><i id="applyBar"></i></div>
+        <span class="msg" id="applyProgLbl" style="flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Applying…</span>
       </div>
       <details class="card" id="apiPeek" style="margin-top:12px;display:none">
         <summary style="cursor:pointer;font-weight:600;font-size:13.5px">Under the hood &mdash; the PDC API calls this makes</summary>

@@ -1043,17 +1043,18 @@ def api_resolve_fuzzy():
                                       "reason": v.get("reason", "no confident match")}
     return jsonify({"matches": matches, "used_llm": used_llm})
 
-@app.post("/api/resolve-terms")
-def resolve_terms():
-    """Resolve each businessTerm's id + glossaryId in PDC and stamp them into the Data-Elements JSON."""
+def _resolve_terms_impl(body, progress=None):
+    """The resolve-and-stamp pipeline shared by the JSON and SSE endpoints.
+    Returns the response dict; raises ValueError (bad request) or RuntimeError
+    (PDC-side failure). `progress` gets {phase:'term', done, total, name} per
+    lookup and {phase:'finishing'} before the stamp/probe tail."""
     import pdc_api
-    body = request.get_json(force=True) or {}
     api_json = body.get("json") or []
     base = (body.get("base_url") or "").strip()
     version = body.get("version") or "v2"
     verify = bool(body.get("verify_tls", False))
     if not base:
-        return jsonify({"error": "PDC base URL is required"}), 400
+        raise ValueError("PDC base URL is required")
     names = sorted({bt.get("name") for el in api_json
                     for bt in el.get("attributes", {}).get("businessTerms", []) if bt.get("name")})
     try:
@@ -1065,7 +1066,13 @@ def resolve_terms():
                                  client_id=(body.get("client_id") or "pdc-client").strip(),
                                  method=body.get("auth_method") or "auto")
         name_map = pdc_api.resolve_terms(base, token, names, body.get("glossary_name"),
-                                         version=version, verify_tls=verify)
+                                         version=version, verify_tls=verify,
+                                         progress=progress)
+        if progress:
+            try:
+                progress({"phase": "finishing", "total": len(names)})
+            except Exception:
+                pass
         # PDC's public API does not expose a term's glossaryId (rootId) via search or
         # entity GET, but the glossary id is the deterministic UUID5 PDC preserved on
         # import — so fill it ourselves from the glossary name when PDC won't.
@@ -1088,7 +1095,7 @@ def resolve_terms():
             except Exception:
                 probe = []
     except Exception as e:
-        return jsonify({"error": str(e)}), 502
+        raise RuntimeError(str(e))
     # Backfill the resolved PDC term ids into this glossary's Registry so the
     # Policy Generator can bind dictionary methods by dictionaryTermId.
     registry_backfilled = 0
@@ -1104,11 +1111,55 @@ def resolve_terms():
                       for el in api_json)
     # how many DISTINCT terms resolved with a glossaryId vs id-only
     gid_terms = sum(1 for n, m in name_map.items() if m.get("glossaryId"))
-    return jsonify({"json": resolved_json, "map": name_map, "linked": linked,
-                    "unresolved": unresolved, "id_only": id_only, "terms": len(names),
-                    "matched": len(name_map), "matched_with_glossary": gid_terms,
-                    "glossary_id": default_gid, "links": links_total, "probe": probe, "unconfirmed": unconfirmed,
-                    "registry_backfilled": registry_backfilled})
+    return {"json": resolved_json, "map": name_map, "linked": linked,
+            "unresolved": unresolved, "id_only": id_only, "terms": len(names),
+            "matched": len(name_map), "matched_with_glossary": gid_terms,
+            "glossary_id": default_gid, "links": links_total, "probe": probe, "unconfirmed": unconfirmed,
+            "registry_backfilled": registry_backfilled}
+
+@app.post("/api/resolve-terms")
+def resolve_terms():
+    """Resolve each businessTerm's id + glossaryId in PDC and stamp them into the Data-Elements JSON."""
+    body = request.get_json(force=True) or {}
+    try:
+        return jsonify(_resolve_terms_impl(body))
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        return jsonify({"error": str(e)}), 502
+
+@app.post("/api/resolve-terms-stream")
+def resolve_terms_stream():
+    """Same as /api/resolve-terms, but streams Server-Sent Events so the browser
+       can show a live per-term progress bar (one PDC search per term is the slow
+       part). Same worker-thread + queue shape as /api/apply-to-pdc-stream:
+       `event: progress` per term, then `event: done` (the full resolve report)
+       or `event: error`."""
+    import threading
+    import queue as _queue
+    body = request.get_json(force=True) or {}
+    q = _queue.Queue()
+
+    def _run():
+        try:
+            out = _resolve_terms_impl(body, progress=lambda ev: q.put(("progress", ev)))
+            q.put(("done", out))
+        except Exception as e:
+            q.put(("error", {"error": str(e)}))
+        finally:
+            q.put((None, None))
+
+    threading.Thread(target=_run, daemon=True).start()
+
+    def _gen():
+        while True:
+            kind, payload = q.get()
+            if kind is None:
+                break
+            yield "event: %s\ndata: %s\n\n" % (kind, json.dumps(payload))
+
+    return Response(_gen(), mimetype="text/event-stream",
+                    headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
 def _pdc_token_and_reauth(body, base, version, verify):
     """Return (token, reauth) for a PDC call. reauth re-mints a token from

@@ -397,16 +397,53 @@ function bindFuzzyAll(){
   if($('resolveMsg')) $('resolveMsg').insertAdjacentHTML('beforeend',
     `<div class="msg" style="color:#1C7C54">All matches bound (${total} link(s)) — the links are ready to Apply.</div>`);
 }
+function resolveProgShow(){ $('resolveProg').style.display='flex'; $('resolveBar').style.width='0%'; $('resolveProgLbl').textContent='Authenticating…'; }
+function resolveProgHide(){ $('resolveProg').style.display='none'; }
+function onResolveProgress(ev){
+  if(ev.phase==='term'){ const t=ev.total||1, v=Math.round(ev.done/t*100); $('resolveBar').style.width=v+'%';
+    $('resolveProgLbl').textContent=`Resolving term ${Math.min(ev.done+1,t)} of ${t} (${v}%)`+(ev.name?` · ${ev.name}`:''); }
+  else if(ev.phase==='finishing'){ $('resolveBar').style.width='100%'; $('resolveProgLbl').textContent=`Looked up ${ev.total} term(s) · stamping ids & checking unconfirmed names…`; }
+}
+async function streamResolve(body){
+  // SSE for a live per-term bar; '__nostream__' falls back to the JSON endpoint
+  let resp=null;
+  try{ resp=await fetch('/api/resolve-terms-stream',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}); }
+  catch(e){ return '__nostream__'; }
+  if(!resp.ok || !resp.body || !/text\/event-stream/.test(resp.headers.get('content-type')||'')){
+    try{ return await resp.json(); }catch(e){ return '__nostream__'; }
+  }
+  const reader=resp.body.getReader(), dec=new TextDecoder(); let buf='', report=null, err=null;
+  while(true){
+    const {value,done}=await reader.read(); if(done) break;
+    buf+=dec.decode(value,{stream:true});
+    let idx;
+    while((idx=buf.indexOf('\n\n'))>=0){
+      const ev=parseSSE(buf.slice(0,idx)); buf=buf.slice(idx+2);
+      if(!ev) continue;
+      if(ev.event==='progress') onResolveProgress(ev.data);
+      else if(ev.event==='done') report=ev.data;
+      else if(ev.event==='error') err=ev.data;
+    }
+  }
+  return err||report;
+}
 async function resolveTermIds(){
   if(!LAST_DE_JSON){ $('resolveMsg').textContent='Export the Data Elements JSON first.'; return; }
   const base=$('pdc_base').value.trim();
   if(!base){ $('resolveMsg').textContent='Enter your PDC base URL.'; return; }
-  $('resolveBtn').disabled=true; $('resolveMsg').textContent='Authenticating and resolving terms…';
+  $('resolveBtn').disabled=true; $('resolveMsg').textContent='';
+  resolveProgShow();
   try{
     const body={base_url:base, version:$('pdc_ver').value, realm:(($('pdc_realm')&&$('pdc_realm').value.trim())||'pdc'), username:$('pdc_user').value,
                 password:$('pdc_pass').value, token:$('pdc_token').value.trim(),
                 verify_tls:$('pdc_verify').checked, glossary_name:$('gname').value, json:LAST_DE_JSON};
-    const d=await (await fetch('/api/resolve-terms',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})).json();
+    let d=await streamResolve(body);
+    if(d==='__nostream__'){
+      $('resolveProgLbl').textContent='Authenticating and resolving terms… (no stream — waiting for the full response)';
+      d=await (await fetch('/api/resolve-terms',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})).json();
+    }
+    resolveProgHide();
+    if(!d){ $('resolveMsg').textContent='Resolve failed: no response.'; $('resolveBtn').disabled=false; return; }
     if(d.error){ $('resolveMsg').textContent='Resolve failed: '+d.error; $('resolveBtn').disabled=false; return; }
     LAST_DE_JSON=d.json;
     const url=URL.createObjectURL(new Blob([JSON.stringify(d.json,null,2)],{type:'application/json'}));
@@ -452,5 +489,6 @@ async function resolveTermIds(){
     }
     $('resolveMsg').innerHTML=m;
   }catch(e){ $('resolveMsg').textContent='Resolve failed: '+e; }
+  resolveProgHide();
   $('resolveBtn').disabled=false;
 }

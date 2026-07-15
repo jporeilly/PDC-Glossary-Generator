@@ -14,6 +14,20 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.8.22] — 2026-07-15
+
+### Added — live progress on Resolve; the Apply bar stops bouncing
+- **Resolve & stamp IDs** now streams a per-term progress bar (new
+  `POST /api/resolve-terms-stream`, same SSE worker shape as the apply
+  stream; the JSON endpoint remains for fallback). The bar shows
+  "Resolving term N of M · <name>" while PDC is searched one term at a
+  time — previously the button just sat on "Authenticating and resolving
+  terms…" for the whole pass.
+- **Fixed-geometry progress bars**: the Apply-to-PDC bar (and the new
+  Resolve bar) put the bar FIRST at a fixed 320px with the label after
+  it, truncated with an ellipsis — the bar no longer shifts position as
+  the column/term name in the label changes length.
+
 ## [1.8.21] — 2026-07-15
 
 ### Changed — structural pass (no behavior changes)

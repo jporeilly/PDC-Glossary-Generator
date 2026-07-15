@@ -47,7 +47,7 @@ def fuzzy_term_candidates(base_url, token, name, version="v2",
 
 
 def resolve_terms(base_url, token, names, glossary_name=None, version="v2",
-                  verify_tls=True, timeout=20):
+                  verify_tls=True, timeout=20, progress=None):
     """Look up each term name in PDC. Returns {name: {id, glossaryId}} for hits.
 
     PDC's public API has no 'list glossary terms' endpoint, so a term name is
@@ -79,7 +79,13 @@ def resolve_terms(base_url, token, names, glossary_name=None, version="v2",
         except Exception:
             return None
 
-    for name in sorted(set(n for n in names if n)):
+    todo = sorted(set(n for n in names if n))
+    for _ti, name in enumerate(todo):
+        if progress:
+            try:
+                progress({"phase": "term", "done": _ti, "total": len(todo), "name": name})
+            except Exception:
+                pass
         try:
             res = _req("POST", surl, token=token,
                        body={"searchTerm": name, "perPage": 50},
