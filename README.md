@@ -1,10 +1,11 @@
 # Pentaho Data Catalog Glossary Generator
 
-**Version:** 1.8.22 · validated against Pentaho Data Catalog 11.0.0 (public
+**Version:** 1.8.29 · validated against Pentaho Data Catalog 11.0.0 (public
 API v3). Two committed offline test suites keep it honest: `selftest.py`
-(42 engine checks — run it after every pull) and `v3_selftest.py` (34 PDC
-API shape checks). The sidebar **version pill** is clickable — it shows the
-running build's release notes and flags a pulled-but-not-restarted mismatch.
+(53 engine checks — run it after every pull; it hops into `.venv` by
+itself) and `v3_selftest.py` (34 PDC API shape checks). The sidebar
+**version pill** is clickable — it shows the running build's release notes
+and flags a pulled-but-not-restarted mismatch.
 
 A local-first web app that **scans your data sources, suggests a business
 glossary, lets a steward review and govern it, and exports import-ready JSONL**
@@ -106,14 +107,28 @@ workshop figures are in [diagrams/](glossary_generator/diagrams/).
   over the public API v3: column links, table terms and sensitivity rollups,
   folder rating/DQ/sensitivity rollups, a Data Discovery completion watcher,
   and a Trust Score rollup to finish.
-- **AI agents (optional, local)** — ten guardrailed agents over a local
+- **Steward-safe governance** — mistakes are recoverable in-product: every
+  vocabulary decision is reversible per item (✕ retire / ⤵ fold-to-alias on
+  approved terms and tags), a retire is **durable** (tombstoned through
+  reseeds, offered for removal from the pack at export), *Approve all*
+  confirms its consequences, bulk retire-empty is gated until the dictionary
+  has grown from a scan, and an **AI fold advisor** proposes alias folds
+  across the governed vocabulary (abbreviation-expansion twins → one-click
+  or Fold-all). Everything lands in the append-only audit trail.
+- **State that takes care of itself** — the app auto-resumes your last saved
+  glossary on start and **autosaves** the workspace every 30 seconds (and on
+  page close) once it exists; all state survives `git pull` untouched, and
+  **Settings → State snapshot** zips everything for machine moves and
+  restore points. The **full working cycle** — scan to committed pack — is
+  documented as a panel on the Home page.
+- **AI agents (optional, local)** — eleven guardrailed agents over a local
   **Ollama** model: definition/purpose enrichment, evidence-grounded term/tag/
   sensitivity suggestions, duplicate-group adjudication, definition QA (with a
   deterministic linter that also works offline), category assignment, roster
   expertise, business-domain suggestion, pending-vocabulary review (with
-  alias folding), term-id matching at resolve time, and **Draft policies
-  (AI)** — detection seeds → ready-to-import PDC pattern/dictionary rule
-  files. Every agent proposes; the steward applies. Fully offline-safe: no
+  alias folding), term-id matching at resolve time, the governed-vocabulary
+  fold advisor, and **Draft policies (AI)** — detection seeds →
+  ready-to-import PDC pattern/dictionary rule files. Every agent proposes; the steward applies. Fully offline-safe: no
   Ollama, no problem — heuristics remain.
 - **The pack flywheel** — packs start hand-authored but don't stay that way:
   **Export domain pack** (Dictionary page) merges the reviewed scan state
@@ -122,7 +137,7 @@ workshop figures are in [diagrams/](glossary_generator/diagrams/).
   patterns and reference lists, detection seeds specific to *your* data.
   Additions fill gaps; where the scan **disagrees** with the pack, each
   conflict is listed for the steward to decide (curated seeds default to the
-  fresher scan evidence). **Apply to this app** installs the refreshed pack
+  fresher scan evidence; steward-retired entries default to removal). **Apply to this app** installs the refreshed pack
   and reseeds the dictionary (approved items survive); commit it to the
   scenario repo and every future install starts from evidence instead of
   guesses. No pack yet? Run packless, scan + review once — the first export
@@ -137,7 +152,7 @@ glossary_generator/     the app (scenario-generic)
                         plain scripts in numbered load order — no build step)
   pdc_api/              PDC Public API client package (core, entities, terms,
                         jobs, apply, bulkload)
-  selftest.py           42 offline engine checks — no PDC/Ollama needed;
+  selftest.py           53 offline engine checks — no PDC/Ollama needed;
                         run after every pull to prove the build is sane
   v3_selftest.py        34 PDC v3 API shape checks
 docs/                   all documentation (reference, guide, changelog, …)
