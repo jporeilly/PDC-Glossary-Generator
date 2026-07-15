@@ -315,6 +315,17 @@ def main():
            and "tag_dictionary.json" in rr.get("restored", []) and rr.get("backed_up", 0) >= 1, rr)
         bad = tc.post("/api/state-restore", data=b"not a zip")
         _c("state restore rejects non-zip input", bad.status_code == 400)
+        # fold advisor over the GOVERNED vocabulary: abbreviation-expansion twins
+        with open(os.environ["GLOSSARY_DOMAIN_PACK"], "w", encoding="utf-8") as f:
+            json.dump({"domain": "credit_union", "abbreviations": {"mbr": "Member"}}, f)
+        tagdict.accrete([_row("Mbr Rating", "s.m.mbr_rating"),
+                         _row("Member Rating", "s.m.member_rating")], persist=True)
+        tagdict.review("term", ["Mbr Rating", "Member Rating"], "approve")
+        fa = tc.post("/api/tagdict/fold-advisor", json={}).get_json()
+        _c("fold advisor: expansion twins -> high-confidence fold, unabbreviated canonical",
+           any(p["fold"] == "Mbr Rating" and p["keep"] == "Member Rating"
+               and p["confidence"] == "high" for p in fa.get("pairs", [])),
+           fa.get("pairs"))
 
     print("\n%d passed, %d failed" % (PASS, FAIL))
     return 1 if FAIL else 0

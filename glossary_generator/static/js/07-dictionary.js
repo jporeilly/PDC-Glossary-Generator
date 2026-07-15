@@ -152,6 +152,24 @@ function tdTagRetire(i){
   if(!confirm(`Retire tag "${t.tag}" from the governed allow-list?\n\nDurable across reseeds (tombstoned); the next Export domain pack will offer to remove it from the pack. A rule that still emits it will re-add it with a warning. Recorded in the audit trail.`)) return;
   tdReview('tag',t.tag,'reject');
 }
+async function tdFoldAdvisor(){
+  const btn=$('tdFoldBtn'); if(btn){btn.disabled=true;btn.textContent='Analyzing…';}
+  try{
+    const d=await (await fetch('/api/tagdict/fold-advisor',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'})).json();
+    const out=$('tdFoldOut'), pairs=d.pairs||[];
+    if(!pairs.length){
+      out.innerHTML=`<p class="msg">No fold candidates among the ${d.governed||0} governed company terms — every name is distinct even after abbreviation expansion.</p>`;
+    }else{
+      out.innerHTML=`<div class="msg" style="margin-bottom:2px"><b>${pairs.length} fold candidate(s)</b> — each click folds the twin into the canonical term as an alias (durable; audit-logged):</div>`
+        +pairs.map(p=>`<div class="msg" style="display:flex;gap:8px;align-items:baseline;padding:2px 0">
+          <b style="color:${p.confidence==='high'?'#1B6B45':'#7a4a00'};min-width:44px">${p.confidence==='high'?'fold':'review'}</b>
+          <span style="flex:1">fold <b>${esc(p.fold)}</b> into <b>${esc(p.keep)}</b> <span class="hint">— ${esc(p.reason)}</span></span>
+          <button class="ghost sm" style="padding:0 8px" onclick="tdAlias(${JSON.stringify(p.fold).replace(/"/g,'&quot;')},${JSON.stringify(p.keep).replace(/"/g,'&quot;')});this.closest('div').remove()">Fold ⤵</button>
+          <button class="ghost sm" style="padding:0 8px" title="Dismiss this suggestion" onclick="this.closest('div').remove()">✕</button></div>`).join('');
+    }
+  }catch(e){ $('tdMsg').textContent='Fold advisor failed: '+(e.message||e); }
+  finally{ if(btn){btn.disabled=false;btn.textContent='AI fold advisor';} }
+}
 function tdApproveAll(kind){
   const n=(kind==='term'?(TAGDICT.terms||[]):(TAGDICT.tags||[])).filter(t=>t.status==='pending').length;
   if(!confirm(`Approve ALL ${n} pending ${kind}${n===1?'':'s'} into the governed vocabulary?\n\nEverything approved governs the Registry and exports into the domain pack — where it reseeds every future install. Approve only what belongs; rejecting noise is safe (a real concept re-proposes itself on the next scan, with evidence). Tip: run AI review first for per-item advice, and mistakes can be undone per item with ✕ / ⤵ on the tables below.`)) return;
@@ -325,3 +343,15 @@ function zoomSource(i){
     : '<div class="ztxt">No source recorded for this term.</div>';
   openZoom(`${r.Term||'Source'} — ${parts.length} source${parts.length===1?'':'s'}`, body);
 }
+/* ---- vocabulary table height: steward-set rows-before-scroll ---- */
+function tdSetRows(n){
+  n=parseInt(n,10)||7;
+  try{ localStorage.setItem('gg_td_rows',String(n)); }catch(e){}
+  const h=(n*29+40)+'px';
+  ['tdTermsBox','tdTagsBox','tdRulesBox'].forEach(id=>{ const el=$(id); if(el) el.style.maxHeight=h; });
+  const s=$('tdRowsSel'); if(s&&s.value!==String(n)) s.value=String(n);
+}
+(function(){
+  let n=7; try{ n=parseInt(localStorage.getItem('gg_td_rows'),10)||7; }catch(e){}
+  tdSetRows(n);
+})();

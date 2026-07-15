@@ -14,6 +14,24 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.8.27] — 2026-07-15
+
+### Added — AI fold advisor over the governed vocabulary
+The near-duplicate intelligence only ever ran over PENDING items — twins
+that both got approved (or arrived via the pack) had no advisor, leaving
+the steward to eyeball the Terms table. **AI fold advisor** (Terms header,
+Dictionary page) now scores the governed company terms pairwise: names are
+token-expanded through the pack's abbreviations (mbr → Member) and compared
+by normalized edit distance — identical expansions are a high-confidence
+fold, ≥85% is flagged for review. The unabbreviated spelling is proposed
+as the canonical (tie-break: reviewed usage, then length). Each proposal
+is one click to fold (durable alias, audit-logged) or dismiss.
+
+### Added — "show N rows" on the vocabulary tables
+The Terms/Tags/Rules tables were fixed at ~7 visible rows — cramped for an
+87-term vocabulary. A selector in the Terms header sets rows-before-scroll
+(7/15/30/60) for all three tables, remembered per browser.
+
 ## [1.8.26] — 2026-07-15
 
 ### Changed — bulk "Retire empty company tags" gated until a scan has run

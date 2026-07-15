@@ -705,14 +705,15 @@
         <div id="tdPendList" style="margin-top:8px;display:flex;flex-direction:column;gap:8px;font-size:12.5px"></div>
       </div>
 
-      <h4 style="margin:6px 0 4px">1 &middot; Terms <span class="hint" style="font-weight:400">canonical business terms &mdash; <span style="color:var(--mute)">generic</span> baseline + company. Aliases resolve divergent names to one term.</span></h4>
-      <div style="max-height:220px;overflow:auto;border:1px solid var(--line);border-radius:8px">
+      <h4 style="margin:6px 0 4px">1 &middot; Terms <span class="hint" style="font-weight:400">canonical business terms &mdash; <span style="color:var(--mute)">generic</span> baseline + company. Aliases resolve divergent names to one term.</span> <button class="ghost sm" id="tdFoldBtn" style="margin-left:6px" onclick="tdFoldAdvisor()" title="Advise alias folds across the governed vocabulary: names are expanded through the pack's abbreviations (mbr &rarr; Member) and compared by similarity — identical expansions are near-certain twins; close matches are flagged for review. The unabbreviated spelling is proposed as the canonical. Advice only — you click each fold.">AI fold advisor</button> <label class="hint" style="font-weight:400;margin-left:6px">show <select id="tdRowsSel" onchange="tdSetRows(this.value)" style="font-size:12px" title="Rows visible before the vocabulary tables scroll (Terms, Tags and Rules) — remembered in this browser"><option>7</option><option>15</option><option>30</option><option>60</option></select> rows</label></h4>
+      <div id="tdTermsBox" style="max-height:220px;overflow:auto;border:1px solid var(--line);border-radius:8px">
         <table style="width:100%;border-collapse:collapse;font-size:12.5px;table-layout:fixed">
           <colgroup><col style="width:24%"/><col style="width:10%"/><col style="width:11%"/><col style="width:31%"/><col style="width:16%"/><col style="width:8%"/></colgroup>
           <thead><tr style="text-align:left"><th style="padding:5px 8px">Term</th><th>Layer</th><th>Sensitivity</th><th>Aliases</th><th>Tags</th><th>Used</th></tr></thead>
           <tbody id="tdTermRows"><tr><td colspan="6" class="msg" style="padding:8px">Loading…</td></tr></tbody>
         </table>
       </div>
+      <div id="tdFoldOut" style="margin-top:6px"></div>
       <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;margin:8px 0 4px">
         <div class="fld" style="flex:1 1 150px"><label>Add term</label><input id="td_newterm" type="text" placeholder="e.g. Backflow Device ID"/></div>
         <div class="fld" style="flex:0 1 120px"><label>Sensitivity</label><select id="td_termsens"><option>LOW</option><option>MEDIUM</option><option>HIGH</option></select></div>
@@ -722,7 +723,7 @@
       </div>
 
       <h4 style="margin:12px 0 4px">2 &middot; Tags <span class="hint" style="font-weight:400">the controlled allow-list tagging draws from</span></h4>
-      <div style="max-height:260px;overflow:auto;border:1px solid var(--line);border-radius:8px">
+      <div id="tdTagsBox" style="max-height:260px;overflow:auto;border:1px solid var(--line);border-radius:8px">
         <table id="tdTable" style="width:100%;border-collapse:collapse;font-size:12.5px;table-layout:fixed">
           <colgroup><col style="width:20%"/><col style="width:12%"/><col style="width:10%"/><col style="width:58%"/></colgroup>
           <thead><tr style="text-align:left"><th style="padding:5px 8px">Tag</th><th>Floor</th><th>Used</th><th>Example terms</th></tr></thead>
@@ -736,7 +737,7 @@
       </div>
 
       <h4 style="margin:12px 0 4px">3 &middot; Rules <span class="hint" style="font-weight:400">name/term regex patterns that emit governed tags automatically on every scan</span></h4>
-      <div style="max-height:220px;overflow:auto;border:1px solid var(--line);border-radius:8px">
+      <div id="tdRulesBox" style="max-height:220px;overflow:auto;border:1px solid var(--line);border-radius:8px">
         <table style="width:100%;border-collapse:collapse;font-size:12.5px;table-layout:fixed">
           <colgroup><col style="width:52%"/><col style="width:34%"/><col style="width:14%"/></colgroup>
           <thead><tr style="text-align:left"><th style="padding:5px 8px">Pattern</th><th>Emits tags</th><th>Layer</th></tr></thead>

@@ -1697,6 +1697,52 @@ def api_tagdict_ai_review():
         advice.update(llm_advice)
     return jsonify({"advice": advice, "pending": len(pending), "used_llm": used_llm})
 
+@app.post("/api/tagdict/fold-advisor")
+def api_tagdict_fold_advisor():
+    """Advise alias folds across the GOVERNED company vocabulary — the
+    pending-review near-duplicate pass only covers pending items, so twins
+    that both got approved (or arrived via the pack) had no advisor until
+    now. Deterministic: each name is token-expanded through the pack's
+    abbreviations map (mbr -> Member), then compared by normalized edit
+    distance. Identical expansions are a high-confidence fold; >=0.85 ratio
+    is flagged for review. Canonical = the term whose own name already IS
+    its expansion (the unabbreviated spelling), tie-broken by reviewed
+    usage, then name length. Advice only — the steward clicks each fold."""
+    import re as _re
+    d = tagdict.load()
+    pack = tagdict._domain_pack() or {}
+    ab = {str(k).lower(): str(v).lower() for k, v in (pack.get("abbreviations") or {}).items()}
+    gov = [(n, m) for n, m in (d.get("terms") or {}).items()
+           if (m or {}).get("layer") == "company"]
+
+    def toks(name):
+        return [t for t in _re.split(r"[^a-z0-9]+", str(name).lower()) if t]
+
+    def expand(name):
+        return " ".join(ab.get(t, t) for t in toks(name))
+
+    def canon_score(n):
+        unabbrev = 1 if " ".join(toks(n)) == expand(n) else 0
+        used = (d.get("term_counts") or {}).get(n) or 0
+        return (unabbrev, used if isinstance(used, int) else 0, len(str(n)))
+
+    pairs = []
+    for i in range(len(gov)):
+        for j in range(i + 1, len(gov)):
+            na, nb = gov[i][0], gov[j][0]
+            ea, eb = expand(na), expand(nb)
+            if ea == eb:
+                conf, why = "high", "identical after abbreviation expansion ('%s')" % ea
+            else:
+                r = similarity._lev_ratio(ea, eb)
+                if r < 0.85:
+                    continue
+                conf, why = "review", "%d%% name match after abbreviation expansion" % int(r * 100)
+            keep, fold = (na, nb) if canon_score(na) >= canon_score(nb) else (nb, na)
+            pairs.append({"keep": keep, "fold": fold, "confidence": conf, "reason": why})
+    pairs.sort(key=lambda p: (p["confidence"] != "high", p["keep"]))
+    return jsonify({"pairs": pairs, "governed": len(gov)})
+
 @app.post("/api/tagdict/reset")
 def api_tagdict_reset():
     """Reseed from the domain pack + defaults. Approved company items and company
