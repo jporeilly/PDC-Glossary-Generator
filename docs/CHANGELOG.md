@@ -14,6 +14,24 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.8.25] — 2026-07-15
+
+### Fixed — pack vocabulary was locked out of steward actions
+`_merge_seed` (the load-time heal) relabeled EVERY seed term and tag to
+the generic layer — including the domain pack's. After applying a
+generated pack and reseeding, the entire curated vocabulary showed
+"generic" and steward actions (approve / reject / alias) silently
+skipped it. Pack-seeded entries now keep `company/approved` through
+every load, and mislabeled dictionaries heal automatically the next
+time the app reads them — no manual fix needed. Two regression checks
+added (selftest: 47).
+
+### Changed — Dictionary page card reads in workflow order
+The main card was titled "Tag dictionary" but opened with Terms — it's
+now "Governed vocabulary" with the intro spelling out the review order:
+1 · Terms (aliases fold divergent names), 2 · Tags (the allow-list),
+3 · Rules (patterns that emit tags).
+
 ## [1.8.24] — 2026-07-15
 
 ### Fixed — AI buttons stayed greyed after loading a saved glossary

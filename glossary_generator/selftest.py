@@ -96,6 +96,21 @@ def main():
     _c("lift_sensitivity tightens via term dictionary, never loosens",
        tagdict.lift_sensitivity("LOW", [], term="Member Number") == "HIGH"
        and tagdict.lift_sensitivity("HIGH", [], term=None) == "HIGH")
+    # pack-seeded vocabulary is company/approved and STAYS so across loads
+    # (regression: _merge_seed relabeled every pack term generic on load,
+    # which locked the whole curated vocabulary out of steward actions)
+    with open(os.environ["GLOSSARY_DOMAIN_PACK"], "w", encoding="utf-8") as f:
+        json.dump({"domain": "credit_union", "extra_tags": ["pci"],
+                   "terms": {"Card Number": {"aliases": ["PAN"], "sensitivity": "HIGH",
+                                             "tags": ["pci"]}}}, f)
+    tagdict.reset(preserve_approved=True)
+    m = (tagdict.load().get("terms") or {}).get("Card Number") or {}
+    _c("pack term seeds company/approved and survives the load-merge",
+       m.get("layer") == "company" and m.get("status") == "approved", m)
+    _c("pack term is reachable by steward actions (not locked as generic)",
+       tagdict.review("term", ["Card Number"], "approve") == 0  # already approved
+       and tagdict.review("term", ["Card Number"], "reject") == 1)
+    tagdict.reset(preserve_approved=True)  # reseed restores the curated term
 
     # ---- similarity: the duplicate advisor's evidence rubric -----------------
     print("similarity")

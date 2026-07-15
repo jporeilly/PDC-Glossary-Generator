@@ -244,19 +244,30 @@ def _merge_seed(d):
     for t, meta in seed["tags"].items():
         cur = d["tags"].get(t)
         if not cur:
-            d["tags"][t] = meta                       # restore a removed generic tag
-        else:
-            cur["layer"] = "generic"                  # generic tags stay generic
+            d["tags"][t] = meta                       # restore a removed seed tag
+        elif meta.get("layer") == "generic":
+            cur["layer"] = "generic"                  # generic BASELINE tags stay generic
             cur.setdefault("label", meta.get("label", t))
             if meta.get("sensitivity_floor"):
                 cur["sensitivity_floor"] = meta["sensitivity_floor"]
+        else:
+            # pack-seeded tag: curated company vocabulary, pre-approved — heal any
+            # copy a previous merge mislabeled generic so steward actions reach it
+            cur["layer"] = "company"
+            cur.setdefault("status", "approved")
+            cur.setdefault("label", meta.get("label", t))
     d.setdefault("terms", {})
     for n, meta in seed["terms"].items():
         cur = d["terms"].get(n)
         if not cur:
-            d["terms"][n] = meta                      # restore a removed generic term
+            d["terms"][n] = meta                      # restore a removed seed term
+        elif meta.get("layer") == "generic":
+            cur["layer"] = "generic"                  # generic BASELINE terms stay generic
         else:
-            cur["layer"] = "generic"
+            # pack-seeded term: company layer, pre-approved (heals the historic
+            # bug where every pack term was force-relabeled generic on load)
+            cur["layer"] = "company"
+            cur.setdefault("status", "approved")
     d.setdefault("counts", {}); d.setdefault("term_counts", {})
     d.setdefault("examples", {}); d.setdefault("sources", [])
     for nm in [n for n, m in list(d.get("terms", {}).items())
