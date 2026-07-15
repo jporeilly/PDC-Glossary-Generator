@@ -246,6 +246,32 @@ def app_version():
     """Return the running app version."""
     return jsonify({"version": APP_VERSION, "service": "glossary-generator"})
 
+@app.get("/api/whatsnew")
+def api_whatsnew():
+    """The running build's release notes: the top sections of docs/CHANGELOG.md
+    (which lives OUTSIDE the app folder — absent in e.g. the Docker image, so
+    degrade to an empty list). Lets the sidebar version pill show what THIS
+    build contains — a two-second stale-deployment check. The changelog is
+    read fresh on every call while APP_VERSION was read at process start, so
+    a leading changelog version newer than APP_VERSION means the checkout
+    was updated but the app not restarted."""
+    import re as _re
+    releases = []
+    try:
+        path = os.path.join(HERE, "..", "docs", "CHANGELOG.md")
+        with open(path, encoding="utf-8") as f:
+            text = f.read()
+        for m in _re.finditer(r"^## \[([^\]]+)\][ \t]*[—–-]*[ \t]*([^\n]*)\n(.*?)(?=^## \[|\Z)",
+                              text, _re.S | _re.M):
+            releases.append({"version": m.group(1).strip(),
+                             "date": m.group(2).strip(),
+                             "body": m.group(3).strip()})
+            if len(releases) >= 5:
+                break
+    except Exception:
+        releases = []
+    return jsonify({"version": APP_VERSION, "releases": releases})
+
 _SECRET_HINT = ("KEY", "TOKEN", "SECRET", "PASS", "PWD")
 
 @app.get("/config")

@@ -14,6 +14,19 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.8.19] — 2026-07-15
+
+### Added — What's new on the version pill
+The sidebar version pill is now clickable: it opens a release-notes panel
+served by the new `GET /api/whatsnew` (top sections of `docs/CHANGELOG.md`,
+read fresh per call). If the changelog's leading version is newer than the
+running process's version, the panel flags it in red — the two-second
+diagnosis for the recurring "pulled but not restarted / pull didn't land"
+stale-deployment confusion. Degrades gracefully where the changelog isn't
+shipped (Docker image). Also: an under-the-hood note on the Dictionary
+page — "whose scan feeds the pack?" — covering evidence provenance
+(PDC scans → app scan → steward review → pack) and the packless bootstrap.
+
 ## [1.8.18] — 2026-07-15
 
 ### Changed — pack merge: conflicts surface, steward decides
