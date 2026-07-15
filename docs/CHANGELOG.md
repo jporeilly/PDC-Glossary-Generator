@@ -14,6 +14,33 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.8.25] — 2026-07-15
+
+### Added — steward mistakes are now recoverable in-product
+The answer to "an inexperienced steward bulk-approves scan noise — then
+what?", which previously had no in-app fix once the noise reached the
+pack (the load-merge and Reseed resurrected anything you retired):
+
+- **Durable retire (tombstones).** Rejecting an approved company term or
+  tag records a tombstone: the entry stays retired through reloads AND
+  Reseeds instead of resurrecting from the pack. A future scan with real
+  evidence re-proposes the concept as pending, and approving it lifts
+  the tombstone. Alias-folding a pack twin is tombstoned the same way,
+  so folds stick. Save dictionary preserves tombstones.
+- **Pack removal at export.** Export domain pack lists each tombstoned
+  entry still in the installed pack as a conflict row — default REMOVE
+  (mirroring the steward's recorded intent), untick to keep. The pack
+  stops re-seeding what the steward retired.
+- **Per-item undo in the tables.** Approved company terms get ✕ (retire)
+  and ⤵ (fold into another term as alias); company tags get ✕ — the
+  actions that previously existed only for pending items.
+- **The footgun gets a gate.** Approve all now confirms with the count
+  and spells out the consequence (approved items govern the Registry and
+  reseed every install via the pack) before proceeding.
+
+Selftest grows to 52 with the full tombstone lifecycle (durable through
+load-merge + reseed, export removal + override, re-proposal lifting).
+
 ## [1.8.24] — 2026-07-15
 
 ### Fixed

@@ -132,7 +132,35 @@ def main():
     _c("pack term is reachable by steward actions (not locked as generic)",
        tagdict.review("term", ["Card Number"], "approve") == 0  # already approved
        and tagdict.review("term", ["Card Number"], "reject") == 1)
-    tagdict.reset(preserve_approved=True)  # reseed restores the curated term
+    # the reject above tombstones the pack entry — the inexperienced-steward
+    # recovery path: retiring is durable, export offers pack removal, and a
+    # fresh scan can still re-propose the concept
+    d2 = tagdict.load()
+    _c("retire is DURABLE: tombstone beats the load-merge",
+       "Card Number" not in d2.get("terms", {})
+       and "Card Number" in (d2.get("retired") or {}).get("terms", []),
+       d2.get("retired"))
+    tagdict.reset(preserve_approved=True)
+    _c("tombstone survives Reseed (retired pack entry stays out)",
+       "Card Number" not in tagdict.load().get("terms", {}))
+    pk, rp = packgen.build_pack([], base={"terms": {"Card Number": {
+        "aliases": [], "sensitivity": "HIGH", "tags": ["pci"]}}})
+    _c("pack export defaults to REMOVING a steward-retired entry (as a conflict row)",
+       "Card Number" not in pk.get("terms", {})
+       and any(c["key"] == "terms" and c["name"] == "Card Number" and c["use"] == "scan"
+               for c in rp["conflicts"]), rp["conflicts"])
+    pk2, _rp2 = packgen.build_pack(
+        [], base={"terms": {"Card Number": {"aliases": [], "sensitivity": "HIGH",
+                                            "tags": ["pci"]}}},
+        resolutions={"terms::Card Number": "pack"})
+    _c("pack removal is overridable back to keep",
+       "Card Number" in pk2.get("terms", {}))
+    tagdict.accrete([_row("Card Number", "s.cards.card_no", Sensitivity="HIGH")], persist=True)
+    tagdict.review("term", ["Card Number"], "approve")
+    d2 = tagdict.load()
+    _c("a rescanned concept re-proposes; re-approval lifts the tombstone",
+       "Card Number" in d2.get("terms", {})
+       and "Card Number" not in (d2.get("retired") or {}).get("terms", []))
 
     # ---- similarity: the duplicate advisor's evidence rubric -----------------
     print("similarity")

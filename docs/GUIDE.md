@@ -777,7 +777,9 @@ company. It **merges over the installed pack**: additions fill gaps, and any
 **disagreement** between scan and pack is listed with a checkbox per row so
 the steward picks the winner (curation keeps the pack's value by default;
 `curated_seeds` default to the fresher scan evidence). **Apply to this app**
-writes it and reseeds the dictionary in one click (approved items survive),
+writes it and reseeds the dictionary in one click (approved items survive), (Steward-retired entries are tombstoned — durable through
+reseeds — and the export offers to remove them from the pack, so an
+over-eager Approve-all is recoverable per item with the ✕/⤵ actions.)
 and committing the file to the scenario repo makes the next install start
 from evidence instead of guesses. No pack yet? Run packless, scan + review
 once, and the first export **is** your base pack.

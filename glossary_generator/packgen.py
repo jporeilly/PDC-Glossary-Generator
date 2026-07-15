@@ -230,6 +230,28 @@ def build_pack(rows, base=None, resolutions=None):
     report["terms"] = added
     report["terms_enriched"] = updated
 
+    # steward retire-tombstones: an entry explicitly retired in the dictionary
+    # but still sitting in the base pack would resurrect on the next install —
+    # surface each as a removal decision. Default REMOVE (mirrors the recorded
+    # steward intent); the conflict row keeps it visible and overridable.
+    _RETIRED_NOTE = "retired by the steward — remove from the pack"
+    ret = d.get("retired") or {}
+    for n in ret.get("terms") or []:
+        if n in (base.get("terms") or {}):
+            use = res.get(f"terms::{n}", "scan")
+            conflicts.append({"key": "terms", "name": n,
+                              "pack": base["terms"][n], "scan": _RETIRED_NOTE,
+                              "use": use})
+            if use == "scan":
+                base["terms"].pop(n, None)
+    for t in ret.get("tags") or []:
+        if t in (base.get("extra_tags") or []):
+            use = res.get(f"extra_tags::{t}", "scan")
+            conflicts.append({"key": "extra_tags", "name": t,
+                              "pack": t, "scan": _RETIRED_NOTE, "use": use})
+            if use == "scan":
+                base["extra_tags"] = [x for x in base["extra_tags"] if x != t]
+
     # curated_seeds: the company-specific detection seeds the scan induced
     learned_seeds = {}
     for r in rows:

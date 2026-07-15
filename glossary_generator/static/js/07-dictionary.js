@@ -32,16 +32,16 @@ function tdRender(){
   $('tdSummary').textContent=`${TAGDICT.domain||'—'} · ${TAGDICT.term_count||0} terms (${TAGDICT.generic_terms||0} generic, ${TAGDICT.governed_terms||0} governed) · ${TAGDICT.tag_count||0} tags (${TAGDICT.generic_tags||0} generic, ${TAGDICT.governed_tags||0} governed) · ${TAGDICT.rule_count||0} rules`+((TAGDICT.sources&&TAGDICT.sources.length)?` · grown from: ${TAGDICT.sources.join(', ')}`:' · not yet grown from a scan');
   tdRenderPending();
   const badge=st=>st==='generic'?'<span style="font-size:9.5px;font-weight:700;padding:1px 6px;border-radius:8px;background:#e6f1f6;color:#065A82">generic</span>':(st==='pending'?'<span style="font-size:9.5px;font-weight:700;padding:1px 6px;border-radius:8px;background:#fdecc8;color:#7a4a00">pending</span>':'<span style="font-size:9.5px;font-weight:700;padding:1px 6px;border-radius:8px;background:#DDF0E4;color:#1B6B45">approved</span>');
-  const trows=(TAGDICT.terms||[]).map(t=>`<tr>
-    <td style="padding:4px 8px;font-weight:600;word-break:break-word">${esc(t.term)}</td>
+  const trows=(TAGDICT.terms||[]).map((t,i)=>`<tr>
+    <td style="padding:4px 8px;font-weight:600;word-break:break-word">${esc(t.term)}${t.layer==='company'?` <span style="float:right;white-space:nowrap"><button class="ghost sm" style="padding:0 6px" title="Fold into another governed term — this name becomes an ALIAS of the target (durable across reseeds)" onclick="tdTermFold(${i})">⤵</button> <button class="ghost sm" style="padding:0 6px" title="Retire from the governed vocabulary. Durable: a tombstone keeps it retired through reloads and Reseeds, and Export domain pack will offer to remove it from the installed pack. A future scan with real evidence can re-propose it as pending." onclick="tdTermRetire(${i})">✕</button></span>`:''}</td>
     <td style="padding:4px 8px">${badge(t.status)}</td>
     <td style="padding:4px 8px"><span class="sev ${esc(t.sensitivity||'LOW')}" style="font-size:10px">${esc(t.sensitivity||'LOW')}</span></td>
     <td style="padding:4px 8px;color:var(--mute);word-break:break-word">${esc((t.aliases||[]).join('; '))}</td>
     <td style="padding:4px 8px;color:var(--mute);word-break:break-word">${esc((t.tags||[]).join('; '))}</td>
     <td style="padding:4px 8px">${t.count||0}</td></tr>`).join('');
   $('tdTermRows').innerHTML=trows||'<tr><td colspan="6" class="msg" style="padding:8px">No terms yet.</td></tr>';
-  const rows=(TAGDICT.tags||[]).map(t=>`<tr>
-    <td style="padding:4px 8px;font-weight:600;word-break:break-word">${esc(t.tag)} ${badge(t.status)}</td>
+  const rows=(TAGDICT.tags||[]).map((t,i)=>`<tr>
+    <td style="padding:4px 8px;font-weight:600;word-break:break-word">${esc(t.tag)} ${badge(t.status)}${t.layer==='company'?` <button class="ghost sm" style="padding:0 6px;float:right" title="Retire from the allow-list. Durable across reseeds (tombstoned); Export domain pack will offer to remove it from the pack. A rule that still emits it re-adds it with a warning." onclick="tdTagRetire(${i})">✕</button>`:''}</td>
     <td style="padding:4px 8px">${t.sensitivity_floor?`<span class="sev ${esc(t.sensitivity_floor)}" style="font-size:10px">${esc(t.sensitivity_floor)}</span>`:'<span style="color:var(--mute)">—</span>'}</td>
     <td style="padding:4px 8px">${t.count||0}</td>
     <td style="padding:4px 8px;color:var(--mute);word-break:break-word">${esc((t.examples||[]).join(', '))}</td></tr>`).join('');
@@ -128,9 +128,30 @@ function tdRenderPending(){
   };
   let html='';
   const ptermObjs=(TAGDICT.terms||[]).filter(t=>t.status==='pending');
-  if(pterms.length) html+=`<div><b>Terms (${pterms.length})</b> <button class="ghost sm" onclick="tdReviewAll('term','approve')">Approve all</button> <button class="ghost sm" onclick="tdAiReview()" id="tdAiBtn" ${TD_REVIEWING?'disabled':''} title="Advise per candidate: a deterministic near-duplicate check against the governed vocabulary, then the local AI judges the rest from the captured context (category, definition, sources). Advice only — you still click.">${TD_REVIEWING?'Reviewing…':'AI review'}</button> <span class="hint">approve only what belongs in the company vocabulary — reject scan noise</span><div style="margin-top:4px">${ptermObjs.map(trow).join('')}</div></div>`;
-  if(ptags.length) html+=`<div><b>Tags (${ptags.length})</b> <button class="ghost sm" onclick="tdReviewAll('tag','approve')">Approve all</button><div style="margin-top:4px">${ptags.map(n=>chip('tag',n)).join('')}</div></div>`;
+  if(pterms.length) html+=`<div><b>Terms (${pterms.length})</b> <button class="ghost sm" onclick="tdApproveAll('term')">Approve all</button> <button class="ghost sm" onclick="tdAiReview()" id="tdAiBtn" ${TD_REVIEWING?'disabled':''} title="Advise per candidate: a deterministic near-duplicate check against the governed vocabulary, then the local AI judges the rest from the captured context (category, definition, sources). Advice only — you still click.">${TD_REVIEWING?'Reviewing…':'AI review'}</button> <span class="hint">approve only what belongs in the company vocabulary — reject scan noise</span><div style="margin-top:4px">${ptermObjs.map(trow).join('')}</div></div>`;
+  if(ptags.length) html+=`<div><b>Tags (${ptags.length})</b> <button class="ghost sm" onclick="tdApproveAll('tag')">Approve all</button><div style="margin-top:4px">${ptags.map(n=>chip('tag',n)).join('')}</div></div>`;
   $('tdPendList').innerHTML=html;
+}
+function tdTermFold(i){
+  const t=(TAGDICT.terms||[])[i]; if(!t) return;
+  const target=prompt(`Fold "${t.term}" into which governed term?\n\n"${t.term}" becomes an ALIAS of the target — future scans map its columns there automatically. Durable across reseeds.`,'');
+  if(!target||!target.trim()) return;
+  tdAlias(t.term,target.trim());
+}
+function tdTermRetire(i){
+  const t=(TAGDICT.terms||[])[i]; if(!t) return;
+  if(!confirm(`Retire term "${t.term}" from the governed vocabulary?\n\nThis is DURABLE: a tombstone keeps it retired through reloads and Reseeds, and the next Export domain pack will offer to remove it from the installed pack too. A future scan that finds real evidence can re-propose it as pending — approving it then lifts the tombstone. Recorded in the audit trail.`)) return;
+  tdReview('term',t.term,'reject');
+}
+function tdTagRetire(i){
+  const t=(TAGDICT.tags||[])[i]; if(!t) return;
+  if(!confirm(`Retire tag "${t.tag}" from the governed allow-list?\n\nDurable across reseeds (tombstoned); the next Export domain pack will offer to remove it from the pack. A rule that still emits it will re-add it with a warning. Recorded in the audit trail.`)) return;
+  tdReview('tag',t.tag,'reject');
+}
+function tdApproveAll(kind){
+  const n=(kind==='term'?(TAGDICT.terms||[]):(TAGDICT.tags||[])).filter(t=>t.status==='pending').length;
+  if(!confirm(`Approve ALL ${n} pending ${kind}${n===1?'':'s'} into the governed vocabulary?\n\nEverything approved governs the Registry and exports into the domain pack — where it reseeds every future install. Approve only what belongs; rejecting noise is safe (a real concept re-proposes itself on the next scan, with evidence). Tip: run AI review first for per-item advice, and mistakes can be undone per item with ✕ / ⤵ on the tables below.`)) return;
+  tdReviewAll(kind,'approve');
 }
 let TD_ADVICE={}, TD_REVIEWING=false, TD_CANCEL=false;
 function tdProgShow(done,total){

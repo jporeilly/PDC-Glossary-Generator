@@ -240,10 +240,15 @@ def _merge_seed(d):
     for r in seed["rules"]:
         if r["pattern"] not in have:
             d["rules"].append(r)
+    d.setdefault("retired", {"tags": [], "terms": []})
+    d["retired"].setdefault("tags", []); d["retired"].setdefault("terms", [])
+    _rt_tags = set(d["retired"]["tags"]); _rt_terms = set(d["retired"]["terms"])
     d.setdefault("tags", {})
     for t, meta in seed["tags"].items():
         cur = d["tags"].get(t)
         if not cur:
+            if meta.get("layer") != "generic" and t in _rt_tags:
+                continue                              # steward retired it — stays retired
             d["tags"][t] = meta                       # restore a removed seed tag
         elif meta.get("layer") == "generic":
             cur["layer"] = "generic"                  # generic BASELINE tags stay generic
@@ -260,6 +265,8 @@ def _merge_seed(d):
     for n, meta in seed["terms"].items():
         cur = d["terms"].get(n)
         if not cur:
+            if meta.get("layer") != "generic" and n in _rt_terms:
+                continue                              # steward retired it — stays retired
             d["terms"][n] = meta                      # restore a removed seed term
         elif meta.get("layer") == "generic":
             cur["layer"] = "generic"                  # generic BASELINE terms stay generic
@@ -335,6 +342,16 @@ def reset(preserve_approved=True):
         _DICT = _seed()
         kept = {"tags": 0, "terms": 0, "rules": 0}
         if preserve_approved and isinstance(prev, dict):
+            # steward retire-tombstones survive the reseed: the retired pack
+            # entries are dropped from the fresh seed instead of resurrecting
+            ret = prev.get("retired") or {}
+            _DICT["retired"] = {"tags": list(ret.get("tags") or []),
+                                "terms": list(ret.get("terms") or [])}
+            for kind in ("tags", "terms"):
+                for nm in _DICT["retired"][kind]:
+                    m = (_DICT.get(kind) or {}).get(nm) or {}
+                    if m.get("layer") != "generic":
+                        _DICT[kind].pop(nm, None)
             for kind in ("tags", "terms"):
                 for nm, meta in (prev.get(kind) or {}).items():
                     m = meta or {}
@@ -413,6 +430,18 @@ def replace(new_dict):
     global _DICT, _COMPILED, _COMPILED_KEY
     doc, warnings = _guardrail(dict(new_dict or {}))
     with _LOCK:
+        if "retired" not in doc:
+            # the UI's save payload doesn't carry tombstones — keep the
+            # current ones, or a Save would resurrect retired pack entries
+            prev = _DICT if _DICT is not None else None
+            if prev is None:
+                try:
+                    with open(DICT_FILE, encoding="utf-8") as f:
+                        prev = json.load(f)
+                except Exception:
+                    prev = {}
+            doc["retired"] = dict((prev or {}).get("retired")
+                                  or {"tags": [], "terms": []})
         _DICT = doc
         _COMPILED = _COMPILED_KEY = None
         _save_locked()
@@ -536,11 +565,30 @@ def review(kind, names, action="approve", target=None):
                 als = tgt.setdefault("aliases", [])
                 if nm not in als:
                     als.append(nm)
-                coll.pop(nm, None); changed += 1
+                coll.pop(nm, None)
+                # folding a pack-seeded twin must stick: tombstone the folded
+                # name so the load-merge doesn't restore it as its own term
+                rt = d.setdefault("retired", {}).setdefault("terms", [])
+                if nm not in rt:
+                    rt.append(nm)
+                changed += 1
             elif action == "reject":
-                coll.pop(nm, None); changed += 1
+                coll.pop(nm, None)
+                # tombstone: an explicit steward retire is DURABLE — the load-
+                # merge and Reseed skip re-seeding this name from the pack. A
+                # future scan may still re-propose it as pending (evidence
+                # wins), and approving it then lifts the tombstone.
+                rl = d.setdefault("retired", {}).setdefault(
+                    "tags" if kind == "tag" else "terms", [])
+                if nm not in rl:
+                    rl.append(nm)
+                changed += 1
             elif action == "approve" and meta.get("status") != "approved":
-                meta["status"] = "approved"; changed += 1
+                meta["status"] = "approved"
+                rl = (d.get("retired") or {}).get("tags" if kind == "tag" else "terms")
+                if rl and nm in rl:
+                    rl.remove(nm)                     # re-approval lifts the tombstone
+                changed += 1
         if changed:
             _COMPILED = _COMPILED_KEY = None
             _save_locked()

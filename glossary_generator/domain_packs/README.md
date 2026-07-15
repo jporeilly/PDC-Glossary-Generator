@@ -69,8 +69,10 @@ value (a steward's recorded decision beats the machine's newest opinion);
 evidence in the first place, so fresher profiling wins and the replaced seed
 stays visible in the conflict list. Term entries take safe unions (aliases
 and tags union in; sensitivity tightens automatically, and a *loosening* is
-surfaced as a conflict rather than applied or dropped). Two ways to use the
-result:
+surfaced as a conflict rather than applied or dropped). Entries the steward
+**retired in the dictionary** (tombstoned — durable through reseeds) appear
+as removal rows, default *remove*, so the pack stops re-seeding them. Two
+ways to use the result:
 
 1. **Apply to this app** (one click, confirmed): writes the refreshed pack
    over the installed `domain_pack.json` (timestamped backup) and reseeds the
