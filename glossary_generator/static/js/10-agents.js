@@ -245,14 +245,19 @@ async function saveGlossary(){
               discovery:LAST_DISCOVERY, summary:computeStats(ROWS)};
   try{
     const d=await (await fetch('/api/glossaries',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})).json();
-    CUR_GLOSS={id:d.id,name:d.name}; GLOSSARY_SAVED=true; loadGlossaryList(); renderReady();
+    CUR_GLOSS={id:d.id,name:d.name}; GLOSSARY_SAVED=true; rememberGloss(d.id); loadGlossaryList(); renderReady();
     $('msg').innerHTML=`Saved as <b>${esc(d.name)}</b> at ${esc((d.savedAt||'').replace('T',' '))}.`;
   }catch(e){ $('msg').textContent='Save failed: '+e; }
 }
-async function loadGlossary(id){
+function rememberGloss(id){
+  // the app auto-resumes this glossary on next start (settings.json survives restarts)
+  try{ fetch('/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({last_glossary:id})}); }catch(e){}
+}
+async function loadGlossary(id,quiet){
   try{
     const d=await (await fetch('/api/glossaries/'+id)).json();
     if(d.error){ $('msg').textContent=d.error; return; }
+    rememberGloss(id);
     ROWS=d.rows||[]; CUR_GLOSS={id:d.id,name:d.name}; snapshotScan();
     if(d.glossary_name) $('gname').value=d.glossary_name;
     buildCategoryFilter(); clearFilters(); renderSummary(computeStats(ROWS));
@@ -262,8 +267,8 @@ async function loadGlossary(id){
     if(!PEOPLE_LOADED) await loadPeople();
     if(ROWS.length) buildCatTable();
     applyGovernance(d.governance);
-    showPage('glossary');
-    $('msg').innerHTML=`Loaded <b>${esc(d.name||d.glossary_name)}</b> — ${ROWS.length} terms${d.discovery?', with discovery':''}${d.governance?', governance restored':''}.`;
+    if(!quiet) showPage('glossary');
+    $('msg').innerHTML=`${quiet?'Auto-resumed':'Loaded'} <b>${esc(d.name||d.glossary_name)}</b> — ${ROWS.length} terms${d.discovery?', with discovery':''}${d.governance?', governance restored':''}${quiet?' <span class="hint">(your last saved glossary — Load saved… to open a different one)</span>':''}.`;
   }catch(e){ $('msg').textContent='Load failed: '+e; }
 }
 async function delGlossary(id){

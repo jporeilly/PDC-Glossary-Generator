@@ -320,13 +320,117 @@ def drivers():
     """Report which optional database / object-store drivers are installed."""
     return jsonify({"drivers": dbconn.driver_status()})
 
+def _state_files():
+    """Every file the app persists, as (absolute path, archive name). All of it
+    is data-only JSON with self-healing loaders, so a snapshot from an older
+    app version restores cleanly on a newer one — the app can change, the
+    state format tolerates it. Paths honor the same env overrides the app
+    itself uses."""
+    import audit as _audit
+    files = [(SETTINGS_FILE, "settings.json"),
+             (CONN_FILE, "connections.json"),
+             (GLOSS_FILE, "glossaries.json"),
+             (PEOPLE_FILE, "people.json"),
+             (tagdict.DICT_FILE, "tag_dictionary.json"),
+             (_audit.AUDIT_FILE, "audit_log.json"),
+             (os.environ.get("GLOSSARY_DOMAIN_PACK") or os.path.join(HERE, "domain_pack.json"),
+              "domain_pack.json")]
+    rdir = os.path.join(HERE, "registries")
+    if os.path.isdir(rdir):
+        for f in sorted(os.listdir(rdir)):
+            if f.endswith(".json"):
+                files.append((os.path.join(rdir, f), "registries/" + f))
+    return files
+
+@app.get("/api/state-snapshot")
+def api_state_snapshot():
+    """Download the app's complete persisted state as one zip: connections,
+    settings, saved glossaries, the governed dictionary, roster, audit trail,
+    Registries and the installed domain pack. manifest.json records the app
+    version it came from. NOTE: the working review grid lives in the browser —
+    Save glossary first so it's inside glossaries.json."""
+    import io as _io, zipfile, time
+    buf = _io.BytesIO()
+    included = []
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+        for path, arc in _state_files():
+            if os.path.exists(path):
+                z.write(path, arc)
+                included.append(arc)
+        z.writestr("manifest.json", json.dumps(
+            {"app_version": APP_VERSION,
+             "created": time.strftime("%Y-%m-%d %H:%M:%S"),
+             "files": included}, indent=2))
+    fname = "glossary-state-%s.zip" % time.strftime("%Y%m%d-%H%M%S")
+    return Response(buf.getvalue(), mimetype="application/zip",
+                    headers={"Content-Disposition": "attachment; filename=" + fname})
+
+@app.post("/api/state-restore")
+def api_state_restore():
+    """Restore a state snapshot (raw zip body). Only recognized state files are
+    written — each to the path the app currently reads it from (env overrides
+    honored) — and every file that would be overwritten is backed up first as
+    <file>.backup-<timestamp> beside itself. Unknown zip members are skipped
+    and reported, never written."""
+    import io as _io, zipfile, time, shutil
+    try:
+        z = zipfile.ZipFile(_io.BytesIO(request.get_data()))
+    except Exception:
+        return jsonify({"error": "that is not a state-snapshot zip"}), 400
+    manifest = {}
+    if "manifest.json" in z.namelist():
+        try:
+            manifest = json.loads(z.read("manifest.json"))
+        except Exception:
+            manifest = {}
+    targets = {arc: path for path, arc in _state_files() if not arc.startswith("registries/")}
+    ts = time.strftime("%Y%m%d-%H%M%S")
+    restored, skipped, backed_up = [], [], 0
+    for name in z.namelist():
+        base = name.replace("\\", "/")
+        if base == "manifest.json" or base.endswith("/"):
+            continue
+        if base in targets:
+            dest = targets[base]
+        elif (base.startswith("registries/") and base.endswith(".json")
+              and "/" not in base[len("registries/"):]):
+            dest = os.path.join(HERE, "registries", os.path.basename(base))
+        else:
+            skipped.append(name)
+            continue
+        d = os.path.dirname(dest)
+        if d:
+            os.makedirs(d, exist_ok=True)
+        if os.path.exists(dest):
+            shutil.copy2(dest, dest + ".backup-" + ts)
+            backed_up += 1
+        with open(dest, "wb") as f:
+            f.write(z.read(name))
+        restored.append(base)
+    # drop tagdict's in-memory document + compiled caches so the restored
+    # dictionary takes effect immediately (load() serves the cached doc)
+    try:
+        with tagdict._LOCK:
+            tagdict._DICT = None
+            tagdict._COMPILED = tagdict._COMPILED_KEY = None
+    except Exception:
+        pass
+    return jsonify({"restored": restored, "skipped": skipped, "backed_up": backed_up,
+                    "snapshot_version": manifest.get("app_version"),
+                    "running_version": APP_VERSION})
+
 # Source files this app will expose for transparency (the "Under the hood" viewer).
 # Whitelisted on purpose — runtime state (people.json, settings.json, secrets) is
 # never served. This is a teaching tool: the learner can read exactly what runs.
 _SOURCE_WHITELIST = {
     "app.py":          "Flask backend — every /api/* endpoint and how it dispatches.",
     "suggester.py":    "Scan + term suggestion: introspection, profiling, JSONL build.",
-    "pdc_api.py":      "PDC public-API client: auth, search, filter, PATCH, trust, bulk data-source loader.",
+    "pdc_api/core.py":     "PDC public-API client: transport, auth, response helpers.",
+    "pdc_api/entities.py": "PDC public-API client: entity filter/resolve + catalog harvest.",
+    "pdc_api/terms.py":    "PDC public-API client: term resolution and id stamping.",
+    "pdc_api/jobs.py":     "PDC public-API client: jobs (trust score, discovery, profiling).",
+    "pdc_api/apply.py":    "PDC public-API client: merge + PATCH write-back.",
+    "pdc_api/bulkload.py": "PDC public-API client: bulk data-source loader.",
     "dbconn.py":       "Database connection + driver handling for the live scan.",
     "llm.py":          "Local Ollama client used for definition/purpose enrichment.",
     "build_roster.py": "Helper to build a people roster.",

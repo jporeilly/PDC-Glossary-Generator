@@ -133,3 +133,15 @@ async function loadDrivers(){
     $('drvrows').innerHTML=d.map(x=>`<tr><td>${x.label}</td><td><code>${x.module}</code></td><td><span class="badge ${x.present?'ok':'miss'}">${x.present?('installed'+(x.version?' '+x.version:'')):'not installed'}</span></td><td><code>${x.install}</code></td><td>${x.jdbc_hint}</td></tr>`).join('');
   }catch(e){}
 }
+/* ---- state snapshot: backup / restore the app's persisted files ---- */
+async function stateRestore(inp){
+  const f=inp.files&&inp.files[0]; inp.value=''; if(!f) return;
+  if(!confirm('Restore app state from "'+f.name+'"?\n\nThis overwrites the current settings, connections, saved glossaries, dictionary, roster, audit trail, Registries and installed pack. Each overwritten file is backed up beside itself first.')) return;
+  $('stateMsg').textContent='Restoring…';
+  try{
+    const d=await (await fetch('/api/state-restore',{method:'POST',headers:{'Content-Type':'application/zip'},body:f})).json();
+    if(d.error){ $('stateMsg').textContent='Restore failed: '+d.error; return; }
+    const vnote=(d.snapshot_version&&d.snapshot_version!==d.running_version)?` · snapshot from v${d.snapshot_version}, running v${d.running_version} (state formats self-heal on load)`:'';
+    $('stateMsg').textContent=`Restored ${d.restored.length} file(s)${d.skipped.length?`, skipped ${d.skipped.length} unrecognized`:''}${d.backed_up?` · ${d.backed_up} previous file(s) backed up`:''}${vnote} — reload the page to pick everything up.`;
+  }catch(e){ $('stateMsg').textContent='Restore failed: '+(e.message||e); }
+}

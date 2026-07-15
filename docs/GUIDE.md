@@ -758,7 +758,12 @@ A few aids make the pipeline easier to follow:
 ### 12. Runtime files (git-ignored)
 
 `connections.json`, `settings.json`, `glossaries.json`, `people.json` hold your
-saved state. They're local to the app folder.
+saved state. They're local to the app folder, survive `git pull` untouched,
+and self-heal across app versions. **Settings → State snapshot** zips all of
+it (plus the dictionary, audit trail, Registries and installed pack) for
+backup or a machine move, and restores it with per-file backups. The app
+auto-resumes your last saved glossary on start — Save glossary is the one
+click that keeps grid work.
 
 ---
 

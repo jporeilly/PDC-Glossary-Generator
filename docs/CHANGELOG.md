@@ -14,6 +14,30 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.8.23] — 2026-07-15
+
+### Added — state snapshot + auto-resume
+Two answers to "is my state current next time I run?":
+
+- **It already was, on the same machine** — every state file (settings,
+  connections, saved glossaries, dictionary, roster, audit, Registries,
+  installed pack) is data-only JSON beside the app; `git pull` never
+  touches it and the loaders self-heal older formats across versions.
+- **Auto-resume**: the app now remembers the last saved/loaded glossary
+  (`settings.last_glossary`) and reopens it on start when the browser
+  session has nothing to restore — no more manual "Load saved…" after a
+  restart. Save glossary remains the one required click for grid work.
+- **State snapshot** (Settings page): download the entire persisted state
+  as one zip (with a version-stamped manifest) and restore it — for
+  machine moves, wipes, and pre-experiment restore points. Restore
+  whitelists known state files only, backs up each overwritten file
+  beside itself, and reports a snapshot-vs-running version mismatch.
+
+Also: the source-transparency viewer now lists the six `pdc_api/` package
+modules (it still pointed at the pre-split `pdc_api.py`). Selftest grows
+to 45 checks with full state-file isolation and a snapshot/restore
+round-trip.
+
 ## [1.8.22] — 2026-07-15
 
 ### Added — live progress on Resolve; the Apply bar stops bouncing

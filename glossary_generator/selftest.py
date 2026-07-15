@@ -12,10 +12,17 @@ dir — your installed scenario config is never read or written.
 from __future__ import annotations
 import io, json, os, sys, tempfile, zipfile
 
-# isolate ALL governed state before any app import
+# isolate ALL persisted state before any app import — the suite must never
+# read or write the installed scenario config, settings or saved glossaries
 _TD = tempfile.mkdtemp(prefix="glossary-selftest-")
-os.environ["GLOSSARY_TAG_DICTIONARY"] = os.path.join(_TD, "tag_dictionary.json")
-os.environ["GLOSSARY_DOMAIN_PACK"] = os.path.join(_TD, "domain_pack.json")  # absent -> built-in defaults
+for _var, _name in [("GLOSSARY_TAG_DICTIONARY", "tag_dictionary.json"),
+                    ("GLOSSARY_DOMAIN_PACK", "domain_pack.json"),  # absent -> built-in defaults
+                    ("GLOSSARY_SETTINGS", "settings.json"),
+                    ("GLOSSARY_CONNECTIONS", "connections.json"),
+                    ("GLOSSARY_GLOSSARIES", "glossaries.json"),
+                    ("GLOSSARY_PEOPLE", "people.json"),
+                    ("GLOSSARY_AUDIT_LOG", "audit_log.json")]:
+    os.environ[_var] = os.path.join(_TD, _name)
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
@@ -225,6 +232,21 @@ def main():
        isinstance(ep.get("pack"), dict) and "conflicts" in ep.get("report", {}))
     ar = tc.post("/api/tagdict/ai-review", json={"names": ["no-such-term"]}).get_json()
     _c("/api/tagdict/ai-review names filter scopes the pass", ar.get("pending") == 0, ar)
+    snap = zipfile.ZipFile(io.BytesIO(tc.get("/api/state-snapshot").data))
+    mani = json.loads(snap.read("manifest.json"))
+    _c("state snapshot carries the dictionary + a versioned manifest",
+       "tag_dictionary.json" in snap.namelist() and mani.get("app_version") == APP_VERSION,
+       snap.namelist())
+    # round-trip: snapshot -> mutate state -> restore -> state reverted
+    tagdict.accrete([_row("Snapshot Marker", "s.t.snapmark")], persist=True)
+    snap2 = tc.get("/api/state-snapshot").data           # contains the marker
+    tagdict.review("term", ["Snapshot Marker"], "reject")
+    rr = tc.post("/api/state-restore", data=snap2).get_json()
+    _c("state restore round-trips the dictionary (backup taken)",
+       "Snapshot Marker" in tagdict.load().get("terms", {})
+       and "tag_dictionary.json" in rr.get("restored", []) and rr.get("backed_up", 0) >= 1, rr)
+    bad = tc.post("/api/state-restore", data=b"not a zip")
+    _c("state restore rejects non-zip input", bad.status_code == 400)
 
     print("\n%d passed, %d failed" % (PASS, FAIL))
     return 1 if FAIL else 0

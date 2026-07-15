@@ -28,6 +28,18 @@ setInterval(persistGrid, 3000);
 window.addEventListener('beforeunload', persistGrid);
 window.addEventListener('beforeunload',e=>{ if(ROSTER_DIRTY){ e.preventDefault(); e.returnValue=''; return ''; } });
 loadSettings(); llmStatus(); loadConnections(); loadDrivers(); loadGlossaryList(); restoreGrid();
+// auto-resume: if the browser session had nothing to restore, reopen the last
+// saved glossary (remembered in settings.json, which survives restarts)
+(async function autoResume(){
+  try{
+    if(typeof ROWS!=='undefined' && ROWS.length) return;   // session snapshot won
+    const s=await (await fetch('/api/settings')).json();
+    if(!s || !s.last_glossary) return;
+    const items=(await (await fetch('/api/glossaries')).json()).glossaries||[];
+    if(!items.some(g=>g.id===s.last_glossary)) return;      // deleted since
+    await loadGlossary(s.last_glossary, true);
+  }catch(e){ /* auto-resume is best-effort — a clean start is fine */ }
+})();
 fetch('/api/version').then(r=>r.json()).then(d=>{ if(d&&d.version&&$('appver')) $('appver').textContent='v'+d.version; }).catch(()=>{});
 function mdLite(s){
   return esc(s)

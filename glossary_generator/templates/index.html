@@ -783,6 +783,17 @@
     <p class="psub">Configure the local LLM, theme, and interface.</p>
 
     <div class="card">
+      <h3>State snapshot <span class="hint" style="font-weight:600">backup &amp; restore everything this app knows</span></h3>
+      <p class="note" style="margin:0 0 10px">The app&rsquo;s state &mdash; connections, settings, saved glossaries, the governed Term &amp; Tag dictionary, roster, audit trail, Registries and the installed domain pack &mdash; lives in JSON files beside the app and <b>survives updates</b>: a <code>git pull</code> never touches it, and the loaders self-heal older formats, so state carries across app versions. The snapshot covers the other risks: machine moves, wipes, and a restore point before experiments. The working review grid is browser-side &mdash; <b>Save glossary</b> first so it&rsquo;s inside the snapshot (the app auto-resumes your last saved glossary on start).</p>
+      <div class="barrow">
+        <a class="ghost" href="/api/state-snapshot" style="text-decoration:none;padding:7px 12px;border-radius:8px">Download snapshot</a>
+        <button class="ghost" onclick="document.getElementById('stateRestoreFile').click()">Restore from snapshot&hellip;</button>
+        <input type="file" id="stateRestoreFile" accept=".zip" style="display:none" onchange="stateRestore(this)"/>
+        <span class="msg" id="stateMsg"></span>
+      </div>
+    </div>
+
+    <div class="card">
       <h3>Local LLM (Ollama)</h3>
       <div class="grid" style="margin-bottom:10px">
         <div class="fld" style="flex:1 1 300px"><label>Ollama URL <span class="hint">host running Ollama</span></label><input id="s_ollama_url" type="text" placeholder="http://localhost:11434" onchange="saveLlmConfig()"/></div>
