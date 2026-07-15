@@ -1301,6 +1301,17 @@
       </div>
     </div>
 
+    <details class="card hoodcard"><summary>Under the hood &mdash; the pack flywheel: whose scan feeds the pack?</summary>
+      <p class="note" style="margin:8px 0 0">Both scans play a role, at different stages &mdash; but the pack only ever receives <b>your reviewed state</b>, never raw scan output:</p>
+      <ol class="note" style="margin:8px 0 0;padding-left:20px;line-height:1.7">
+        <li><b>PDC's scans supply the raw evidence.</b> Data Profiling and Data Identification run inside PDC and produce the profiled sample values, statistics and identification tags on each entity.</li>
+        <li><b>This app's scan interprets it.</b> <i>Suggest terms</i> harvests those entities over the v3 API and induces structure on top: value patterns and signatures from PDC's profiled samples, enum lists, PK/FK keys, plus proposed terms, tags, categories and sensitivity. (The duplicate advisor's live value probe is the one exception &mdash; it samples the source database directly.)</li>
+        <li><b>Your review is the gate.</b> Keep/reject rows, run the AI agents, approve terms and tags into the governed dictionary. Nothing pending or rejected goes further.</li>
+        <li><b>Export domain pack reads only the reviewed layer.</b> Kept rows drive the table mappings, learned abbreviations and <code>curated_seeds</code>; the <i>approved</i> company vocabulary drives the terms, tags and rules. It merges over the installed pack &mdash; additions fill gaps, and any disagreement between scan and pack is listed for you to decide (curated seeds default to the fresher scan evidence; everything else keeps the pack's value until you tick otherwise).</li>
+      </ol>
+      <p class="note" style="margin:8px 0 0"><b>No pack yet?</b> Run packless &mdash; the built-in generic defaults still route obvious columns. After one scan &rarr; review cycle, the first export <i>is</i> your base pack: commit it to the scenario's <code>domain_pack/</code> folder and every later cycle refines it. <b>Apply to this app</b> installs the refreshed pack here (timestamped backup, approved items survive the reseed); committing it makes the improvement permanent for every future install.</p>
+    </details>
+
     <div class="card" id="facetCard">
       <h3>Search facet preview <span class="hint" style="font-weight:600">how your governed tags will look as OpenSearch facets</span></h3>
       <p class="note" style="margin:0 0 10px">Each governed tag becomes a search facet in PDC (a filter on <code>attributes.tags.name</code>). This previews the bucket sizes from reviewed usage &mdash; so you can retire empty tags and fix fragmenting near-duplicates <b>before</b> methods deploy and the facet fills with divergent values. Terms filter cleanly on their own facet (<code>businessTerms.name</code>); tags are the cross-cutting one worth keeping tidy.</p>
