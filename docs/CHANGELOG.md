@@ -14,6 +14,19 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.8.29] — 2026-07-16
+
+### Added — glossary autosave (save once, it stays saved)
+The working grid lived only in the browser between explicit saves — close
+the browser with unsaved review work and it was gone (the 3-second session
+snapshot survives refreshes, not restarts). Now, once a glossary has been
+saved or loaded (so a workspace exists), the app autosaves changes to that
+same workspace every 30 seconds and on page close — rows, governance and
+discovery, with a quiet "autosaved HH:MM" hint. It never invents a
+workspace: the first Save glossary is still the steward's explicit act;
+after that, the workspace tracks the work. Combined with auto-resume,
+"save early, then forget saving exists" is now the workflow.
+
 ## [1.8.28] — 2026-07-15
 
 ### Added — Fold all (high-confidence) on the AI fold advisor

@@ -357,3 +357,38 @@ async function generate(msgId){
     GENERATED=true; LAST_REGISTRY=d.registry||null; renderStepper(); syncDupPanel(); renderReady();
   }catch(e){ M.textContent='Generate failed: '+e; } updateKeepUI();
 }
+/* ---- glossary autosave: once a workspace exists, it stays saved ---- */
+let AUTOSAVE_SIG='';
+function _gsig(){
+  try{ const s=JSON.stringify(ROWS); let h=0;
+    for(let i=0;i<s.length;i+=97) h=(h*31+s.charCodeAt(i))>>>0;
+    return s.length+':'+h+':'+(CUR_GLOSS&&CUR_GLOSS.id||'');
+  }catch(e){ return ''; }
+}
+function _gbody(){
+  return {id:CUR_GLOSS.id, name:CUR_GLOSS.name, glossary_name:$('gname').value, rows:ROWS,
+          governance:(typeof PEOPLE_LOADED!=='undefined'&&PEOPLE_LOADED?buildGovernance():null),
+          discovery:(typeof LAST_DISCOVERY!=='undefined'?LAST_DISCOVERY:null), summary:computeStats(ROWS)};
+}
+async function autoSaveGloss(){
+  // only ever writes to a workspace the steward explicitly created (Save
+  // glossary) or opened (Load saved...) — it never invents one
+  if(typeof CUR_GLOSS==='undefined'||!CUR_GLOSS||!CUR_GLOSS.id) return;
+  if(typeof ROWS==='undefined'||!ROWS.length) return;
+  const sig=_gsig(); if(!sig||sig===AUTOSAVE_SIG) return;
+  try{
+    const d=await (await fetch('/api/glossaries',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(_gbody())})).json();
+    if(d&&d.id){ AUTOSAVE_SIG=sig; GLOSSARY_SAVED=true;
+      const h=$('glossHint');
+      if(h&&(h.textContent===''||h.textContent.startsWith('autosaved'))) h.textContent='autosaved '+new Date().toLocaleTimeString();
+    }
+  }catch(e){}
+}
+setInterval(autoSaveGloss, 30000);
+window.addEventListener('beforeunload', ()=>{
+  try{
+    if(typeof CUR_GLOSS!=='undefined'&&CUR_GLOSS&&CUR_GLOSS.id&&typeof ROWS!=='undefined'&&ROWS.length&&_gsig()!==AUTOSAVE_SIG&&navigator.sendBeacon){
+      navigator.sendBeacon('/api/glossaries', new Blob([JSON.stringify(_gbody())],{type:'application/json'}));
+    }
+  }catch(e){}
+});
