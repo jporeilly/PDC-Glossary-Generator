@@ -54,6 +54,7 @@ import audit
 import similarity
 import policy_draft
 import defqa
+import packgen
 import llm
 import dbconn
 import seed_sample
@@ -1599,6 +1600,29 @@ def api_governance_summary():
     resp.headers["Access-Control-Allow-Origin"] = "*"      # read-only; lets the viz app poll cross-origin
     resp.headers["Cache-Control"] = "no-store"
     return resp
+
+@app.post("/api/export-pack")
+def api_export_pack():
+    """Generate a domain pack from the reviewed scan results: table mappings,
+    learned abbreviations, the governed company vocabulary, and — the point —
+    curated_seeds carrying the induced value patterns and profiled reference
+    lists, so the pack's detection seeds are specific to THIS company's data.
+    MERGES over the installed pack (hand-curated entries always win; learned
+    content fills gaps) and reports what was added. Body: {rows}."""
+    body = request.get_json(force=True, silent=True) or {}
+    rows = body.get("rows") or []
+    base = {}
+    try:
+        import json as _json
+        path = os.environ.get("GLOSSARY_DOMAIN_PACK") or os.path.join(HERE, "domain_pack.json")
+        with open(path, encoding="utf-8") as f:
+            base = _json.load(f)
+    except Exception:
+        base = {}
+    pack, report = packgen.build_pack(rows, base=base)
+    return jsonify({"pack": pack, "report": report,
+                    "merged_over": bool(base),
+                    "learned": sum(report.values())})
 
 @app.get("/api/tagdict/export.json")
 def api_tagdict_export():

@@ -1294,6 +1294,7 @@
         <button class="primary" onclick="tdSave()">Save dictionary</button>
         <button class="ghost" onclick="tdLoad()">Reload</button>
         <a class="ghost" href="/api/tagdict/export.json" style="text-decoration:none;padding:7px 12px;border-radius:8px">Export JSON</a>
+        <button class="ghost" onclick="exportPack()" title="Generate a domain pack from what the scans learned: table mappings, abbreviations, the governed company vocabulary, and curated_seeds carrying the induced value patterns / reference lists — detection seeds specific to THIS company. Merges over the installed pack (hand-curated entries win) and reports the additions; review, then commit to the scenario repo.">Export domain pack</button>
         <span style="flex:1"></span>
         <button class="ghost" onclick="tdReset()" title="Reseed from the domain pack + built-in defaults. Approved company items and rules are kept; pending items are discarded; a backup file is taken first.">Reseed</button>
         <span class="msg" id="tdMsg"></span>
@@ -3042,6 +3043,16 @@ async function tdRetireEmpty(names){
     tdRender(); renderAudit();
     $('tdMsg').textContent='Retired '+names.length+' empty company tag(s).';
   }catch(e){ $('tdMsg').textContent='Retire failed: '+(e.message||e); }
+}
+async function exportPack(){
+  try{
+    const d=await (await fetch('/api/export-pack',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({rows:(typeof ROWS!=='undefined'&&ROWS)||[]})})).json();
+    if(d.error){ $('tdMsg').textContent='Pack export failed: '+d.error; return; }
+    const url=URL.createObjectURL(new Blob([JSON.stringify(d.pack,null,2)],{type:'application/json'}));
+    const rep=Object.entries(d.report||{}).filter(([k,v])=>v>0).map(([k,v])=>`${k} +${v}`).join(' · ');
+    $('tdMsg').innerHTML=`Domain pack generated${d.merged_over?' (merged over the installed pack — hand-curated entries kept)':''}: <b>${d.learned}</b> learned addition(s)${rep?` — ${rep}`:''} · <a class="dl" href="${url}" download="domain_pack.json">download domain_pack.json</a>. Review the additions, then commit it to the scenario's domain_pack/ folder.`
+      +((typeof ROWS==='undefined'||!ROWS.length)?' <span class="hint">(no scan rows loaded — table mappings and curated seeds need a scanned glossary)</span>':'');
+  }catch(e){ $('tdMsg').textContent='Pack export failed: '+(e.message||e); }
 }
 async function tdReview(kind,name,action){
   try{ TAGDICT=await (await fetch('/api/tagdict/review',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({kind,names:[name],action,actor:STEWARD_ACTOR})})).json(); tdRender(); renderAudit(); $('tdMsg').textContent=(action==='approve'?'Approved ':'Rejected ')+kind+' “'+name+'”.'; }

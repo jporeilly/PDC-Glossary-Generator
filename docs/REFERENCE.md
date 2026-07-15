@@ -334,6 +334,7 @@ nudge per run.
 | `POST /api/ai-categorize`   | AI files uncategorized terms into known categories |
 | `POST /api/draft-policies`  | draft PDC pattern/dictionary rules from detection seeds (`format=zip` downloads the bundle) |
 | `POST /api/resolve-fuzzy`   | match outstanding (renamed) term names against PDC's real terms — similarity + AI adjudication |
+| `POST /api/export-pack`     | generate a domain pack from the reviewed scan results (merges over the installed pack; curated_seeds from induced patterns/enums) |
 
 PDC API version: the app speaks v1/v2/v3 (selector on Apply & harvest; default **v3**, PDC 11's native version). Every request shape is validated against the official v3 OpenAPI spec by `python -m v3_selftest` — see docs/REVIEW.md §1 for the audit table.
 | `POST /api/generate`        | build import-ready JSONL from the kept rows        |

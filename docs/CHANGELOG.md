@@ -14,6 +14,28 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.8.17] — 2026-07-14
+
+### Added — the domain pack generator (the loop closes)
+A pack seeds the engine; the engine scans and the steward reviews; the new
+**Export domain pack** (Dictionary page, `POST /api/export-pack`,
+`packgen.py`) exports that reviewed state BACK into pack format — so packs
+evolve from real company data instead of staying hand-authored guesses:
+
+- `table_category`/`table_terms` from the reviewed rows' physical tables,
+  `cat_keywords` from table tokens, **abbreviations learned by aligning
+  column tokens with term words** (`mbr_no` + "Member Number" → `mbr: Member`,
+  needs 2+ sightings);
+- `category_tags`/`tag_rules`/`extra_tags`/`terms` from the GOVERNED company
+  layer of the dictionary (approved only);
+- **`curated_seeds` carrying the scan's induced value patterns and profiled
+  reference lists per term** — company-specific detection seeds, ready to
+  seed the next install and flow to the Policy Generator.
+
+**Merge semantics, never overwrite**: hand-curated entries in the installed
+pack always win; learned content fills gaps and adds, and the report counts
+the additions per key — review, then commit to the scenario repo.
+
 ## [1.8.16] — 2026-07-14
 
 ### Added — curated detection seeds (domain pack → Registry)
