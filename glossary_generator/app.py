@@ -1502,7 +1502,8 @@ def api_tagdict_ai_review():
     pass against the governed vocabulary (similarity scoring - 'Apy' vs 'APR
     Rate'), then the local AI agent judges the rest with the captured context
     (category, definition, sources). Advice only - the steward clicks approve /
-    reject / alias. Body: {model?, compute?}."""
+    reject / alias. Body: {model?, compute?, names?} — names limits the pass
+    to those pending terms, so the UI can batch and show real progress."""
     body = request.get_json(force=True, silent=True) or {}
     d = tagdict.load()
     gov = sorted(tagdict.governed_terms())
@@ -1514,6 +1515,10 @@ def api_tagdict_ai_review():
                             "sources": m.get("sources", []),
                             "sensitivity": m.get("sensitivity", ""),
                             "tags": m.get("tags", [])})
+    names = body.get("names")
+    if isinstance(names, list) and names:
+        want = {str(x) for x in names}
+        pending = [x for x in pending if x["name"] in want]
     advice = {}
     # deterministic near-duplicate pass first (cheap, explainable): normalized
     # edit distance on the names alone — 'Dividend Rates' vs 'Dividend Rate'

@@ -1251,6 +1251,11 @@
       <div id="tdWarn" style="display:none;margin:0 0 10px;padding:8px 10px;border-radius:8px;background:#fff6e6;border:1px solid #f0d9a8;color:#7a4a00;font-size:12.5px"></div>
       <div id="tdPending" style="display:none;margin:0 0 12px;padding:10px;border:1px solid #f0d9a8;border-radius:8px;background:#fffaf0">
         <b style="font-size:13px">Pending steward review <span class="hint" style="font-weight:400">new items found by scans &mdash; they don&rsquo;t govern the Registry until approved</span></b>
+        <div id="tdProg" class="enrich-prog" style="display:none;margin-top:8px">
+          <div class="ep-bar"><i id="tdpFill"></i></div>
+          <span class="ep-lbl" id="tdpLbl"></span>
+          <button class="ghost sm" id="tdpCancel" onclick="TD_CANCEL=true;this.disabled=true;">Cancel</button>
+        </div>
         <div id="tdPendList" style="margin-top:8px;display:flex;flex-direction:column;gap:8px;font-size:12.5px"></div>
       </div>
 
@@ -3025,22 +3030,43 @@ function tdRenderPending(){
   };
   let html='';
   const ptermObjs=(TAGDICT.terms||[]).filter(t=>t.status==='pending');
-  if(pterms.length) html+=`<div><b>Terms (${pterms.length})</b> <button class="ghost sm" onclick="tdReviewAll('term','approve')">Approve all</button> <button class="ghost sm" onclick="tdAiReview()" id="tdAiBtn" title="Advise per candidate: a deterministic near-duplicate check against the governed vocabulary, then the local AI judges the rest from the captured context (category, definition, sources). Advice only — you still click.">AI review</button> <span class="hint">approve only what belongs in the company vocabulary — reject scan noise</span><div style="margin-top:4px">${ptermObjs.map(trow).join('')}</div></div>`;
+  if(pterms.length) html+=`<div><b>Terms (${pterms.length})</b> <button class="ghost sm" onclick="tdReviewAll('term','approve')">Approve all</button> <button class="ghost sm" onclick="tdAiReview()" id="tdAiBtn" ${TD_REVIEWING?'disabled':''} title="Advise per candidate: a deterministic near-duplicate check against the governed vocabulary, then the local AI judges the rest from the captured context (category, definition, sources). Advice only — you still click.">${TD_REVIEWING?'Reviewing…':'AI review'}</button> <span class="hint">approve only what belongs in the company vocabulary — reject scan noise</span><div style="margin-top:4px">${ptermObjs.map(trow).join('')}</div></div>`;
   if(ptags.length) html+=`<div><b>Tags (${ptags.length})</b> <button class="ghost sm" onclick="tdReviewAll('tag','approve')">Approve all</button><div style="margin-top:4px">${ptags.map(n=>chip('tag',n)).join('')}</div></div>`;
   $('tdPendList').innerHTML=html;
 }
-let TD_ADVICE={};
+let TD_ADVICE={}, TD_REVIEWING=false, TD_CANCEL=false;
+function tdProgShow(done,total){
+  const p=$('tdProg'); if(!p) return;
+  p.style.display=total?'flex':'none';
+  if(total){
+    const pct=Math.round(100*done/total);
+    $('tdpFill').style.width=pct+'%';
+    $('tdpLbl').textContent=TD_CANCEL?'Finishing current batch…':`AI reviewing pending terms — ${done}/${total} (${pct}%)`;
+  }
+}
 async function tdAiReview(){
-  const btn=$('tdAiBtn'); if(btn){ btn.disabled=true; btn.textContent='Reviewing…'; }
+  if(TD_REVIEWING) return;
+  const names=(TAGDICT.terms||[]).filter(t=>t.status==='pending'&&t.layer!=='generic').map(t=>t.term);
+  if(!names.length){ $('tdMsg').textContent='Nothing pending to review.'; return; }
+  TD_REVIEWING=true; TD_CANCEL=false; TD_ADVICE={};
+  const c=$('tdpCancel'); if(c) c.disabled=false;
+  tdRenderPending(); tdProgShow(0,names.length);
+  const BATCH=10; let done=0, usedLlm=false;
   try{
-    const d=await (await fetch('/api/tagdict/ai-review',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({model:currentModel()||null,compute:COMPUTE})})).json();
-    TD_ADVICE=d.advice||{};
-    tdRenderPending();
+    for(let i=0;i<names.length && !TD_CANCEL;i+=BATCH){
+      const d=await (await fetch('/api/tagdict/ai-review',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({model:currentModel()||null,compute:COMPUTE,names:names.slice(i,i+BATCH)})})).json();
+      if(d.error) throw new Error(d.error);
+      Object.assign(TD_ADVICE,d.advice||{});
+      usedLlm=usedLlm||!!d.used_llm;
+      done=Math.min(i+BATCH,names.length);
+      tdProgShow(done,names.length);
+      tdRenderPending();  // recommendations appear batch by batch
+    }
     const n=Object.keys(TD_ADVICE).length;
-    $('tdMsg').textContent=n?`AI reviewed ${d.pending} candidate(s) — ${n} recommendation(s)${d.used_llm?'':' (Ollama offline — duplicate check only)'}.`:'No recommendations — nothing pending or Ollama offline.';
+    $('tdMsg').textContent=n?`AI reviewed ${done} candidate(s)${TD_CANCEL?' (cancelled early)':''} — ${n} recommendation(s)${usedLlm?'':' (Ollama offline — duplicate check only)'}.`:`Reviewed ${done} candidate(s) — no recommendations${usedLlm?'':' (Ollama offline — duplicate check only)'}.`;
   }catch(e){ $('tdMsg').textContent='AI review failed: '+(e.message||e); }
-  finally{ if(btn){ btn.disabled=false; btn.textContent='AI review'; } }
+  finally{ TD_REVIEWING=false; TD_CANCEL=false; tdProgShow(0,0); tdRenderPending(); }
 }
 async function tdAlias(name,target){
   try{ TAGDICT=await (await fetch('/api/tagdict/review',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({kind:'term',names:[name],action:'alias',target:target,actor:STEWARD_ACTOR})})).json(); delete TD_ADVICE[name]; tdRender(); renderAudit(); $('tdMsg').textContent='“'+name+'” folded into “'+target+'” as an alias.'; }

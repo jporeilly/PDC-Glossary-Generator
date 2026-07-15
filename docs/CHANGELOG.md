@@ -14,6 +14,16 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.8.20] — 2026-07-15
+
+### Added — progress bar on the pending-terms AI review
+**AI review** on the Dictionary page's pending panel now batches the
+candidates (10 per request via the new `names` filter on
+`POST /api/tagdict/ai-review`) and shows a live progress bar with cancel —
+recommendations appear batch by batch instead of the button sitting on
+"Reviewing…" for the whole pass. Cancel finishes the current batch and
+keeps everything advised so far.
+
 ## [1.8.19] — 2026-07-15
 
 ### Added — What's new on the version pill
