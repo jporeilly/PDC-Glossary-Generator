@@ -24,6 +24,14 @@ pack at the next export. The bulk button now appears only once the
 dictionary has grown from at least one scan; before that a hint explains
 why. Per-item ✕ retire on the tables remains available at all times.
 
+### Added — the working cycle, written down where you work
+The exact end-to-end order (scan → review → dictionary → Suggest tags →
+govern → save/generate → import → resolve → apply → export pack → commit)
+now lives as a collapsible panel on the **Home page**, a pointer on the
+Dictionary flywheel note, and a section in GUIDE Part C — including the
+nuances that used to be tribal knowledge: Apply-to-this-app IS the reseed,
+renames need delete+reimport, zeroed facet counters mean "no scan yet".
+
 ## [1.8.25] — 2026-07-15
 
 ### Added — steward mistakes are now recoverable in-product

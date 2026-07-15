@@ -767,6 +767,44 @@ click that keeps grid work.
 
 ---
 
+### The working cycle — exact order
+
+One complete pass, from scan to a Registry the Policy Generator can consume.
+The order matters because each step feeds the next:
+
+1. **Scan or resume.** Connect & scan, or let the app auto-resume the last
+   saved glossary.
+2. **Review the grid.** The AI agents assist (Enrich, AI suggest (evidence),
+   AI QA, AI categorize — fills only blank/generic categories); the duplicate
+   advisor recommends Merge / Disambiguate / Keep separate. Rename divergent
+   names to their canonical term — aliases fold them automatically on future
+   scans.
+3. **Dictionary: review pending.** *AI review* advises per candidate; alias
+   folds near-duplicates. Approve only what belongs — approved items govern
+   the Registry and export into the pack. Mistakes reverse per item
+   (✕ retire / ⤵ fold); a retire is **durable** (tombstoned through reseeds,
+   offered for pack removal at export).
+4. **Suggest tags** (grid) after any vocabulary change — re-derives row tags
+   from the governed allow-list and accretes usage into the facet preview.
+   Freshly reseeded counters are all zero: that means "no scan yet", never
+   "retire everything" (the bulk retire button is gated until the dictionary
+   has grown from a scan).
+5. **Govern** — roster-driven stewardship, ratings, review dates.
+6. **Save glossary → Generate** (writes the JSONL **and the Registry**) →
+   PDC **Business Glossary → Import** (if terms were *renamed*, delete the
+   old glossary first — ids are name-based, renames mint new terms) →
+   **Resolve & stamp IDs** (backfills real ids into the Registry) →
+   **Apply to PDC**.
+7. **Export domain pack → Apply to this app → commit** — last, because it
+   exports the *reviewed* state of everything above. Decide the conflict
+   rows; Apply writes the pack **and reseeds the dictionary in one click**
+   (never run Reseed separately unless you hand-edit the pack file); commit
+   the pack to the scenario repo.
+
+After step 6 the Registry is current; after step 7 the flywheel is closed.
+`Save dictionary` is only needed after hand-editing tags/rules — approvals
+and scan accretion persist on their own.
+
 ### The pack generator (Dictionary → Export domain pack)
 
 After a full scan + review cycle, **Export domain pack** exports the reviewed
