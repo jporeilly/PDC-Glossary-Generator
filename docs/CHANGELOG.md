@@ -16,17 +16,18 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
 
 ## [1.8.16] — 2026-07-14
 
-### Resolve — unconfirmed terms surfaced honestly, AI match now reaches them
-- With deterministic pre-stamping, links are never "unresolved" — so a term
-  PDC could not CONFIRM by name (e.g. a generic single word like "State", or
-  a term renamed after import) hid behind a green "fully linked" headline
-  while its links quietly fell back to the deterministic import ids. Renamed
-  terms would Apply a **dead id**.
-- The panel now: states plainly "✓ All N links are bound — ready to Apply",
-  lists unconfirmed names in their own amber section with the det-id-fallback
-  risk spelled out, and offers **AI match in PDC** for exactly those names
-  (binding replaces the deterministic id with PDC's real one). The probe is
-  reframed as confirmation diagnostics, collapsed by default.
+### Added — curated detection seeds (domain pack → Registry)
+
+The domain pack can now carry **`curated_seeds`** — vetted canonical shapes
+(SSN, email, phone, ZIP) and reference lists (service cities) for concepts
+profiling can't induce. `registry/bridge.py` merges them into the Registry's
+`concepts[].detect` at Generate time with `source: "curated"`; profiled
+evidence always wins over a curated seed of the same type. This is the
+custom-only identification program's replacement for PDC's built-ins: the
+seed is versioned in the pack, travels through the Registry with provenance,
+and the Policy Generator authors it like any other evidence. The CSCU pack
+(PDC-Scenarios) ships six curated seeds as the baseline. Registry selftest
+still 13/13.
 
 ## [1.8.15] — 2026-07-14
 
@@ -49,18 +50,17 @@ finishes), which works on every API version:
 
 ## [1.8.14] — 2026-07-14
 
-### Added — curated detection seeds (domain pack → Registry)
-
-The domain pack can now carry **`curated_seeds`** — vetted canonical shapes
-(SSN, email, phone, ZIP) and reference lists (service cities) for concepts
-profiling can't induce. `registry/bridge.py` merges them into the Registry's
-`concepts[].detect` at Generate time with `source: "curated"`; profiled
-evidence always wins over a curated seed of the same type. This is the
-custom-only identification program's replacement for PDC's built-ins: the
-seed is versioned in the pack, travels through the Registry with provenance,
-and the Policy Generator authors it like any other evidence. The CSCU pack
-(PDC-Scenarios) ships six curated seeds as the baseline. Registry selftest
-still 13/13.
+### Resolve — unconfirmed terms surfaced honestly, AI match now reaches them
+- With deterministic pre-stamping, links are never "unresolved" — so a term
+  PDC could not CONFIRM by name (e.g. a generic single word like "State", or
+  a term renamed after import) hid behind a green "fully linked" headline
+  while its links quietly fell back to the deterministic import ids. Renamed
+  terms would Apply a **dead id**.
+- The panel now: states plainly "✓ All N links are bound — ready to Apply",
+  lists unconfirmed names in their own amber section with the det-id-fallback
+  risk spelled out, and offers **AI match in PDC** for exactly those names
+  (binding replaces the deterministic id with PDC's real one). The probe is
+  reframed as confirmation diagnostics, collapsed by default.
 
 ## [1.8.13] — 2026-07-14
 
@@ -77,21 +77,6 @@ beside/inside layouts), and PDC-Scenarios' new `select-vertical.sh <ID>`
 sparse-pulls a single vertical. Docs swept (README, GUIDE, REFERENCE,
 PDC-VM-TROUBLESHOOTING, app README). The Policy Generator's courseware
 moved there too (`courseware/CSCU/Policy-Generator/`).
-
-## [1.8.14] — 2026-07-14
-
-### Added — curated detection seeds (domain pack → Registry)
-
-The domain pack can now carry **`curated_seeds`** — vetted canonical shapes
-(SSN, email, phone, ZIP) and reference lists (service cities) for concepts
-profiling can't induce. `registry/bridge.py` merges them into the Registry's
-`concepts[].detect` at Generate time with `source: "curated"`; profiled
-evidence always wins over a curated seed of the same type. This is the
-custom-only identification program's replacement for PDC's built-ins: the
-seed is versioned in the pack, travels through the Registry with provenance,
-and the Policy Generator authors it like any other evidence. The CSCU pack
-(PDC-Scenarios) ships six curated seeds as the baseline. Registry selftest
-still 13/13.
 
 ## [1.8.13] — 2026-07-14
 
