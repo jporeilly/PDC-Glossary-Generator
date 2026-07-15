@@ -1,7 +1,10 @@
 # Pentaho Data Catalog Glossary Generator
 
-**Version:** 1.8.18 · validated against Pentaho Data Catalog 11.0.0 (public
-API v3, shape-checked by the committed `v3_selftest.py`)
+**Version:** 1.8.22 · validated against Pentaho Data Catalog 11.0.0 (public
+API v3). Two committed offline test suites keep it honest: `selftest.py`
+(42 engine checks — run it after every pull) and `v3_selftest.py` (34 PDC
+API shape checks). The sidebar **version pill** is clickable — it shows the
+running build's release notes and flags a pulled-but-not-restarted mismatch.
 
 A local-first web app that **scans your data sources, suggests a business
 glossary, lets a steward review and govern it, and exports import-ready JSONL**
@@ -128,7 +131,15 @@ workshop figures are in [diagrams/](glossary_generator/diagrams/).
 ## Repository layout
 
 ```text
-glossary_generator/     the app (scenario-generic): Flask API + review UI
+glossary_generator/     the app (scenario-generic)
+  app.py                Flask API; templates/index.html is markup only
+  static/               style.css + js/00-bulkload … 12-init (the UI logic,
+                        plain scripts in numbered load order — no build step)
+  pdc_api/              PDC Public API client package (core, entities, terms,
+                        jobs, apply, bulkload)
+  selftest.py           42 offline engine checks — no PDC/Ollama needed;
+                        run after every pull to prove the build is sane
+  v3_selftest.py        34 PDC v3 API shape checks
 docs/                   all documentation (reference, guide, changelog, …)
 pdc-reset.sh            wipe + rebuild the PDC deployment on the VM, incl. the
                         OpenSearch security-index auto-repair (see docs/PDC-VM-TROUBLESHOOTING.md)
@@ -153,7 +164,9 @@ curl -fsSL https://raw.githubusercontent.com/jporeilly/PDC-Scenarios/main/instal
 cd ~/PDC-Demo/PDC-Scenarios && make scenario ID=CSCU   # lab up + data loaded
 ```
 
-Re-run the curl bare to update everything (it remembers the vertical). On
+Re-run the curl bare to update everything (it remembers the vertical). After
+any update: restart the app, click the **version pill** (it flags a stale
+build), and run `python selftest.py` from `glossary_generator/`. On
 the **Windows host** (where the apps normally run) the PowerShell twin does
 the same and installs the vertical's pack into this app:
 
