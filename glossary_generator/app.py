@@ -203,7 +203,9 @@ def _stats(rows):
 @app.get("/")
 def index():
     """Serve the single-page application shell."""
-    return render_template("index.html")
+    # v busts browser caches for /static/*.css|js on every release — a stale
+    # cached script against new endpoints is the VM's classic failure mode
+    return render_template("index.html", v=APP_VERSION)
 
 # Brand favicon — an inline SVG (teal→blue rounded tile with a "G" monogram), served
 # for both /favicon.svg and the browser's automatic /favicon.ico probe, so neither
