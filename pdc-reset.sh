@@ -85,14 +85,29 @@ wait_os_rest() {
   return 1
 }
 
-# add-or-replace a KEY=VALUE line in conf/.env (value must not contain a pipe)
+# add-or-replace a KEY=VALUE line in conf/.env (value must not contain a pipe).
+# conf/.env is usually root-owned: skip when already correct, escalate with sudo
+# when we can, and WARN rather than die otherwise (set -e must not kill the
+# reset over a flag that normally already survives the wipe).
 ensure_env_kv() {
-  local key="$1" val="$2" f="$PDC_DIR/conf/.env"
-  touch "$f"
-  if grep -q "^${key}=" "$f"; then
-    sed -i "s|^${key}=.*|${key}=${val}|" "$f"
+  local key="$1" val="$2" f="$PDC_DIR/conf/.env" SUDO=""
+  if [ -f "$f" ] && grep -q "^${key}=${val}\$" "$f"; then
+    ok "conf/.env already has ${key}=${val}"
+    return 0
+  fi
+  if [ ! -w "$f" ] && { [ -e "$f" ] || [ ! -w "$(dirname "$f")" ]; }; then
+    if sudo -n true 2>/dev/null || [ -t 0 ]; then
+      SUDO="sudo"
+    else
+      warn "conf/.env not writable (and no sudo) — set ${key}=${val} in $f manually if it's missing."
+      return 0
+    fi
+  fi
+  $SUDO touch "$f" || { warn "could not write $f — set ${key}=${val} manually."; return 0; }
+  if $SUDO grep -q "^${key}=" "$f"; then
+    $SUDO sed -i "s|^${key}=.*|${key}=${val}|" "$f"
   else
-    printf '%s=%s\n' "$key" "$val" >> "$f"
+    printf '%s=%s\n' "$key" "$val" | $SUDO tee -a "$f" >/dev/null
   fi
 }
 
@@ -117,7 +132,7 @@ log "Force-removing ${CONTAINER_PREFIX}* containers (frees the volumes)..."
 mapfile -t cids < <(docker ps -a --format '{{.Names}}' | grep "^${CONTAINER_PREFIX}" || true)
 [ "${#cids[@]}" -gt 0 ] && docker rm -f "${cids[@]}" >/dev/null || true
 
-log "Removing ${VOLUME_PREFIX}* volumes${KEEP_OS:+ (except opensearch)}..."
+log "Removing ${VOLUME_PREFIX}* volumes$([ "$KEEP_OS" -eq 1 ] && echo ' (except opensearch)')..."
 if [ "$KEEP_OS" -eq 1 ]; then
   mapfile -t vols < <(docker volume ls -q | grep "^${VOLUME_PREFIX}" | grep -v opensearch || true)
 else
@@ -137,9 +152,9 @@ if [ "$ENFORCE_OFFLINE_LICENSE" -eq 1 ]; then
   ensure_env_kv "LICENSING_OFFLINE_INSTALL" "true"
 fi
 if [ "$MAILHOG" -eq 1 ]; then
-  if ! grep -q '^KEYCLOAK_SMTP=' conf/.env; then
+  if ! grep -q '^KEYCLOAK_SMTP=' conf/.env 2>/dev/null; then
     log "Adding MailHog KEYCLOAK_SMTP override to conf/.env..."
-    printf '%s\n' "KEYCLOAK_SMTP='{\"host\":\"mailhog\",\"port\":\"1025\",\"auth\":\"false\",\"ssl\":\"\",\"starttls\":\"false\",\"from\":\"${MAILHOG_FROM}\",\"fromDisplayName\":\"PDC Demo\",\"replyTo\":\"\",\"replyToDisplayName\":\"\",\"envelopeFrom\":\"\",\"user\":\"\",\"password\":\"\"}'" >> conf/.env
+    ensure_env_kv "KEYCLOAK_SMTP" "'{\"host\":\"mailhog\",\"port\":\"1025\",\"auth\":\"false\",\"ssl\":\"\",\"starttls\":\"false\",\"from\":\"${MAILHOG_FROM}\",\"fromDisplayName\":\"PDC Demo\",\"replyTo\":\"\",\"replyToDisplayName\":\"\",\"envelopeFrom\":\"\",\"user\":\"\",\"password\":\"\"}'"
   else
     warn "KEYCLOAK_SMTP already set in conf/.env — leaving it."
   fi
@@ -181,12 +196,20 @@ else
   sleep 5
 
   # REST TLS is on for this build, so securityadmin targets REST 9200 (9300 -> 'not an HTTP port').
+  # Retry: right after the restart the node can answer REST while the cluster is
+  # still forming, and securityadmin fails transiently — one attempt is not enough.
   log "Loading security config (securityadmin -> REST 9200/TLS)..."
-  docker exec "$node" bash -c "
-    cd /opt/bitnami/opensearch/plugins/opensearch-security/tools && \
-    ./securityadmin.sh -cd /opt/bitnami/opensearch/config/opensearch-security/ \
-      -icl -nhnv -cacert '$CA' -cert '$CERT' -key '$KEY' -h localhost -p 9200
-  " || die "securityadmin failed — inspect: docker logs $node --tail 40"
+  sec_ok=0
+  for attempt in 1 2 3; do
+    if docker exec "$node" bash -c "
+      cd /opt/bitnami/opensearch/plugins/opensearch-security/tools && \
+      ./securityadmin.sh -cd /opt/bitnami/opensearch/config/opensearch-security/ \
+        -icl -nhnv -cacert '$CA' -cert '$CERT' -key '$KEY' -h localhost -p 9200
+    "; then sec_ok=1; break; fi
+    warn "securityadmin attempt ${attempt}/3 failed — cluster may still be forming; retrying in 20s..."
+    sleep 20
+  done
+  [ "$sec_ok" -eq 1 ] || die "securityadmin failed 3x — work docs/PDC-VM-TROUBLESHOOTING.md ('opensearch-cluster-init' checklist: certs, vm.max_map_count, memory, disk watermark); inspect: docker logs $node --tail 40"
 
   if docker exec "$node" curl -sk -u "$OS_USER:$OS_PASS" \
        "https://localhost:9200/_cat/indices/.opendistro_security" 2>/dev/null | grep -q opendistro_security; then
