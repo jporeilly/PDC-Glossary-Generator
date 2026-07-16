@@ -109,9 +109,9 @@ echo
 
 printf "${B}  Next${RS}\n"
 if [ -n "$VERTICAL" ] && [ -d "$SCEN_DIR" ]; then
-  printf "  ${TEAL}1. Lab sources:  cd $SCEN_DIR/data_sources/lab && make up && make load SCENARIO=$VERTICAL${RS}\n"
-  printf "  ${TEAL}2. Install pack: cd $SCEN_DIR && GLOSSARY_APP_DIR=$DEMO/glossary_generator ./install-scenario.sh $VERTICAL${RS}\n"
-  printf "  ${TEAL}3. App:          cd $DEMO/glossary_generator && ./run.sh${RS}\n"
+  printf "  ${TEAL}1. Lab sources:  cd %s/data_sources/lab && make up && make load SCENARIO=%s${RS}\n" "$SCEN_DIR" "$VERTICAL"
+  printf "  ${TEAL}2. PDC users:    cd %s && ./load-pdc-users.sh %s${RS}\n" "$SCEN_DIR" "$VERTICAL"
+  printf "  ${TEAL}3. App:          cd %s/glossary_generator && ./run.sh${RS}\n" "$DEMO"
 else
   printf "  ${TEAL}select a vertical first:  $0 CSCU${RS}\n"
 fi

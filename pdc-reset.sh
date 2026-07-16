@@ -286,3 +286,5 @@ echo "  2. Re-upload the offline license (.bin) via Swagger: $PDC_HOST/api/publi
 echo "  3. Re-load the demo lab (cd data_sources/lab && make up && make load SCENARIO=<ID>,"
 echo "     ID one of CSCU, RETAIL, HEALTH, MFG) and re-register that scenario's two data"
 echo "     sources — fastest via the app's bulk loader and the scenario's datasources CSV."
+echo "  4. Load the scenario cast into Keycloak (users + PDC roles):"
+echo "     cd PDC-Scenarios && ./load-pdc-users.sh <ID>"
