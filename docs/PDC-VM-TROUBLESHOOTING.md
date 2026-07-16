@@ -330,6 +330,72 @@ certutil -d sql:$HOME/.pki/nssdb -D -n "<nickname>" # delete a stale one
 
 ---
 
+## `invalid_grant` / "Invalid user credentials" after a rebuild — who are the users?
+
+Token requests against Keycloak fail with
+`{"error":"invalid_grant","error_description":"Invalid user credentials"}`
+for every username/password you try, even though the stack is healthy.
+Three separate traps stack up here, learned the hard way after a clean
+`pdc-reset.sh` rebuild:
+
+1. **The 11.0.0 deployment SEEDS the `pdc` realm with six stock users** —
+   `admin`, `business_steward`, `business_user`, `data_developer`,
+   `data_steward`, `data_user`, all with `@hv.com` emails — so there may be
+   **no Register page** after a wipe: the users already exist with whatever
+   password the realm import set (try the training default first).
+2. **Username, not email.** Keycloak's direct grant wants the `username`
+   field: `-d username=admin` works where `-d username=admin@hv.com`
+   returns `invalid_grant`, even for the same account.
+3. **The usual token one-liner swallows errors.** Piping through
+   `sed -n 's/.*"access_token"...'` prints *nothing* on an error response.
+   Debug with the raw curl (no pipe), or:
+
+   ```bash
+   curl -sk -X POST 'https://pentaho.io/keycloak/realms/pdc/protocol/openid-connect/token' \
+     -d client_id=pdc-client -d grant_type=password \
+     -d username=admin -d password='...' \
+   | python3 -c 'import sys,json; d=json.load(sys.stdin); print(d.get("access_token") or json.dumps(d))'
+   ```
+
+**Inspect the realm's actual users** (definitive — no guessing). The
+Keycloak container is `pdc-um-keycloak-1` (NOT `um-oauth`, which is PDC's
+own OAuth shim), kcadm lives at `/opt/keycloak/bin/kcadm.sh`, and the
+server runs under the **`/keycloak` relative path** (plain
+`http://localhost:8080` returns 404):
+
+```bash
+docker exec pdc-um-keycloak-1 sh -c '
+  /opt/keycloak/bin/kcadm.sh config credentials \
+    --server http://localhost:8080/keycloak --realm master \
+    --user "$KEYCLOAK_ADMIN" --password "$KEYCLOAK_ADMIN_PASSWORD" \
+  && /opt/keycloak/bin/kcadm.sh get users -r pdc --fields username,email,enabled
+'
+```
+
+- `[ ]` (empty) → the realm has no users; `https://pentaho.io` will show
+  the Register page — create the root user there.
+- Users listed → the `username` values shown are what the token grant
+  wants; check `enabled: true`.
+
+**If the seeded password is unknown, set it** — the container's own
+master-admin credentials give you the authority:
+
+```bash
+docker exec pdc-um-keycloak-1 sh -c '
+  /opt/keycloak/bin/kcadm.sh config credentials \
+    --server http://localhost:8080/keycloak --realm master \
+    --user "$KEYCLOAK_ADMIN" --password "$KEYCLOAK_ADMIN_PASSWORD" \
+  && /opt/keycloak/bin/kcadm.sh set-password -r pdc --username admin --new-password "<new password>"
+'
+```
+
+**Verify**: rerun the token curl with `username=admin` and the confirmed
+password — a JWT prints. Those same credentials go into the Glossary
+Generator's PDC connection fields and `pdc-reset.sh`'s `PDC_ADMIN_PASS`
+for the automatic license upload.
+
+---
+
 ## Licensed features unavailable after a rebuild
 
 After a volume wipe, licensed features are greyed out even though offline

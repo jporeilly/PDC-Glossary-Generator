@@ -277,7 +277,10 @@ fi
 echo
 ok "Reset complete."
 echo "Next (manual) steps:"
-echo "  1. Open $PDC_HOST — the Register page will prompt you to recreate the root user."
+echo "  1. Users: 11.0.0 seeds the pdc realm with stock users (admin, business_steward, ...@hv.com)"
+echo "     — log in as 'admin' (username, NOT the email) with the training default; if unknown,"
+echo "     set it via kcadm (see docs/PDC-VM-TROUBLESHOOTING.md, 'invalid_grant' section)."
+echo "     Older builds instead show a Register page at $PDC_HOST — create the root user there."
 [ -z "$LICENSE_BIN" ] && \
 echo "  2. Re-upload the offline license (.bin) via Swagger: $PDC_HOST/api/public/swagger/"
 echo "  3. Re-load the demo lab (cd data_sources/lab && make up && make load SCENARIO=<ID>,"
