@@ -1,25 +1,36 @@
 """
-app.py - Flask backend for the Glossary Suggester.
+api.py — FastAPI backend for the Glossary Suggester.
 
-Endpoints:
-  GET  /                 -> the review UI
-  GET  /api/llm-status   -> {online, backend, model, ...}
-  POST /api/scan         -> {rows:[...], stats:{...}}   (heuristic suggestion)
-  POST /api/enrich       -> {rows:[...], enriched:N}    (LLM pass, fallback-safe)
-  POST /api/ai-suggest   -> {rows:[...], updated:{...}}  (evidence-grounded AI term/tag pass)
-  POST /api/generate     -> {jsonl:"...", stats:{...}}  (import-ready JSONL)
+The FastAPI port of the old Flask app.py: same /api contract route-for-route
+(the vanilla-JS UI in templates/ + static/ runs unchanged against it), plus
+interactive docs at /docs and additive start/poll job endpoints (/api/jobs/*)
+for the long-running PDC work — the SSE/NDJSON streaming endpoints are kept
+byte-compatible for the current UI, the job endpoints are the forward path for
+the React UI.
 
-Run:  python app.py   (defaults to http://127.0.0.1:5000)
+The web layer is a thin adapter: every engine module (suggester, tagdict,
+llm, pdc_api → pdc_client, …) is unchanged.
+
+Run:  python -m uvicorn api:app          (from glossary_generator/, port 5000
+      via run.sh / run.ps1)
 """
-import os, io, json, uuid, urllib.request, urllib.parse, urllib.error
-from collections import Counter
-from flask import Flask, request, jsonify, render_template, Response
+import io
+import json
+import os
+import threading
+import queue as _queue_mod
+import uuid
+
+from fastapi import FastAPI, Body, Request
+from fastapi.responses import JSONResponse, Response, StreamingResponse, HTMLResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
 
 HERE = os.path.dirname(__file__)
 
 def _load_dotenv(path=None):
     """Minimal, dependency-free .env loader. Reads KEY=VALUE lines from a .env
-       file beside app.py (or $GLOSSARY_ENV) and sets them in os.environ WITHOUT
+       file beside api.py (or $GLOSSARY_ENV) and sets them in os.environ WITHOUT
        overriding anything already set in the real environment. Supports # comments,
        blank lines, optional surrounding quotes, and a leading 'export '. Silent if
        the file is absent. Runs BEFORE the local imports below so values like
@@ -56,13 +67,12 @@ import policy_draft
 import defqa
 import packgen
 import llm
+import llm_detect
 import dbconn
 import seed_sample
 
-app = Flask(__name__)
-
 def _app_version():
-    """Single source of truth for the app version: the VERSION file beside app.py,
+    """Single source of truth for the app version: the VERSION file beside api.py,
        falling back to the literal below if it's missing."""
     try:
         with open(os.path.join(HERE, "VERSION"), encoding="utf-8") as f:
@@ -71,9 +81,29 @@ def _app_version():
                 return v
     except Exception:
         pass
-    return "1.5.1"
+    return "1.9.0"
 
 APP_VERSION = _app_version()
+
+app = FastAPI(
+    title="PDC Glossary Generator",
+    version=APP_VERSION,
+    description=(
+        "Build a Pentaho Data Catalog business glossary from a live data estate: "
+        "**Connect → Review → Dictionary → Govern → Resolve → Apply**.\n\n"
+        "Scans PostgreSQL/MySQL/Oracle/SQL Server + MinIO/S3 (or a DDL file), "
+        "suggests terms, enriches them with a local Ollama model, governs the tag "
+        "dictionary, generates import-ready JSONL, then resolves term ids and "
+        "applies them to PDC.\n\n[← Back to the app](/)"
+    ),
+)
+
+def _err(message, status_code):
+    """Error payload in the app's contract shape: {'error': msg} + HTTP status
+       (the UI checks data.error — never FastAPI's default {'detail': ...})."""
+    return JSONResponse({"error": message}, status_code=status_code)
+
+templates = Jinja2Templates(directory=os.path.join(HERE, "templates"))
 
 DEFAULT_DDL = os.environ.get("GLOSSARY_DDL", "/mnt/user-data/uploads/01-schema-and-data.sql")
 PEOPLE_FILE = os.environ.get("GLOSSARY_PEOPLE", os.path.join(HERE, "people.json"))
@@ -193,6 +223,7 @@ _apply_llm_settings()       # apply persisted LLM settings at startup
 
 def _stats(rows):
     """Summarise a row set (term/category/confidence/sensitivity/PII/enriched counts) for the UI badges."""
+    from collections import Counter
     return {"terms": len(rows),
             "categories": len({r.get("Category", "") for r in rows}),
             "confidence": dict(Counter(r.get("Confidence", "") for r in rows)),
@@ -200,12 +231,12 @@ def _stats(rows):
             "pii": sum(1 for r in rows if r.get("PII_Category")),
             "enriched": sum(1 for r in rows if r.get("LLM_Enriched") == "Yes")}
 
-@app.get("/")
-def index():
+@app.get("/", include_in_schema=False)
+def index(request: Request):
     """Serve the single-page application shell."""
     # v busts browser caches for /static/*.css|js on every release — a stale
     # cached script against new endpoints is the VM's classic failure mode
-    return render_template("index.html", v=APP_VERSION)
+    return templates.TemplateResponse(request, "index.html", {"v": APP_VERSION})
 
 # Brand favicon — an inline SVG (teal→blue rounded tile with a "G" monogram), served
 # for both /favicon.svg and the browser's automatic /favicon.ico probe, so neither
@@ -221,11 +252,11 @@ FAVICON_SVG = (
     '</svg>'
 )
 
-@app.get("/favicon.svg")
-@app.get("/favicon.ico")
+@app.get("/favicon.svg", include_in_schema=False)
+@app.get("/favicon.ico", include_in_schema=False)
 def favicon():
     """Return the brand favicon as SVG (modern browsers render SVG favicons fine)."""
-    return Response(FAVICON_SVG, mimetype="image/svg+xml",
+    return Response(FAVICON_SVG, media_type="image/svg+xml",
                     headers={"Cache-Control": "public, max-age=86400"})
 
 @app.get("/health")
@@ -234,19 +265,19 @@ def health():
        Ollama reachability so an orchestrator never kills the app just because the
        optional LLM enrichment backend is momentarily down."""
     s = llm.status()
-    return jsonify({
+    return {
         "status": "ok",
         "service": "glossary-suggester",
         "version": APP_VERSION,
         "ollama": {"online": s.get("online", False),
                    "model": s.get("model"),
                    "model_present": s.get("model_present", False)},
-    })
+    }
 
 @app.get("/api/version")
 def app_version():
     """Return the running app version."""
-    return jsonify({"version": APP_VERSION, "service": "glossary-generator"})
+    return {"version": APP_VERSION, "service": "glossary-generator"}
 
 @app.get("/api/whatsnew")
 def api_whatsnew():
@@ -272,7 +303,7 @@ def api_whatsnew():
                 break
     except Exception:
         releases = []
-    return jsonify({"version": APP_VERSION, "releases": releases})
+    return {"version": APP_VERSION, "releases": releases}
 
 _SECRET_HINT = ("KEY", "TOKEN", "SECRET", "PASS", "PWD")
 
@@ -284,41 +315,47 @@ def show_config():
         return "***" if (val and any(h in name.upper() for h in _SECRET_HINT)) else val
     env = {k: mask(k, v) for k, v in os.environ.items()
            if k.startswith(("GLOSSARY_", "LLM_", "OLLAMA_", "HOST", "PORT"))}
-    return jsonify({
+    return {
         "version": APP_VERSION,
         "paths": {"ddl": DEFAULT_DDL, "people": PEOPLE_FILE, "connections": CONN_FILE,
                   "settings": SETTINGS_FILE, "glossaries": GLOSS_FILE},
         "ollama_url": llm.OLLAMA_URL,
         "model_default": DEFAULT_SETTINGS.get("model"),
         "env": env,
-    })
+    }
 
 @app.get("/api/llm-status")
-def llm_status():
+def llm_status(model: str = None):
     """Report local Ollama reachability and the currently selected model."""
-    model = request.args.get("model")
-    return jsonify(llm.status(model))
+    return llm.status(model)
+
+@app.get("/api/detect")
+def api_detect():
+    """Host detection report for the Settings page: platform, RAM, NVIDIA VRAM
+    (aggregated across GPUs), OLLAMA_* env, server status and a model
+    recommendation sized to the hardware — multi-GPU rigs get
+    OLLAMA_SCHED_SPREAD=1 suggested so Ollama layer-splits across cards."""
+    return llm_detect.detection_report(llm.OLLAMA_URL).model_dump()
 
 @app.get("/api/models")
 def models():
     """List the models available from the local Ollama install."""
-    return jsonify({"models": llm.list_models()})
+    return {"models": llm.list_models()}
 
 @app.post("/api/pull-model")
-def pull_model():
+def pull_model(body: dict = Body(default={})):
     """Stream model-download progress (NDJSON) from the user's local Ollama."""
-    body = request.get_json(force=True) or {}
-    model = body.get("model") or None
+    model = (body or {}).get("model") or None
     def gen():
         """Yield NDJSON model-download progress events streamed from Ollama."""
         for ev in llm.pull_stream(model):
             yield json.dumps(ev) + "\n"
-    return Response(gen(), mimetype="application/x-ndjson")
+    return StreamingResponse(gen(), media_type="application/x-ndjson")
 
 @app.get("/api/drivers")
 def drivers():
     """Report which optional database / object-store drivers are installed."""
-    return jsonify({"drivers": dbconn.driver_status()})
+    return {"drivers": dbconn.driver_status()}
 
 def _state_files():
     """Every file the app persists, as (absolute path, archive name). All of it
@@ -362,11 +399,11 @@ def api_state_snapshot():
              "created": time.strftime("%Y-%m-%d %H:%M:%S"),
              "files": included}, indent=2))
     fname = "glossary-state-%s.zip" % time.strftime("%Y%m%d-%H%M%S")
-    return Response(buf.getvalue(), mimetype="application/zip",
+    return Response(buf.getvalue(), media_type="application/zip",
                     headers={"Content-Disposition": "attachment; filename=" + fname})
 
 @app.post("/api/state-restore")
-def api_state_restore():
+async def api_state_restore(request: Request):
     """Restore a state snapshot (raw zip body). Only recognized state files are
     written — each to the path the app currently reads it from (env overrides
     honored) — and every file that would be overwritten is backed up first as
@@ -374,9 +411,9 @@ def api_state_restore():
     and reported, never written."""
     import io as _io, zipfile, time, shutil
     try:
-        z = zipfile.ZipFile(_io.BytesIO(request.get_data()))
+        z = zipfile.ZipFile(_io.BytesIO(await request.body()))
     except Exception:
-        return jsonify({"error": "that is not a state-snapshot zip"}), 400
+        return _err("that is not a state-snapshot zip", 400)
     manifest = {}
     if "manifest.json" in z.namelist():
         try:
@@ -415,15 +452,17 @@ def api_state_restore():
             tagdict._COMPILED = tagdict._COMPILED_KEY = None
     except Exception:
         pass
-    return jsonify({"restored": restored, "skipped": skipped, "backed_up": backed_up,
-                    "snapshot_version": manifest.get("app_version"),
-                    "running_version": APP_VERSION})
+    return {"restored": restored, "skipped": skipped, "backed_up": backed_up,
+            "snapshot_version": manifest.get("app_version"),
+            "running_version": APP_VERSION}
 
 # Source files this app will expose for transparency (the "Under the hood" viewer).
 # Whitelisted on purpose — runtime state (people.json, settings.json, secrets) is
 # never served. This is a teaching tool: the learner can read exactly what runs.
+# Keys are the stable names the UI shows; pdc_api/* keys resolve to the shared
+# pdc_client package at the repo root (extracted in 1.9.0).
 _SOURCE_WHITELIST = {
-    "app.py":          "Flask backend — every /api/* endpoint and how it dispatches.",
+    "api.py":          "FastAPI backend — every /api/* endpoint and how it dispatches.",
     "suggester.py":    "Scan + term suggestion: introspection, profiling, JSONL build.",
     "pdc_api/core.py":     "PDC public-API client: transport, auth, response helpers.",
     "pdc_api/entities.py": "PDC public-API client: entity filter/resolve + catalog harvest.",
@@ -433,44 +472,50 @@ _SOURCE_WHITELIST = {
     "pdc_api/bulkload.py": "PDC public-API client: bulk data-source loader.",
     "dbconn.py":       "Database connection + driver handling for the live scan.",
     "llm.py":          "Local Ollama client used for definition/purpose enrichment.",
+    "llm_detect.py":   "Host/GPU detection and Ollama model recommendation.",
     "build_roster.py": "Helper to build a people roster.",
     "cli_suggester.py":"Command-line entry point for the suggester.",
     "seed_sample.py":  "Seeds a sample dataset into a schema for demos.",
 }
 
+def _source_path(key):
+    """Filesystem path for a whitelisted source key. pdc_api/<mod>.py lives in
+       the shared pdc_client package at the repo root since the extraction."""
+    if key.startswith("pdc_api/"):
+        return os.path.join(os.path.dirname(os.path.abspath(__file__)), "..",
+                            "pdc_client", key.split("/", 1)[1])
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), key)
+
 @app.get("/api/source")
-def get_source():
+def get_source(file: str = ""):
     """Return the text of one whitelisted source file (transparency viewer)."""
-    import os
-    f = (request.args.get("file") or "").strip()
+    f = (file or "").strip()
     if f == "":
-        return jsonify({"files": [{"file": k, "note": v} for k, v in _SOURCE_WHITELIST.items()]})
+        return {"files": [{"file": k, "note": v} for k, v in _SOURCE_WHITELIST.items()]}
     if f not in _SOURCE_WHITELIST:
-        return jsonify({"error": "that file is not exposed"}), 404
+        return _err("that file is not exposed", 404)
     try:
-        path = os.path.join(os.path.dirname(os.path.abspath(__file__)), f)
-        with open(path, "r", encoding="utf-8") as fh:
+        with open(_source_path(f), "r", encoding="utf-8") as fh:
             content = fh.read()
-        return jsonify({"file": f, "note": _SOURCE_WHITELIST[f],
-                        "content": content, "lines": content.count("\n") + 1})
+        return {"file": f, "note": _SOURCE_WHITELIST[f],
+                "content": content, "lines": content.count("\n") + 1}
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return _err(str(e), 500)
 
 @app.get("/api/people")
 def people():
     """Return the saved people roster."""
-    return jsonify({"people": _load_people()})
+    return {"people": _load_people()}
 
 @app.post("/api/people")
-def save_people():
+def save_people(body: dict = Body(default={})):
     """Persist the people roster supplied by the client."""
-    body = request.get_json(force=True) or {}
-    people = body.get("people", [])
+    people = (body or {}).get("people", [])
     _save_people(people)
-    return jsonify({"people": people, "saved": True})
+    return {"people": people, "saved": True}
 
 @app.post("/api/keycloak-users")
-def keycloak_users():
+def keycloak_users(body: dict = Body(default={})):
     """Fetch the user roster live from Keycloak's Admin API. Accepts either a bearer
        token, or username/password (admin-cli password grant). Returns roster rows.
 
@@ -482,12 +527,13 @@ def keycloak_users():
        verify_tls=false (the default) skips certificate verification — the
        equivalent of curl -k — so a self-signed lab cert doesn't block the fetch."""
     import ssl
-    b = request.get_json(force=True) or {}
+    import urllib.request, urllib.parse, urllib.error
+    b = body or {}
     base = (b.get("base_url") or "").rstrip("/")
     realm = (b.get("realm") or "").strip()
     token = (b.get("token") or "").strip()
     if not base or not realm:
-        return jsonify({"ok": False, "message": "base_url and realm are required"})
+        return {"ok": False, "message": "base_url and realm are required"}
     # SSL context: verify only when explicitly asked; default is to bypass (curl -k)
     verify_tls = bool(b.get("verify_tls", False))
     ctx = None
@@ -508,9 +554,9 @@ def keycloak_users():
                                         timeout=15, context=ctx) as r:
                 token = json.loads(r.read()).get("access_token", "")
             if not token:
-                return jsonify({"ok": False, "message": "Could not obtain admin token "
-                                f"from realm '{auth_realm}'. Check the admin username/"
-                                "password and that the admin realm is correct."})
+                return {"ok": False, "message": "Could not obtain admin token "
+                        f"from realm '{auth_realm}'. Check the admin username/"
+                        "password and that the admin realm is correct."}
         users_url = f"{base}/admin/realms/{realm}/users?max=2000"
         req = urllib.request.Request(users_url, headers={"Authorization": "Bearer " + token})
         with urllib.request.urlopen(req, timeout=20, context=ctx) as r:
@@ -554,8 +600,8 @@ def keycloak_users():
                             carried += 1
         if b.get("save"):
             _save_people(roster)
-        return jsonify({"ok": True, "people": roster, "count": len(roster),
-                        "saved": bool(b.get("save")), "expertise_preserved": carried})
+        return {"ok": True, "people": roster, "count": len(roster),
+                "saved": bool(b.get("save")), "expertise_preserved": carried}
     except urllib.error.HTTPError as e:
         detail = ""
         try:
@@ -564,24 +610,24 @@ def keycloak_users():
             pass
         hint = ""
         if e.code in (401, 403):
-            hint = " — the admin token lacks rights to list users in this realm, " \
-                   "or the credentials/admin realm are wrong."
-        return jsonify({"ok": False, "message": f"Keycloak fetch failed: HTTP {e.code}{hint} {detail}"})
+            hint = (" — the admin token lacks rights to list users in this realm, "
+                    "or the credentials/admin realm are wrong.")
+        return {"ok": False, "message": f"Keycloak fetch failed: HTTP {e.code}{hint} {detail}"}
     except Exception as e:
         msg = str(e)
         if "CERTIFICATE_VERIFY_FAILED" in msg or "self-signed" in msg or "self signed" in msg:
             msg += " — untick 'Verify TLS' to bypass the self-signed certificate."
-        return jsonify({"ok": False, "message": f"Keycloak fetch failed: {msg}"})
+        return {"ok": False, "message": f"Keycloak fetch failed: {msg}"}
 
 @app.get("/api/connections")
 def get_connections():
     """Return the saved data-source connections."""
-    return jsonify({"connections": _load_connections()})
+    return {"connections": _load_connections()}
 
 @app.post("/api/connections")
-def save_connection():
+def save_connection(body: dict = Body(default={})):
     """Add or update a saved data-source connection."""
-    c = request.get_json(force=True) or {}
+    c = body or {}
     conns = _load_connections()
     if not c.get("id"):
         c["id"] = uuid.uuid4().hex[:12]
@@ -591,14 +637,14 @@ def save_connection():
         if not any(x.get("id") == c["id"] for x in conns):
             conns.append(c)
     _save_connections(conns)
-    return jsonify({"connection": c, "connections": conns})
+    return {"connection": c, "connections": conns}
 
-@app.delete("/api/connections/<cid>")
-def delete_connection(cid):
+@app.delete("/api/connections/{cid}")
+def delete_connection(cid: str):
     """Delete a saved connection by id."""
     conns = [x for x in _load_connections() if x.get("id") != cid]
     _save_connections(conns)
-    return jsonify({"connections": conns})
+    return {"connections": conns}
 
 def _parse_remap(remap):
     """Normalise a remap spec into a list of (from, to) rules. Accepts a dict, a list of
@@ -670,7 +716,7 @@ def _csv_row_to_conn(row):
     return None, "unsupported kind %r for a live connection (postgres/mysql/oracle/minio/s3 only)" % (kind or "?")
 
 @app.post("/api/connections/import-csv")
-def import_connections_csv():
+def import_connections_csv(body: dict = Body(default={})):
     """Import the bulk-loader CSV into the app's OWN connections (used by Schema, Files,
        Test and live scan) — the same CSV you register in PDC, so you never re-enter the
        100+ by hand. Upserts by name.
@@ -679,16 +725,16 @@ def import_connections_csv():
        (parsed, not saved) so the UI can let the user tick which to import. only=[names]
        imports just those; omit to import all."""
     import pdc_api
-    body = request.get_json(force=True, silent=True) or {}
+    body = body or {}
     rows = body.get("rows")
     if not rows and body.get("csv"):
         try:
             rows = pdc_api.parse_csv_rows(body["csv"])
         except Exception as e:
-            return jsonify({"error": "could not parse CSV: %s" % e}), 400
+            return _err("could not parse CSV: %s" % e, 400)
     rows = rows or []
     if not rows:
-        return jsonify({"error": "no rows — provide 'csv' or 'rows'"}), 400
+        return _err("no rows — provide 'csv' or 'rows'", 400)
 
     preview = bool(body.get("preview"))
     only = body.get("only")
@@ -716,8 +762,8 @@ def import_connections_csv():
             to_import.append(conn)
 
     if preview:
-        return jsonify({"candidates": candidates,
-                        "count": sum(1 for c in candidates if c["ok"])})
+        return {"candidates": candidates,
+                "count": sum(1 for c in candidates if c["ok"])}
 
     conns = _load_connections()
     by_name = {str(c.get("name", "")).strip().lower(): c for c in conns}
@@ -733,13 +779,13 @@ def import_connections_csv():
             conns.append(conn); by_name[key] = conn
             added += 1
     _save_connections(conns)
-    return jsonify({"connections": conns, "added": added, "updated": updated,
-                    "skipped": [c["reason"] for c in candidates if not c["ok"]]})
+    return {"connections": conns, "added": added, "updated": updated,
+            "skipped": [c["reason"] for c in candidates if not c["ok"]]}
 
 @app.get("/api/settings")
 def get_settings():
     """Return the current settings."""
-    return jsonify(_load_settings())
+    return _load_settings()
 
 def _load_gloss():
     """Load the saved-glossary store (maps id -> {name, rows})."""
@@ -760,167 +806,164 @@ def list_glossaries():
               "has_discovery": bool(v.get("discovery"))}
              for k, v in g.items()]
     items.sort(key=lambda x: x.get("savedAt") or "", reverse=True)
-    return jsonify({"glossaries": items})
+    return {"glossaries": items}
 
 @app.post("/api/glossaries")
-def save_glossary():
+def save_glossary(body: dict = Body(default={})):
     """Save (or overwrite) a named glossary of review rows."""
     import datetime
-    body = request.get_json(force=True) or {}
+    body = body or {}
     g = _load_gloss()
     gid = body.get("id") or uuid.uuid4().hex[:12]
     body["id"] = gid
     body["savedAt"] = datetime.datetime.now().isoformat(timespec="seconds")
     g[gid] = body
     _save_gloss(g)
-    return jsonify({"id": gid, "savedAt": body["savedAt"], "name": body.get("name")})
+    return {"id": gid, "savedAt": body["savedAt"], "name": body.get("name")}
 
-@app.get("/api/glossaries/<gid>")
-def get_glossary(gid):
+@app.get("/api/glossaries/{gid}")
+def get_glossary(gid: str):
     """Return one saved glossary's rows by id."""
     g = _load_gloss()
     if gid not in g:
-        return jsonify({"error": "not found"}), 404
-    return jsonify(g[gid])
+        return _err("not found", 404)
+    return g[gid]
 
-@app.delete("/api/glossaries/<gid>")
-def delete_glossary(gid):
+@app.delete("/api/glossaries/{gid}")
+def delete_glossary(gid: str):
     """Delete a saved glossary by id."""
     g = _load_gloss(); g.pop(gid, None); _save_gloss(g)
-    return jsonify({"ok": True})
+    return {"ok": True}
 
 @app.post("/api/settings")
-def save_settings():
+def save_settings(body: dict = Body(default={})):
     """Persist the settings supplied by the client, and apply any LLM config change
        (Ollama URL / model / timeout) to the running client immediately."""
-    s = _load_settings(); s.update(request.get_json(force=True) or {})
+    s = _load_settings(); s.update(body or {})
     _write_json(SETTINGS_FILE, s)
     _apply_llm_settings(s)
-    return jsonify(s)
+    return s
 
 @app.post("/api/test-connection")
-def test_connection():
+def test_connection(body: dict = Body(default={})):
     """Test a database connection without running a full scan."""
-    cfg = (request.get_json(force=True) or {}).get("conn", {})
-    return jsonify(dbconn.test_connection(cfg))
+    cfg = (body or {}).get("conn", {})
+    return dbconn.test_connection(cfg)
 
 @app.post("/api/test-minio")
-def test_minio():
+def test_minio(body: dict = Body(default={})):
     """Test a MinIO/S3 connection (bucket reachability + whether object tagging works)."""
-    cfg = (request.get_json(force=True) or {}).get("minio", {})
-    return jsonify(suggester.test_minio(cfg))
+    cfg = (body or {}).get("minio", {})
+    return suggester.test_minio(cfg)
 
 @app.post("/api/list-objects")
-def list_objects_route():
+def list_objects_route(body: dict = Body(default={})):
     """Browse a MinIO/S3 bucket one folder level at a time (folders + files)."""
-    body = request.get_json(force=True) or {}
+    body = body or {}
     cfg = body.get("minio") or {}
     if not (cfg.get("bucket") or "").strip():
-        return jsonify({"error": "No bucket specified on this connection."}), 400
+        return _err("No bucket specified on this connection.", 400)
     try:
-        return jsonify(suggester.list_objects(cfg, body.get("prefix", "")))
+        return suggester.list_objects(cfg, body.get("prefix", ""))
     except Exception as e:
-        return jsonify({"error": f"Could not list objects: {e}"}), 400
+        return _err(f"Could not list objects: {e}", 400)
 
 @app.post("/api/object-bytes")
-def object_bytes_route():
+def object_bytes_route(body: dict = Body(default={})):
     """Stream a whole object (PDF/image) so the browser can render it inline. Creds
        stay in the POST body; the client turns the response into a blob URL."""
-    from flask import Response
-    body = request.get_json(force=True) or {}
+    body = body or {}
     cfg = body.get("minio") or {}
     key = (body.get("key") or "").strip()
     if not key:
-        return jsonify({"error": "No object key supplied."}), 400
+        return _err("No object key supplied.", 400)
     try:
         data, ctype = suggester.get_object_bytes_full(cfg, key)
     except Exception as e:
-        return jsonify({"error": str(e)}), 400
-    resp = Response(data, mimetype=ctype or "application/octet-stream")
+        return _err(str(e), 400)
     leaf = key.rsplit("/", 1)[-1].replace('"', "")
-    resp.headers["Content-Disposition"] = f'inline; filename="{leaf}"'
-    resp.headers["Content-Length"] = str(len(data))
-    return resp
+    return Response(data, media_type=ctype or "application/octet-stream",
+                    headers={"Content-Disposition": f'inline; filename="{leaf}"',
+                             "Content-Length": str(len(data))})
 
 @app.post("/api/object")
-def object_route():
+def object_route(body: dict = Body(default={})):
     """Metadata, tags and a short text preview for one object."""
-    body = request.get_json(force=True) or {}
+    body = body or {}
     cfg = body.get("minio") or {}
     key = (body.get("key") or "").strip()
     if not key:
-        return jsonify({"error": "No object key supplied."}), 400
+        return _err("No object key supplied.", 400)
     try:
-        return jsonify(suggester.object_detail(cfg, key))
+        return suggester.object_detail(cfg, key)
     except Exception as e:
-        return jsonify({"error": f"Could not read object: {e}"}), 400
+        return _err(f"Could not read object: {e}", 400)
 
 @app.post("/api/load-glossary")
-def load_glossary():
+def load_glossary(body: dict = Body(default={})):
     """Parse an uploaded glossary (JSONL/CSV) into review rows."""
-    body = request.get_json(force=True) or {}
-    text = body.get("glossary", "")
+    text = (body or {}).get("glossary", "")
     try:
         rows, report = suggester.glossary_to_rows(text)
     except Exception as e:
-        return jsonify({"error": f"load failed: {e}"}), 400
-    return jsonify({"rows": rows, "stats": _stats(rows), "report": report})
+        return _err(f"load failed: {e}", 400)
+    return {"rows": rows, "stats": _stats(rows), "report": report}
 
 @app.post("/api/enhance-glossary")
-def enhance_glossary():
+def enhance_glossary(body: dict = Body(default={})):
     """Enrich existing review rows from an imported glossary, optionally appending missing terms."""
-    body = request.get_json(force=True) or {}
+    body = body or {}
     rows = body.get("rows", [])
     text = body.get("glossary", "")
     append = body.get("append_missing", True)
     try:
         rows2, report = suggester.enhance_from_glossary(rows, text, append)
     except Exception as e:
-        return jsonify({"error": f"enhance failed: {e}"}), 400
-    return jsonify({"rows": rows2, "stats": _stats(rows2), "report": report})
+        return _err(f"enhance failed: {e}", 400)
+    return {"rows": rows2, "stats": _stats(rows2), "report": report}
 
 @app.post("/api/seed")
-def seed():
+def seed(body: dict = Body(default={})):
     """Seed the PostgreSQL schema with demo data (optionally only into empty tables)."""
-    body = request.get_json(force=True) or {}
+    body = body or {}
     cfg = body.get("conn", {})
     rows = int(body.get("rows", 200))
     only_empty = body.get("only_empty", True)
     try:
         rep = seed_sample.seed(cfg, rows=rows, only_empty=only_empty, schema=cfg.get("schema"))
-        return jsonify(rep)
+        return rep
     except Exception as e:
-        return jsonify({"error": f"seed failed: {e}"}), 400
+        return _err(f"seed failed: {e}", 400)
 
 @app.post("/api/discover")
-def discover():
+def discover(body: dict = Body(default={})):
     """Scan a database source and return suggested glossary rows."""
-    cfg = (request.get_json(force=True) or {}).get("conn", {})
+    cfg = (body or {}).get("conn", {})
     try:
-        return jsonify(suggester.discover(cfg, cfg.get("schema")))
+        return suggester.discover(cfg, cfg.get("schema"))
     except Exception as e:
-        return jsonify({"error": f"discovery failed: {e}"}), 400
+        return _err(f"discovery failed: {e}", 400)
 
 @app.post("/api/discover-docs")
-def discover_docs():
+def discover_docs(body: dict = Body(default={})):
     """Scan a document/object store and return suggested rows."""
-    cfg = (request.get_json(force=True) or {}).get("conn", {})
+    cfg = (body or {}).get("conn", {})
     try:
-        return jsonify(suggester.discover_documents(cfg))
+        return suggester.discover_documents(cfg)
     except Exception as e:
-        return jsonify({"error": f"document discovery failed: {e}"}), 400
+        return _err(f"document discovery failed: {e}", 400)
 
 @app.post("/api/schema")
-def schema_route():
+def schema_route(body: dict = Body(default={})):
     """Scan a database or DDL connection and return its ER graph (tables, columns
        with PK/FK, and FK relationships) for the schema diagram. Object-store
        connections have no relational schema."""
-    body = request.get_json(force=True) or {}
+    body = body or {}
     src = body.get("source", "ddl")
     try:
         if src in ("minio", "s3"):
-            return jsonify({"error": "Object-store connections have no relational "
-                            "schema to diagram — pick a database or DDL source."}), 400
+            return _err("Object-store connections have no relational "
+                        "schema to diagram — pick a database or DDL source.", 400)
         if src in ("postgres", "db"):
             cfg = body.get("conn") or {}
             tables = suggester.harvest_live(cfg, cfg.get("schema"))
@@ -932,17 +975,17 @@ def schema_route():
             tables = suggester.harvest_ddl(body.get("ddl_path", DEFAULT_DDL))
             schema_name = "ddl"
     except Exception as e:
-        return jsonify({"error": f"schema scan failed: {e}"}), 400
+        return _err(f"schema scan failed: {e}", 400)
     g = suggester.schema_graph(tables)
     g["schema_name"] = schema_name
-    return jsonify(g)
+    return g
 
 @app.post("/api/apply-keys")
-def apply_keys():
+def apply_keys(body: dict = Body(default={})):
     """Write PRIMARY KEY / FOREIGN KEY constraints to a live PostgreSQL schema, using
        a CREATE TABLE script as the source of truth for which keys to set. dry_run
        (default true) returns the planned ALTER statements without executing."""
-    body = request.get_json(force=True) or {}
+    body = body or {}
     cfg = body.get("conn") or {}
     dry = bool(body.get("dry_run", True))
     try:
@@ -951,22 +994,22 @@ def apply_keys():
         else:
             tables = suggester.harvest_ddl(body.get("ddl_path", DEFAULT_DDL))
     except Exception as e:
-        return jsonify({"error": f"Could not read the CREATE TABLE script for key "
-                        f"definitions: {e}"}), 400
+        return _err(f"Could not read the CREATE TABLE script for key "
+                    f"definitions: {e}", 400)
     keymap = suggester.keymap_from_tables(tables)
     if not keymap:
-        return jsonify({"error": "No primary or foreign keys were found in the script "
-                        "to apply. Paste your CREATE TABLE statements (with PRIMARY KEY / "
-                        "REFERENCES) first."}), 400
+        return _err("No primary or foreign keys were found in the script "
+                    "to apply. Paste your CREATE TABLE statements (with PRIMARY KEY / "
+                    "REFERENCES) first.", 400)
     try:
-        return jsonify(suggester.apply_keys_live(cfg, cfg.get("schema"), keymap, dry_run=dry))
+        return suggester.apply_keys_live(cfg, cfg.get("schema"), keymap, dry_run=dry)
     except Exception as e:
-        return jsonify({"error": str(e)}), 400
+        return _err(str(e), 400)
 
 @app.post("/api/scan")
-def scan():
+def scan(body: dict = Body(default={})):
     """Dispatch a scan to the right source handler (database, MinIO/S3, or DDL file)."""
-    body = request.get_json(force=True) or {}
+    body = body or {}
     src = body.get("source", "ddl")
     try:
         if src in ("minio", "s3"):
@@ -986,18 +1029,18 @@ def scan():
                 sig = (f"{len(files)} leaf file(s) across {len(folders)} folder(s); "
                        "metadata applies per file")
                 if profile_dq:
-                    sig += f" \u00b7 Data Quality computed from content for {scored} file(s)"
+                    sig += f" · Data Quality computed from content for {scored} file(s)"
                 scn = {"objects": len(files), "folders": len(folders), "dq_scored": scored}
-                return jsonify({"rows": rows, "stats": _stats(rows), "scanned": scn,
-                                "check": suggester.scan_check(rows, scn),
-                                "ownership": {"signals": [sig]}})
+                return {"rows": rows, "stats": _stats(rows), "scanned": scn,
+                        "check": suggester.scan_check(rows, scn),
+                        "ownership": {"signals": [sig]}}
             folders, ownership, scanned = suggester.harvest_minio(cfg)
             rows = suggester.suggest_documents(folders, bucket)
             try: tagdict.accrete(rows, source="minio")
             except Exception: pass
-            return jsonify({"rows": rows, "stats": _stats(rows),
-                            "scanned": scanned, "ownership": ownership,
-                            "check": suggester.scan_check(rows, scanned)})
+            return {"rows": rows, "stats": _stats(rows),
+                    "scanned": scanned, "ownership": ownership,
+                    "check": suggester.scan_check(rows, scanned)}
         if src == "postgres" or src == "db":
             cfg = body.get("conn") or {}
             tables = suggester.harvest_live(cfg, cfg.get("schema"))
@@ -1011,37 +1054,37 @@ def scan():
         else:
             tables = suggester.harvest_ddl(body.get("ddl_path", DEFAULT_DDL))
     except Exception as e:
-        return jsonify({"error": f"scan failed: {e}"}), 400
+        return _err(f"scan failed: {e}", 400)
     rows = suggester.suggest(tables, schema=body.get("schema"))
     try: tagdict.accrete(rows, source="db")
     except Exception: pass
     pk_cols = sum(1 for cols in tables.values() for c in cols if c.get("pk"))
     fk_cols = sum(1 for cols in tables.values() for c in cols if c.get("fk"))
     scanned = {"tables": len(tables), "columns": sum(len(c) for c in tables.values())}
-    return jsonify({"rows": rows, "stats": _stats(rows), "scanned": scanned,
-                    "check": suggester.scan_check(rows, scanned, pk_cols, fk_cols)})
+    return {"rows": rows, "stats": _stats(rows), "scanned": scanned,
+            "check": suggester.scan_check(rows, scanned, pk_cols, fk_cols)}
 
 @app.post("/api/enrich")
-def enrich():
+def enrich(body: dict = Body(default={})):
     """LLM-enrich the definitions/purposes of the supplied rows via local Ollama."""
-    body = request.get_json(force=True) or {}
+    body = body or {}
     rows = [r for r in (body.get("rows") or []) if isinstance(r, dict)]  # 1.5.6: guard null rows
     only_low = bool(body.get("only_low_confidence", False))
     model = body.get("model") or None
     compute = body.get("compute") or None
     rows, counts = llm.enrich_rows(rows, only_low_confidence=only_low, model=model, compute=compute)
-    return jsonify({"rows": rows, "enriched": counts,
-                    "definitions": counts["definitions"], "purposes": counts["purposes"],
-                    "names": counts.get("names", 0),
-                    "stats": _stats(rows), "llm": llm.status(model)})
+    return {"rows": rows, "enriched": counts,
+            "definitions": counts["definitions"], "purposes": counts["purposes"],
+            "names": counts.get("names", 0),
+            "stats": _stats(rows), "llm": llm.status(model)}
 
 @app.post("/api/ai-suggest")
-def ai_suggest():
+def ai_suggest(body: dict = Body(default={})):
     """Evidence-grounded AI pass over review rows: the local model proposes term /
        category / governed tags / sensitivity from the SCAN EVIDENCE (profiled value
        signatures, induced regexes, reference values), applied under guardrails —
        tags governed-only, sensitivity tighten-only, term as a suggestion chip."""
-    body = request.get_json(force=True) or {}
+    body = body or {}
     rows = [r for r in (body.get("rows") or []) if isinstance(r, dict)]
     only_low = bool(body.get("only_low_confidence", False))
     model = body.get("model") or None
@@ -1054,16 +1097,16 @@ def ai_suggest():
     rows, counts, used_llm = llm.suggest_terms_rows(
         rows, allow_tags=allow, categories=cats,
         only_low_confidence=only_low, model=model, compute=compute)
-    return jsonify({"rows": rows, "updated": counts, "used_llm": used_llm,
-                    "stats": _stats(rows), "llm": llm.status(model)})
+    return {"rows": rows, "updated": counts, "used_llm": used_llm,
+            "stats": _stats(rows), "llm": llm.status(model)}
 
 @app.post("/api/suggest-expertise")
-def suggest_expertise_route():
+def suggest_expertise_route(body: dict = Body(default={})):
     """LLM-generate `expertise` keywords for each roster member (these drive
        auto-assign). Falls back to a deterministic offline derivation when Ollama
        is unavailable. Body: {people?, categories?, overwrite?, model?, save?}.
        If `people` is omitted the saved roster is used. Optionally persists."""
-    body = request.get_json(force=True) or {}
+    body = body or {}
     people = body.get("people") or _load_people()
     categories = body.get("categories") or []
     overwrite = bool(body.get("overwrite", False))
@@ -1072,11 +1115,11 @@ def suggest_expertise_route():
         people, categories=categories, overwrite=overwrite, model=model)
     if body.get("save"):
         _save_people(people)
-    return jsonify({"people": people, "updated": updated, "used_llm": used_llm,
-                    "saved": bool(body.get("save")), "llm": llm.status(model)})
+    return {"people": people, "updated": updated, "used_llm": used_llm,
+            "saved": bool(body.get("save")), "llm": llm.status(model)}
 
 @app.post("/api/resolve-fuzzy")
-def api_resolve_fuzzy():
+def api_resolve_fuzzy(body: dict = Body(default={})):
     """Match OUTSTANDING term names (renamed/disambiguated locally after the
     glossary was imported) against the terms that actually exist in PDC —
     without a round-trip through the Glossary page. Ladder: harvest candidate
@@ -1086,13 +1129,13 @@ def api_resolve_fuzzy():
     Body: {names, definitions?, base_url, username/password|token, realm?,
     version?, verify_tls?, glossary_name?, model?, compute?}."""
     import pdc_api
-    body = request.get_json(force=True) or {}
+    body = body or {}
     names = [str(n).strip() for n in (body.get("names") or []) if str(n).strip()]
     base = (body.get("base_url") or "").strip()
     version = body.get("version") or "v2"
     verify = bool(body.get("verify_tls", False))
     if not base or not names:
-        return jsonify({"error": "base_url and names are required"}), 400
+        return _err("base_url and names are required", 400)
     defs = body.get("definitions") or {}
     try:
         token = (body.get("token") or "").strip()
@@ -1103,7 +1146,7 @@ def api_resolve_fuzzy():
                                  client_id=(body.get("client_id") or "pdc-client").strip(),
                                  method=body.get("auth_method") or "auto")
     except Exception as e:
-        return jsonify({"error": f"auth failed: {e}"}), 502
+        return _err(f"auth failed: {e}", 502)
     gname = (body.get("glossary_name") or "").strip()
     default_gid = suggester.det_glossary_id(gname) if gname else None
     matches, ambiguous = {}, []
@@ -1145,10 +1188,10 @@ def api_resolve_fuzzy():
             else:
                 matches[a["name"]] = {"match": None,
                                       "reason": v.get("reason", "no confident match")}
-    return jsonify({"matches": matches, "used_llm": used_llm})
+    return {"matches": matches, "used_llm": used_llm}
 
 def _resolve_terms_impl(body, progress=None):
-    """The resolve-and-stamp pipeline shared by the JSON and SSE endpoints.
+    """The resolve-and-stamp pipeline shared by the JSON, SSE and job endpoints.
     Returns the response dict; raises ValueError (bad request) or RuntimeError
     (PDC-side failure). `progress` gets {phase:'term', done, total, name} per
     lookup and {phase:'finishing'} before the stamp/probe tail."""
@@ -1222,27 +1265,25 @@ def _resolve_terms_impl(body, progress=None):
             "registry_backfilled": registry_backfilled}
 
 @app.post("/api/resolve-terms")
-def resolve_terms():
+def resolve_terms(body: dict = Body(default={})):
     """Resolve each businessTerm's id + glossaryId in PDC and stamp them into the Data-Elements JSON."""
-    body = request.get_json(force=True) or {}
+    body = body or {}
     try:
-        return jsonify(_resolve_terms_impl(body))
+        return _resolve_terms_impl(body)
     except ValueError as e:
-        return jsonify({"error": str(e)}), 400
+        return _err(str(e), 400)
     except Exception as e:
-        return jsonify({"error": str(e)}), 502
+        return _err(str(e), 502)
 
 @app.post("/api/resolve-terms-stream")
-def resolve_terms_stream():
+def resolve_terms_stream(body: dict = Body(default={})):
     """Same as /api/resolve-terms, but streams Server-Sent Events so the browser
        can show a live per-term progress bar (one PDC search per term is the slow
        part). Same worker-thread + queue shape as /api/apply-to-pdc-stream:
        `event: progress` per term, then `event: done` (the full resolve report)
        or `event: error`."""
-    import threading
-    import queue as _queue
-    body = request.get_json(force=True) or {}
-    q = _queue.Queue()
+    body = body or {}
+    q = _queue_mod.Queue()
 
     def _run():
         try:
@@ -1262,8 +1303,8 @@ def resolve_terms_stream():
                 break
             yield "event: %s\ndata: %s\n\n" % (kind, json.dumps(payload))
 
-    return Response(_gen(), mimetype="text/event-stream",
-                    headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+    return StreamingResponse(_gen(), media_type="text/event-stream",
+                             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
 def _pdc_token_and_reauth(body, base, version, verify):
     """Return (token, reauth) for a PDC call. reauth re-mints a token from
@@ -1297,18 +1338,18 @@ def _pdc_token_and_reauth(body, base, version, verify):
     return token, reauth
 
 @app.post("/api/pdc-token")
-def pdc_token():
+def pdc_token(body: dict = Body(default={})):
     """Authenticate to PDC and return the admin/Business-Steward JWT plus a
        display-only decode (username, roles, expiry) so the operator can confirm
        the right account before writing. Token is returned for in-memory use only;
        the app never persists it."""
     import pdc_api
-    body = request.get_json(force=True) or {}
+    body = body or {}
     base = (body.get("base_url") or "").strip()
     version = body.get("version") or "v2"
     verify = bool(body.get("verify_tls", False))
     if not base:
-        return jsonify({"error": "PDC base URL is required"}), 400
+        return _err("PDC base URL is required", 400)
     try:
         token = pdc_api.auth(base, body.get("username", ""), body.get("password", ""),
                              version=version, verify_tls=verify,
@@ -1316,8 +1357,8 @@ def pdc_token():
                              client_id=(body.get("client_id") or "pdc-client").strip(),
                              method=body.get("auth_method") or "auto")
     except Exception as e:
-        return jsonify({"error": str(e)}), 502
-    return jsonify({"token": token, "claims": pdc_api.decode_jwt(token)})
+        return _err(str(e), 502)
+    return {"token": token, "claims": pdc_api.decode_jwt(token)}
 
 # Sample CSV for the bulk data-source loader — built from the canonical column list
 # so the starter, an export, and the loader all share one shape. Leave optional
@@ -1343,11 +1384,11 @@ def _bulk_sample_csv():
 _BULK_SAMPLE_CSV = _bulk_sample_csv()
 
 @app.post("/api/similarity")
-def api_similarity():
+def api_similarity(body: dict = Body(default={})):
     """Score the shown terms pairwise and return suggested merges (near-duplicate or
     same-concept names PDC would treat as unrelated). Body: {rows:[...], threshold?}."""
     import re as _re
-    body = request.get_json(force=True, silent=True) or {}
+    body = body or {}
     rows = body.get("rows") or []
     agg = {}
     for r in rows:
@@ -1385,10 +1426,10 @@ def api_similarity():
                 ev["Source_Keys"][sc] = k
     terms = [dict(v, tags=sorted(v["tags"])) for v in agg.values()]
     sugg = similarity.suggest_merges(terms, threshold=body.get("threshold", similarity.DEFAULT_THRESHOLD))
-    return jsonify({"suggestions": sugg, "term_count": len(terms)})
+    return {"suggestions": sugg, "term_count": len(terms)}
 
 @app.post("/api/recommend-resolutions")
-def api_recommend_resolutions():
+def api_recommend_resolutions(body: dict = Body(default={})):
     """Advise Merge / Disambiguate / Keep separate for every same-named duplicate
     group in the review rows — the decision aid behind the cluster headers.
     Escalation ladder, cheapest first:
@@ -1398,7 +1439,7 @@ def api_recommend_resolutions():
       3. the AI adjudicator (Ollama) for groups still ambiguous, when ai=true.
     Recommendations are hints only — nothing is auto-applied.
     Body: {rows, conn?, ai?, model?, compute?}."""
-    body = request.get_json(force=True, silent=True) or {}
+    body = body or {}
     rows = body.get("rows") or []
     groups = similarity.group_rows(rows)
     probed = 0
@@ -1461,10 +1502,10 @@ def api_recommend_resolutions():
                     r.update(action=v["action"], reason=v["reason"],
                              band="review", source="ai")
     out.sort(key=lambda x: (x["band"] != "high", -x["count"]))
-    return jsonify({"groups": out, "probed": probed, "used_llm": used_llm})
+    return {"groups": out, "probed": probed, "used_llm": used_llm}
 
 @app.post("/api/draft-policies")
-def api_draft_policies():
+def api_draft_policies(body: dict = Body(default={})):
     """The Policy Generator's first mile: draft PDC Data Identification rules from
     the scan's detection seeds — an induced value regex becomes a Data Pattern,
     a profiled reference list becomes a Dictionary (+ values CSV), in the exact
@@ -1472,7 +1513,7 @@ def api_draft_policies():
     LLM agent polishes each rule's column-name regex and tag pick (guard-railed:
     regex must compile, tags stay governed). format=zip streams the bundle.
     Body: {rows, glossary_name?, prefix?, ai?, model?, compute?, format?}."""
-    body = request.get_json(force=True, silent=True) or {}
+    body = body or {}
     rows = body.get("rows") or []
     gname = body.get("glossary_name") or "Business Glossary"
     gov = sorted(tagdict.governed_tags())
@@ -1498,27 +1539,26 @@ def api_draft_policies():
                                          hints=hints, governed_tags=gov)
     if (body.get("format") or "").lower() == "zip":
         data = policy_draft.to_zip_bytes(draft)
-        from flask import Response
-        return Response(data, mimetype="application/zip",
+        return Response(data, media_type="application/zip",
                         headers={"Content-Disposition":
                                  "attachment; filename=drafted-policies.zip"})
-    return jsonify({"patterns": [{"filename": p["filename"], "term": p["term"],
-                                  "seed": p.get("seed", "profiled"),
-                                  "name": p["rule"][0]["name"]} for p in draft["patterns"]],
-                    "dictionaries": [{"filename": d["filename"], "term": d["term"],
-                                      "name": d["rule"][0]["name"],
-                                      "values": d["values_filename"]} for d in draft["dictionaries"]],
-                    "skipped": draft["skipped"], "used_llm": used_llm})
+    return {"patterns": [{"filename": p["filename"], "term": p["term"],
+                          "seed": p.get("seed", "profiled"),
+                          "name": p["rule"][0]["name"]} for p in draft["patterns"]],
+            "dictionaries": [{"filename": d["filename"], "term": d["term"],
+                              "name": d["rule"][0]["name"],
+                              "values": d["values_filename"]} for d in draft["dictionaries"]],
+            "skipped": draft["skipped"], "used_llm": used_llm}
 
 @app.post("/api/qa-definitions")
-def api_qa_definitions():
+def api_qa_definitions(body: dict = Body(default={})):
     """Definition QA before import: the deterministic linter (circular, echo,
     vague, too-short, copy-paste duplicates) always runs; with ai=true the LLM
     agent also judges whether each definition actually explains the business
     meaning, and proposes a better sentence. Rows come back with QA_Issues /
     QA_Suggestion stamped — flags and proposals only, the steward applies.
     Body: {rows, ai?, model?, compute?}."""
-    body = request.get_json(force=True, silent=True) or {}
+    body = body or {}
     rows = [r for r in (body.get("rows") or []) if isinstance(r, dict)]
     for r in rows:                                    # a QA run resets prior flags
         r.pop("QA_Issues", None)
@@ -1531,17 +1571,17 @@ def api_qa_definitions():
         rows, _n, used_llm = llm.qa_definitions_rows(
             rows, model=body.get("model"), compute=body.get("compute"))
     flagged = sum(1 for r in rows if r.get("QA_Issues"))
-    return jsonify({"rows": rows, "flagged": flagged,
-                    "lint_flagged": len(lint), "used_llm": used_llm,
-                    "llm": {"online": used_llm or not body.get("ai")}})
+    return {"rows": rows, "flagged": flagged,
+            "lint_flagged": len(lint), "used_llm": used_llm,
+            "llm": {"online": used_llm or not body.get("ai")}}
 
 @app.post("/api/ai-categorize")
-def api_ai_categorize():
+def api_ai_categorize(body: dict = Body(default={})):
     """AI category assignment for uncategorized rows (or all rows with
     only_blank=false): the local model picks ONE category per term from the
     known set — pack categories + the categories already in use — and anything
     off-list is discarded. Body: {rows, only_blank?, model?, compute?}."""
-    body = request.get_json(force=True, silent=True) or {}
+    body = body or {}
     rows = [r for r in (body.get("rows") or []) if isinstance(r, dict)]
     # the UI sends the WHOLE glossary's category list (it may post rows in
     # chunks for progress; a slice's own categories would be too narrow)
@@ -1554,62 +1594,62 @@ def api_ai_categorize():
     rows, updated, used_llm = llm.categorize_rows(
         rows, cats, model=body.get("model"), compute=body.get("compute"),
         only_blank=body.get("only_blank", True))
-    return jsonify({"rows": rows, "updated": updated,
-                    "llm": {"online": used_llm}})
+    return {"rows": rows, "updated": updated,
+            "llm": {"online": used_llm}}
 
 @app.post("/api/retag")
-def api_retag():
+def api_retag(body: dict = Body(default={})):
     """Re-derive meaningful, controlled tags for a set of review rows (the grid's
        'Suggest tags' action). Deterministic; no rescan. Table-level record terms
        keep their table-level tags."""
-    body = request.get_json(force=True, silent=True) or {}
+    body = body or {}
     rows = body.get("rows") or []
     try:
         suggester.retag_rows(rows)
     except Exception as e:
-        return jsonify({"error": str(e)[:300]}), 400
-    return jsonify({"rows": rows})
+        return _err(str(e)[:300], 400)
+    return {"rows": rows}
 
 @app.get("/api/tagdict")
 def api_tagdict_get():
     """The per-company tag dictionary — the controlled allow-list + rules that drive
        tagging, seeded from the domain and grown from scans. Governs tag consistency
        into the Registry and the Policy Generator."""
-    return jsonify(tagdict.summary())
+    return tagdict.summary()
 
 @app.post("/api/tagdict")
-def api_tagdict_save():
+def api_tagdict_save(body: dict = Body(default={})):
     """Steward save of the whole dictionary (terms/tags/rules). Guard-railed:
        generic baseline entries are protected, rule/term tags must exist, and
        sensitivity is validated — risky edits come back as warnings."""
-    body = request.get_json(force=True, silent=True) or {}
+    body = body or {}
     doc = body.get("dictionary") if isinstance(body.get("dictionary"), dict) else body
     try:
         warnings = tagdict.replace(doc)
     except Exception as e:
-        return jsonify({"error": str(e)[:300]}), 400
+        return _err(str(e)[:300], 400)
     out = tagdict.summary()
     out["warnings"] = warnings
     audit.record("dictionary.save", actor=body.get("actor"),
                  terms=out.get("term_count"), tags=out.get("tag_count"),
                  warnings=len(warnings))
-    return jsonify(out)
+    return out
 
 @app.post("/api/tagdict/review")
-def api_tagdict_review():
+def api_tagdict_review(body: dict = Body(default={})):
     """Steward approve/reject of pending accreted items. Body: {kind:'tag'|'term',
        names:[...], action:'approve'|'reject'}. Only approved (or generic) items
        govern the Registry / Policy Generator."""
-    body = request.get_json(force=True, silent=True) or {}
+    body = body or {}
     kind = body.get("kind"); action = body.get("action", "approve")
     names = body.get("names") or []
     if kind not in ("tag", "term"):
-        return jsonify({"error": "kind must be 'tag' or 'term'"}), 400
+        return _err("kind must be 'tag' or 'term'", 400)
     changed = tagdict.review(kind, names, action, target=body.get("target"))
     if changed:
         audit.record("%s.%s" % (kind, action), actor=body.get("actor"), names=names, changed=changed)
     out = tagdict.summary(); out["changed"] = changed
-    return jsonify(out)
+    return out
 
 # pack-domain / company-name keywords -> PDC business-domain classifier
 _DOMAIN_MAP = [
@@ -1630,14 +1670,14 @@ _DOMAIN_MAP = [
 ]
 
 @app.post("/api/suggest-domain")
-def api_suggest_domain():
+def api_suggest_domain(body: dict = Body(default={})):
     """Pick the PDC business-domain classifier from the company's OWN data: the
     installed pack's domain key + the company name first (deterministic keyword
     map), the local AI as fallback for unmapped businesses (guardrail: the
     answer must be in the supplied list). Advice for the Govern page's DOMAIN
     default. Body: {domains, categories?, terms?, model?, compute?}."""
     import re as _re
-    body = request.get_json(force=True, silent=True) or {}
+    body = body or {}
     domains = [str(d) for d in (body.get("domains") or []) if str(d).strip()]
     company = llm.COMPANY if llm.COMPANY != "your organization" else ""
     pack_domain = str(tagdict.load().get("domain") or "")
@@ -1645,23 +1685,23 @@ def api_suggest_domain():
     if hay.strip() and domains:
         for rx, dom in _DOMAIN_MAP:
             if _re.search(rx, hay) and dom in domains:
-                return jsonify({"domain": dom, "used_llm": False,
-                                "reason": f"matched the installed pack/company ({pack_domain or company})"})
+                return {"domain": dom, "used_llm": False,
+                        "reason": f"matched the installed pack/company ({pack_domain or company})"}
     dom, used = llm.suggest_domain(company, body.get("categories"), body.get("terms"),
                                    domains, model=body.get("model"), compute=body.get("compute"))
-    return jsonify({"domain": dom, "used_llm": used,
-                    "reason": ("AI classification from company + glossary content" if dom else
-                               "no match — pick manually (Ollama offline and no keyword hit)")})
+    return {"domain": dom, "used_llm": used,
+            "reason": ("AI classification from company + glossary content" if dom else
+                       "no match — pick manually (Ollama offline and no keyword hit)")}
 
 @app.post("/api/tagdict/ai-review")
-def api_tagdict_ai_review():
+def api_tagdict_ai_review(body: dict = Body(default={})):
     """Advise on the pending scan-found terms: a deterministic near-duplicate
     pass against the governed vocabulary (similarity scoring - 'Apy' vs 'APR
     Rate'), then the local AI agent judges the rest with the captured context
     (category, definition, sources). Advice only - the steward clicks approve /
     reject / alias. Body: {model?, compute?, names?} — names limits the pass
     to those pending terms, so the UI can batch and show real progress."""
-    body = request.get_json(force=True, silent=True) or {}
+    body = body or {}
     d = tagdict.load()
     gov = sorted(tagdict.governed_terms())
     pending = []
@@ -1695,10 +1735,10 @@ def api_tagdict_ai_review():
         llm_advice, used_llm = llm.review_pending_terms(
             rest, gov, model=body.get("model"), compute=body.get("compute"))
         advice.update(llm_advice)
-    return jsonify({"advice": advice, "pending": len(pending), "used_llm": used_llm})
+    return {"advice": advice, "pending": len(pending), "used_llm": used_llm}
 
 @app.post("/api/tagdict/fold-advisor")
-def api_tagdict_fold_advisor():
+def api_tagdict_fold_advisor(body: dict = Body(default={})):
     """Advise alias folds across the GOVERNED company vocabulary — the
     pending-review near-duplicate pass only covers pending items, so twins
     that both got approved (or arrived via the pack) had no advisor until
@@ -1741,14 +1781,14 @@ def api_tagdict_fold_advisor():
             keep, fold = (na, nb) if canon_score(na) >= canon_score(nb) else (nb, na)
             pairs.append({"keep": keep, "fold": fold, "confidence": conf, "reason": why})
     pairs.sort(key=lambda p: (p["confidence"] != "high", p["keep"]))
-    return jsonify({"pairs": pairs, "governed": len(gov)})
+    return {"pairs": pairs, "governed": len(gov)}
 
 @app.post("/api/tagdict/reset")
-def api_tagdict_reset():
+def api_tagdict_reset(body: dict = Body(default={})):
     """Reseed from the domain pack + defaults. Approved company items and company
        rules are preserved (the governed set survives a reseed); pending items are
        discarded; a timestamped backup of the previous file is taken first."""
-    body = request.get_json(force=True, silent=True) or {}
+    body = body or {}
     res = tagdict.reset()
     kept = (res or {}).get("kept") or {}
     audit.record("dictionary.reset", actor=body.get("actor"),
@@ -1757,21 +1797,17 @@ def api_tagdict_reset():
                          + ((" · backup: " + os.path.basename(res["backup"])) if (res or {}).get("backup") else "")))
     out = tagdict.summary()
     out["kept"] = kept
-    return jsonify(out)
+    return out
 
 @app.get("/api/audit")
-def api_audit():
+def api_audit(n: int = 50):
     """Recent governance audit entries (newest first) + summary."""
-    try:
-        n = int(request.args.get("n", 50))
-    except Exception:
-        n = 50
-    return jsonify({"entries": audit.recent(n), "summary": audit.summary()})
+    return {"entries": audit.recent(n), "summary": audit.summary()}
 
 @app.get("/api/audit/export.json")
 def api_audit_export():
     """Download the full governance audit trail (ships alongside the Registry)."""
-    return Response(json.dumps(audit.all_entries(), indent=2), mimetype="application/json",
+    return Response(json.dumps(audit.all_entries(), indent=2), media_type="application/json",
                     headers={"Content-Disposition": "attachment; filename=governance_audit.json"})
 
 @app.get("/api/governance-summary")
@@ -1830,13 +1866,12 @@ def api_governance_summary():
                   "total_off_vocabulary_tags": total_off,
                   "note": "off_vocabulary_tags = concept tags outside the governed allow-list"},
     }
-    resp = jsonify(payload)
-    resp.headers["Access-Control-Allow-Origin"] = "*"      # read-only; lets the viz app poll cross-origin
-    resp.headers["Cache-Control"] = "no-store"
-    return resp
+    return JSONResponse(payload, headers={
+        "Access-Control-Allow-Origin": "*",      # read-only; lets the viz app poll cross-origin
+        "Cache-Control": "no-store"})
 
 @app.post("/api/export-pack")
-def api_export_pack():
+def api_export_pack(body: dict = Body(default={})):
     """Generate a domain pack from the reviewed scan results: table mappings,
     learned abbreviations, the governed company vocabulary, and — the point —
     curated_seeds carrying the induced value patterns and profiled reference
@@ -1846,7 +1881,7 @@ def api_export_pack():
     the steward's resolutions decide — curation keeps the pack's value by
     default, curated_seeds prefer the fresher scan evidence.
     Body: {rows, resolutions?: {"key::name": "scan"|"pack"}, apply?}."""
-    body = request.get_json(force=True, silent=True) or {}
+    body = body or {}
     rows = body.get("rows") or []
     resolutions = body.get("resolutions") or {}
     base = {}
@@ -1879,19 +1914,19 @@ def api_export_pack():
         rs = tagdict.reset(preserve_approved=True)
         out.update({"applied": True, "pack_path": path, "pack_backup": backup,
                     "reseed_kept": rs.get("kept")})
-    return jsonify(out)
+    return out
 
 @app.get("/api/tagdict/export.json")
 def api_tagdict_export():
     """Download the raw dictionary artifact (shareable governance record)."""
-    return Response(json.dumps(tagdict.load(), indent=2), mimetype="application/json",
+    return Response(json.dumps(tagdict.load(), indent=2), media_type="application/json",
                     headers={"Content-Disposition": "attachment; filename=tag_dictionary.json"})
 
 @app.get("/api/pdc/bulk-load/sample.csv")
 def pdc_bulk_sample():
     """Download a starter CSV for the bulk loader (two sample sources). Replace the
        CHANGE_ME secrets before importing."""
-    return Response(_BULK_SAMPLE_CSV, mimetype="text/csv",
+    return Response(_BULK_SAMPLE_CSV, media_type="text/csv",
                     headers={"Content-Disposition": "attachment; filename=datasources.csv"})
 
 # --- Export the app's own saved connections (the cards) as bulk-loader CSV -------
@@ -1947,48 +1982,45 @@ def connections_export_csv():
     w.writeheader()
     for r in rows:
         w.writerow(r)
-    return Response(buf.getvalue(), mimetype="text/csv",
+    return Response(buf.getvalue(), media_type="text/csv",
                     headers={"Content-Disposition": "attachment; filename=connections.csv"})
 
 @app.post("/api/pdc/connections/export")
-def pdc_connections_export():
+def pdc_connections_export(body: dict = Body(default={})):
     """Read the data sources already registered in PDC and return them as a
        bulk-loader CSV (same columns the loader consumes), so a hand-built
        connection can be captured and replayed. Secrets are blanked — PDC never
        returns plaintext credentials — so the operator re-enters them before reload.
        Auth is a bearer token or username/password, exactly like the other PDC calls."""
     import pdc_api
-    body = request.get_json(force=True, silent=True) or {}
+    body = body or {}
     base = (body.get("base_url") or body.get("base") or "").strip()
     version = body.get("version") or "v2"
     verify = bool(body.get("verify_tls", False))
     if not base:
-        return jsonify({"error": "PDC base URL is required"}), 400
+        return _err("PDC base URL is required", 400)
     try:
         token, _ = _pdc_token_and_reauth(body, base, version, verify)
     except Exception as e:
-        return jsonify({"error": str(e)}), 401
+        return _err(str(e), 401)
     try:
         sources = pdc_api.list_data_sources(base, token, version=version, verify_tls=verify)
     except Exception as e:
-        return jsonify({"error": "could not list data sources: %s" % str(e)[:300]}), 502
+        return _err("could not list data sources: %s" % str(e)[:300], 502)
     csv_text = pdc_api.connections_to_csv(sources)
     fmt = (body.get("format") or "csv").lower()
     if fmt == "json":
-        return jsonify({"count": len(sources), "csv": csv_text,
-                        "names": [s.get("resourceName") for s in sources if isinstance(s, dict)]})
-    return Response(csv_text, mimetype="text/csv",
+        return {"count": len(sources), "csv": csv_text,
+                "names": [s.get("resourceName") for s in sources if isinstance(s, dict)]}
+    return Response(csv_text, media_type="text/csv",
                     headers={"Content-Disposition": "attachment; filename=pdc-connections.csv"})
 
-@app.post("/api/pdc/bulk-load")
-def pdc_bulk_load():
-    """Bulk-register data sources in PDC from CSV/JSON rows: for each row
-       create -> test-connection (poll) -> metadata ingest. Streams one NDJSON
-       event per row (plus start/done) so the UI can show live progress. Auth is
-       a bearer token or username/password; secrets are never persisted or logged.
-       options: {test, ingest, wait} all default true; dry_run previews bodies."""
+def _bulk_load_events(body):
+    """Generator behind /api/pdc/bulk-load and its job twin: for each row
+       create -> test-connection (poll) -> metadata ingest, yielding one event
+       dict per row (plus start/done). Auth is a bearer token or
+       username/password; secrets are never persisted or logged."""
     import pdc_api
-    body = request.get_json(force=True, silent=True) or {}
     base = (body.get("base_url") or body.get("base") or "").strip()
     version = body.get("version") or "v2"
     verify = bool(body.get("verify_tls", False))
@@ -2005,88 +2037,96 @@ def pdc_bulk_load():
         try:
             rows = pdc_api.parse_csv_rows(body["csv"])
         except Exception as e:
-            return jsonify({"error": "could not parse CSV: %s" % e}), 400
+            yield {"event": "error", "message": "could not parse CSV: %s" % e}
+            return
     rows = rows or []
     if not base:
-        return jsonify({"error": "PDC base URL is required"}), 400
+        yield {"event": "error", "message": "PDC base URL is required"}
+        return
     if not rows:
-        return jsonify({"error": "no rows to load — provide 'rows' or 'csv'"}), 400
+        yield {"event": "error", "message": "no rows to load — provide 'rows' or 'csv'"}
+        return
 
-    def gen():
-        # Dry run: just build and echo the (redacted) bodies, no auth, no calls.
-        if dry_run:
-            yield json.dumps({"event": "start", "total": len(rows), "dry_run": True}) + "\n"
-            for idx, row in enumerate(rows, 1):
-                try:
-                    b = pdc_api.build_data_source_body(row)
-                    ev = {"event": "row", "index": idx, "total": len(rows),
-                          "result": {"resourceName": b.get("resourceName"),
-                                     "create": "DRY", "ingest": "DRY", "job": "DRY",
-                                     "error": None},
-                          "body": pdc_api.redact_secrets(b)}
-                except Exception as e:
-                    ev = {"event": "row", "index": idx, "total": len(rows),
-                          "result": {"resourceName": row.get("resourceName"),
-                                     "create": "FAIL", "error": str(e)[:300]}}
-                yield json.dumps(ev) + "\n"
-            yield json.dumps({"event": "done", "dry_run": True, "total": len(rows)}) + "\n"
-            return
-
-        try:
-            token, reauth = _pdc_token_and_reauth(body, base, version, verify)
-        except Exception as e:
-            yield json.dumps({"event": "error", "message": str(e)}) + "\n"
-            return
-
-        yield json.dumps({"event": "start", "total": len(rows)}) + "\n"
-        results = []
+    # Dry run: just build and echo the (redacted) bodies, no auth, no calls.
+    if dry_run:
+        yield {"event": "start", "total": len(rows), "dry_run": True}
         for idx, row in enumerate(rows, 1):
-            name = row.get("resourceName") or row.get("name") or ("row %d" % idx)
-            yield json.dumps({"event": "row_start", "index": idx, "total": len(rows),
-                              "resourceName": name}) + "\n"
             try:
-                rec = pdc_api.bulk_load_one(base, token, row, version=version,
-                                            verify_tls=verify, do_test=do_test,
-                                            do_ingest=do_ingest, wait=wait,
-                                            replace_existing=replace_existing,
-                                            internal_scan=internal_scan)
-            except pdc_api.TokenExpired:
-                if reauth:
-                    try:
-                        token = reauth()
-                        rec = pdc_api.bulk_load_one(base, token, row, version=version,
-                                                    verify_tls=verify, do_test=do_test,
-                                                    do_ingest=do_ingest, wait=wait,
-                                                    replace_existing=replace_existing,
-                                                    internal_scan=internal_scan)
-                    except Exception as e:
-                        rec = {"resourceName": name, "create": "FAIL",
-                               "error": "re-auth/retry failed: %s" % str(e)[:240]}
-                else:
-                    rec = {"resourceName": name, "create": "FAIL",
-                           "error": "token expired and no username/password to re-auth"}
+                b = pdc_api.build_data_source_body(row)
+                ev = {"event": "row", "index": idx, "total": len(rows),
+                      "result": {"resourceName": b.get("resourceName"),
+                                 "create": "DRY", "ingest": "DRY", "job": "DRY",
+                                 "error": None},
+                      "body": pdc_api.redact_secrets(b)}
             except Exception as e:
-                rec = {"resourceName": name, "create": "FAIL", "error": str(e)[:300]}
-            results.append(rec)
-            yield json.dumps({"event": "row", "index": idx, "total": len(rows),
-                              "result": rec}) + "\n"
+                ev = {"event": "row", "index": idx, "total": len(rows),
+                      "result": {"resourceName": row.get("resourceName"),
+                                 "create": "FAIL", "error": str(e)[:300]}}
+            yield ev
+        yield {"event": "done", "dry_run": True, "total": len(rows)}
+        return
 
-        ok = sum(1 for r in results if r.get("create") in ("OK", "EXISTS", "RECREATED")
-                 and r.get("ingest") in ("OK", "SKIP")
-                 and r.get("job") in ("OK", "SKIP"))
-        yield json.dumps({"event": "done", "total": len(rows), "ok": ok,
-                          "failed": len(rows) - ok, "results": results}) + "\n"
+    try:
+        token, reauth = _pdc_token_and_reauth(body, base, version, verify)
+    except Exception as e:
+        yield {"event": "error", "message": str(e)}
+        return
 
-    return Response(gen(), mimetype="application/x-ndjson")
+    yield {"event": "start", "total": len(rows)}
+    results = []
+    for idx, row in enumerate(rows, 1):
+        name = row.get("resourceName") or row.get("name") or ("row %d" % idx)
+        yield {"event": "row_start", "index": idx, "total": len(rows),
+               "resourceName": name}
+        try:
+            rec = pdc_api.bulk_load_one(base, token, row, version=version,
+                                        verify_tls=verify, do_test=do_test,
+                                        do_ingest=do_ingest, wait=wait,
+                                        replace_existing=replace_existing,
+                                        internal_scan=internal_scan)
+        except pdc_api.TokenExpired:
+            if reauth:
+                try:
+                    token = reauth()
+                    rec = pdc_api.bulk_load_one(base, token, row, version=version,
+                                                verify_tls=verify, do_test=do_test,
+                                                do_ingest=do_ingest, wait=wait,
+                                                replace_existing=replace_existing,
+                                                internal_scan=internal_scan)
+                except Exception as e:
+                    rec = {"resourceName": name, "create": "FAIL",
+                           "error": "re-auth/retry failed: %s" % str(e)[:240]}
+            else:
+                rec = {"resourceName": name, "create": "FAIL",
+                       "error": "token expired and no username/password to re-auth"}
+        except Exception as e:
+            rec = {"resourceName": name, "create": "FAIL", "error": str(e)[:300]}
+        results.append(rec)
+        yield {"event": "row", "index": idx, "total": len(rows), "result": rec}
 
-@app.post("/api/apply-to-pdc")
-def apply_to_pdc():
-    """Resolve each Data Element column in PDC, merge the new businessTerms +
-       features into whatever it already carries, and PATCH it back. dry_run=true
-       returns every planned PATCH (id + body) without sending. Optionally runs
-       Calculate Trust Score on the touched ids after an apply."""
+    ok = sum(1 for r in results if r.get("create") in ("OK", "EXISTS", "RECREATED")
+             and r.get("ingest") in ("OK", "SKIP")
+             and r.get("job") in ("OK", "SKIP"))
+    yield {"event": "done", "total": len(rows), "ok": ok,
+           "failed": len(rows) - ok, "results": results}
+
+@app.post("/api/pdc/bulk-load")
+def pdc_bulk_load(body: dict = Body(default={})):
+    """Bulk-register data sources in PDC from CSV/JSON rows: for each row
+       create -> test-connection (poll) -> metadata ingest. Streams one NDJSON
+       event per row (plus start/done) so the UI can show live progress. Auth is
+       a bearer token or username/password; secrets are never persisted or logged.
+       options: {test, ingest, wait} all default true; dry_run previews bodies."""
+    body = body or {}
+    def gen():
+        for ev in _bulk_load_events(body):
+            yield json.dumps(ev) + "\n"
+    return StreamingResponse(gen(), media_type="application/x-ndjson")
+
+def _apply_to_pdc_impl(body, progress=None):
+    """The apply pipeline shared by the JSON, SSE and job endpoints. Returns the
+       report dict; raises ValueError (bad request) or RuntimeError (PDC-side)."""
     import pdc_api
-    body = request.get_json(force=True) or {}
     api_json = body.get("json") or []
     base = (body.get("base_url") or "").strip()
     version = body.get("version") or "v2"
@@ -2100,9 +2140,9 @@ def apply_to_pdc():
     _gname0 = (body.get("glossary_name") or "").strip()
     table_terms = suggester.table_term_directory(_rows, _gname0 or "Business Glossary") if _rows else None
     if not base:
-        return jsonify({"error": "PDC base URL is required"}), 400
+        raise ValueError("PDC base URL is required")
     if not api_json:
-        return jsonify({"error": "no Data Elements JSON to apply — export and resolve first"}), 400
+        raise ValueError("no Data Elements JSON to apply — export and resolve first")
     try:
         token, reauth = _pdc_token_and_reauth(body, base, version, verify)
         gname = (body.get("glossary_name") or "").strip()
@@ -2114,56 +2154,46 @@ def apply_to_pdc():
                                       skip_unresolved_terms=skip_unresolved,
                                       glossary_name=(gname or None),
                                       default_glossary_id=default_gid,
-                                      desc_mode=desc_mode, table_terms=table_terms)
+                                      desc_mode=desc_mode, table_terms=table_terms,
+                                      progress=progress)
     except Exception as e:
-        return jsonify({"error": str(e)}), 502
+        raise RuntimeError(str(e))
     report.pop("token", None)  # never hand the token back to the browser
-    return jsonify(report)
+    return report
+
+@app.post("/api/apply-to-pdc")
+def apply_to_pdc(body: dict = Body(default={})):
+    """Resolve each Data Element column in PDC, merge the new businessTerms +
+       features into whatever it already carries, and PATCH it back. dry_run=true
+       returns every planned PATCH (id + body) without sending. Optionally runs
+       Calculate Trust Score on the touched ids after an apply."""
+    body = body or {}
+    try:
+        return _apply_to_pdc_impl(body)
+    except ValueError as e:
+        return _err(str(e), 400)
+    except Exception as e:
+        return _err(str(e), 502)
 
 @app.post("/api/apply-to-pdc-stream")
-def apply_to_pdc_stream():
+def apply_to_pdc_stream(body: dict = Body(default={})):
     """Same as /api/apply-to-pdc, but streams Server-Sent Events so the browser can
        show a live per-column progress bar. The apply logic is unchanged — it just
        runs in a worker thread with a progress callback that feeds an SSE queue.
        Emits `event: progress` per column/phase and a final `event: done` (report)
        or `event: error`."""
-    import pdc_api, threading
-    import queue as _queue
-    body = request.get_json(force=True) or {}
-    api_json = body.get("json") or []
-    base = (body.get("base_url") or "").strip()
-    version = body.get("version") or "v2"
-    verify = bool(body.get("verify_tls", False))
-    dry_run = bool(body.get("dry_run", True))
-    calc_trust = bool(body.get("calculate_trust", False))
-    apply_table_ratings = bool(body.get("apply_table_ratings", True))
-    skip_unresolved = bool(body.get("skip_unresolved_terms", False))
-    desc_mode = (body.get("desc_mode") or "fill").strip().lower()
-    _rows = body.get("rows") or []
-    _gname0 = (body.get("glossary_name") or "").strip()
-    table_terms = suggester.table_term_directory(_rows, _gname0 or "Business Glossary") if _rows else None
-    if not base:
-        return jsonify({"error": "PDC base URL is required"}), 400
-    if not api_json:
-        return jsonify({"error": "no Data Elements JSON to apply — export and resolve first"}), 400
+    body = body or {}
+    # preserve the pre-flight 400s of the old endpoint before the stream starts
+    if not (body.get("base_url") or "").strip():
+        return _err("PDC base URL is required", 400)
+    if not (body.get("json") or []):
+        return _err("no Data Elements JSON to apply — export and resolve first", 400)
 
-    q = _queue.Queue()
+    q = _queue_mod.Queue()
 
     def _run():
         try:
-            token, reauth = _pdc_token_and_reauth(body, base, version, verify)
-            gname = (body.get("glossary_name") or "").strip()
-            default_gid = suggester.det_glossary_id(gname) if gname else None
-            report = pdc_api.apply_to_pdc(base, token, api_json, version=version,
-                                          verify_tls=verify, dry_run=dry_run, reauth=reauth,
-                                          calculate_trust=calc_trust,
-                                          apply_table_ratings=apply_table_ratings,
-                                          skip_unresolved_terms=skip_unresolved,
-                                          glossary_name=(gname or None),
-                                          default_glossary_id=default_gid,
-                                          desc_mode=desc_mode, table_terms=table_terms,
-                                          progress=lambda ev: q.put(("progress", ev)))
-            report.pop("token", None)
+            report = _apply_to_pdc_impl(body, progress=lambda ev: q.put(("progress", ev)))
             q.put(("done", report))
         except Exception as e:
             q.put(("error", {"error": str(e)}))
@@ -2179,11 +2209,11 @@ def apply_to_pdc_stream():
                 break
             yield "event: %s\ndata: %s\n\n" % (kind, json.dumps(payload))
 
-    return Response(_gen(), mimetype="text/event-stream",
-                    headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+    return StreamingResponse(_gen(), media_type="text/event-stream",
+                             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
 @app.post("/api/trigger-profiling")
-def trigger_profiling():
+def trigger_profiling(body: dict = Body(default={})):
     """Kick off a PDC Data Discovery (profiling) job on the document/object-store
        entities in a Data-Elements payload, so files that show 'Profiled Status:
        SKIPPED' get profiled and gain PDC's own Data Quality metric.
@@ -2193,27 +2223,27 @@ def trigger_profiling():
        entity UUIDs, and POST the discovery job. 'poll' optionally waits for the job
        to finish so the caller can immediately re-pull profiling stats."""
     import pdc_api
-    body = request.get_json(force=True) or {}
+    body = body or {}
     base = (body.get("base_url") or "").strip()
     version = body.get("version") or "v2"
     verify = bool(body.get("verify_tls", False))
     api_json = body.get("json") or []
     if not base:
-        return jsonify({"error": "PDC base URL is required"}), 400
+        return _err("PDC base URL is required", 400)
     # restrict to object-store records; database columns are profiled by scanning the DB
     docs = [r for r in api_json
             if str(r.get("type", "")).upper() in ("OBJECT", "FILE", "DIRECTORY")]
     if not docs:
-        return jsonify({"error": "no document/object-store records to profile — this "
-                        "action profiles MinIO/S3 files, not database columns"}), 400
+        return _err("no document/object-store records to profile — this "
+                    "action profiles MinIO/S3 files, not database columns", 400)
     try:
         token, _ = _pdc_token_and_reauth(body, base, version, verify)
         scope_ids, labels = pdc_api.resolve_document_scope(
             base, token, docs, version=version, verify_tls=verify)
         if not scope_ids:
-            return jsonify({"error": "could not resolve any document folders/files in "
-                            "PDC — confirm the object store has been scanned into the "
-                            "catalog first"}), 404
+            return _err("could not resolve any document folders/files in "
+                        "PDC — confirm the object store has been scanned into the "
+                        "catalog first", 404)
         baseline = {}
         try:
             baseline = pdc_api.profiled_snapshot(base, token, scope_ids,
@@ -2226,7 +2256,7 @@ def trigger_profiling():
         res["baseline"] = baseline
         res["scope_ids"] = [str(x) for x in scope_ids][:20]
     except Exception as e:
-        return jsonify({"error": str(e)}), 502
+        return _err(str(e), 502)
     res.pop("raw", None)
     res["scope"] = labels
     job_id = res.get("job_id") or res.get("id") or ""
@@ -2243,75 +2273,75 @@ def trigger_profiling():
         "verdict": (f"Data Discovery submitted for {len(scope_ids)} object(s). When it finishes, re-pull profiling "
                     "(or the app-vs-PDC side-by-side) to see each file's Data Quality — the fourth Trust-Score input."),
     }
-    return jsonify(res)
+    return res
 
 @app.post("/api/discovery-progress")
-def api_discovery_progress():
+def api_discovery_progress(body: dict = Body(default={})):
     """Version-agnostic Data Discovery progress: compare each scoped entity's
     system.profiledAt against the pre-submission baseline — v3's bulk job
     endpoint returns no job id, so the entities themselves are the truth.
     Body: {ids, baseline, base_url, auth...}. Returns {profiled, total, done}."""
     import pdc_api
-    body = request.get_json(force=True) or {}
+    body = body or {}
     ids = [str(x) for x in (body.get("ids") or []) if str(x).strip()]
     baseline = body.get("baseline") or {}
     base = (body.get("base_url") or "").strip()
     version = body.get("version") or "v2"
     verify = bool(body.get("verify_tls", False))
     if not base or not ids:
-        return jsonify({"error": "base_url and ids are required"}), 400
+        return _err("base_url and ids are required", 400)
     try:
         token, _ = _pdc_token_and_reauth(body, base, version, verify)
         snap = pdc_api.profiled_snapshot(base, token, ids, version=version, verify_tls=verify)
     except Exception as e:
-        return jsonify({"error": str(e)}), 502
+        return _err(str(e), 502)
     changed = [i for i in ids if snap.get(i) and snap.get(i) != baseline.get(i)]
-    return jsonify({"profiled": len(changed), "total": len(ids),
-                    "done": len(changed) == len(ids) and bool(ids)})
+    return {"profiled": len(changed), "total": len(ids),
+            "done": len(changed) == len(ids) and bool(ids)}
 
 @app.post("/api/job-status")
-def job_status_route():
+def job_status_route(body: dict = Body(default={})):
     """Poll a PDC background job by id (GET /jobs/{id}/status) so the UI can show a
        profiling/discovery job's progress without leaving the app."""
     import pdc_api
-    body = request.get_json(force=True) or {}
+    body = body or {}
     base = (body.get("base_url") or "").strip()
     version = body.get("version") or "v2"
     verify = bool(body.get("verify_tls", False))
     job_id = (body.get("job_id") or "").strip()
     if not base or not job_id:
-        return jsonify({"error": "base_url and job_id are required"}), 400
+        return _err("base_url and job_id are required", 400)
     try:
         token, _ = _pdc_token_and_reauth(body, base, version, verify)
         st = pdc_api.job_status(base, token, job_id, version=version, verify_tls=verify)
     except Exception as e:
-        return jsonify({"error": str(e)}), 502
+        return _err(str(e), 502)
     st.pop("raw", None)
-    return jsonify(st)
+    return st
 
 @app.post("/api/pdc-profiling")
-def pdc_profiling():
+def pdc_profiling(body: dict = Body(default={})):
     """Pull PDC's own profiling stats for a set of columns, keyed by
        'schema.table.column', for the app-vs-PDC side-by-side."""
     import pdc_api
-    body = request.get_json(force=True) or {}
+    body = body or {}
     base = (body.get("base_url") or "").strip()
     version = body.get("version") or "v2"
     verify = bool(body.get("verify_tls", False))
     columns = body.get("columns") or []
     sample_limit = int(body.get("sample_limit", 20) or 20)
     if not base:
-        return jsonify({"error": "PDC base URL is required"}), 400
+        return _err("PDC base URL is required", 400)
     if not columns:
-        return jsonify({"error": "no columns supplied — run discovery first"}), 400
+        return _err("no columns supplied — run discovery first", 400)
     try:
         token, _ = _pdc_token_and_reauth(body, base, version, verify)
         profiles = pdc_api.pdc_profile_for_columns(base, token, columns, version=version,
                                                    verify_tls=verify, sample_limit=sample_limit)
     except Exception as e:
-        return jsonify({"error": str(e)}), 502
-    return jsonify({"profiles": profiles, "count": len(profiles),
-                    "requested": len(columns)})
+        return _err(str(e), 502)
+    return {"profiles": profiles, "count": len(profiles),
+            "requested": len(columns)}
 
 _PDC_DB_ENGINES = {"POSTGRES": "postgresql", "POSTGRESQL": "postgresql",
                    "MYSQL": "mysql", "MARIADB": "mysql",
@@ -2369,21 +2399,21 @@ def _reachability_warning(hostish):
         "with the Docker host/VM IP and the published port (docker compose ps)")
 
 @app.post("/api/pdc/source-to-connection")
-def pdc_source_to_connection():
+def pdc_source_to_connection(body: dict = Body(default={})):
     """Turn a source PDC already knows into a saved app connection: fetch the full
        record over /data-sources/filter, prefill engine/host/port/db/schema/user
        (or endpoint/bucket), and save it needing only the secret. If a connection
        with the same name exists, its config is refreshed but a saved secret is
        KEPT — re-adding never wipes a working credential."""
     import pdc_api
-    body = request.get_json(force=True) or {}
+    body = body or {}
     base = (body.get("base_url") or "").strip()
     version = body.get("version") or "v2"
     verify = bool(body.get("verify_tls", False))
     name = (body.get("data_source_name") or "").strip()
     ds_id = (body.get("data_source_id") or "").strip() or None
     if not base or not (name or ds_id):
-        return jsonify({"error": "base_url and data_source_name (or id) are required"}), 400
+        return _err("base_url and data_source_name (or id) are required", 400)
     try:
         token, _ = _pdc_token_and_reauth(body, base, version, verify)
         # Name is the reliable key: the ids filter wants PDC's internal ObjectId,
@@ -2397,12 +2427,12 @@ def pdc_source_to_connection():
         if "Cast to ObjectId" in msg:
             msg = ("PDC rejected the id (it expects an internal ObjectId) — "
                    "retry by source name; original: " + msg)
-        return jsonify({"error": msg}), 502
+        return _err(msg, 502)
     if not rec:
-        return jsonify({"error": f"PDC returned no data-source record for {name or ds_id!r}"}), 404
+        return _err(f"PDC returned no data-source record for {name or ds_id!r}", 404)
     conn, needs, warning = _pdc_record_to_conn(rec)
     if conn is None:
-        return jsonify({"error": warning}), 400
+        return _err(warning, 400)
     conns = _load_connections()
     existing = next((c for c in conns if (c.get("name") or "").lower() == conn["name"].lower()
                      and c.get("type") == conn["type"]), None)
@@ -2419,44 +2449,44 @@ def pdc_source_to_connection():
         conn["id"] = uuid.uuid4().hex[:12]
         conns.append(conn)
     _save_connections(conns)
-    return jsonify({"connection": conn, "needs": (None if kept_secret else needs),
-                    "kept_secret": kept_secret, "updated": bool(existing),
-                    "warning": warning})
+    return {"connection": conn, "needs": (None if kept_secret else needs),
+            "kept_secret": kept_secret, "updated": bool(existing),
+            "warning": warning}
 
 @app.post("/api/pdc/data-sources")
-def pdc_data_sources():
+def pdc_data_sources(body: dict = Body(default={})):
     """List the data-source connections already configured in PDC, so the user can
        harvest a glossary straight from the catalog (no direct DB access or secret)."""
     import pdc_api
-    body = request.get_json(force=True) or {}
+    body = body or {}
     base = (body.get("base_url") or "").strip()
     version = body.get("version") or "v2"
     verify = bool(body.get("verify_tls", False))
     if not base:
-        return jsonify({"error": "PDC base URL is required"}), 400
+        return _err("PDC base URL is required", 400)
     try:
         token, _ = _pdc_token_and_reauth(body, base, version, verify)
         sources = pdc_api.list_catalog_roots(base, token, version=version, verify_tls=verify)
     except Exception as e:
-        return jsonify({"error": str(e)}), 502
-    return jsonify({"data_sources": sources, "count": len(sources)})
+        return _err(str(e), 502)
+    return {"data_sources": sources, "count": len(sources)}
 
 @app.post("/api/pdc/source-test")
-def pdc_source_test():
+def pdc_source_test(body: dict = Body(default={})):
     """Per-connection 'test': confirm the source resolves in the catalog and report
        how many entities PDC actually holds for it (COLUMN for databases, FILE for
        object stores). An ingest that reported OK but scanned an empty schema shows
        here as 0 — the check that would have caught the public-vs-cscu_core bug.
        Read-only: no jobs triggered."""
     import pdc_api
-    body = request.get_json(force=True, silent=True) or {}
+    body = body or {}
     base = (body.get("base_url") or "").strip()
     version = body.get("version") or "v2"
     verify = bool(body.get("verify_tls", False))
     ds_id = body.get("data_source_id")
     ds_name = body.get("data_source_name")
     if not base or not (ds_id or ds_name):
-        return jsonify({"error": "PDC base URL and a data source are required"}), 400
+        return _err("PDC base URL and a data source are required", 400)
     try:
         token, _ = _pdc_token_and_reauth(body, base, version, verify)
         cols = pdc_api.filter_entities(base, token, {"types": ["COLUMN"]}, version=version,
@@ -2472,29 +2502,29 @@ def pdc_source_test():
         else:
             msg = ("resolves in the catalog, but PDC holds no columns/files for it — the "
                    "ingest scanned nothing (check schemaNames / bucket, then re-ingest)")
-        return jsonify({"ok": ok, "columns": ncol, "files": nfile, "message": msg})
+        return {"ok": ok, "columns": ncol, "files": nfile, "message": msg}
     except Exception as e:
-        return jsonify({"ok": False, "error": str(e)[:300]}), 502
+        return JSONResponse({"ok": False, "error": str(e)[:300]}, status_code=502)
 
 @app.post("/api/pdc/source-config")
-def pdc_source_config():
+def pdc_source_config(body: dict = Body(default={})):
     """Return the raw stored config of a PDC data source (secrets redacted) so you can
        see exactly which databaseType / serviceType / fileSystemType / configMethod a
        working object-store source uses — the values the loader must match. Create one
        AWS S3 source by hand in the PDC UI, then inspect it here."""
     import pdc_api
-    body = request.get_json(force=True, silent=True) or {}
+    body = body or {}
     base = (body.get("base_url") or "").strip()
     version = body.get("version") or "v2"
     verify = bool(body.get("verify_tls", False))
     name = (body.get("resource_name") or body.get("data_source_name") or "").strip()
     if not base:
-        return jsonify({"error": "PDC base URL is required"}), 400
+        return _err("PDC base URL is required", 400)
     try:
         token, _ = _pdc_token_and_reauth(body, base, version, verify)
         recs = pdc_api.list_data_sources(base, token, version=version, verify_tls=verify)
     except Exception as e:
-        return jsonify({"error": str(e)[:300]}), 502
+        return _err(str(e)[:300], 502)
     # the fields that decide how PDC routes/ingests a source
     keys = ("resourceName", "databaseType", "serviceType", "fileSystemType",
             "spiVersion", "configMethod", "driverClassName", "jobClasspath",
@@ -2515,32 +2545,32 @@ def pdc_source_config():
                 v = v[:3] + "…"
             row[k] = v
         out.append(row)
-    return jsonify({"sources": out, "count": len(out)})
+    return {"sources": out, "count": len(out)}
 
 @app.post("/api/pdc/harvest")
-def pdc_harvest():
+def pdc_harvest(body: dict = Body(default={})):
     """Harvest a glossary straight from PDC's catalog: read the COLUMN entities PDC
        already scanned for a data source, run them through the same suggester a live
        scan uses, and overlay what PDC ALREADY governs (sensitivity/trust/terms) so
        the user can see existing work before generating. No direct DB access."""
     import pdc_api
-    body = request.get_json(force=True) or {}
+    body = body or {}
     base = (body.get("base_url") or "").strip()
     version = body.get("version") or "v2"
     verify = bool(body.get("verify_tls", False))
     ds_id = (body.get("data_source_id") or "").strip() or None
     ds_name = (body.get("data_source_name") or "").strip() or None
     if not base:
-        return jsonify({"error": "PDC base URL is required"}), 400
+        return _err("PDC base URL is required", 400)
     try:
         token, _ = _pdc_token_and_reauth(body, base, version, verify)
         tables, files, overlay, summary = pdc_api.harvest_from_catalog(
             base, token, ds_id=ds_id, ds_name=ds_name, version=version, verify_tls=verify)
     except Exception as e:
-        return jsonify({"error": str(e)}), 502
+        return _err(str(e), 502)
     if not tables and not files:
-        return jsonify({"error": "PDC returned no columns or files for that data source. "
-                        "Confirm the source has been scanned/ingested in PDC."}), 404
+        return _err("PDC returned no columns or files for that data source. "
+                    "Confirm the source has been scanned/ingested in PDC.", 404)
     # Database columns -> term rows; object-store files -> document rows. A source is
     # one kind or the other, but harvest tolerates a mix.
     rows = suggester.suggest(tables) if tables else []
@@ -2575,7 +2605,7 @@ def pdc_harvest():
     if summary.get("files"):
         parts.append(f"{summary['files']} file(s)")
     sig = (f"Harvested {' + '.join(parts)} from PDC "
-           f"\u00b7 {governed} already governed in PDC")
+           f"· {governed} already governed in PDC")
     # Harvested rows grow the governed vocabulary exactly like direct scans do —
     # a harvest-only workflow (and dictionary recovery after a reseed) needs no
     # direct DB/S3 access to repopulate the pending queue.
@@ -2588,34 +2618,34 @@ def pdc_harvest():
     pdc_summary = {"source": summary["source"], "tables": summary["tables"],
                    "columns": summary["columns"], "files": summary.get("files", 0),
                    **(summary.get("governance") or {})}
-    return jsonify({"rows": rows, "stats": _stats(rows), "scanned": scn,
-                    "pdc_summary": pdc_summary,
-                    "ownership": {"signals": [sig]},
-                    "check": suggester.scan_check(rows, scn)})
+    return {"rows": rows, "stats": _stats(rows), "scanned": scn,
+            "pdc_summary": pdc_summary,
+            "ownership": {"signals": [sig]},
+            "check": suggester.scan_check(rows, scn)}
 
 @app.post("/api/pdc/glossary-exists")
-def pdc_glossary_exists():
+def pdc_glossary_exists(body: dict = Body(default={})):
     """Pre-flight check: does a glossary with this name already exist in PDC? Lets the
        UI warn and offer update-vs-create instead of creating a duplicate on import."""
     import pdc_api
-    body = request.get_json(force=True) or {}
+    body = body or {}
     base = (body.get("base_url") or "").strip()
     version = body.get("version") or "v2"
     verify = bool(body.get("verify_tls", False))
     name = (body.get("glossary_name") or body.get("name") or "").strip()
     if not base or not name:
-        return jsonify({"error": "PDC base URL and glossary_name are required"}), 400
+        return _err("PDC base URL and glossary_name are required", 400)
     try:
         token, _ = _pdc_token_and_reauth(body, base, version, verify)
         res = pdc_api.glossary_exists(base, token, name, version=version, verify_tls=verify)
     except Exception as e:
-        return jsonify({"error": str(e)}), 502
-    return jsonify(res)
+        return _err(str(e), 502)
+    return res
 
 @app.post("/api/data-elements")
-def data_elements():
+def data_elements(body: dict = Body(default={})):
     """Build the term<->column Data-Element links plus their bulk-assign CSV and Trust-ready API JSON."""
-    body = request.get_json(force=True) or {}
+    body = body or {}
     rows = body.get("rows", [])
     name = body.get("glossary_name", "Business Glossary")
     lineage = body.get("lineage_verified", True)
@@ -2628,21 +2658,21 @@ def data_elements():
     api_json = suggester.links_to_api_json(links, name, lineage, rating)
     rated = sum(1 for l in links if l.get("quality") is not None)
     breakdown = suggester.map_breakdown(rows, policy)
-    return jsonify({"links": links, "csv": suggester.links_to_csv(links),
-                    "json": api_json, "count": len(links), "elements": len(api_json),
-                    "terms": len({l["business_term"] for l in links}),
-                    "tables": len({(l["schema_name"], l["table_name"]) for l in links}),
-                    "quality_scored": rated,
-                    # selective-mapping transparency: which terms were linked vs held back
-                    "mapped_terms": breakdown["mapped_count"],
-                    "skipped_terms": breakdown["skipped_count"],
-                    "breakdown": breakdown,
-                    "policy": {**suggester.DEFAULT_MAP_POLICY, **(policy or {})}})
+    return {"links": links, "csv": suggester.links_to_csv(links),
+            "json": api_json, "count": len(links), "elements": len(api_json),
+            "terms": len({l["business_term"] for l in links}),
+            "tables": len({(l["schema_name"], l["table_name"]) for l in links}),
+            "quality_scored": rated,
+            # selective-mapping transparency: which terms were linked vs held back
+            "mapped_terms": breakdown["mapped_count"],
+            "skipped_terms": breakdown["skipped_count"],
+            "breakdown": breakdown,
+            "policy": {**suggester.DEFAULT_MAP_POLICY, **(policy or {})}}
 
 @app.post("/api/generate")
-def generate():
+def generate(body: dict = Body(default={})):
     """Generate import-ready glossary JSONL (and summary stats) from review rows."""
-    body = request.get_json(force=True) or {}
+    body = body or {}
     rows = body.get("rows", [])
     name = body.get("glossary_name", "Business Glossary (Suggested)")
     governance = body.get("governance") or None
@@ -2659,14 +2689,147 @@ def generate():
                                           glossary_id=suggester.det_glossary_id(name))
     except Exception:
         registry_path = None  # never let Registry authoring break the export
-    return jsonify({"jsonl": jsonl,
-                    "registry": registry_path,
-                    "check": suggester.glossary_build_check(rows, recs, name),
-                    "stats": {"glossary": name, "lines": len(recs),
-                              "categories": sum(1 for r in recs if r["type"] == "category"),
-                              "terms": sum(1 for r in recs if r["type"] == "term"),
-                              "kept": kept, "dropped": len(rows) - kept}})
+    return {"jsonl": jsonl,
+            "registry": registry_path,
+            "check": suggester.glossary_build_check(rows, recs, name),
+            "stats": {"glossary": name, "lines": len(recs),
+                      "categories": sum(1 for r in recs if r["type"] == "category"),
+                      "terms": sum(1 for r in recs if r["type"] == "term"),
+                      "kept": kept, "dropped": len(rows) - kept}}
+
+# --------------------------------------------------------------------------- #
+#  Start/poll job endpoints (additive — the forward path for the React UI).
+#
+#  The SSE/NDJSON streaming endpoints above are kept byte-compatible for the
+#  current vanilla-JS UI; these run the SAME pipelines in a daemon worker
+#  thread and expose them as {job} -> poll GET /api/jobs/{id}, the pattern
+#  proven by Migration Copilot's /translate/start + /translate/status.
+# --------------------------------------------------------------------------- #
+_JOBS = {}
+_JOB_EVENT_CAP = 2000     # bound memory: a job keeps at most this many events
+
+def _start_job(kind, runner):
+    """Mint a job, run `runner(job)` in a daemon thread, return {"job": id}.
+       The runner mutates the job dict in place (single writer per job); the
+       poll handler reads it. Jobs live for the process lifetime."""
+    job_id = uuid.uuid4().hex[:12]
+    job = {"id": job_id, "kind": kind, "status": "running",
+           "done": 0, "total": 0, "phase": "", "detail": "",
+           "events": [], "result": None}
+    _JOBS[job_id] = job
+
+    def _run():
+        try:
+            runner(job)
+            if job["status"] == "running":
+                job["status"] = "done"
+        except Exception as e:
+            job["status"] = "error"
+            job["detail"] = str(e)
+
+    threading.Thread(target=_run, daemon=True).start()
+    return {"job": job_id}
+
+def _job_progress(job):
+    """A progress callback that folds {phase, done, total, ...} events into the
+       job's counters and bounded event log."""
+    def _cb(ev):
+        if isinstance(ev, dict):
+            if ev.get("done") is not None:
+                job["done"] = ev["done"]
+            if ev.get("total") is not None:
+                job["total"] = ev["total"]
+            if ev.get("phase"):
+                job["phase"] = ev["phase"]
+            if len(job["events"]) < _JOB_EVENT_CAP:
+                job["events"].append(ev)
+    return _cb
+
+@app.get("/api/jobs/{job_id}")
+def api_job_poll(job_id: str):
+    """Poll a background job started via /api/jobs/*. Returns the live job dict:
+       {status: running|done|error, done, total, phase, detail, events, result}."""
+    job = _JOBS.get(job_id)
+    if job is None:
+        return _err("unknown job", 404)
+    return job
+
+@app.post("/api/jobs/resolve-terms")
+def api_job_resolve_terms(body: dict = Body(default={})):
+    """Job twin of /api/resolve-terms-stream: starts the resolve-and-stamp
+       pipeline in the background and returns {job}; poll /api/jobs/{id} for
+       per-term progress and the final resolve report in `result`."""
+    body = body or {}
+    def _runner(job):
+        job["result"] = _resolve_terms_impl(body, progress=_job_progress(job))
+    return _start_job("resolve-terms", _runner)
+
+@app.post("/api/jobs/apply-to-pdc")
+def api_job_apply_to_pdc(body: dict = Body(default={})):
+    """Job twin of /api/apply-to-pdc-stream: starts the merge+PATCH pipeline in
+       the background and returns {job}; poll /api/jobs/{id} for per-column
+       progress and the final apply report in `result`."""
+    body = body or {}
+    def _runner(job):
+        job["result"] = _apply_to_pdc_impl(body, progress=_job_progress(job))
+    return _start_job("apply-to-pdc", _runner)
+
+@app.post("/api/jobs/bulk-load")
+def api_job_bulk_load(body: dict = Body(default={})):
+    """Job twin of /api/pdc/bulk-load: runs the same per-row create/ingest loop
+       in the background; each NDJSON event lands in the job's `events`, row
+       counters in done/total, and the final `done` event in `result`."""
+    body = body or {}
+    def _runner(job):
+        for ev in _bulk_load_events(body):
+            if len(job["events"]) < _JOB_EVENT_CAP:
+                job["events"].append(ev)
+            if ev.get("event") == "row":
+                job["done"] = ev.get("index", job["done"])
+                job["total"] = ev.get("total", job["total"])
+            elif ev.get("event") == "start":
+                job["total"] = ev.get("total", 0)
+            elif ev.get("event") == "done":
+                job["result"] = ev
+            elif ev.get("event") == "error":
+                job["status"] = "error"
+                job["detail"] = ev.get("message", "")
+    return _start_job("bulk-load", _runner)
+
+@app.post("/api/jobs/pull-model")
+def api_job_pull_model(body: dict = Body(default={})):
+    """Job twin of /api/pull-model: pulls an Ollama model in the background;
+       poll /api/jobs/{id} — the latest progress event carries
+       {phase, status, completed, total, percent}."""
+    model = (body or {}).get("model") or None
+    def _runner(job):
+        last = None
+        for ev in llm.pull_stream(model):
+            last = ev
+            job["phase"] = ev.get("phase", "")
+            if ev.get("total"):
+                job["total"] = ev["total"]
+                job["done"] = ev.get("completed") or 0
+            if len(job["events"]) < _JOB_EVENT_CAP:
+                job["events"].append(ev)
+        job["result"] = last
+        if last and last.get("phase") == "error":
+            job["status"] = "error"
+            job["detail"] = last.get("status", "")
+    return _start_job("pull-model", _runner)
+
+# --------------------------------------------------------------------------- #
+#  Static assets — mounted last so every /api/* route above wins. The current
+#  UI is the Jinja shell at "/" + /static; when the React build lands
+#  (frontend/dist), it takes over "/" automatically.
+# --------------------------------------------------------------------------- #
+app.mount("/static", StaticFiles(directory=os.path.join(HERE, "static")), name="static")
+
+_UI_DIST = os.path.join(os.path.dirname(HERE), "frontend", "dist")
+if os.path.isdir(_UI_DIST):
+    app.mount("/", StaticFiles(directory=_UI_DIST, html=True), name="ui")
 
 if __name__ == "__main__":
-    app.run(host=os.environ.get("HOST", "127.0.0.1"),
-            port=int(os.environ.get("PORT", "5000")), debug=False)
+    import uvicorn
+    uvicorn.run(app, host=os.environ.get("HOST", "127.0.0.1"),
+                port=int(os.environ.get("PORT", "5000")))

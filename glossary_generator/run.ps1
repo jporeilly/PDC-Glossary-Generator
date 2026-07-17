@@ -3,7 +3,7 @@
 
   Windows equivalent of run.sh. Creates a local virtualenv (.venv), installs
   dependencies (re-installing only when requirements.txt changes), then launches
-  the app with `python app.py`. Nothing touches your system Python.
+  the app with uvicorn (api:app). Nothing touches your system Python.
 
     .\run.ps1                    # http://127.0.0.1:5000
     .\run.ps1 -Port 8080         # choose a port
@@ -25,7 +25,7 @@ param(
 $ErrorActionPreference = 'Stop'
 Set-Location -LiteralPath $PSScriptRoot
 
-# HOST/PORT: param > existing env > default. app.py reads these from the env.
+# HOST/PORT: param > existing env > default. api.py reads these from the env.
 if (-not $BindHost) { $BindHost = if ($env:HOST) { $env:HOST } else { '127.0.0.1' } }
 if (-not $Port)     { $Port     = if ($env:PORT) { [int]$env:PORT } else { 5000 } }
 
@@ -77,7 +77,7 @@ if (-not $py) {
 Ok "Python $pyver ($py)"
 
 if (-not (Test-Path requirements.txt)) { Die "requirements.txt not found - run this from the app folder." }
-if (-not (Test-Path app.py))           { Die "app.py not found - run this from the app folder." }
+if (-not (Test-Path api.py))           { Die "api.py not found - run this from the app folder." }
 Ok "App files present"
 
 # Port availability (best-effort)
@@ -223,4 +223,4 @@ Write-Host "  Ready"
 Write-Host "  -> http://${BindHost}:${Port}" -ForegroundColor Cyan -NoNewline
 Write-Host "   (Ctrl-C to stop)" -ForegroundColor DarkGray
 Write-Host ""
-& $venvPy app.py
+& $venvPy -m uvicorn api:app --host $BindHost --port $Port

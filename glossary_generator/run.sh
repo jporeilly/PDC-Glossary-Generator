@@ -60,7 +60,7 @@ fi
 ok "Python $("$PY" -c 'import platform;print(platform.python_version())') ($PY)"
 
 [ -f requirements.txt ] || die "requirements.txt not found — run this from the app folder."
-[ -f app.py ]          || die "app.py not found — run this from the app folder."
+[ -f api.py ]          || die "api.py not found — run this from the app folder."
 ok "App files present"
 
 # Port availability (best-effort; a busy port means bind will fail)
@@ -112,4 +112,4 @@ echo
 export HOST PORT
 printf "${B}  Ready${RS}\n"
 printf "  ${TEAL}${B}→ http://%s:%s${RS}   ${DIM}(Ctrl-C to stop)${RS}\n\n" "$HOST" "$PORT"
-exec python app.py
+exec python -m uvicorn api:app --host "$HOST" --port "$PORT"

@@ -1,5 +1,7 @@
-flask>=3.0
-gunicorn>=21.2          # production WSGI server (threaded worker for the streaming endpoints)
+fastapi>=0.110          # web layer (interactive API docs at /docs)
+uvicorn>=0.29           # ASGI server (replaces gunicorn; handles the streaming endpoints)
+jinja2>=3.1             # renders templates/index.html (the current UI shell)
+httpx>=0.27             # Ollama transport (llm.py, llm_detect.py) + test client
 psycopg2-binary>=2.9      # PostgreSQL (default driver)
 # All four engines ship ready (installed by default since 1.6.20):
 pymssql>=2.2             # SQL Server

@@ -40,7 +40,7 @@ the LLM prompt, the import path, teaching notes, and extension points — see
 
 ```text
 glossary_generator/
-  app.py                  Flask API + serves the UI
+  api.py                  FastAPI backend + serves the UI (Swagger at /docs)
   suggester.py            core: harvest -> suggest -> JSONL (importable, no Flask)
   dbconn.py               driver-aware DB connections + test + driver status
   llm.py                  Ollama client: definition enrichment + model pull
@@ -69,7 +69,7 @@ the same logic backs the web app, the CLI, and any unit tests.
 ```bash
 cd glossary_generator
 pip install -r requirements.txt
-python app.py                      # http://127.0.0.1:5000
+python -m uvicorn api:app --port 5000   # http://127.0.0.1:5000
 ```
 
 Open the URL, point **DDL path** at a schema file (or pick **Database** and fill
@@ -98,7 +98,7 @@ sudo apt update && sudo apt install -y python3-venv
 cd glossary_generator
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-python app.py                       # http://127.0.0.1:5000
+python -m uvicorn api:app --port 5000    # http://127.0.0.1:5000
 ```
 
 (Alternatively `pip install -r requirements.txt --break-system-packages`, but a
@@ -339,7 +339,7 @@ nudge per run.
 | `POST /api/resolve-fuzzy`   | match outstanding (renamed) term names against PDC's real terms — similarity + AI adjudication |
 | `POST /api/export-pack`     | generate a domain pack from the reviewed scan results (merges over the installed pack; curated_seeds from induced patterns/enums) |
 
-PDC API version: the app speaks v1/v2/v3 (selector on Apply & harvest; default **v3**, PDC 11's native version). Every request shape is validated against the official v3 OpenAPI spec by `python -m v3_selftest` — see docs/REVIEW.md §1 for the audit table.
+PDC API version: the app speaks v1/v2/v3 (selector on Apply & harvest; default **v3**, PDC 11's native version). Every request shape is validated against the official v3 OpenAPI spec by the committed pytest suite (`pytest -q tests/test_v3_shapes.py`) — see docs/REVIEW.md §1 for the audit table.
 | `POST /api/generate`        | build import-ready JSONL from the kept rows        |
 
 ---
@@ -418,14 +418,13 @@ PDC-Glossary/
     REVIEW.md                   code review & PDC v3 compatibility audit
     CHANGELOG.md                release history
   glossary_generator/           the app (scenario-generic)
-    app.py  run.sh  run.bat  run.ps1
+    api.py  run.sh  run.bat  run.ps1
     llm.py  dbconn.py  suggester.py  cli_suggester.py
-    pdc_api/                    PDC Public API client package (core, entities,
-                                terms, jobs, apply, bulkload)
+    pdc_api.py                  shim -> the shared pdc_client package
+    llm_detect.py               host/GPU detection + Ollama model recommendation
     build_roster.py  seed_sample.py  audit.py  similarity.py  tagdict.py
     policy_draft.py  defqa.py  packgen.py
-    selftest.py                 offline engine checks (run after a pull)
-    v3_selftest.py              PDC v3 API shape checks
+    tests/                      offline pytest suite (run `pytest -q` after a pull)
     templates/index.html        markup; logic in static/js/, styles in static/style.css
     static/                     style.css + js/00-bulkload..12-init (numbered load order)
     registry/                   app-side Registry WRITER (hooked at /api/generate)
@@ -433,7 +432,7 @@ PDC-Glossary/
     domain_packs/README.md      pack format reference (packs live per scenario)
     diagrams/                   six figures, PNG + SVG
     datasources.sample.csv      generic bulk-load starter CSV
-    Dockerfile  docker-compose.yml  requirements.txt  .env.example  VERSION
+    requirements.txt  .env.example  VERSION
   (data_sources/ + courseware/  moved to the PDC-Scenarios repo)
     lab/                        SHARED stack: one PostgreSQL + one MinIO for all
                                 scenarios (make load SCENARIO=<ID> creates that
@@ -461,8 +460,8 @@ the standalone engine that reads the Registry and emits/drift-checks the policy.
 
 ### Run the app
 
-Local: `./run.sh` (or `run.bat` / `run.ps1`) → http://127.0.0.1:5000.
-Docker: `docker compose up --build`. Full setup is in **`GUIDE.md` Part B**.
+`./run.sh` (Linux/macOS) or `run.ps1` / `run.bat` (Windows) → http://127.0.0.1:5000.
+Full setup is in **`GUIDE.md` Part B**.
 
 ### Install a scenario
 

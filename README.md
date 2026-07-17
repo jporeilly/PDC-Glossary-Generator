@@ -1,9 +1,11 @@
 # Pentaho Data Catalog Glossary Generator
 
-**Version:** 1.8.29 · validated against Pentaho Data Catalog 11.0.0 (public
-API v3). Two committed offline test suites keep it honest: `selftest.py`
-(53 engine checks — run it after every pull; it hops into `.venv` by
-itself) and `v3_selftest.py` (34 PDC API shape checks). The sidebar
+**Version:** 1.9.0 · validated against Pentaho Data Catalog 11.0.0 (public
+API v3). FastAPI backend with interactive API docs at **`/docs`**. A committed
+offline **pytest** suite keeps it honest (`pytest -q` from
+`glossary_generator/`): the engine checks, the PDC v3 API shape checks, the
+endpoint contract via TestClient, and a docs-consistency test that fails when
+VERSION, the changelog and this README drift apart. The sidebar
 **version pill** is clickable — it shows the running build's release notes
 and flags a pulled-but-not-restarted mismatch.
 
@@ -146,14 +148,17 @@ workshop figures are in [diagrams/](glossary_generator/diagrams/).
 
 ```text
 glossary_generator/     the app (scenario-generic)
-  app.py                Flask API; templates/index.html is markup only
+  api.py                FastAPI backend (Swagger UI at /docs);
+                        templates/index.html is markup only
   static/               style.css + js/00-bulkload … 12-init (the UI logic,
                         plain scripts in numbered load order — no build step)
-  pdc_api/              PDC Public API client package (core, entities, terms,
-                        jobs, apply, bulkload)
-  selftest.py           53 offline engine checks — no PDC/Ollama needed;
-                        run after every pull to prove the build is sane
-  v3_selftest.py        34 PDC v3 API shape checks
+  pdc_api.py            shim → the shared pdc_client package (repo root)
+  llm.py, llm_detect.py local Ollama client + host/GPU detection
+  tests/                offline pytest suite — engine, endpoint, PDC v3 shape
+                        and docs-consistency checks; run after every pull
+pdc_client/             shared PDC Public API client package (core, entities,
+                        terms, jobs, apply, bulkload) — stdlib-only, reusable
+                        by sibling apps (Policy Generator next)
 docs/                   all documentation (reference, guide, changelog, …)
 pdc-reset.sh            wipe + rebuild the PDC deployment on the VM, incl. the
                         OpenSearch security-index auto-repair (see docs/PDC-VM-TROUBLESHOOTING.md)
@@ -164,8 +169,9 @@ install/reset-scenario scripts moved to the PDC-Scenarios repo)
 
 ## Install & run
 
-**Requirements:** Python 3.9+ (or Docker). Everything runs locally; PDC and
-Ollama are reached over the network only when you use those features.
+**Requirements:** Python 3.9+ on Windows 11 or macOS (the usual hosts), or
+the Ubuntu 24.04 training VM. Everything runs locally; PDC and Ollama are
+reached over the network only when you use those features.
 
 ### Lab VM (one command)
 
@@ -180,7 +186,7 @@ cd ~/PDC-Demo/PDC-Scenarios && make scenario ID=CSCU   # lab up + data loaded
 
 Re-run the curl bare to update everything (it remembers the vertical). After
 any update: restart the app, click the **version pill** (it flags a stale
-build), and run `python selftest.py` from `glossary_generator/`. On
+build), and run `pytest -q` from `glossary_generator/`. On
 the **Windows host** (where the apps normally run) the PowerShell twin does
 the same and installs the vertical's pack into this app:
 
@@ -234,7 +240,6 @@ PDC-Scenarios' `data_sources/lab/lab-setup.docx`.
 cd glossary_generator
 ./run.sh                         # Linux/macOS → http://127.0.0.1:5000
 .\run.ps1                        # Windows (or run.bat)
-docker compose up --build        # Docker
 ```
 
 Then open **[http://127.0.0.1:5000](http://127.0.0.1:5000)** and follow the workflow stepper:

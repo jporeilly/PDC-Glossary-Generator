@@ -14,6 +14,53 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.9.0] — 2026-07-17
+
+### Changed — Flask → FastAPI (the Policy Generator port pattern, applied)
+The backend is now **FastAPI** (`api.py`), ported route-for-route from the
+Flask `app.py` — all 76 endpoints keep their exact request/response contract
+(including the `{"error": ...}` payload shape and the SSE/NDJSON streaming
+endpoints, now served via `StreamingResponse`), so the existing UI runs
+unchanged. Verified by a side-by-side parity run against the old Flask app
+before its removal. What the port adds:
+
+- **Interactive API docs** at `/docs` (Swagger UI) over the entire API.
+- **Start/poll job endpoints** (`POST /api/jobs/{resolve-terms, apply-to-pdc,
+  bulk-load, pull-model}` → poll `GET /api/jobs/{id}`) — additive twins of the
+  streaming endpoints and the forward path for the upcoming React UI.
+- **`GET /api/detect`** — host detection (RAM, NVIDIA VRAM aggregated across
+  GPUs, `OLLAMA_*` env) plus a model recommendation sized to the hardware;
+  multi-GPU rigs get `OLLAMA_SCHED_SPREAD=1` suggested (new `llm_detect.py`,
+  adapted from Migration Copilot's proven detection module).
+- Launchers boot **uvicorn** (`run.sh` / `run.ps1` / `run.bat`, same ports,
+  same flags); `gunicorn` and Flask dropped from requirements, `fastapi`,
+  `uvicorn`, `jinja2` and `httpx` added.
+
+### Changed — shared PDC client extracted (`pdc_client/`)
+The `pdc_api/` package moved to the repo root as **`pdc_client`** — a
+stdlib-only, self-contained PDC Public API client that sibling apps (Policy
+Generator next) can share. `import pdc_api` still works via a thin shim, so
+nothing else changed; `/api/source` still serves the client modules under
+their familiar `pdc_api/*` names.
+
+### Changed — selftests → pytest
+`selftest.py` (53 engine/endpoint checks) and `v3_selftest.py` (34 PDC v3
+shape checks) are ported to **pytest** under `glossary_generator/tests/`
+(`pytest -q` from the app folder), joined by a docs-consistency test that
+fails the suite when VERSION, the changelog head and the README version
+stamp drift apart. The endpoint checks now run through FastAPI's TestClient.
+
+### Changed — llm.py transport
+The hand-rolled `urllib` Ollama calls are replaced with `httpx` (same
+behavior, HTTP errors still fall back safely); the public surface of
+`llm.py` is unchanged.
+
+### Removed
+- `app.py`, `selftest.py`, `v3_selftest.py` (ported as above).
+- Docker deployment (`Dockerfile`, `docker-compose.yml`) — the app installs
+  natively on Windows 11 / macOS and on the Ubuntu 24.04 training VM via
+  `install-pdc-demo.sh`; a container path is no longer maintained.
+
 ## [1.8.29] — 2026-07-16
 
 ### Added — glossary autosave (save once, it stays saved)

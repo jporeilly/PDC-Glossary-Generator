@@ -14,8 +14,10 @@ Env:
   OLLAMA_URL   http://localhost:11434  (default)
   LLM_TIMEOUT  seconds per call        (default 30)
 """
-import os, re, json, urllib.request
+import os, re, json
 import concurrent.futures
+
+import httpx
 
 MODEL      = os.environ.get("LLM_MODEL", "llama3.2:3b")
 OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://localhost:11434").rstrip("/")
@@ -64,10 +66,9 @@ def _post(url, payload, timeout=None):
     """POST a JSON body to the local Ollama endpoint and return the parsed response."""
     if timeout is None:
         timeout = TIMEOUT
-    data = json.dumps(payload).encode("utf-8")
-    req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"})
-    with urllib.request.urlopen(req, timeout=timeout) as r:
-        return json.loads(r.read().decode("utf-8"))
+    r = httpx.post(url, json=payload, timeout=timeout)
+    r.raise_for_status()          # match the old urllib behavior: HTTP errors raise
+    return r.json()
 
 
 def placement():
@@ -75,8 +76,7 @@ def placement():
        set by the SERVER's OS env + hardware - not by this app). Returns e.g.
        {'known':True,'label':'100% GPU'} or {'known':False}."""
     try:
-        with urllib.request.urlopen(OLLAMA_URL + "/api/ps", timeout=3) as r:
-            ps = json.loads(r.read().decode("utf-8"))
+        ps = httpx.get(OLLAMA_URL + "/api/ps", timeout=3).json()
         models = ps.get("models", [])
         if not models:
             return {"known": False, "loaded": False}
@@ -103,8 +103,7 @@ def status(model=None):
     model = model or MODEL
     """Return a dict describing whether Ollama is reachable and has the model."""
     try:
-        with urllib.request.urlopen(OLLAMA_URL + "/api/tags", timeout=3) as r:
-            tags = json.loads(r.read().decode("utf-8"))
+        tags = httpx.get(OLLAMA_URL + "/api/tags", timeout=3).json()
         models = [m.get("name", "") for m in tags.get("models", [])]
         return {"online": True, "backend": "ollama", "model": model, "url": OLLAMA_URL,
                 "models": models,
@@ -509,8 +508,7 @@ def suggest_expertise(people, categories=None, overwrite=False, model=None,
 def list_models():
     """Return installed model names from Ollama, or [] if offline."""
     try:
-        with urllib.request.urlopen(OLLAMA_URL + "/api/tags", timeout=3) as r:
-            tags = json.loads(r.read().decode("utf-8"))
+        tags = httpx.get(OLLAMA_URL + "/api/tags", timeout=3).json()
         return [m.get("name", "") for m in tags.get("models", [])]
     except Exception:
         return []
@@ -520,13 +518,11 @@ def pull_stream(model=None):
        {phase, status, completed, total, percent}. Safe to iterate to completion.
        Ollama resumes cancelled pulls automatically, so re-calling is cheap."""
     model = model or MODEL
-    payload = json.dumps({"model": model, "stream": True}).encode("utf-8")
-    req = urllib.request.Request(OLLAMA_URL + "/api/pull", data=payload,
-                                 headers={"Content-Type": "application/json"})
     try:
-        with urllib.request.urlopen(req, timeout=None) as resp:
-            for raw in resp:
-                line = raw.decode("utf-8").strip()
+        with httpx.stream("POST", OLLAMA_URL + "/api/pull",
+                          json={"model": model, "stream": True}, timeout=None) as resp:
+            for raw in resp.iter_lines():
+                line = raw.strip()
                 if not line:
                     continue
                 try:

@@ -8,9 +8,10 @@ and refactoring notes. It also lists everything changed in this clean build.
 
 Every request the app can send was audited against the OFFICIAL PDC 11 v3
 OpenAPI specs (docs.pentaho.com → PDC API Documentation v3), and the shapes are
-now enforced by a committed, repeatable test: **`python -m v3_selftest`**
-(34 checks — strict `additionalProperties: false` whitelists for the entity
-PATCH, filter keys, bulk-job names/payloads, cursor placement).
+now enforced by a committed, repeatable test — since 1.9.0 the pytest port
+**`pytest -q tests/test_v3_shapes.py`** (strict `additionalProperties: false`
+whitelists for the entity PATCH, filter keys, bulk-job names/payloads, cursor
+placement).
 
 | Area | App call | v3 verdict |
 |---|---|---|

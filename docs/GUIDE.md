@@ -100,18 +100,18 @@ selection is the policy.
 cd glossary_generator
 python3 -m venv .venv && source .venv/bin/activate      # optional
 pip install -r requirements.txt
-python app.py                                            # http://127.0.0.1:5000
+python -m uvicorn api:app --port 5000                    # http://127.0.0.1:5000
 ```
 
-Override host/port: `PORT=5050 HOST=0.0.0.0 python app.py`. `run.sh` does venv +
-install + run in one step. On Windows use `run.ps1` (or the `run.bat` wrapper) instead. PostgreSQL, DDL and MinIO/S3 scanning work out of the
+Override host/port: `./run.sh --host 0.0.0.0 --port 5050` (or `PORT=5050
+HOST=0.0.0.0 ./run.sh`). `run.sh` does venv + install + run in one step. On Windows use `run.ps1` (or the `run.bat` wrapper) instead. PostgreSQL, DDL and MinIO/S3 scanning work out of the
 box; other DB engines are opt-in (see **Settings → Drivers**). LLM enrichment is
 optional and needs a local **Ollama** (`ollama serve`).
 
 The interface is a four-section dashboard: **Home · Connections · Glossary ·
 Govern · Settings**.
 
-*App version **1.8.x** · validated against **Pentaho Data Catalog 11.0.0**.*
+*App version **1.9.x** · validated against **Pentaho Data Catalog 11.0.0**.*
 
 This guide stands the **Glossary Generator** app up against *your* Pentaho Data
 Catalog (PDC) instance — your data sources, your accounts, your network. The app
@@ -135,9 +135,8 @@ sight to three things: your PDC instance (HTTPS), each database you'll scan (e.g
 PostgreSQL on 5432), and any object store you'll scan (MinIO/S3 endpoint). For the CSCU
 lab this is typically the same VM the catalog work is done from.
 
-**One of:**
-- **Docker + Docker Compose** — recommended; isolates dependencies. *(or)*
-- **Python 3.9+** — for the local `run.sh` path.
+**Python 3.9+** — the launchers (`run.sh` / `run.ps1`) create an isolated
+virtualenv beside the app.
 
 **A running PDC instance** with the public API enabled and reachable over HTTPS. This
 guide is validated against **PDC 11.0.0**; confirm your version's API segment (`v2`
@@ -200,42 +199,10 @@ customer, copy the pack, edit the vocabulary, and point at your copy. See
 
 ---
 
-### 3. Install — Path A: Docker (recommended)
+### 3. Install — native (Windows 11 / macOS / the Ubuntu lab VM)
 
-1. **Unzip the app** and `cd` into it.
-
-2. **Set your scenario values.** Unzip the CSCU pack into the app folder first
-   (see §2), then edit `docker-compose.yml` — uncomment and set `GLOSSARY_COMPANY`:
-
-   ```yaml
-   services:
-     glossary:
-       environment:
-         GLOSSARY_COMPANY: "Copper State Credit Union"
-         OLLAMA_URL: http://host.docker.internal:11434   # only if using Ollama
-   ```
-
-   (The unzipped `domain_pack.json` is copied into the image beside `suggester.py`
-   and auto-loaded — no variable needed.)
-
-3. **Build and run:**
-
-   ```bash
-   docker compose up --build
-   ```
-
-4. **Smoke test** (see §5). The app listens on port **5000**; state (people,
-   connections, settings, glossaries) persists in the `glossary-data` volume mounted
-   at `/data`, so it survives restarts.
-
-> **Ollama in a container.** `localhost` inside the container is *not* your host. Keep
-> Ollama on the host and point the app at `http://host.docker.internal:11434` (the
-> compose file already adds the `host-gateway` mapping Linux needs). Or simply skip
-> Ollama — enrichment is optional.
-
----
-
-### 4. Install — Path B: Local (no Docker)
+The app installs natively — no container. On Windows use `run.ps1` (or
+`run.bat`); on macOS and the lab VM use `run.sh`.
 
 1. **Unzip** and `cd` into the app folder.
 
@@ -256,7 +223,7 @@ customer, copy the pack, edit the vocabulary, and point at your copy. See
    reachable) before starting, and skips the dependency reinstall on repeat runs.
 
    Alternatively, run it by hand: `pip install -r requirements.txt` then
-   `python app.py`.
+   `python -m uvicorn api:app --port 5000`.
 
 ---
 
@@ -382,11 +349,11 @@ inputs are final). The Workshop and its supplement cover this in full.
   glossary as `registry.<glossary>.json` and reloads on open, so reconciled term
   ids and learned concepts survive restarts — required for drift detection to work
   across sessions. Back it up with the rest of `/data`.
-- **State.** Under Docker, `/data` (the `glossary-data` volume) holds
-  `people/connections/settings/glossaries` JSON. Back it up if you've curated a roster.
-  Locally, those files sit beside the app unless you redirect them with the
-  `GLOSSARY_PEOPLE` / `GLOSSARY_CONNECTIONS` / `GLOSSARY_SETTINGS` /
-  `GLOSSARY_GLOSSARIES` variables.
+- **State.** The `people/connections/settings/glossaries` JSON files sit beside
+  the app unless you redirect them with the `GLOSSARY_PEOPLE` /
+  `GLOSSARY_CONNECTIONS` / `GLOSSARY_SETTINGS` / `GLOSSARY_GLOSSARIES`
+  variables. Back them up if you've curated a roster (or use
+  **Settings → State snapshot**, which zips the lot).
 - **TLS.** PDC is HTTPS; for self-signed lab certs use the app's verify-TLS toggle. In
   production, use a trusted certificate and leave verification on.
 - **Dry-run on a new instance.** The first time you point the app at a PDC instance,
@@ -413,13 +380,10 @@ inputs are final). The Workshop and its supplement cover this in full.
 
 ### 11. Upgrading & uninstalling
 
-- **Upgrade (Docker):** stop the stack, replace the app files, `docker compose up
-  --build`. The `glossary-data` volume persists your roster and connections across the
-  rebuild.
-- **Upgrade (local):** replace the files and re-run `run.sh`; it reinstalls
-  dependencies only when `requirements.txt` changed.
-- **Uninstall:** `docker compose down` (add `-v` to also delete the state volume), or
-  just delete the app folder and its `.venv` for the local path.
+- **Upgrade:** replace the files (or `git pull`) and re-run `run.sh` /
+  `run.ps1`; dependencies reinstall only when `requirements.txt` changed. Then
+  restart the app and click the version pill — it flags a stale build.
+- **Uninstall:** delete the app folder and its `.venv`.
 
 ---
 
@@ -492,8 +456,8 @@ what **PDC has already cataloged**. The **Harvest from PDC** card on Connections
    overwrite existing work.
 
 This is the most PDC-native path: the catalog is the source of truth and the
-generator reads from it. Endpoints live in the `pdc_api/` package
-(`list_data_sources`, `harvest_from_catalog`) and `app.py`
+generator reads from it. Endpoints live in the shared `pdc_client/` package
+(`list_data_sources`, `harvest_from_catalog`) and `api.py`
 (`/api/pdc/data-sources`, `/api/pdc/harvest`); the "Under the hood — reading
 PDC's catalog" panel shows the exact calls.
 
