@@ -14,6 +14,14 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.10.6] — 2026-07-17
+
+### Fixed
+Dictionary: the "show N rows" setting now also caps the pending-review
+term list (scrolls within the window like the governed tables) — it
+previously governed only the vocabulary tables while all pending items
+rendered unbounded.
+
 ## [1.10.5] — 2026-07-17
 
 ### Fixed

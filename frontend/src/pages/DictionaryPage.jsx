@@ -501,6 +501,9 @@ export default function DictionaryPage({ onNavigate }) {
                   ✓ Approve all
                 </button>{' '}
                 <span className="notes">approve only what belongs in the company vocabulary — retire scan noise</span>
+                {/* honor the card's "show N rows" setting here too — pending items are
+                    ~2 lines tall, so scale the scroll window accordingly */}
+                <div style={{ maxHeight: `${rowsShown * 58 + 10}px`, overflowY: 'auto' }}>
                 {pendingTerms.map((t) => {
                   const adv = advice[t.term]
                   const advLabel = adv
@@ -546,6 +549,7 @@ export default function DictionaryPage({ onNavigate }) {
                     </div>
                   )
                 })}
+                </div>
               </div>
             )}
             {pendingTags.length > 0 && (
