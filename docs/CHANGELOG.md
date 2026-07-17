@@ -14,6 +14,16 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.10.1] — 2026-07-17
+
+### Removed — the bulk-load Sample CSV link
+The Connect page's bulk loader no longer offers the "Sample CSV" download:
+its placeholder rows (`db-host`, port 5432) were one careless click away
+from becoming broken PDC data sources — exactly what happened in the lab
+(a failed Operations_DB metadata ingest on `UnknownHostException: db-host`).
+The scenario's real `datasources.csv` (installed by the bootstrap) is the
+documented path; the backend sample endpoint remains for the curious.
+
 ## [1.10.0] — 2026-07-17
 
 ### Changed — React UI port (architectural)

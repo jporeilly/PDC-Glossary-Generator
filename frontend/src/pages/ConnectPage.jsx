@@ -387,7 +387,6 @@ function BulkLoadCard({ pdc, onConnectionsChanged }) {
         <button className="ghost" onClick={() => fileRef.current?.click()}>Choose CSV file…</button>
         <input ref={fileRef} type="file" accept=".csv" style={{ display: 'none' }}
                onChange={(e) => { loadFile(e.target.files[0]); e.target.value = '' }} />
-        <a className="badge accent" href="/api/pdc/bulk-load/sample.csv">⬇ Sample CSV (datasources.csv)</a>
         <button className="ghost" onClick={exportExisting}
                 title="Turn the connections you saved by hand into a loader-ready CSV — credentials included.">
           Export existing ↓
