@@ -14,6 +14,52 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.10.0] — 2026-07-17
+
+### Changed — React UI port (architectural)
+
+- **Web layer rebuilt on the shared Policy kit**: the legacy Jinja shell + numbered
+  plain scripts get a **React 18 (Vite) frontend** (`frontend/`) on the same design
+  system as the Policy Generator — sidebar shell with version pill and LLM status,
+  Connect → Review → Govern → Apply stepper, four color themes, `/api/*` contract
+  unchanged route-for-route. Page by page:
+  - **Home** — workflow tiles, the full working cycle, saved-glossary list (click to load).
+  - **Connect** — bulk-load into PDC, PDC harvest, per-source connections, scan &
+    add-to-glossary, discovery panel.
+  - **Review** — the full review grid with inline editing, filters, duplicate advisor,
+    and the AI agents (Enrich / AI suggest / AI QA / AI categorize / Suggest tags)
+    upgraded to **propose-then-apply**: every AI pass renders a diff the steward
+    applies or discards, instead of mutating the grid in place.
+  - **Dictionary** — governed Terms/Tags/Rules vocabulary, pending steward review,
+    facet preview, fold advisor, domain-pack export.
+  - **Govern** — Keycloak roster fetch, function toggles, expertise + auto-assign,
+    stewardship defaults and per-category overrides; the built governance now lives
+    in the **shared workspace** (autosaved under the legacy `governance` key, restored
+    on load) and generation moved to Apply — Govern keeps a pointer.
+  - **Apply** — Generate JSONL (+ Registry, with the workspace's governance baked in),
+    draft policies, PDC connection, Data Elements, Resolve, dry-run Apply, profiling
+    and app-vs-PDC compare.
+  - **Settings** — state snapshot, LLM/hardware detection, drivers, appearance.
+- **Long work is jobs, not streams**: the React pages drive `POST /api/jobs/*` +
+  polling (`resolve-terms`, `apply-to-pdc`, `bulk-load`, `pull-model`); the SSE/NDJSON
+  twins remain for the legacy UI.
+- **Legacy UI retained as the fallback**: `api.py` serves `frontend/dist` at `/` when
+  it exists (the PDC-Demo installer builds it; manual `npm run build`), else the Jinja
+  shell — launchers (`run.sh` / `run.ps1`) now say which UI you're getting. The legacy
+  shell stays until a removal release.
+- **Suite shell uniformity**: the sidebar restructured to the canonical PDC suite
+  shell shared with Catalog Insights and the Policy Generator — brand block (rounded
+  app mark + two-line name + version chip with the what's-new/stale-build modal),
+  Home + WORKFLOW / GOVERNANCE / CONFIGURE nav sections with inline SVG icons, a
+  breadcrumb topbar, footer LLM status dot + theme select, Settings on the shared
+  two-column card grid — and the default theme is now **light**.
+- **Schema and Files split out of Connect** as indented sub-pages: the schema
+  browser (PK/FK badges, table inspector, apply-keys dry-run) and the MinIO/S3
+  object browser (folder breadcrumbs, previews, downloads) are now their own
+  pages, shown as Connect's children in the sidebar with a
+  Workflow / Connect / Schema-style breadcrumb; the stepper keeps Connect active
+  on both.
+
 ## [1.9.2] — 2026-07-17
 
 ### Changed — Windows-first install docs; Insights port

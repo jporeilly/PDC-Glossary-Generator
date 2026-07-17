@@ -1,0 +1,33 @@
+/* ApplyPage-only styles — extends the shared theme tokens from index.css.
+   Everything here uses the existing CSS variables; no shared rules are touched. */
+
+/* under-the-hood PDC API call list */
+.apicall { border: 1px solid var(--gridline); border-radius: 8px; margin-top: .5rem; background: var(--surface-2); }
+.apicall > summary { display: flex; align-items: center; gap: .6rem; padding: .5rem .8rem; cursor: pointer; font-size: .84rem; overflow: hidden; }
+.apicall .verb { font: 700 .72rem Consolas, "Cascadia Mono", monospace; padding: .12rem .5rem; border-radius: 6px; background: var(--surface-1); color: var(--accent); flex: none; }
+.apicall .verb.patch { color: var(--status-warning); }
+.apicall .verb.get { color: var(--status-good); }
+.apicall .u { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-secondary); flex: 1; min-width: 0; }
+.apicall pre { margin: 0; padding: .7rem .9rem; border-top: 1px solid var(--gridline); font-size: .78rem; white-space: pre-wrap; word-break: break-word; color: var(--text-secondary); }
+
+/* resolve/apply diagnostics */
+.probe-row { font-size: .84rem; color: var(--text-secondary); padding: .25rem 0; border-top: 1px solid var(--gridline); }
+.probe-row:first-child { border-top: none; }
+.probe-verdict { margin-top: .5rem; font-size: .85rem; color: var(--text-primary); }
+.chip-list { display: flex; flex-wrap: wrap; gap: .35rem; margin: .5rem 0; }
+.chip-list span { background: var(--surface-2); border-radius: 99px; padding: .1rem .6rem; font-size: .8rem; color: var(--text-secondary); }
+.fuzzy-row { display: flex; gap: .5rem; align-items: baseline; flex-wrap: wrap; padding: .25rem 0; font-size: .86rem; border-top: 1px solid var(--gridline); }
+.fuzzy-row:first-child { border-top: none; }
+
+/* apply results table cells */
+.colname { font-weight: 600; }
+.colfqdn { color: var(--text-muted); font-size: .76rem; font-family: Consolas, "Cascadia Mono", monospace; word-break: break-all; }
+.termcell details > summary { cursor: pointer; color: var(--text-muted); font-size: .8rem; }
+.termcell pre { white-space: pre-wrap; font-size: .74rem; margin: .4rem 0 0; color: var(--text-secondary); word-break: break-word; }
+.rate-chip, .dq-chip { display: inline-block; border-radius: 99px; padding: 0 .5rem; font-size: .74rem; font-weight: 650; background: var(--surface-1); color: var(--status-warning); margin-left: .3rem; }
+.dq-chip { color: var(--accent); }
+
+/* nested collapsible groups inside a result message */
+details.nfwrap { margin-top: .5rem; }
+details.nfwrap > summary { cursor: pointer; font-size: .86rem; color: var(--text-secondary); }
+details.nfwrap > summary.warn-sum { color: var(--status-warning); }

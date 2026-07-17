@@ -1,0 +1,72 @@
+/* Connect page — additions on top of src/index.css, using only the existing
+   theme variables. Covers the connection cards, PDC source lists and the
+   discovery panels. The schema-browser and file-browser rules moved to the
+   co-located schema.css / files.css when those became their own pages; the
+   rules shared across the three pages (.chk, .csv-box, .key-badge,
+   .modal.wide) live in src/index.css. */
+
+/* small buttons for the dense card action rows */
+.connect-sm { padding: .3rem .7rem !important; font-size: .8rem !important; }
+
+/* raw JSON output (Inspect PDC source config) */
+.inspect-out {
+  background: var(--surface-2); color: var(--text-secondary);
+  border-radius: 8px; padding: .7rem .9rem; margin-top: .6rem;
+  font-size: .76rem; max-height: 240px; overflow: auto; white-space: pre;
+}
+
+/* ---------- saved connection cards ---------- */
+.conn-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 1rem; margin-top: 1rem; }
+.conn-card { background: var(--surface-2); border-radius: 8px; padding: .9rem 1.05rem; display: flex; flex-direction: column; }
+.conn-card .conn-head { display: flex; align-items: center; gap: .6rem; }
+.conn-card .conn-head b { font-size: .95rem; }
+.conn-card .conn-det { color: var(--text-muted); font-size: .8rem; margin-top: .25rem; word-break: break-all; }
+.conn-card .acts { display: flex; flex-wrap: wrap; gap: .4rem; margin-top: .65rem; }
+.conn-card .acts button.ghost { background: var(--surface-1); }
+.conn-status { font-size: .83rem; margin-top: .55rem; color: var(--text-secondary); }
+.conn-status.good { color: var(--status-good); }
+.conn-status.bad { color: var(--status-critical); }
+
+/* ---------- PDC source / import candidate lists ---------- */
+.src-list { max-height: 280px; overflow: auto; border: 1px solid var(--gridline); border-radius: 8px; margin-top: .6rem; }
+.src-row { display: flex; align-items: center; gap: .55rem; padding: .45rem .7rem; border-bottom: 1px solid var(--gridline); font-size: .85rem; }
+.src-row:last-child { border-bottom: none; }
+.src-row .src-name { flex: 1; min-width: 0; word-break: break-word; }
+.src-row .src-fqdn { color: var(--text-muted); font-size: .74rem; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.src-row.off { opacity: .55; }
+.src-note { font-size: .8rem; color: var(--text-muted); padding: 0 .7rem .45rem 2.1rem; border-bottom: 1px solid var(--gridline); }
+.src-note.good { color: var(--status-good); }
+.src-note.bad { color: var(--status-critical); }
+.src-note:last-child { border-bottom: none; }
+.list-tools { display: flex; align-items: center; gap: .7rem; flex-wrap: wrap; margin-top: .8rem; }
+.list-tools input[type="text"] {
+  flex: 1; min-width: 180px; background: var(--surface-2); color: var(--text-primary);
+  border: none; border-radius: 8px; padding: .45rem .7rem; font-size: .85rem;
+}
+.list-tools input[type="text"]:focus { outline: 2px solid var(--accent); }
+
+/* PDC scan & discovery result card (harvest) */
+.pdc-scan-card { border: 1px solid var(--gridline); border-radius: 8px; padding: .55rem .85rem; margin-top: .5rem; font-size: .82rem; color: var(--text-secondary); }
+.pdc-scan-card b { color: var(--text-primary); }
+
+/* ---------- inline completeness / share bars ---------- */
+.mini { display: inline-block; width: 52px; height: 7px; border-radius: 4px; background: var(--surface-1); overflow: hidden; vertical-align: middle; margin-right: .4rem; }
+.mini i { display: block; height: 100%; background: var(--accent); }
+
+/* files-by-type breakdown (replaces the old SVG chart) */
+.type-bars { display: flex; flex-direction: column; gap: .35rem; margin-top: .5rem; }
+.type-bar { display: grid; grid-template-columns: 5.5rem 1fr 9rem; gap: .6rem; align-items: center; font-size: .83rem; }
+.type-bar .tb-track { height: 10px; border-radius: 5px; background: var(--surface-2); overflow: hidden; }
+.type-bar .tb-fill { height: 100%; background: var(--accent); border-radius: 5px; }
+.type-bar .tb-num { color: var(--text-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* sensitivity counts always pair color with the label text */
+.sens-hi { color: var(--status-critical); font-weight: 650; }
+.sens-md { color: var(--status-serious); font-weight: 650; }
+.sens-lo { color: var(--text-secondary); font-weight: 650; }
+
+/* per-table profile blocks on the discovery panel */
+.ptbl-wrap { border: 1px solid var(--gridline); border-radius: 8px; margin-top: .6rem; overflow: hidden; }
+.ptbl-wrap > summary { padding: .55rem .8rem; cursor: pointer; font-size: .88rem; display: flex; gap: .7rem; align-items: baseline; flex-wrap: wrap; }
+.ptbl-wrap > summary .rc { color: var(--text-muted); font-size: .78rem; margin-left: auto; }
+.ptbl-wrap .table-scroll { padding: 0 .5rem .5rem; }

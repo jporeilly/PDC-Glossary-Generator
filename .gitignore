@@ -19,3 +19,7 @@ Thumbs.db
 
 # scenario-installed runtime bulk-load CSV
 glossary_generator/datasources.csv
+
+# React frontend build artifacts
+frontend/node_modules/
+frontend/dist/

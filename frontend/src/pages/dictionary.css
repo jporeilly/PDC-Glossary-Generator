@@ -1,0 +1,73 @@
+/* DictionaryPage-only styles — extends the shared theme tokens from index.css.
+   Everything here uses the existing CSS variables; no shared rules are touched. */
+
+/* the seed → flywheel explainer — tiny inline cycle diagram */
+.fw-cycle { display: flex; align-items: center; gap: .45rem; flex-wrap: wrap; margin: .8rem 0 .2rem; }
+.fw-step {
+  display: inline-flex; flex-direction: column; gap: .05rem;
+  background: var(--surface-2); border: 1px solid var(--gridline); border-radius: 8px;
+  padding: .35rem .7rem; font-size: .8rem; font-weight: 650; color: var(--text-primary);
+}
+.fw-step small { font-size: .68rem; font-weight: 500; color: var(--text-muted); }
+.fw-arrow { color: var(--accent); font-weight: 650; }
+.fw-arrow.loop { font-size: 1.1rem; }
+
+/* scrollable vocabulary tables (Terms / Tags / Rules) */
+.vocab-box { overflow: auto; border: 1px solid var(--gridline); border-radius: 8px; }
+.vocab-box table { font-size: .85rem; }
+.vocab-box td { vertical-align: top; }
+.vocab-actions { float: right; white-space: nowrap; display: inline-flex; gap: .25rem; }
+
+/* pending steward review panel */
+.pending-wrap {
+  border: 1px solid var(--status-warning); border-radius: 8px;
+  padding: .8rem 1rem; margin: .8rem 0; background: rgba(250, 178, 25, 0.06);
+}
+.pending-item { display: flex; gap: .6rem; align-items: flex-start; padding: .45rem 0; border-top: 1px solid var(--gridline); }
+.pending-item .meta { color: var(--text-muted); font-size: .8rem; margin-left: .5rem; }
+.pending-item .defn { color: var(--text-secondary); font-size: .82rem; margin-top: .1rem; }
+.pending-item .ai-line { font-size: .8rem; margin-top: .15rem; color: var(--text-secondary); }
+
+/* approve/reject chips (pending tags) */
+.chip {
+  display: inline-flex; align-items: center; gap: .3rem;
+  background: var(--surface-2); border-radius: 99px;
+  padding: .15rem .3rem .15rem .7rem; margin: .15rem .3rem .15rem 0; font-size: .82rem;
+}
+
+/* facet preview */
+.facet-row { display: flex; align-items: center; gap: .6rem; margin: .3rem 0; }
+.facet-name { flex: 0 0 180px; font-size: .84rem; font-weight: 600; word-break: break-word; }
+.facet-name.empty { color: var(--text-muted); font-weight: 400; }
+.facet-track { flex: 1; height: 12px; background: var(--surface-2); border-radius: 6px; overflow: hidden; }
+.facet-fill { height: 100%; background: var(--accent); border-radius: 6px; }
+.facet-fill.empty { background: var(--status-warning); }
+.facet-count { flex: 0 0 84px; text-align: right; color: var(--text-muted); font-size: .8rem; }
+
+/* facet health flags */
+.flag { padding: .6rem .8rem; border-radius: 8px; font-size: .85rem; margin-bottom: .5rem; }
+.flag.warn { background: rgba(250, 178, 25, 0.10); border: 1px solid var(--status-warning); color: var(--text-primary); }
+.flag.info { background: var(--surface-2); color: var(--text-secondary); }
+.flag.ok { color: var(--status-good); font-weight: 600; }
+
+/* fold advisor rows + pack conflict list */
+.fold-row { display: flex; gap: .6rem; align-items: baseline; padding: .3rem 0; font-size: .86rem; flex-wrap: wrap; }
+.fold-conf { min-width: 48px; font-weight: 650; }
+.fold-conf.high { color: var(--status-good); }
+.fold-conf.review { color: var(--status-warning); }
+.conflict-list {
+  max-height: 220px; overflow: auto; border: 1px solid var(--gridline);
+  border-radius: 8px; padding: .4rem .7rem; margin-top: .4rem;
+}
+.conflict-list label {
+  display: flex; gap: .5rem; align-items: baseline; font-size: .8rem;
+  padding: .15rem 0; cursor: pointer; color: var(--text-secondary);
+}
+
+.dict-inline-form { display: flex; flex-wrap: wrap; gap: .6rem; align-items: flex-end; margin: .6rem 0 .2rem; }
+.dict-inline-form label { display: flex; flex-direction: column; gap: .3rem; font-size: .78rem; color: var(--text-muted); }
+.dict-inline-form input, .dict-inline-form select {
+  background: var(--surface-2); color: var(--text-primary); border: none; border-radius: 8px;
+  padding: .45rem .65rem; font: .86rem system-ui, "Segoe UI", sans-serif;
+}
+.dict-inline-form input:focus, .dict-inline-form select:focus { outline: 2px solid var(--accent); }

@@ -393,6 +393,28 @@ inputs are final). The Workshop and its supplement cover this in full.
 
 ## Part C — Using the app
 
+The whole journey through the app, page by page — each section below covers
+one stop on it:
+
+```mermaid
+%%{init: {'theme':'base','themeVariables':{'primaryColor':'#EEF6FA','primaryBorderColor':'#1C7293','primaryTextColor':'#22333B','secondaryColor':'#DBEEF3','tertiaryColor':'#F7FBFD','lineColor':'#1C7293','fontFamily':'Segoe UI, sans-serif','fontSize':'13px','clusterBkg':'#F7FBFD','clusterBorder':'#CFE3EC'}}}%%
+flowchart LR
+    SRC[("lab sources<br/>databases · MinIO · DDL")] --> CON
+    HOME["Home<br/>workflow stepper"] --> CON["Connect<br/>↳ Schema · ↳ Files"]
+    CON --> REV["Review<br/>terms · tags · duplicates"]
+    REV --> GOV["Govern<br/>stewards · ratings · approval"]
+    GOV --> APPLY["Apply<br/>generate · resolve ids · apply"]
+    REV -.-> DICT[["Term &amp; Tag dictionary<br/>governed vocabulary"]]
+    GOV -.-> DICT
+    APPLY -- "JSONL export" --> PDC[("PDC<br/>Business Glossary import")]
+    APPLY -- "writes" --> REG[["Classification Registry"]]
+    REG --> PG["Policy Generator"]
+    classDef contract fill:#0A3D52,color:#fff,stroke:#0A3D52
+    classDef pdc fill:#DBEEF3,stroke:#065A82,color:#0A3D52,stroke-width:2px
+    class REG contract
+    class PDC pdc
+```
+
 ### 2. Home
 
 Landing page: the four-step workflow (Connect → Review &amp; prune → Govern &amp;

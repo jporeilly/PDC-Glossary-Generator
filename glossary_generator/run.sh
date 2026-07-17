@@ -110,6 +110,11 @@ echo
 
 # --- launch ----------------------------------------------------------------
 export HOST PORT
+# api.py serves the React build (frontend/dist) at "/" when it exists, else the
+# legacy Jinja shell — the PDC-Demo installer builds dist in deployments.
+if [ -d ../frontend ] && [ ! -f ../frontend/dist/index.html ]; then
+  warn "React UI not built (frontend/dist missing) — serving the legacy UI until it is. Build with: cd ../frontend && npm install && npm run build"
+fi
 printf "${B}  Ready${RS}\n"
 printf "  ${TEAL}${B}→ http://%s:%s${RS}   ${DIM}(Ctrl-C to stop)${RS}\n\n" "$HOST" "$PORT"
 exec python -m uvicorn api:app --host "$HOST" --port "$PORT"

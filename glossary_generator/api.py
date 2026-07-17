@@ -22,7 +22,7 @@ import queue as _queue_mod
 import uuid
 
 from fastapi import FastAPI, Body, Request
-from fastapi.responses import JSONResponse, Response, StreamingResponse, HTMLResponse
+from fastapi.responses import JSONResponse, Response, StreamingResponse, HTMLResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -233,7 +233,11 @@ def _stats(rows):
 
 @app.get("/", include_in_schema=False)
 def index(request: Request):
-    """Serve the single-page application shell."""
+    """Serve the single-page application shell — the React build when it exists
+    (frontend/dist, built by the installer), else the legacy Jinja shell."""
+    dist_index = os.path.join(os.path.dirname(HERE), "frontend", "dist", "index.html")
+    if os.path.isfile(dist_index):
+        return FileResponse(dist_index)
     # v busts browser caches for /static/*.css|js on every release — a stale
     # cached script against new endpoints is the VM's classic failure mode
     return templates.TemplateResponse(request, "index.html", {"v": APP_VERSION})
@@ -255,7 +259,11 @@ FAVICON_SVG = (
 @app.get("/favicon.svg", include_in_schema=False)
 @app.get("/favicon.ico", include_in_schema=False)
 def favicon():
-    """Return the brand favicon as SVG (modern browsers render SVG favicons fine)."""
+    """Return the favicon — the React build's own icon when dist exists, else
+    the inline brand SVG (modern browsers render SVG favicons fine)."""
+    dist_icon = os.path.join(os.path.dirname(HERE), "frontend", "dist", "favicon.svg")
+    if os.path.isfile(dist_icon):
+        return FileResponse(dist_icon, headers={"Cache-Control": "public, max-age=86400"})
     return Response(FAVICON_SVG, media_type="image/svg+xml",
                     headers={"Cache-Control": "public, max-age=86400"})
 

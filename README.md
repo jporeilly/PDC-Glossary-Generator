@@ -1,7 +1,11 @@
 # Pentaho Data Catalog Glossary Generator
 
-**Version:** 1.9.2 · validated against Pentaho Data Catalog 11.0.0 (public
-API v3). FastAPI backend with interactive API docs at **`/docs`**. A committed
+**Version:** 1.10.0 · validated against Pentaho Data Catalog 11.0.0 (public
+API v3). FastAPI backend with interactive API docs at **`/docs`**, and a
+**React 18 + Vite frontend** (`frontend/`, on the shared Policy Generator
+design kit) served from `frontend/dist` when built — the legacy Jinja shell
+remains as the fallback at `/` until then (the PDC-Demo installer builds the
+UI; manual: `cd frontend && npm install && npm run build`). A committed
 offline **pytest** suite keeps it honest (`pytest -q` from
 `glossary_generator/`): the engine checks, the PDC v3 API shape checks, the
 endpoint contract via TestClient, and a docs-consistency test that fails when
@@ -13,8 +17,6 @@ A local-first web app that **scans your data sources, suggests a business
 glossary, lets a steward review and govern it, and exports import-ready JSONL**
 for **Pentaho Data Catalog → Business Glossary → Import** — so the glossary and
 its tags stay governed instead of drifting.
-
-![The result in PDC: an imported CSCU glossary term with governed tags, stewardship, domain, rating and review date all set by the pipeline](images/pdc-imported-glossary.png)
 
 The app is **scenario-generic**; each training scenario ships as a separate,
 self-contained bundle — data kit, domain pack and courseware — served by one
@@ -49,8 +51,6 @@ and a **Classification Registry** written at export time
 
 ![Two apps, one handoff — Glossary Generator writes the Registry, Policy Generator reads it](glossary_generator/diagrams/two-apps.png)
 
-![The Term & Tag dictionary — the governed vocabulary, search-facet preview and governance audit trail](images/dictionary-page.png)
-
 The Registry is the **contract between two separate apps**, used in order —
 mirroring PDC's own split between the Business Glossary and Data
 Identification:
@@ -78,11 +78,34 @@ workshop figures are in [diagrams/](glossary_generator/diagrams/).
 
 ## What it does
 
+One pass through the app, page by page — the sidebar stepper walks the same
+order:
+
+```mermaid
+%%{init: {'theme':'base','themeVariables':{'primaryColor':'#EEF6FA','primaryBorderColor':'#1C7293','primaryTextColor':'#22333B','secondaryColor':'#DBEEF3','tertiaryColor':'#F7FBFD','lineColor':'#1C7293','fontFamily':'Segoe UI, sans-serif','fontSize':'13px','clusterBkg':'#F7FBFD','clusterBorder':'#CFE3EC'}}}%%
+flowchart LR
+    SRC[("lab sources<br/>databases · MinIO · DDL")] --> CON
+    HOME["Home<br/>workflow stepper"] --> CON["Connect<br/>↳ Schema · ↳ Files"]
+    CON --> REV["Review<br/>terms · tags · duplicates"]
+    REV --> GOV["Govern<br/>stewards · ratings · approval"]
+    GOV --> APPLY["Apply<br/>generate · resolve ids · apply"]
+    REV -.-> DICT[["Term &amp; Tag dictionary<br/>governed vocabulary"]]
+    GOV -.-> DICT
+    APPLY -- "JSONL export" --> PDC[("PDC<br/>Business Glossary import")]
+    APPLY -- "writes" --> REG[["Classification Registry"]]
+    REG --> PG["Policy Generator"]
+    classDef contract fill:#0A3D52,color:#fff,stroke:#0A3D52
+    classDef pdc fill:#DBEEF3,stroke:#065A82,color:#0A3D52,stroke-width:2px
+    class REG contract
+    class PDC pdc
+```
+
 - **Connect** — live database scan (PostgreSQL, SQL Server, MySQL/MariaDB,
   Oracle), MinIO/S3 document stores, or a plain DDL file. Or skip direct access
-  entirely and **harvest from what PDC has already cataloged**.
-
-  ![The Connections page — bulk loader, harvest from PDC, live scan, data discovery and column profiling](images/connect-page.png)
+  entirely and **harvest from what PDC has already cataloged**. The schema
+  browser (tables, PK/FK relationships, write-back of missing keys) and the
+  MinIO/S3 object browser live on their own **Schema** and **Files**
+  sub-pages under Connect.
 - **Review** — one suggested term per business-meaningful column, with inferred
   sensitivity, PII category, CDE flag, governed lower-case tags, and an
   evidence-based confidence signal. The scan **learns value formats from the
@@ -91,16 +114,12 @@ workshop figures are in [diagrams/](glossary_generator/diagrams/).
   inline; duplicate groups come with an evidence-grounded **Merge /
   Disambiguate / Keep separate recommendation** (escalating to a live
   data-value probe and an AI adjudicator on demand).
-
-  ![The review grid — AI agent toolbar, duplicate groups with Merge / Disambiguate / Keep separate recommendations](images/review-grid.png)
 - **Govern** — steward/owner/custodian assignment driven by the
   Keycloak-fetched roster: candidate pools are **constrained to each person's
   actual roster roles**, expertise beats defaults only on a strict win, and
   the business domain auto-derives from the company data. Plus ratings,
   review dates, and a steward approval gate over the vocabulary with a full
   audit trail.
-
-  ![The Govern page — Keycloak roster, stewardship defaults and per-category overrides, generate & apply](images/govern-page.png)
 - **Generate & apply** — export the kept terms as PDC-importable JSONL, then
   resolve term ids (fuzzy + **in-place AI matching** for renamed or
   outstanding terms — no round-trip through the PDC glossary UI) and **apply
@@ -148,14 +167,17 @@ workshop figures are in [diagrams/](glossary_generator/diagrams/).
 
 ```text
 glossary_generator/     the app (scenario-generic)
-  api.py                FastAPI backend (Swagger UI at /docs);
-                        templates/index.html is markup only
-  static/               style.css + js/00-bulkload … 12-init (the UI logic,
-                        plain scripts in numbered load order — no build step)
+  api.py                FastAPI backend (Swagger UI at /docs); serves
+                        frontend/dist at "/" when built, else the legacy shell
+  static/, templates/   the legacy UI (Jinja shell + numbered plain scripts) —
+                        the fallback until the React build exists
   pdc_api.py            shim → the shared pdc_client package (repo root)
   llm.py, llm_detect.py local Ollama client + host/GPU detection
   tests/                offline pytest suite — engine, endpoint, PDC v3 shape
                         and docs-consistency checks; run after every pull
+frontend/               React 18 + Vite UI (shared Policy design kit) —
+                        npm run build → frontend/dist, served by api.py;
+                        the PDC-Demo installer builds it in deployments
 pdc_client/             shared PDC Public API client package (core, entities,
                         terms, jobs, apply, bulkload) — stdlib-only, reusable
                         by sibling apps (Policy Generator next)

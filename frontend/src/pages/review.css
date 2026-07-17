@@ -1,0 +1,130 @@
+/* Review page — the grid + review-aid styling. Co-located with ReviewPage.jsx;
+   uses only the app's CSS variables (see src/index.css). */
+
+/* ---------- toolbars ---------- */
+.rv-actionbar { display: flex; flex-wrap: wrap; gap: .55rem; align-items: center; }
+.rv-bar { display: flex; flex-wrap: wrap; gap: .55rem; align-items: center; margin-top: .8rem; }
+.rv-bar .lbl { font-size: .68rem; color: var(--text-muted); font-weight: 700; letter-spacing: .06em; }
+.rv-sep { width: 1px; height: 20px; background: var(--gridline); flex: none; }
+.rv-bar input[type="text"], .rv-bar select {
+  background: var(--surface-2); border: none; border-radius: 8px; color: var(--text-primary);
+  padding: .4rem .6rem; font: .84rem system-ui, "Segoe UI", sans-serif;
+}
+.rv-bar input[type="text"]:focus, .rv-bar select:focus { outline: 2px solid var(--accent); }
+.rv-q { min-width: 200px; flex: 1 1 200px; }
+label.rv-cbx { display: flex; align-items: center; gap: .35rem; color: var(--text-secondary); font-size: .82rem; }
+button.ghost.sm, button.primary.sm { padding: .32rem .7rem; font-size: .8rem; }
+button.ghost.applied { outline: 2px solid var(--accent); }
+.rv-savename {
+  background: var(--surface-2); border: none; border-radius: 8px; color: var(--text-primary);
+  padding: .4rem .6rem; font: .84rem system-ui, "Segoe UI", sans-serif; min-width: 230px;
+}
+.rv-savename:focus { outline: 2px solid var(--accent); }
+.rv-keepcount { font-size: .84rem; color: var(--text-secondary); }
+.rv-keepcount b { color: var(--text-primary); }
+.rv-grow { flex: 1; }
+.rv-msg { color: var(--text-muted); font-size: .84rem; }
+
+/* ---------- summary chips ---------- */
+.rv-chips { display: flex; flex-wrap: wrap; gap: .45rem; margin-top: .9rem; }
+.rv-chip {
+  background: var(--surface-2); border: none; border-radius: 99px; padding: .16rem .7rem;
+  font-size: .78rem; color: var(--text-secondary);
+}
+.rv-chip b { color: var(--text-primary); margin-left: .15rem; }
+button.rv-chip { cursor: pointer; }
+button.rv-chip.on { outline: 2px solid var(--accent); }
+.sens-hi { color: var(--status-critical); font-weight: 700; }
+.sens-md { color: var(--status-warning); font-weight: 700; }
+.sens-lo { color: var(--text-muted); font-weight: 700; }
+
+/* ---------- agent progress ---------- */
+.rv-progress { display: flex; align-items: center; gap: .8rem; margin-top: .8rem; }
+.rv-progress .progress-track { flex: 1; margin: 0; }
+.rv-progress .ep { font-size: .8rem; color: var(--text-secondary); white-space: nowrap; }
+
+/* ---------- the review grid ---------- */
+.rv-tablewrap { overflow-x: auto; margin-top: 1rem; }
+table.rv-table { width: 100%; min-width: 1140px; border-collapse: collapse; font-size: .84rem; }
+.rv-table th { text-align: left; color: var(--text-muted); font-weight: 500; padding: .35rem .45rem; }
+.rv-table td { padding: .4rem .45rem; background: var(--surface-2); vertical-align: top; }
+.rv-table tbody tr { border-bottom: 3px solid var(--surface-1); }
+.rv-table input[type="text"], .rv-table select, .rv-table textarea {
+  width: 100%; background: var(--surface-1); border: none; border-radius: 6px;
+  color: var(--text-primary); font: .8rem/1.4 system-ui, "Segoe UI", sans-serif; padding: .32rem .45rem;
+}
+.rv-table textarea { min-height: 52px; resize: vertical; }
+.rv-table input:focus, .rv-table select:focus, .rv-table textarea:focus { outline: 2px solid var(--accent); }
+tr.rv-dropped td { opacity: .5; }
+tr.rv-dropped td.rv-keep { opacity: 1; }
+.rv-empty { color: var(--text-muted); text-align: center; padding: 1.2rem !important; }
+
+.rv-sev.sev-HIGH { color: var(--status-critical); font-weight: 650; }
+.rv-sev.sev-MEDIUM { color: var(--status-warning); font-weight: 650; }
+.rv-sev.sev-LOW { color: var(--text-secondary); }
+.rv-pii { font-size: .68rem; margin-top: .25rem; font-weight: 650; }
+.rv-pii.sev-HIGH { color: var(--status-critical); }
+.rv-pii.sev-MEDIUM { color: var(--status-warning); }
+.rv-pii.sev-LOW { color: var(--text-muted); }
+.rv-cde.on { color: var(--status-serious); font-weight: 700; }
+
+.rv-ttbadge {
+  display: inline-block; font-size: .6rem; font-weight: 700; color: var(--text-muted);
+  border: 1px solid var(--baseline); border-radius: 4px; padding: 0 .3rem; margin-top: .25rem;
+}
+.rv-ren {
+  display: block; background: none; border: none; cursor: pointer; text-align: left;
+  color: var(--accent); font-size: .74rem; font-weight: 600; padding: 0; margin-top: .25rem;
+}
+.rv-ren:hover { text-decoration: underline; }
+.rv-enr, .rv-qaflag { font-size: .62rem; font-weight: 700; letter-spacing: .04em; }
+.rv-enr { color: var(--accent); }
+.rv-qaflag { color: var(--status-warning); cursor: help; margin-left: .4rem; }
+
+.rv-src {
+  display: flex; align-items: center; gap: .3rem; max-width: 100%; background: none;
+  border: none; cursor: pointer; padding: 0; color: var(--text-secondary);
+  font-family: Consolas, "Cascadia Mono", monospace; font-size: .72rem; text-align: left;
+}
+.rv-src:hover { color: var(--text-primary); }
+.rv-srctext { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rv-more { color: var(--accent); font-weight: 700; flex: none; }
+.rv-evdot { color: var(--text-muted); flex: none; }
+
+/* ---------- duplicate cluster headers ---------- */
+tr.rv-gclhead td { background: var(--surface-1); border-left: 3px solid var(--accent); }
+.rv-gclwrap { display: flex; flex-wrap: wrap; gap: .6rem; align-items: center; font-size: .8rem; }
+.rv-gclname { font-weight: 650; color: var(--text-primary); }
+.rv-gclcnt { color: var(--text-muted); }
+.rv-gsegs .seg button.rec { outline: 2px dashed var(--accent); }
+.rv-grec { color: var(--text-secondary); font-size: .78rem; }
+.rv-grec .badge { margin: 0 .25rem; }
+
+/* ---------- panels (similarity / proposals / evidence) ---------- */
+.rv-panelrow {
+  display: flex; gap: .8rem; align-items: flex-start; padding: .55rem .2rem;
+  border-top: 1px solid var(--gridline); font-size: .84rem;
+}
+.rv-panelrow .meta { color: var(--text-muted); font-size: .76rem; margin-top: .2rem; display: flex; gap: .7rem; flex-wrap: wrap; align-items: center; }
+.rv-simbar { width: 42px; height: 6px; background: var(--surface-2); border-radius: 3px; overflow: hidden; display: inline-block; vertical-align: middle; }
+.rv-simbar i { display: block; height: 100%; background: var(--accent); }
+.rv-evline { font-size: .76rem; margin-top: .2rem; }
+.rv-evline.diff { color: var(--status-critical); }
+.rv-evline.same { color: var(--status-good); }
+
+.rv-diff { font-size: .8rem; margin-top: .2rem; }
+.rv-diff .fld { color: var(--text-muted); text-transform: uppercase; font-size: .68rem; letter-spacing: .05em; margin-right: .4rem; }
+.rv-diff .from { color: var(--status-critical); text-decoration: line-through; }
+.rv-diff .to { color: var(--status-good); }
+.rv-issues { color: var(--status-warning); font-size: .78rem; margin-top: .2rem; }
+.rv-propbar { display: flex; gap: .7rem; align-items: center; padding-bottom: .6rem; flex-wrap: wrap; }
+.modal.rv-wide { width: min(860px, 100%); }
+
+.rv-evk { color: var(--text-muted); font-size: .74rem; text-transform: uppercase; letter-spacing: .05em; margin: 1rem 0 .3rem; }
+.rv-evv pre {
+  background: var(--page); border-radius: 8px; padding: .55rem .75rem; overflow-x: auto;
+  font: .8rem Consolas, "Cascadia Mono", monospace; color: var(--text-primary);
+}
+.rv-evchips { display: flex; flex-wrap: wrap; gap: .35rem; }
+.rv-evchips span { background: var(--surface-2); border-radius: 6px; padding: .1rem .5rem; font-size: .78rem; font-family: Consolas, "Cascadia Mono", monospace; }
+.rv-srclist div { font-family: Consolas, "Cascadia Mono", monospace; font-size: .8rem; padding: .15rem 0; color: var(--text-secondary); }

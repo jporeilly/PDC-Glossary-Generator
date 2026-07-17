@@ -219,6 +219,17 @@ Write-Host ""
 # --- launch ----------------------------------------------------------------
 $env:HOST = $BindHost
 $env:PORT = "$Port"
+# api.py serves the React build (frontend\dist) at "/" when it exists, else the
+# legacy Jinja shell - the PDC-Demo installer builds dist in deployments.
+# Resolve the app dir through a junction/symlink (the PDC-Demo layout links
+# glossary_generator\ flat) so the dist check looks in the real repo root,
+# the same way api.py resolves __file__.
+$appItem = Get-Item $PSScriptRoot -Force
+$realAppDir = if ($appItem.LinkType -and $appItem.Target) { [string]$appItem.Target } else { $PSScriptRoot }
+$feDir = Join-Path (Split-Path $realAppDir -Parent) 'frontend'
+if ((Test-Path $feDir) -and -not (Test-Path (Join-Path $feDir 'dist\index.html'))) {
+    Warn "React UI not built (frontend\dist missing) - serving the legacy UI until it is. Build with: cd ..\frontend; npm install; npm run build"
+}
 Write-Host "  Ready"
 Write-Host "  -> http://${BindHost}:${Port}" -ForegroundColor Cyan -NoNewline
 Write-Host "   (Ctrl-C to stop)" -ForegroundColor DarkGray

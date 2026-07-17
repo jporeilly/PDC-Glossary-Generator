@@ -1,0 +1,23 @@
+/* Home page — the workflow diagram (components/WorkflowDiagram.jsx).
+   Colors are theme variables only, so the map adapts to all four themes. */
+
+.wf-wrap { max-width: 640px; margin: .4rem 0 1.4rem; }
+.wf { width: 100%; height: auto; display: block; }
+.wf text { font: 600 12.5px system-ui, -apple-system, "Segoe UI", sans-serif; fill: var(--text-primary); }
+
+/* page nodes — same chrome as the kit's tiles / ghost buttons */
+.wf .wf-node { cursor: pointer; outline: none; }
+.wf .wf-node rect { fill: var(--surface-2); stroke: var(--border); stroke-width: 1; }
+.wf .wf-node:hover rect, .wf .wf-node:focus-visible rect { stroke: var(--accent); stroke-width: 1.5; }
+.wf .wf-node:hover text, .wf .wf-node:focus-visible text { fill: var(--accent); }
+.wf .wf-node-sm text { font-size: 11px; font-weight: 500; fill: var(--text-secondary); }
+
+/* connectors */
+.wf .wf-arrow { fill: none; stroke: var(--baseline); stroke-width: 1.5; }
+.wf .wf-dotted { stroke-dasharray: 2.5 3.5; }
+.wf .wf-head { fill: var(--baseline); }
+.wf .wf-tree { fill: none; stroke: var(--gridline); stroke-width: 1.5; }
+
+/* external outputs (PDC import, Policy Generator) — outlined, not clickable */
+.wf .wf-out rect { fill: none; stroke: var(--gridline); stroke-width: 1; }
+.wf .wf-out text { font-size: 11px; font-weight: 500; fill: var(--text-muted); }
