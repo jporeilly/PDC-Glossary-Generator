@@ -1,6 +1,6 @@
 # Pentaho Data Catalog Glossary Generator
 
-**Version:** 1.10.6 · validated against Pentaho Data Catalog 11.0.0 (public
+**Version:** 1.10.7 · validated against Pentaho Data Catalog 11.0.0 (public
 API v3). FastAPI backend with interactive API docs at **`/docs`**, and a
 **React 18 + Vite frontend** (`frontend/`, on the shared Policy Generator
 design kit) served from `frontend/dist` when built — the legacy Jinja shell
@@ -105,7 +105,12 @@ flowchart LR
   entirely and **harvest from what PDC has already cataloged**. The schema
   browser (tables, PK/FK relationships, write-back of missing keys) and the
   MinIO/S3 object browser live on their own **Schema** and **Files**
-  sub-pages under Connect.
+  sub-pages under Connect. Schema renders as **Cards or an ER diagram**
+  (toggle; ER by default when relationships exist) — table nodes with PK/FK
+  rows, FK→PK edges, layered auto-layout, pan/zoom/drag — and its
+  diagram-a-DDL panel is a **drag-and-drop zone** (.sql/.ddl/.txt, paste
+  preserved). The sidebar footer's **PDC dot** lights as soon as any page
+  really talks to PDC — Get token, a harvest read, or a bulk-load run.
 - **Review** — one suggested term per business-meaningful column, with inferred
   sensitivity, PII category, CDE flag, governed lower-case tags, and an
   evidence-based confidence signal. The scan **learns value formats from the
@@ -113,7 +118,12 @@ flowchart LR
   keeps profiled reference lists as evidence on every row. Edit everything
   inline; duplicate groups come with an evidence-grounded **Merge /
   Disambiguate / Keep separate recommendation** (escalating to a live
-  data-value probe and an AI adjudicator on demand).
+  data-value probe and an AI adjudicator on demand). A **"How to review —
+  the working order"** guide panel (open by default) walks the steward
+  through Prune → Resolve duplicates → Enrich & QA → Name → Govern; the
+  grid scrolls in its own pane with a sticky header and frozen Keep /
+  Category / Term columns, and **Definition and Purpose expand in place**
+  to a full-width editor row with the scan evidence right underneath.
 - **Govern** — steward/owner/custodian assignment driven by the
   Keycloak-fetched roster: candidate pools are **constrained to each person's
   actual roster roles**, expertise beats defaults only on a strict win, and
@@ -128,13 +138,20 @@ flowchart LR
   folder rating/DQ/sensitivity rollups, a Data Discovery completion watcher,
   and a Trust Score rollup to finish.
 - **Steward-safe governance** — mistakes are recoverable in-product: every
-  vocabulary decision is reversible per item (✕ retire / ⤵ fold-to-alias on
-  approved terms and tags), a retire is **durable** (tombstoned through
-  reseeds, offered for removal from the pack at export), *Approve all*
-  confirms its consequences, bulk retire-empty is gated until the dictionary
-  has grown from a scan, and an **AI fold advisor** proposes alias folds
-  across the governed vocabulary (abbreviation-expansion twins → one-click
-  or Fold-all). Everything lands in the append-only audit trail.
+  vocabulary decision is reversible per item (labelled **✓ Approve /
+  ✕ Retire / ⤵ To alias** actions on approved terms and tags), a retire is
+  **durable** (tombstoned through reseeds, offered for removal from the
+  pack at export), *Approve all* confirms its consequences, bulk
+  retire-empty is gated until the dictionary has grown from a scan, and an
+  **AI fold advisor** proposes alias folds across the governed vocabulary
+  (abbreviation-expansion twins → one-click or Fold-all). The Dictionary
+  page explains itself: a flywheel panel plus an **"Approve, Retire or
+  Alias"** explainer with worked examples, and **AI review of the pending
+  vocabulary** sits right in the pending-panel header. Facet-preview
+  counts are **honest** — distinct current terms per tag (rescans are
+  no-ops), and the preview notes that live facets appear in PDC only after
+  methods deploy and Data Identification runs. Everything lands in the
+  append-only audit trail.
 - **State that takes care of itself** — the app auto-resumes your last saved
   glossary on start and **autosaves** the workspace every 30 seconds (and on
   page close) once it exists; all state survives `git pull` untouched, and
@@ -148,7 +165,10 @@ flowchart LR
   expertise, business-domain suggestion, pending-vocabulary review (with
   alias folding), term-id matching at resolve time, the governed-vocabulary
   fold advisor, and **Draft policies (AI)** — detection seeds →
-  ready-to-import PDC pattern/dictionary rule files. Every agent proposes; the steward applies. Fully offline-safe: no
+  ready-to-import PDC pattern/dictionary rule files. Every agent proposes; the steward applies. The grid agents sit
+  in a labelled **"AI AGENTS — propose → you apply"** group and run on
+  **kept rows only** — prune 141→95 and they process 95, with progress
+  reading "0/95 (kept rows)". Fully offline-safe: no
   Ollama, no problem — heuristics remain.
 - **The pack flywheel** — packs start hand-authored but don't stay that way:
   **Export domain pack** (Dictionary page) merges the reviewed scan state

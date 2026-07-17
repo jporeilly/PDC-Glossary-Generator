@@ -54,6 +54,9 @@ glossary_generator/
   requirements.txt
 pdc_client/               shared PDC Public API client at the repo root
                           (core/entities/terms/jobs/apply/bulkload)
+frontend/                 React 18 + Vite UI (shared Policy design kit) —
+                          npm run build -> frontend/dist, served by api.py at /;
+                          templates/static above are the legacy fallback
 docs/                     this reference + GUIDE, REVIEW, CHANGELOG, ...
 PDC-Scenarios repo        every vertical's data kit, domain pack and courseware
   data_sources/lab/       SHARED PostgreSQL + MinIO for all scenarios
@@ -435,6 +438,12 @@ PDC-Glossary/
     diagrams/                   six figures, PNG + SVG
     datasources.sample.csv      generic bulk-load starter CSV
     requirements.txt  .env.example  VERSION
+  frontend/                     React 18 + Vite UI (shared Policy design kit);
+                                npm run build -> frontend/dist, served by api.py
+    src/pages/                  one route per sidebar page: HomePage · ConnectPage
+                                · SchemaPage · FilesPage (Connect sub-pages) ·
+                                ReviewPage · DictionaryPage · GovernPage ·
+                                ApplyPage · SettingsPage
   (data_sources/ + courseware/  moved to the PDC-Scenarios repo)
     lab/                        SHARED stack: one PostgreSQL + one MinIO for all
                                 scenarios (make load SCENARIO=<ID> creates that

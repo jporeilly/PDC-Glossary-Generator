@@ -14,6 +14,21 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.10.7] — 2026-07-17
+
+### Changed — docs sync
+Docs-only release: README, GUIDE and REFERENCE caught up with everything
+1.10.0→1.10.6 shipped. README + GUIDE now describe the Schema page's
+Cards | ER-diagram toggle and drag-and-drop DDL zone, Review's
+"How to review — the working order" panel, scrolling grid with expandable
+Definition/Purpose editor rows, the labelled kept-rows-only AI-agent group
+(propose → apply), the Dictionary's flywheel + "Approve, Retire or Alias"
+explainers, labelled ✓/✕/⤵ actions, header-level AI review of pending, and
+the honest (identity-keyed, rescan-idempotent, pre-deployment) facet
+counts, plus the sidebar-footer PDC connection dot and full-width page
+headers. REFERENCE's layout/manifest now lists `frontend/` with the nine
+React pages. No code changes.
+
 ## [1.10.6] — 2026-07-17
 
 ### Fixed

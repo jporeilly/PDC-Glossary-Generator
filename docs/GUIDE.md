@@ -111,7 +111,7 @@ optional and needs a local **Ollama** (`ollama serve`).
 The interface is a four-section dashboard: **Home · Connections · Glossary ·
 Govern · Settings**.
 
-*App version **1.9.x** · validated against **Pentaho Data Catalog 11.0.0**.*
+*App version **1.10.x** · validated against **Pentaho Data Catalog 11.0.0**.*
 
 This guide stands the **Glossary Generator** app up against *your* Pentaho Data
 Catalog (PDC) instance — your data sources, your accounts, your network. The app
@@ -429,6 +429,15 @@ Each source is its own **saved connection** (persisted to `connections.json`).
 
 Types: **Database (live scan)**, **Document store (MinIO/S3)**, **DDL file (path)**.
 
+Two sub-pages sit under Connect in the sidebar. **Schema** shows the scanned
+schema as **Cards or an ER diagram** (toggle; ER is the default when
+relationships exist): compact table nodes with PK/FK rows, bezier FK→PK edges
+with arrowheads and labels, layered auto-layout (hubs left, dependents right,
+orphans below), pan/zoom/node-drag and a Re-arrange reset. Its "diagram a
+CREATE TABLE script" panel is a **drag-and-drop zone** (`.sql`/`.ddl`/`.txt`,
+click-to-browse, auto-runs Diagram SQL; paste still works). **Files** is the
+MinIO/S3 object browser (folder breadcrumbs, previews, downloads).
+
 Per database connection card:
 
 | Action | What it does |
@@ -533,14 +542,29 @@ The same engine is callable headless: `POST /api/pdc/bulk-load` with
 
 Review and refine the suggested terms, then generate.
 
+A **"How to review — the working order"** panel at the top of the page (open
+by default, full width) walks the steward through the pass — **Prune →
+Resolve duplicates → Enrich & QA → Name → Govern** — and says when to visit
+the Dictionary (scans leave pending vocabulary there; row tags draw from the
+governed allow-list).
+
 - **Columns**: Keep · Category · Term · Definition · **Purpose** · Sensitivity
   (colour-coded: HIGH red, MEDIUM orange, LOW teal) · CDE · Tags · Confidence · Source.
+  The grid scrolls inside its own pane with a sticky header and frozen
+  Keep / Category / Term columns; **Definition and Purpose show one-line
+  previews** — click one to open a full-width editor row with proper
+  textareas and the row's scan evidence (sources, induced pattern, value
+  signature, reference values) right underneath.
 - **Filters**: text, category, sensitivity, confidence, **tags**, PII-only, kept-only.
 - **Keep controls**: master tri-state, shift-select ranges, *Keep High+Med conf*.
 - **Open glossary for review…** — load an existing export straight into the grid.
 - **Enhance from glossary…** — overlay an export's real definitions/purpose/tags/
   sensitivity onto matched terms (and add any the scan missed).
-- **Enrich with LLM** — rewrite definitions with the local model.
+- **Enrich with LLM** — rewrite definitions with the local model. The AI
+  agents (Enrich / AI suggest / AI QA / AI categorize / Suggest tags) sit in
+  a labelled **"AI AGENTS — propose → you apply"** group: every pass renders
+  a diff the steward applies or discards, and the agents run on **kept rows
+  only** — prune 141→95 and they process 95 ("0/95 (kept rows)").
 - **Save glossary / Load saved…** — see §7.
 - **Generate JSONL** — exports the kept terms. This now lives on the **Govern**
   page (its **Generate &amp; apply** card), not the Glossary page, because
@@ -698,6 +722,11 @@ A few aids make the pipeline easier to follow:
   satisfied (a connection exists, terms are scanned, a steward is set, JSONL is
   generated, an apply has run) and is clickable to jump straight there. It's hidden
   on Home and Settings.
+- **PDC connection dot.** The sidebar footer carries a PDC connection
+  indicator that lights once the session has really talked to PDC — Get
+  token on Apply, a Harvest read, or a real (non-dry) bulk-load run.
+- **Full-width pages.** Page headers and guide panels span the full content
+  width, so the working panels aren't squeezed by an intro column.
 - **Apply progress bar.** Apply to PDC streams its progress live — the bar fills
   column by column ("Resolving & patching column 14 of 52 · …"), then shows the
   table-rating roll-up and Trust Score phases. It falls back to a single request if
@@ -765,16 +794,23 @@ The order matters because each step feeds the next:
    advisor recommends Merge / Disambiguate / Keep separate. Rename divergent
    names to their canonical term — aliases fold them automatically on future
    scans.
-3. **Dictionary: review pending.** *AI review* advises per candidate; alias
-   folds near-duplicates. Approve only what belongs — approved items govern
-   the Registry and export into the pack. Mistakes reverse per item
-   (✕ retire / ⤵ fold); a retire is **durable** (tombstoned through reseeds,
-   offered for pack removal at export).
+3. **Dictionary: review pending.** *AI review pending* sits in the
+   pending-panel header and advises per candidate; the alias fold advisor
+   folds near-duplicates (labelled with an inline hint). Approve only what
+   belongs — approved items govern the Registry and export into the pack.
+   The page explains itself: a flywheel panel plus an **"Approve, Retire or
+   Alias"** explainer with worked examples. Mistakes reverse per item with
+   the labelled **✓ Approve / ✕ Retire / ⤵ To alias** actions; a retire is
+   **durable** (tombstoned through reseeds, offered for pack removal at
+   export).
 4. **Suggest tags** (grid) after any vocabulary change — re-derives row tags
-   from the governed allow-list and accretes usage into the facet preview.
-   Freshly reseeded counters are all zero: that means "no scan yet", never
-   "retire everything" (the bulk retire button is gated until the dictionary
-   has grown from a scan).
+   from the governed allow-list and refreshes the facet preview. The counts
+   are **honest**: identity-keyed — distinct current terms per tag, distinct
+   source columns per term — so rescans are no-ops and never inflate them.
+   The preview is **pre-deployment**: live facets appear in PDC only after
+   methods deploy and Data Identification runs. Freshly reseeded counters
+   are all zero: that means "no scan yet", never "retire everything" (the
+   bulk retire button is gated until the dictionary has grown from a scan).
 5. **Govern** — roster-driven stewardship, ratings, review dates.
 6. **Save glossary → Generate** (writes the JSONL **and the Registry**) →
    PDC **Business Glossary → Import** (if terms were *renamed*, delete the
