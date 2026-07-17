@@ -14,6 +14,15 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.9.2] — 2026-07-17
+
+### Changed — Windows-first install docs; Insights port
+Docs-only release. The README's one-command install now leads with the
+Windows 11 host bootstrap (the standard topology — apps on the host, lab +
+PDC on the VM) with the Lab VM path second. Sibling-app port references
+updated for Catalog Insights' move to **5002** (`.env.example`, REVIEW.md).
+No code changes.
+
 ## [1.9.1] — 2026-07-17
 
 ### Fixed — documentation caught up with the 1.9.0 port

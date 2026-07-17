@@ -138,4 +138,4 @@ entry in `CHANGELOG.md` for the full port notes.
 
 Ollama is optional — without it, expertise generation falls back to offline rules and
 LLM enrichment is skipped. This app is separate from Catalog Insights/PDC-Insights
-(port 8660); keep their ports distinct.
+(port 5002); keep their ports distinct.

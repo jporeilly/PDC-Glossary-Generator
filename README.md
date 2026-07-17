@@ -1,6 +1,6 @@
 # Pentaho Data Catalog Glossary Generator
 
-**Version:** 1.9.1 · validated against Pentaho Data Catalog 11.0.0 (public
+**Version:** 1.9.2 · validated against Pentaho Data Catalog 11.0.0 (public
 API v3). FastAPI backend with interactive API docs at **`/docs`**. A committed
 offline **pytest** suite keeps it honest (`pytest -q` from
 `glossary_generator/`): the engine checks, the PDC v3 API shape checks, the
@@ -173,26 +173,30 @@ install/reset-scenario scripts moved to the PDC-Scenarios repo)
 the Ubuntu 24.04 training VM. Everything runs locally; PDC and Ollama are
 reached over the network only when you use those features.
 
+### Windows 11 host (one command)
+
+The standard topology runs the apps on the **Windows host** (Ollama lives
+there) and the lab + PDC on the Ubuntu VM. **One bootstrap** (PDC-Scenarios
+repo) stands up / refreshes the whole `C:\PDC-Demo` checkout — this app, the
+**Policy Generator**, **Catalog Insights**, and the selected vertical's
+assets (sparse-pulled) — and installs the vertical's pack into this app:
+
+```powershell
+iex "& { $(irm https://raw.githubusercontent.com/jporeilly/PDC-Scenarios/main/install-pdc-demo.ps1) } CSCU"
+```
+
+Re-run it bare to update everything (it remembers the vertical). After any
+update: restart the app, click the **version pill** (it flags a stale
+build), and run `pytest -q` from `glossary_generator/`.
+
 ### Lab VM (one command)
 
-On the Ubuntu lab VM, **one bootstrap** (PDC-Scenarios repo) stands up /
-refreshes the whole `~/PDC-Demo` checkout — this app, the **Policy
-Generator**, **Catalog Insights**, and the selected vertical's assets
-(sparse-pulled):
+On the Ubuntu lab VM, the bash twin does the same into `~/PDC-Demo`, and one
+make entry loads the vertical's data sources:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/jporeilly/PDC-Scenarios/main/install-pdc-demo.sh | bash -s -- CSCU
 cd ~/PDC-Demo/PDC-Scenarios && make scenario ID=CSCU   # lab up + data loaded
-```
-
-Re-run the curl bare to update everything (it remembers the vertical). After
-any update: restart the app, click the **version pill** (it flags a stale
-build), and run `pytest -q` from `glossary_generator/`. On
-the **Windows host** (where the apps normally run) the PowerShell twin does
-the same and installs the vertical's pack into this app:
-
-```powershell
-iex "& { $(irm https://raw.githubusercontent.com/jporeilly/PDC-Scenarios/main/install-pdc-demo.ps1) } CSCU"
 ```
 
 This repo's own `install-pdc-demo.sh` updates just this checkout + the vertical.
