@@ -14,6 +14,14 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.10.2] — 2026-07-17
+
+### Fixed — PDC dot now lights after a bulk-load run
+The sidebar's PDC connection indicator only listened to the Apply page's
+Get-token and the Harvest panel's reads — connecting via the bulk loader
+(the most common first contact) left it on "not connected". A real
+(non-dry) bulk-load run now sets the session too.
+
 ## [1.10.1] — 2026-07-17
 
 ### Removed — the bulk-load Sample CSV link

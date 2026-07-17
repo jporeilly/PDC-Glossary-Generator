@@ -344,6 +344,9 @@ function BulkLoadCard({ pdc, onConnectionsChanged }) {
       setMsg(result?.dry_run
         ? `Dry run complete — ${result.total} payload(s) built, nothing sent.`
         : `Done — ${result?.ok ?? 0} ok, ${result?.failed ?? 0} failed of ${result?.total ?? 0}.`)
+      // a real (non-dry) run authenticated against PDC before touching any row —
+      // light the sidebar PDC dot (dry runs build payloads locally, no auth)
+      if (result && !result.dry_run) setPdcSession({ base: pdc.base.trim(), user: pdc.user })
     } catch (err) {
       setMsg(`Error: ${err.message}`)
     } finally {
