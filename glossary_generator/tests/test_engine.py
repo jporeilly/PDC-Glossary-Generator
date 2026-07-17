@@ -81,6 +81,107 @@ class TestTagdict:
             "re-approval lifts the tombstone"
 
 
+class TestUsageIdempotence:
+    """Search-facet preview counts = DISTINCT current terms carrying each tag,
+    from identity-keyed sets, not accreted counters. Regression for the day-one
+    bug where rescanning the same sources doubled the facet preview ('cde: 281
+    terms' with ~141 terms in the dictionary)."""
+
+    ROWS = [_row("Member Number", "cscu_core.members.mbr_no",
+                 Suggested_Tags="PII;Identifier", Sensitivity="HIGH"),
+            _row("Card Number", "cscu_core.cards.card_no",
+                 Suggested_Tags="pii", Sensitivity="HIGH")]
+
+    def _facet(self, tagdict):
+        return {x["tag"]: x["count"] for x in tagdict.facet_health()["facet"]}
+
+    def test_rescan_does_not_change_facet_counts(self, fresh_dict):
+        tagdict = fresh_dict
+        tagdict.accrete([dict(r) for r in self.ROWS], source="db", persist=True)
+        f1 = self._facet(tagdict)
+        assert f1["pii"] == 2, "pii carried by 2 distinct terms"
+        assert f1["identifier"] == 1
+        # scan the SAME rows again (same source rescanned)
+        tagdict.accrete([dict(r) for r in self.ROWS], source="db", persist=True)
+        f2 = self._facet(tagdict)
+        assert f2 == f1, "rescanning the same rows must not change facet counts"
+        s = {t["tag"]: t["count"] for t in tagdict.summary()["tags"]}
+        assert s["pii"] == 2 and s["identifier"] == 1
+        # per-term count = distinct source columns, also idempotent
+        terms = {t["term"]: t["count"] for t in tagdict.summary()["terms"]}
+        assert terms["Member Number"] == 1
+        # the retire-empty gate rests on "a scan happened" (sources), not counts
+        assert "db" in tagdict.load().get("sources", [])
+        # junk Column-N rows never become a term identity in the facet
+        tagdict.accrete([_row("Column_7", "s.t.column_7", Suggested_Tags="pii")],
+                        persist=True)
+        assert self._facet(tagdict)["pii"] == 2
+
+    def test_steward_actions_keep_counts_current(self, fresh_dict):
+        tagdict = fresh_dict
+        tagdict.accrete([dict(r) for r in self.ROWS], source="db", persist=True)
+        tagdict.review("term", ["Card Number"], "reject")
+        assert self._facet(tagdict)["pii"] == 1, "retired term leaves the facet count"
+        tagdict.accrete([_row("Mbr No", "cscu_core.cards.mbr_no",
+                              Suggested_Tags="pii", Sensitivity="HIGH")], persist=True)
+        assert self._facet(tagdict)["pii"] == 2
+        tagdict.review("term", ["Mbr No"], "alias", target="Member Number")
+        assert self._facet(tagdict)["pii"] == 1, \
+            "folding a duplicate merges its usage into the canonical term"
+        # empty-bucket detection still works on the derived counts
+        assert "cde" in tagdict.facet_health()["empty_governed_tags"]
+
+    def test_steward_save_preserves_usage_and_gate(self, fresh_dict):
+        tagdict = fresh_dict
+        tagdict.accrete([dict(r) for r in self.ROWS], source="db", persist=True)
+        s = tagdict.summary()
+        # rebuild the doc exactly as the UI's toDoc() does: vocabulary only,
+        # with no usage / counts / sources / examples in the payload
+        doc = {"schema": s["schema"], "domain": s["domain"],
+               "rules": json.loads(json.dumps(s["rules"])),
+               "category_tags": json.loads(json.dumps(s["category_tags"])),
+               "tags": {t["tag"]: {"label": t["label"], "layer": t["layer"],
+                                   **({"status": t["status"]} if t["layer"] != "generic"
+                                      and t["status"] != "generic" else {})}
+                        for t in s["tags"]},
+               "terms": {t["term"]: {"aliases": t["aliases"], "sensitivity": t["sensitivity"],
+                                     "tags": t["tags"], "layer": t["layer"],
+                                     **({"status": t["status"]} if t["layer"] != "generic"
+                                        and t["status"] != "generic" else {})}
+                         for t in s["terms"]}}
+        tagdict.replace(doc)
+        assert self._facet(tagdict)["pii"] == 2, "a steward Save keeps the facet preview"
+        assert "db" in tagdict.load().get("sources", []), "and the grown-from-a-scan gate"
+        # removing a term in the Save drops its usage key
+        doc2 = json.loads(json.dumps(doc))
+        doc2["terms"].pop("Card Number")
+        tagdict.replace(doc2)
+        assert self._facet(tagdict)["pii"] == 1
+
+    def test_legacy_numeric_counts_migrate_to_term_sets(self, fresh_dict):
+        tagdict = fresh_dict
+        legacy = {"schema": "term-tag-dictionary/1", "domain": "generic",
+                  "tags": {"pii": {"label": "PII", "layer": "generic"},
+                           "cde": {"label": "Critical Data Element", "layer": "generic"}},
+                  "terms": {"Member Number": {"aliases": [], "sensitivity": "HIGH",
+                                              "tags": ["pii", "cde"], "layer": "company",
+                                              "status": "approved",
+                                              "sources": ["cscu_core.members.mbr_no"]}},
+                  "counts": {"pii": 281, "cde": 281},      # accreted over many rescans
+                  "term_counts": {"Member Number": 12},
+                  "examples": {}, "sources": ["db"]}
+        with open(os.environ["GLOSSARY_TAG_DICTIONARY"], "w", encoding="utf-8") as f:
+            json.dump(legacy, f)
+        d = tagdict.load()
+        assert "counts" not in d and "term_counts" not in d, "legacy counters dropped"
+        f1 = self._facet(tagdict)
+        assert f1["pii"] == 1 and f1["cde"] == 1, \
+            "unknown-provenance ints rebuilt as distinct scan-grown terms per tag"
+        terms = {t["term"]: t["count"] for t in tagdict.summary()["terms"]}
+        assert terms["Member Number"] == 1, "term count = distinct source columns"
+        assert "db" in d.get("sources", []), "gate evidence survives migration"
+
+
 class TestSimilarity:
     def test_evidence_rubric(self):
         a = _row("State", "geo.addresses.state_cd", Enum_Values="AZ;CA;NV;UT")

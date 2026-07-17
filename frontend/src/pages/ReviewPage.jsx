@@ -487,9 +487,21 @@ export default function ReviewPage({ onNavigate }) {
 
   /* ---------- the AI agents: run chunked, diff, propose ---------- */
 
+  // The agents run on KEPT rows only — you prune first, then spend LLM time on
+  // what survives. `targets` holds the absolute workspace-row indices of every
+  // kept row (table terms are always kept, so they ride along via their own
+  // Keep state). Each chunk sends targets.slice(...) rows and re-joins the
+  // backend's positional echo through that same slice — d.rows[j] belongs to
+  // working[idx[j]] — so dropped rows can never shift the mapping.
   async function runChunks(label, call, { offlineBreak = true, chunk = CHUNK } = {}) {
     const baseRows = rowsRef.current
-    const total = baseRows.length
+    const targets = []
+    baseRows.forEach((r, i) => { if (r && truthy(r.Keep)) targets.push(i) })
+    const total = targets.length
+    if (!total) {
+      setMsg('No kept rows — the AI agents only process rows with Keep ticked.')
+      return null
+    }
     const working = baseRows.map((r) => ({ ...r }))
     cancelRef.current = false
     setAgent({ label, done: 0, total })
@@ -497,8 +509,7 @@ export default function ReviewPage({ onNavigate }) {
     let offline = false
     let failed = 0
     for (let s = 0; s < total && !cancelRef.current; s += chunk) {
-      const idx = []
-      for (let i = s; i < Math.min(s + chunk, total); i++) idx.push(i)
+      const idx = targets.slice(s, s + chunk)
       try {
         const d = await call(idx.map((i) => working[i]))
         if (d.llm && d.llm.online === false) {
@@ -514,7 +525,7 @@ export default function ReviewPage({ onNavigate }) {
       setAgent((a) => (a ? { ...a, done: Math.min(s + chunk, total) } : a))
     }
     setAgent(null)
-    return { baseRows, working, offline, failed, stopped: cancelRef.current }
+    return { baseRows, working, targets, offline, failed, stopped: cancelRef.current }
   }
 
   function diffProposals(label, run, watch, carry = [], extraNote = '') {
@@ -536,6 +547,7 @@ export default function ReviewPage({ onNavigate }) {
       if (display.length) items.push({ index: i, term: r.Term || '', category: r.Category || '', display, patch, selected: true })
     })
     const note = [
+      `ran on ${run.targets.length} kept row${run.targets.length !== 1 ? 's' : ''}`,
       extraNote,
       run.offline ? 'Ollama offline' : '',
       run.stopped ? 'stopped early — rows already processed kept their proposals' : '',
@@ -550,6 +562,7 @@ export default function ReviewPage({ onNavigate }) {
 
   async function runEnrich() {
     const run = await runChunks('Enriching definitions & purposes', (rs) => apiPost('/api/enrich', { rows: rs }))
+    if (!run) return
     if (run.offline) { setMsg('LLM offline — start Ollama and pull a model on the Settings page, then try again.'); return }
     diffProposals('Enrich with LLM', run,
       ['Definition', 'Purpose', 'Suggested_Name'],
@@ -558,6 +571,7 @@ export default function ReviewPage({ onNavigate }) {
 
   async function runAiSuggest() {
     const run = await runChunks('AI suggesting from scan evidence', (rs) => apiPost('/api/ai-suggest', { rows: rs }))
+    if (!run) return
     if (run.offline) { setMsg('LLM offline — start Ollama and pull a model on the Settings page, then try again.'); return }
     diffProposals('AI suggest (evidence)', run,
       ['Suggested_Name', 'Suggested_Tags', 'Sensitivity', 'Category', 'PII_Category'],
@@ -568,12 +582,14 @@ export default function ReviewPage({ onNavigate }) {
   async function runCategorize() {
     const known = cats
     const run = await runChunks('AI categorizing', (rs) => apiPost('/api/ai-categorize', { rows: rs, categories: known, only_blank: true }))
+    if (!run) return
     if (run.offline) { setMsg('Ollama offline — categorization needs the local model.'); return }
     diffProposals('AI categorize', run, ['Category'])
   }
 
   async function runRetag() {
     const run = await runChunks('Deriving governed tags', (rs) => apiPost('/api/retag', { rows: rs }), { chunk: Math.max(rowsRef.current.length, 1) })
+    if (!run) return
     diffProposals('Suggest tags', run, ['Suggested_Tags'], [],
       'deterministic — re-derived from the governed vocabulary (Dictionary page)')
   }
@@ -584,7 +600,9 @@ export default function ReviewPage({ onNavigate }) {
   async function runQa() {
     const run = await runChunks('QA-checking definitions',
       (rs) => apiPost('/api/qa-definitions', { rows: rs, ai: true }), { offlineBreak: false })
+    if (!run) return
     const { working } = run
+    const targetSet = new Set(run.targets)
     setRows(rowsRef.current.map((r, i) => {
       const w = working[i]
       const nx = { ...r }
@@ -595,6 +613,7 @@ export default function ReviewPage({ onNavigate }) {
     }))
     const items = []
     run.baseRows.forEach((r, i) => {
+      if (!targetSet.has(i)) return
       const w = working[i]
       if (!w || (!w.QA_Issues && !w.QA_Suggestion)) return
       const hasSugg = !!w.QA_Suggestion && w.QA_Suggestion !== (r.Definition || '')
@@ -613,8 +632,8 @@ export default function ReviewPage({ onNavigate }) {
       run.stopped ? 'stopped early' : '',
       run.failed ? `${run.failed} row(s) failed` : '',
     ].filter(Boolean).join(' · ')
-    if (!items.length) { setMsg(`Definition QA: nothing flagged (${note}).`); return }
-    setMsg(`Definition QA: ${items.length} of ${run.baseRows.length} definitions flagged.`)
+    if (!items.length) { setMsg(`Definition QA: nothing flagged across ${run.targets.length} kept rows (${note}).`); return }
+    setMsg(`Definition QA: ${items.length} of ${run.targets.length} kept definitions flagged.`)
     setProposals({ label: 'AI QA definitions', note, items })
   }
 
@@ -729,9 +748,9 @@ export default function ReviewPage({ onNavigate }) {
             {busy === 'enhance' ? 'Enhancing…' : 'Enhance from glossary…'}
           </button>
           <span className="rv-grow" />
-          <span className="rv-agents" role="group" aria-label="AI agents — they propose, you review and apply"
-                title="Each agent run collects its changes into a proposal diff — nothing touches the grid until you tick and apply.">
-            <span className="rv-agentslbl">AI AGENTS<small>propose → you apply</small></span>
+          <span className="rv-agents" role="group" aria-label="AI agents — they run on kept rows only; they propose, you review and apply"
+                title="Each agent processes KEPT rows only — untick Keep to exclude a row — and collects its changes into a proposal diff; nothing touches the grid until you tick and apply.">
+            <span className="rv-agentslbl">AI AGENTS<small>kept rows · propose → you apply</small></span>
             <button className="ghost sm" disabled={aiDisabled} onClick={runEnrich}
                     title="Rewrite definitions & purposes with the local LLM. Proposals only — you review the diff before anything lands.">
               Enrich with LLM
@@ -764,7 +783,7 @@ export default function ReviewPage({ onNavigate }) {
         {agent && (
           <div className="rv-progress">
             <span className="ep">
-              {agent.cancelling ? 'Finishing current batch…' : `${agent.label} — ${agent.done}/${agent.total} (${Math.round((100 * agent.done) / Math.max(agent.total, 1))}%)`}
+              {agent.cancelling ? 'Finishing current batch…' : `${agent.label} — ${agent.done}/${agent.total} (kept rows) · ${Math.round((100 * agent.done) / Math.max(agent.total, 1))}%`}
             </span>
             <div className="progress-track" role="progressbar" aria-valuemin={0} aria-valuemax={agent.total} aria-valuenow={agent.done}>
               <div className="progress-bar" style={{ width: `${Math.round((100 * agent.done) / Math.max(agent.total, 1))}%` }} />

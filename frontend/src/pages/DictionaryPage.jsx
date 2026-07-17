@@ -130,7 +130,7 @@ export default function DictionaryPage({ onNavigate }) {
       'Everything approved governs the Registry and exports into the domain pack — where it ' +
       'reseeds every future install. Approve only what belongs; rejecting noise is safe (a real ' +
       'concept re-proposes itself on the next scan, with evidence). Tip: run AI review first for ' +
-      'per-item advice, and mistakes can be undone per item with ✕ / ⤵ on the tables below.')) return
+      'per-item advice, and mistakes can be undone per item with ✕ Retire / ⤵ Fold on the tables below.')) return
     review(kind, names, 'approve', undefined,
       `Approved ${names.length} ${kind}${names.length > 1 ? 's' : ''}.`)
   }
@@ -350,7 +350,7 @@ export default function DictionaryPage({ onNavigate }) {
     if (!window.confirm(
       'Reseed the tag dictionary from the domain pack + defaults?\n\n' +
       'Kept: steward-APPROVED company terms/tags and company rules (the governed set).\n' +
-      'Discarded: PENDING scan-grown items and accreted usage counts.\n' +
+      'Discarded: PENDING scan-grown items and recorded usage counts.\n' +
       'A timestamped backup of the current dictionary file is taken first.')) return
     setMsg('Reseeding…')
     try {
@@ -432,6 +432,7 @@ export default function DictionaryPage({ onNavigate }) {
       </div>
 
       <FlywheelExplainer />
+      <DecisionExplainer />
 
       <section className="card">
         <header>
@@ -460,8 +461,21 @@ export default function DictionaryPage({ onNavigate }) {
 
         {(pendingTerms.length > 0 || pendingTags.length > 0) && (
           <div className="pending-wrap">
-            <b>Pending steward review</b>{' '}
-            <span className="notes">new items found by scans — they don't govern the Registry until approved</span>
+            <div className="pending-head">
+              <div>
+                <b>Pending steward review</b>{' '}
+                <span className="notes">new items found by scans — they don't govern the Registry until approved</span>
+              </div>
+              {pendingTerms.length > 0 && (
+                <span className="pending-ai">
+                  <button className="primary mini" onClick={aiReview} disabled={reviewing}
+                          title="Advise per candidate: a deterministic near-duplicate check against the governed vocabulary, then the local AI judges the rest from the captured context (category, definition, sources). Advice only — you still click.">
+                    {reviewing ? 'Reviewing…' : 'AI review pending…'}
+                  </button>
+                  <span className="notes">batches of 10 — advises approve / retire / fold per item</span>
+                </span>
+              )}
+            </div>
             {prog && (
               <>
                 <div className="progress-track">
@@ -482,12 +496,11 @@ export default function DictionaryPage({ onNavigate }) {
             {pendingTerms.length > 0 && (
               <div style={{ marginTop: '.5rem' }}>
                 <b>Terms ({pendingTerms.length})</b>{' '}
-                <button className="ghost mini" onClick={() => approveAll('term')}>Approve all</button>{' '}
-                <button className="ghost mini" onClick={aiReview} disabled={reviewing}
-                        title="Advise per candidate: a deterministic near-duplicate check against the governed vocabulary, then the local AI judges the rest from the captured context (category, definition, sources). Advice only — you still click.">
-                  {reviewing ? 'Reviewing…' : 'AI review'}
+                <button className="ghost mini" onClick={() => approveAll('term')}
+                        title="Approve every pending term at once — a confirm lists the consequences first.">
+                  ✓ Approve all
                 </button>{' '}
-                <span className="notes">approve only what belongs in the company vocabulary — reject scan noise</span>
+                <span className="notes">approve only what belongs in the company vocabulary — retire scan noise</span>
                 {pendingTerms.map((t) => {
                   const adv = advice[t.term]
                   const advLabel = adv
@@ -514,18 +527,21 @@ export default function DictionaryPage({ onNavigate }) {
                         )}
                       </div>
                       {adv?.action === 'alias' && adv.target && (
-                        <button className="ghost mini" title={`Fold into "${adv.target}" as an alias`}
+                        <button className="ghost mini act" aria-label={`Fold ${t.term} into ${adv.target} as an alias`}
+                                title={`Fold into "${adv.target}" as an alias — future scans map this name there automatically (durable across reseeds).`}
                                 onClick={() => alias(t.term, adv.target)}>
-                          → alias
+                          ⤵ To alias
                         </button>
                       )}
-                      <button className="ghost mini" title="Approve — starts governing"
+                      <button className="ghost mini act" aria-label={`Approve term ${t.term}`}
+                              title="Approve — joins the governed company vocabulary and starts governing tagging, the Registry and exports."
                               onClick={() => review('term', [t.term], 'approve', undefined, `Approved term "${t.term}".`)}>
-                        ✓
+                        ✓ Approve
                       </button>
-                      <button className="ghost mini" title="Reject — discard"
-                              onClick={() => review('term', [t.term], 'reject', undefined, `Rejected term "${t.term}".`)}>
-                        ✕
+                      <button className="ghost mini act" aria-label={`Retire term ${t.term}`}
+                              title="Retire — reject this candidate so it never governs. Durable and safe: a real concept re-proposes itself as pending on the next scan, with evidence."
+                              onClick={() => review('term', [t.term], 'reject', undefined, `Retired term "${t.term}".`)}>
+                        ✕ Retire
                       </button>
                     </div>
                   )
@@ -535,18 +551,23 @@ export default function DictionaryPage({ onNavigate }) {
             {pendingTags.length > 0 && (
               <div style={{ marginTop: '.5rem' }}>
                 <b>Tags ({pendingTags.length})</b>{' '}
-                <button className="ghost mini" onClick={() => approveAll('tag')}>Approve all</button>
+                <button className="ghost mini" onClick={() => approveAll('tag')}
+                        title="Approve every pending tag at once — a confirm lists the consequences first.">
+                  ✓ Approve all
+                </button>
                 <div>
                   {pendingTags.map((t) => (
                     <span className="chip" key={t.tag}>
                       {t.tag}
-                      <button className="ghost mini" title="Approve — starts governing"
+                      <button className="ghost mini act" aria-label={`Approve tag ${t.tag}`}
+                              title="Approve — joins the governed tag allow-list that tagging and search facets draw from."
                               onClick={() => review('tag', [t.tag], 'approve', undefined, `Approved tag "${t.tag}".`)}>
-                        ✓
+                        ✓ Approve
                       </button>
-                      <button className="ghost mini" title="Reject — discard"
-                              onClick={() => review('tag', [t.tag], 'reject', undefined, `Rejected tag "${t.tag}".`)}>
-                        ✕
+                      <button className="ghost mini act" aria-label={`Retire tag ${t.tag}`}
+                              title="Retire — reject this candidate tag so it never governs. A rule that still emits it re-adds it with a warning; a future scan can re-propose it."
+                              onClick={() => review('tag', [t.tag], 'reject', undefined, `Retired tag "${t.tag}".`)}>
+                        ✕ Retire
                       </button>
                     </span>
                   ))}
@@ -558,10 +579,11 @@ export default function DictionaryPage({ onNavigate }) {
 
         <h3 className="subhead">
           1 · Terms — canonical business terms; aliases resolve divergent names to one term{' '}
-          <button className="ghost mini" onClick={foldAdvisor} disabled={foldBusy}
+          <button className="ghost mini act" onClick={foldAdvisor} disabled={foldBusy}
                   title="Advise alias folds across the governed vocabulary: names are expanded through the pack's abbreviations (mbr → Member) and compared by similarity — identical expansions are near-certain twins; close matches are flagged for review. The unabbreviated spelling is proposed as the canonical. Advice only — you click each fold.">
-            {foldBusy ? 'Analyzing…' : 'AI fold advisor'}
-          </button>
+            {foldBusy ? 'Analyzing…' : '⤵ AI fold advisor'}
+          </button>{' '}
+          <span className="hint-inline">spots twin terms (mbr / Member) in the governed vocabulary and advises folds — you click each</span>
         </h3>
         <div className="vocab-box" style={boxStyle}>
           <table>
@@ -578,15 +600,15 @@ export default function DictionaryPage({ onNavigate }) {
                     <b>{t.term}</b>
                     {t.layer === 'company' && (
                       <span className="vocab-actions">
-                        <button className="ghost mini"
+                        <button className="ghost mini act" aria-label={`Fold term ${t.term} into another governed term`}
                                 title="Fold into another governed term — this name becomes an ALIAS of the target (durable across reseeds)"
                                 onClick={() => termFold(t)}>
-                          ⤵
+                          ⤵ Fold
                         </button>
-                        <button className="ghost mini"
+                        <button className="ghost mini act" aria-label={`Retire term ${t.term}`}
                                 title="Retire from the governed vocabulary. Durable: a tombstone keeps it retired through reloads and Reseeds, and Export domain pack will offer to remove it from the installed pack. A future scan with real evidence can re-propose it as pending."
                                 onClick={() => termRetire(t)}>
-                          ✕
+                          ✕ Retire
                         </button>
                       </span>
                     )}
@@ -629,13 +651,13 @@ export default function DictionaryPage({ onNavigate }) {
                     <span style={{ flex: 1 }}>
                       fold <b>{p.fold}</b> into <b>{p.keep}</b> <span className="notes">— {p.reason}</span>
                     </span>
-                    <button className="ghost mini"
+                    <button className="ghost mini act"
                             onClick={() => { alias(p.fold, p.keep); dismissPair(i) }}>
-                      Fold ⤵
+                      ⤵ Fold
                     </button>
-                    <button className="ghost mini" title="Dismiss this suggestion"
+                    <button className="ghost mini act" title="Dismiss this suggestion" aria-label={`Dismiss fold suggestion for ${p.fold}`}
                             onClick={() => dismissPair(i)}>
-                      ✕
+                      ✕ Dismiss
                     </button>
                   </div>
                 ))}
@@ -684,10 +706,10 @@ export default function DictionaryPage({ onNavigate }) {
                     <b>{t.tag}</b>
                     {t.layer === 'company' && (
                       <span className="vocab-actions">
-                        <button className="ghost mini"
+                        <button className="ghost mini act" aria-label={`Retire tag ${t.tag}`}
                                 title="Retire from the allow-list. Durable across reseeds (tombstoned); Export domain pack will offer to remove it from the pack. A rule that still emits it re-adds it with a warning."
                                 onClick={() => tagRetire(t)}>
-                          ✕
+                          ✕ Retire
                         </button>
                       </span>
                     )}
@@ -886,6 +908,38 @@ function FlywheelExplainer() {
   )
 }
 
+/* ---------- the three steward decisions, explained ---------- */
+
+// What Approve / Retire / To-alias actually do — the same collapsed
+// details.card pattern as the flywheel explainer above, told with concrete
+// CSCU examples so a steward knows which button matches their intent.
+function DecisionExplainer() {
+  return (
+    <details className="card">
+      <summary>Approve, Retire or Alias — what each decision means</summary>
+      <ul className="workcycle">
+        <li>
+          <b>✓ Approve.</b> The term or tag joins the <b>company layer</b> and starts governing
+          the Registry and exports — approving <i>ACH ID</i> makes its tags part of the
+          allow-list that Policy methods can stamp.
+        </li>
+        <li>
+          <b>✕ Retire.</b> Scan noise leaves the vocabulary <b>durably</b>: a tombstone keeps it
+          retired through reloads and reseeds, and Export domain pack offers to remove it from
+          the installed pack — e.g. retiring <i>Description Text</i>, a real column but not a
+          business concept.
+        </li>
+        <li>
+          <b>⤵ To alias.</b> The name folds into an existing governed term instead of living as
+          a duplicate — <i>ACH Amount</i> → alias of <i>Payment Amount</i>, so both names
+          resolve to one concept and the search facets stop fragmenting.
+        </li>
+      </ul>
+      <p className="hint-line">Every decision lands in the audit trail and is reversible per item.</p>
+    </details>
+  )
+}
+
 /* ---------- search facet preview + health flags ---------- */
 
 function FacetCard({ dict, onRetireEmpty }) {
@@ -957,10 +1011,12 @@ function FacetCard({ dict, onRetireEmpty }) {
               {empties.slice(0, 12).map((t, i) => <code key={i} style={{ marginRight: '.4rem' }}>{t}</code>)}
               {empties.length > 12 ? '…' : ''}
               <br />
-              "Usage" here is <b>reviewed usage inside this app</b> (accreted on every scan), not
-              live PDC data — counts reset with a dictionary reseed and rebuild on the next
-              scan+review. All tags empty usually just means "freshly reseeded". Retire only what
-              stays empty after a full scan of every source.{' '}
+              "Usage" here is <b>reviewed usage inside this app</b> — how many distinct terms
+              your scans have carried each tag on (rescanning the same source never inflates
+              it) — not live PDC data. Counts reset with a dictionary reseed and rebuild on the
+              next scan+review; the <b>live</b> facets appear in PDC itself once your methods
+              deploy and Data Identification runs. All tags empty usually just means "freshly
+              reseeded". Retire only what stays empty after a full scan of every source.{' '}
               {companyEmpties.length > 0 && (grown
                 ? (
                   <button className="ghost mini" onClick={() => onRetireEmpty(companyEmpties)}

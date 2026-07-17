@@ -49,9 +49,12 @@
 .pdc-scan-card { border: 1px solid var(--gridline); border-radius: 8px; padding: .55rem .85rem; margin-top: .5rem; font-size: .82rem; color: var(--text-secondary); }
 .pdc-scan-card b { color: var(--text-primary); }
 
-/* ---------- inline completeness / share bars ---------- */
-.mini { display: inline-block; width: 52px; height: 7px; border-radius: 4px; background: var(--surface-1); overflow: hidden; vertical-align: middle; margin-right: .4rem; }
-.mini i { display: block; height: 100%; background: var(--accent); }
+/* ---------- inline completeness / share bars ----------
+   span-qualified on purpose: page CSS bundles into ONE global sheet, and a
+   bare `.mini` clobbered every `button.mini` app-wide (52×7px + overflow
+   hidden = the "blank grey pill" approve/retire buttons on the Dictionary). */
+span.mini { display: inline-block; width: 52px; height: 7px; border-radius: 4px; background: var(--surface-1); overflow: hidden; vertical-align: middle; margin-right: .4rem; }
+span.mini i { display: block; height: 100%; background: var(--accent); }
 
 /* files-by-type breakdown (replaces the old SVG chart) */
 .type-bars { display: flex; flex-direction: column; gap: .35rem; margin-top: .5rem; }

@@ -23,6 +23,17 @@
   border: 1px solid var(--status-warning); border-radius: 8px;
   padding: .8rem 1rem; margin: .8rem 0; background: rgba(250, 178, 25, 0.06);
 }
+/* panel header — title on the left, the AI review helper prominent on the right */
+.pending-head { display: flex; align-items: flex-start; justify-content: space-between; gap: .5rem .9rem; flex-wrap: wrap; }
+.pending-ai { display: inline-flex; align-items: center; gap: .55rem; flex-wrap: wrap; }
+
+/* labelled action buttons (✓ Approve / ✕ Retire / ⤵ Fold / ⤵ To alias):
+   glyph + word stay on one line, with an explicit readable color — the bare
+   glyphs proved too easy to lose against the pill background in light theme */
+button.mini.act { white-space: nowrap; color: var(--text-primary); }
+
+/* inline hint inside an uppercase subhead (the fold-advisor explainer) */
+.subhead .hint-inline { text-transform: none; letter-spacing: normal; font-weight: 400; color: var(--text-muted); }
 .pending-item { display: flex; gap: .6rem; align-items: flex-start; padding: .45rem 0; border-top: 1px solid var(--gridline); }
 .pending-item .meta { color: var(--text-muted); font-size: .8rem; margin-left: .5rem; }
 .pending-item .defn { color: var(--text-secondary); font-size: .82rem; margin-top: .1rem; }

@@ -1771,8 +1771,8 @@ def api_tagdict_fold_advisor(body: dict = Body(default={})):
 
     def canon_score(n):
         unabbrev = 1 if " ".join(toks(n)) == expand(n) else 0
-        used = (d.get("term_counts") or {}).get(n) or 0
-        return (unabbrev, used if isinstance(used, int) else 0, len(str(n)))
+        used = len((d.get("term_usage") or {}).get(n) or ())   # distinct source columns
+        return (unabbrev, used, len(str(n)))
 
     pairs = []
     for i in range(len(gov)):

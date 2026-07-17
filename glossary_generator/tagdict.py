@@ -44,9 +44,9 @@ def _norm_tag_list(ts):
 
 def _normalize_doc(d):
     """Fold every tag key/reference in a dictionary document to lower-case,
-    merging case-variant duplicates (counts summed, floors tightened, examples
-    unioned). Runs at seed/load/save time so pre-1.8.1 dictionaries with 'PII'
-    or 'CDE' heal in place — no reseed needed."""
+    merging case-variant duplicates (usage sets unioned, floors tightened,
+    examples unioned). Runs at seed/load/save time so pre-1.8.1 dictionaries
+    with 'PII' or 'CDE' heal in place — no reseed needed."""
     tags = d.get("tags") or {}
     merged = {}
     for t, meta in tags.items():
@@ -69,14 +69,18 @@ def _normalize_doc(d):
         if f_new and (not f_cur or _SENS.index(f_new) > _SENS.index(f_cur)):
             cur["sensitivity_floor"] = f_new
     d["tags"] = merged
-    for key in ("counts",):
-        src = d.get(key) or {}
+    if isinstance(d.get("usage"), dict):
         folded = {}
-        for t, n in src.items():
+        for t, lst in d["usage"].items():
             k = norm_tag(t)
-            if k:
-                folded[k] = folded.get(k, 0) + (n or 0)
-        d[key] = folded
+            if not k:
+                continue
+            dst = folded.setdefault(k, [])
+            for e in (lst or []):
+                e = str(e).strip().lower()
+                if e and e not in dst:
+                    dst.append(e)
+        d["usage"] = {t: sorted(v) for t, v in folded.items()}
     ex = {}
     for t, lst in (d.get("examples") or {}).items():
         k = norm_tag(t)
@@ -211,12 +215,59 @@ def _seed():
     return _normalize_doc(
         {"schema": SCHEMA, "domain": pack.get("domain") or "generic",
          "category_tags": cat, "rules": rules, "tags": tags, "terms": terms,
-         "counts": {}, "term_counts": {}, "examples": {}, "sources": []})
+         "usage": {}, "term_usage": {}, "examples": {}, "sources": []})
 
 
 # synthetic names PDC/profilers invent for headerless CSV columns — scan noise,
 # never vocabulary. Blocked at accretion and healed out of pending on load.
 _JUNK_TERM = re.compile(r"^(column|field|col|unnamed)[-_ ]?\d+$", re.I)
+
+
+def _term_index(d):
+    """lowercased name/alias -> canonical term name, over a specific document."""
+    idx = {}
+    for name, meta in (d.get("terms") or {}).items():
+        idx[str(name).lower()] = name
+        for a in (meta or {}).get("aliases", []):
+            idx[str(a).strip().lower()] = name
+    return idx
+
+
+def _remap_usage(d, drop=()):
+    """Keep the idempotent usage stores keyed to CURRENT term identities:
+    fold keys that became an alias onto their canonical term, drop keys in
+    `drop` (terms a steward explicitly removed), and keep unknown keys as-is
+    (e.g. table-level Record terms, which carry tags in scans but never enter
+    the dictionary). Lists stay sorted + de-duplicated so serialization is
+    stable and counts stay len()-able."""
+    dropped = {str(x).strip().lower() for x in (drop or ())}
+    idx = _term_index(d)
+    usage = d.get("usage") if isinstance(d.get("usage"), dict) else {}
+    for t, lst in list(usage.items()):
+        out = []
+        for k in (lst or []):
+            kk = str(k).strip().lower()
+            if not kk or kk in dropped:
+                continue
+            canon = idx.get(kk)
+            if canon:
+                kk = str(canon).strip().lower()
+            if kk not in out:
+                out.append(kk)
+        usage[t] = sorted(out)
+    d["usage"] = usage
+    tu = {}
+    for n, lst in (d.get("term_usage") or {}).items():
+        key = str(n).strip().lower()
+        if key in dropped:
+            continue
+        canon = idx.get(key) or n
+        dst = tu.setdefault(canon, [])
+        for k in (lst or []):
+            if k and k not in dst:
+                dst.append(k)
+        dst.sort()
+    d["term_usage"] = tu
 
 _LOCK = threading.Lock()
 _DICT = None
@@ -275,13 +326,37 @@ def _merge_seed(d):
             # bug where every pack term was force-relabeled generic on load)
             cur["layer"] = "company"
             cur.setdefault("status", "approved")
-    d.setdefault("counts", {}); d.setdefault("term_counts", {})
+    # usage stores are keyed by TERM IDENTITY (sets serialized as sorted
+    # lists), so rescanning the same source is idempotent. Pre-1.9.x
+    # dictionaries carried bare numeric counters accreted on every scan pass —
+    # rescans double-counted, so those ints have unknown provenance: rebuild
+    # the sets from scan-grown term evidence instead (terms that entered via a
+    # scan carry `sources`; seeded baseline/pack terms don't count as usage)
+    # and drop the legacy counter keys. The next scan tops the sets up exactly.
+    if not isinstance(d.get("usage"), dict):
+        u = {}
+        for name, meta in (d.get("terms") or {}).items():
+            m = meta or {}
+            if not m.get("sources"):
+                continue                       # seeded, not scan-observed
+            key = str(name).strip().lower()
+            for t in (m.get("tags") or []):
+                lst = u.setdefault(norm_tag(t), [])
+                if key not in lst:
+                    lst.append(key)
+        d["usage"] = {t: sorted(v) for t, v in u.items()}
+    if not isinstance(d.get("term_usage"), dict):
+        d["term_usage"] = {n: sorted({s for s in (m or {}).get("sources") or [] if s})
+                           for n, m in (d.get("terms") or {}).items()
+                           if (m or {}).get("sources")}
+    d.pop("counts", None); d.pop("term_counts", None)
     d.setdefault("examples", {}); d.setdefault("sources", [])
-    for nm in [n for n, m in list(d.get("terms", {}).items())
-               if isinstance(m, dict) and m.get("status") == "pending"
-               and m.get("layer") != "generic" and _JUNK_TERM.match(str(n).strip())]:
+    junk = [n for n, m in list(d.get("terms", {}).items())
+            if isinstance(m, dict) and m.get("status") == "pending"
+            and m.get("layer") != "generic" and _JUNK_TERM.match(str(n).strip())]
+    for nm in junk:
         d["terms"].pop(nm, None)
-        d.get("term_counts", {}).pop(nm, None)
+    _remap_usage(d, drop=junk)
     return d
 
 
@@ -430,18 +505,31 @@ def replace(new_dict):
     global _DICT, _COMPILED, _COMPILED_KEY
     doc, warnings = _guardrail(dict(new_dict or {}))
     with _LOCK:
+        prev = _DICT if _DICT is not None else None
+        if prev is None:
+            try:
+                with open(DICT_FILE, encoding="utf-8") as f:
+                    prev = json.load(f)
+            except Exception:
+                prev = {}
+        prev = prev or {}
         if "retired" not in doc:
             # the UI's save payload doesn't carry tombstones — keep the
             # current ones, or a Save would resurrect retired pack entries
-            prev = _DICT if _DICT is not None else None
-            if prev is None:
-                try:
-                    with open(DICT_FILE, encoding="utf-8") as f:
-                        prev = json.load(f)
-                except Exception:
-                    prev = {}
-            doc["retired"] = dict((prev or {}).get("retired")
+            doc["retired"] = dict(prev.get("retired")
                                   or {"tags": [], "terms": []})
+        # the save payload doesn't carry the accretion state either — keep
+        # it, or a Save would zero the facet preview and reset the
+        # grown-from-a-scan gate. Usage keys of terms the save REMOVED are
+        # dropped, so counts stay "distinct CURRENT terms carrying the tag".
+        for key in ("usage", "term_usage", "examples"):
+            if not doc.get(key):
+                doc[key] = {k: list(v or []) for k, v in (prev.get(key) or {}).items()}
+        if not doc.get("sources"):
+            doc["sources"] = list(prev.get("sources") or [])
+        removed = ({str(n).strip().lower() for n in (prev.get("terms") or {})}
+                   - set(_term_index(doc).keys()))
+        _remap_usage(doc, drop=removed)
         _DICT = doc
         _COMPILED = _COMPILED_KEY = None
         _save_locked()
@@ -487,12 +575,7 @@ def sensitivity_floors():
 
 # alias (lowercased) -> canonical term name, for resolving divergent term names.
 def alias_index():
-    idx = {}
-    for name, meta in load().get("terms", {}).items():
-        idx[name.lower()] = name
-        for a in (meta or {}).get("aliases", []):
-            idx[str(a).strip().lower()] = name
-    return idx
+    return _term_index(load())
 
 
 # --- steward approval gate -------------------------------------------------- #
@@ -553,6 +636,7 @@ def review(kind, names, action="approve", target=None):
     d = load()
     coll = d.get("tags" if kind == "tag" else "terms", {})
     changed = 0
+    dropped_terms = []
     with _LOCK:
         for nm in (names or []):
             meta = coll.get(nm)
@@ -574,6 +658,12 @@ def review(kind, names, action="approve", target=None):
                 changed += 1
             elif action == "reject":
                 coll.pop(nm, None)
+                # retired items leave the usage stores too, so facet counts
+                # stay "distinct CURRENT terms carrying the tag"
+                if kind == "tag":
+                    (d.get("usage") or {}).pop(nm, None)
+                else:
+                    dropped_terms.append(nm)
                 # tombstone: an explicit steward retire is DURABLE — the load-
                 # merge and Reseed skip re-seeding this name from the pack. A
                 # future scan may still re-propose it as pending (evidence
@@ -590,6 +680,9 @@ def review(kind, names, action="approve", target=None):
                     rl.remove(nm)                     # re-approval lifts the tombstone
                 changed += 1
         if changed:
+            # re-key the usage sets: folded names follow their canonical term
+            # (the alias index now resolves them), rejected terms drop out
+            _remap_usage(d, drop=dropped_terms)
             _COMPILED = _COMPILED_KEY = None
             _save_locked()
     return changed
@@ -620,29 +713,35 @@ def lift_sensitivity(sens, tags, term=None):
 
 
 def accrete(rows, source=None, persist=True):
-    """Record what a scan used: tag counts + example terms, AND company terms
-    (the Term names + their sensitivity/tags), so the company layer grows from
-    real data. Reviewed accretion — only rule-produced tags and scanned terms
-    enter, never free text."""
+    """Record what a scan used — IDEMPOTENTLY. Per-tag usage is a set of term
+    identities (the distinct terms observed carrying the tag; per-term usage a
+    set of source columns), not a running counter, so rescanning the same
+    source never inflates the Search facet preview. Also records example terms
+    AND company terms (the Term names + their sensitivity/tags), so the company
+    layer grows from real data. Reviewed accretion — only rule-produced tags
+    and scanned terms enter, never free text."""
     d = load()
     with _LOCK:
-        tags = d.setdefault("tags", {}); counts = d.setdefault("counts", {})
+        tags = d.setdefault("tags", {}); usage = d.setdefault("usage", {})
         ex = d.setdefault("examples", {}); terms = d.setdefault("terms", {})
-        tcounts = d.setdefault("term_counts", {})
-        idx = {}
-        for name, meta in terms.items():
-            idx[name.lower()] = name
-            for a in (meta or {}).get("aliases", []):
-                idx[str(a).strip().lower()] = name
+        tusage = d.setdefault("term_usage", {})
+        idx = _term_index(d)
         n = 0
         for r in rows or []:
             if not isinstance(r, dict):
                 continue
             term = (r.get("Term") or "").strip()
             row_tags = _norm_tag_list(str(r.get("Suggested_Tags") or "").split(";"))
+            canon = idx.get(term.lower(), term) if term else ""
+            # term identity for the usage sets: canonical, junk excluded
+            tkey = str(canon).strip().lower() if (term and not _JUNK_TERM.match(term)) else ""
             for t in row_tags:
                 tags.setdefault(t, {"label": t, "layer": "company", "status": "pending"})
-                counts[t] = counts.get(t, 0) + 1
+                if tkey:
+                    lst = usage.setdefault(t, [])
+                    if tkey not in lst:
+                        lst.append(tkey)
+                        lst.sort()
                 lst = ex.setdefault(t, [])
                 if term and term not in lst and len(lst) < 8:
                     lst.append(term)
@@ -652,9 +751,12 @@ def accrete(rows, source=None, persist=True):
             if term and not _JUNK_TERM.match(term) and not (
                     not str(r.get("Source_Column") or "").strip()
                     and re.search(r"\bRecord$", term)):
-                canon = idx.get(term.lower(), term)
-                tcounts[canon] = tcounts.get(canon, 0) + 1
                 srcs = [c.strip() for c in str(r.get("Source_Column") or "").split(";") if c.strip()]
+                seen = tusage.setdefault(canon, [])
+                for c in (srcs or ([source] if source else [])):
+                    if c not in seen:
+                        seen.append(c)
+                seen.sort()
                 if canon not in terms:
                     terms[canon] = {"aliases": [], "sensitivity": r.get("Sensitivity", "LOW"),
                                     "tags": row_tags[:4], "layer": "company", "status": "pending",
@@ -712,12 +814,14 @@ def _lev(a, b):
 def facet_health():
     """The governed-tag facet as PDC's OpenSearch will see it, plus health flags:
     empty buckets (no reviewed usage) and fragmenting near-duplicates (tags that
-    normalize to the same key, or are one edit apart) — the drift-in-waiting."""
+    normalize to the same key, or are one edit apart) — the drift-in-waiting.
+    A bucket's count is the number of DISTINCT terms scans observed carrying
+    the tag — recomputed from the usage sets, so rescans don't inflate it."""
     d = load()
     tags = d.get("tags", {})
-    counts = d.get("counts", {})
+    usage = d.get("usage", {})
     gov = [(t, m) for t, m in tags.items() if _is_governed(m)]
-    facet = sorted(({"tag": t, "count": counts.get(t, 0),
+    facet = sorted(({"tag": t, "count": len(usage.get(t) or ()),
                      "sensitivity_floor": (m or {}).get("sensitivity_floor")} for t, m in gov),
                    key=lambda x: -x["count"])
     empty = [x["tag"] for x in facet if x["count"] == 0]
@@ -742,14 +846,16 @@ def facet_health():
 
 def summary():
     d = load()
-    counts = d.get("counts", {}); tcounts = d.get("term_counts", {})
+    # counts are DERIVED from the identity-keyed usage sets (distinct terms
+    # per tag / distinct source columns per term) — idempotent under rescans
+    usage = d.get("usage", {}); tusage = d.get("term_usage", {})
     tags = []
     for t, meta in sorted(d.get("tags", {}).items()):
         meta = meta or {}
         tags.append({"tag": t, "label": meta.get("label", t), "layer": meta.get("layer", "company"),
                      "status": ("generic" if meta.get("layer") == "generic" else meta.get("status", "approved")),
                      "sensitivity_floor": meta.get("sensitivity_floor"),
-                     "count": counts.get(t, 0), "examples": d.get("examples", {}).get(t, [])})
+                     "count": len(usage.get(t) or ()), "examples": d.get("examples", {}).get(t, [])})
     terms = []
     for n, meta in sorted(d.get("terms", {}).items()):
         meta = meta or {}
@@ -758,7 +864,7 @@ def summary():
                       "sensitivity": meta.get("sensitivity", "LOW"), "tags": meta.get("tags", []),
                       "category": meta.get("category", ""), "definition": meta.get("definition", ""),
                       "confidence": meta.get("confidence", ""), "sources": meta.get("sources", []),
-                      "count": tcounts.get(n, 0)})
+                      "count": len(tusage.get(n) or ())})
     pend = pending()
     return {"schema": d.get("schema", SCHEMA), "domain": d.get("domain"),
             "sources": d.get("sources", []),

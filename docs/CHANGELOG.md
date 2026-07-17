@@ -14,6 +14,33 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.10.5] — 2026-07-17
+
+### Fixed
+- **AI agents run on kept rows only** (legacy ran on everything): pruning
+  141→95 now means the agents process 95 — progress reads "0/95 (kept
+  rows)" and QA flags skip dropped rows. Proposal mapping verified
+  end-to-end (absolute-index join; structural ops locked during runs).
+- **Dictionary action buttons rendered as blank pills** — root cause was a
+  CSS class collision: Connect's bare `.mini` (a 52×7 completeness bar)
+  clobbered `button.mini` app-wide in the bundled sheet. Scoped to
+  `span.mini`; actions are now labelled ("✓ Approve" / "✕ Retire" /
+  "⤵ To alias") with tooltips and aria-labels.
+- **Facet-preview counts were accreted per scan** (cde showed 281 with 124
+  terms after repeated scans): usage is now identity-keyed — distinct
+  current terms per tag, distinct source columns per term — so rescans are
+  no-ops; reject/fold/junk-heal keep counts current; legacy numeric counts
+  migrate by rebuilding from term evidence. A steward Save no longer
+  silently zeroes usage or the retire-empty gate. 4 regression tests.
+
+### Changed
+- Dictionary: "AI review pending…" promoted into the pending-panel header,
+  fold advisor labelled with an inline hint, and a new "Approve, Retire or
+  Alias" explainer with CSCU examples beside the flywheel panel.
+- Page headers use the full width (the 560px intro cap is gone), and the
+  facet-preview note now explains the pre-deployment semantics: live
+  facets appear in PDC after methods deploy and Data Identification runs.
+
 ## [1.10.4] — 2026-07-17
 
 ### Changed — ER layout refined; Review guide opens by default
