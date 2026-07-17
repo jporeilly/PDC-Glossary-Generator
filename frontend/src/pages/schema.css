@@ -50,7 +50,9 @@
 /* edges — FK column row → referenced PK row, arrowhead toward the target */
 .er-edge { fill: none; stroke: var(--accent); stroke-width: 1.5; opacity: .45; transition: opacity .12s; }
 .er-arrowhead { fill: none; stroke: var(--accent); stroke-width: 1.4; }
-.er-elabel { fill: var(--text-muted); font-size: 8.5px; paint-order: stroke; stroke: var(--surface-1); stroke-width: 3px; }
+.er-elabel { fill: var(--text-muted); font-size: 8.5px; }
+.er-elabel-bg { fill: var(--surface-1); opacity: .92; }  /* opaque chip keeps labels legible over edges */
+.er-caption { fill: var(--text-muted); font-size: 9.5px; font-style: italic; }
 .er-rel.hot .er-edge { opacity: .95; stroke-width: 2.25; }
 .er-rel.hot .er-elabel { fill: var(--text-secondary); }
 .er-rel.dim { opacity: .12; }

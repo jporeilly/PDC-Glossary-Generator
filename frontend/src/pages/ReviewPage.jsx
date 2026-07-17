@@ -961,7 +961,7 @@ function ReviewGuide() {
   const W = 158
   const xs = GUIDE_STEPS.map((_, i) => 4 + i * (W + 24))
   return (
-    <details className="card rv-guide">
+    <details className="card rv-guide" open>
       <summary>How to review — the working order</summary>
       <div className="rv-wfwrap">
         <svg className="rv-wf" viewBox="0 0 820 62"
@@ -995,6 +995,12 @@ function ReviewGuide() {
         <li><b>Enrich &amp; QA.</b> The AI AGENTS toolbar never edits the grid: each run opens a diff of proposals you tick and apply (definitions, names, tags, categories, QA rewrites).</li>
         <li><b>Name the glossary</b> (top right of the grid) so autosave keeps your review, then move on to <b>Set stewardship →</b> on the Govern page.</li>
       </ol>
+      <p className="hint-line">
+        Worth a look after scanning: the <b>Dictionary</b> (Governance section) — your scan
+        seeded its <i>pending</i> vocabulary. Approving those terms and tags early makes
+        <b> Suggest tags</b> richer here, since tags draw from the governed allow-list.
+        Review edits stay with this glossary — they don't rewrite the Dictionary.
+      </p>
     </details>
   )
 }

@@ -426,7 +426,7 @@ function KeysPanel({ out, onApply }) {
    session-local store so toggling Cards ⇄ ER doesn't lose a manual
    arrangement; a new scan resets everything. */
 
-const ER = { W: 204, HEAD: 26, ROW: 17, PADB: 7, HGAP: 96, VGAP: 30, MARGIN: 24 }
+const ER = { W: 204, HEAD: 26, ROW: 17, PADB: 7, HGAP: 170, VGAP: 46, MARGIN: 24 }
 const erClamp = (v, a, b) => Math.max(a, Math.min(b, v))
 const erTrunc = (s, n) => (s && s.length > n ? s.slice(0, n - 1) + '…' : s)
 const erKeyRows = (t) => t.columns.filter((c) => c.pk || c.fk)
@@ -442,8 +442,8 @@ const erHeight = (t) => ER.HEAD + Math.max(erKeyRows(t).length, 1) * ER.ROW + ER
 function erLayout(graph) {
   const known = new Set(graph.tables.map((t) => t.name))
   const rels = (graph.relationships || []).filter((r) => r.resolved && known.has(r.from) && known.has(r.to))
-  const refs = {}, neigh = {}
-  graph.tables.forEach((t) => { refs[t.name] = []; neigh[t.name] = new Set() })
+  const refs = {}, neigh = {}, H = {}
+  graph.tables.forEach((t) => { refs[t.name] = []; neigh[t.name] = new Set(); H[t.name] = erHeight(t) })
   rels.forEach((r) => {
     if (r.from === r.to) { neigh[r.from].add(r.from); return } // self-loop: connected, but no layering pull
     refs[r.from].push(r.to)
@@ -485,61 +485,189 @@ function erLayout(graph) {
     })
   }
 
-  // coordinates: layers left→right, each layer vertically centred
-  const heights = cols.map((col) =>
-    col.reduce((a, t) => a + erHeight(t), 0) + Math.max(0, col.length - 1) * ER.VGAP)
-  const maxH = heights.reduce((a, h) => Math.max(a, h), 0)
-  const pos = {}
-  cols.forEach((col, li) => {
-    let y = ER.MARGIN + (maxH - heights[li]) / 2
-    col.forEach((t) => {
-      pos[t.name] = { x: ER.MARGIN + li * (ER.W + ER.HGAP), y }
-      y += erHeight(t) + ER.VGAP
-    })
+  // vertical coordinates: stack each layer, then relax every node toward the
+  // mean centre of its neighbours (straightens edges and lines dependents up
+  // with their hubs) while keeping at least VGAP between layer neighbours;
+  // each layer is re-centred on its desired centroid so nothing drifts
+  const yTop = {}
+  cols.forEach((col) => {
+    let y = 0
+    col.forEach((t) => { yTop[t.name] = y; y += H[t.name] + ER.VGAP })
   })
+  const centre = (n) => yTop[n] + H[n] / 2
+  for (let s = 0; s < 3; s++) {
+    cols.forEach((col) => {
+      if (!col.length) return
+      const want = col.map((t) => {
+        const nb = [...neigh[t.name]].filter((m) => m !== t.name)
+        return { t, c: nb.length ? nb.reduce((a, m) => a + centre(m), 0) / nb.length : centre(t.name) }
+      }).sort((a, b) => a.c - b.c)
+      let bottom = null
+      want.forEach((w) => {
+        let y = w.c - H[w.t.name] / 2
+        if (bottom != null) y = Math.max(y, bottom + ER.VGAP)
+        yTop[w.t.name] = y
+        bottom = y + H[w.t.name]
+      })
+      const wantMean = want.reduce((a, w) => a + w.c, 0) / want.length
+      const gotMean = want.reduce((a, w) => a + centre(w.t.name), 0) / want.length
+      const off = wantMean - gotMean
+      want.forEach((w) => { yTop[w.t.name] += off })
+    })
+  }
+
+  // final coordinates: layers spaced on an even pitch left→right, everything
+  // normalised so the top-most node sits at the margin
+  const minY = connected.length ? Math.min(...connected.map((t) => yTop[t.name])) : 0
+  const pos = {}
+  cols.forEach((col, li) => col.forEach((t) => {
+    pos[t.name] = { x: ER.MARGIN + li * (ER.W + ER.HGAP), y: ER.MARGIN + (yTop[t.name] - minY) }
+  }))
   if (orphans.length) {
+    const maxBottom = connected.length
+      ? Math.max(...connected.map((t) => pos[t.name].y + H[t.name]))
+      : ER.MARGIN
     let x = ER.MARGIN
-    const y = ER.MARGIN + (connected.length ? maxH + ER.VGAP * 2 : 0)
+    const y = connected.length ? maxBottom + 72 : ER.MARGIN + 18
     orphans.forEach((t) => { pos[t.name] = { x, y }; x += ER.W + 36 })
   }
   return pos
 }
 
-// One resolved FK edge: exact source column row → target PK row, falling back
-// to the header centre when a column isn't among that node's key rows.
-// `dup` bows parallel edges between the same table pair apart.
-function erEdge(r, dup, pos, byName) {
-  const fp = pos[r.from], tp = pos[r.to]
+// point on a cubic bezier at t (one axis)
+const erBez = (t, a, b, c, d) => {
+  const u = 1 - t
+  return u * u * u * a + 3 * u * u * t * b + 3 * u * t * t * c + t * t * t * d
+}
+
+// Route every resolved edge. Anchors: exact source column row → target PK
+// row (header centre fallback). Edges that enter the same target row are
+// fanned apart, parallel edges between one pair get staggered curvature, and
+// when the default curve would cut through an unrelated node the control
+// points bow it vertically around the blocker. Label points alternate along
+// the curve (t = 0.4 / 0.6) so neighbouring labels don't collide.
+function erRoute(rels, pos, byName, tables) {
   const rowY = (tbl, p, name, wantPk) => {
     const rows = erKeyRows(tbl)
     let i = name ? rows.findIndex((c) => c.name === name) : -1
     if (i < 0 && wantPk) i = rows.findIndex((c) => c.pk)
     return i >= 0 ? p.y + ER.HEAD + i * ER.ROW + ER.ROW / 2 : p.y + ER.HEAD / 2
   }
-  const y1 = rowY(byName[r.from], fp, r.from_col, false)
-  const y2 = rowY(byName[r.to], tp, r.to_col, true)
-  const label = `${r.from}.${r.from_col} → ${r.to}`
-  const tip = r.to_col ? `${label}.${r.to_col}` : label
-  if (r.from === r.to) {                    // self-referencing FK: loop out the right side
-    const x = fp.x + ER.W
-    const o = 46 + dup * 14
-    const yb = y1 === y2 ? y2 + ER.ROW : y2 // same row referenced: bow down one row
-    return { label, tip, d: `M ${x} ${y1} C ${x + o} ${y1}, ${x + o} ${yb}, ${x} ${yb}`,
-             lx: x + o + 4, ly: (y1 + yb) / 2 - 4 }
+  const edges = rels.map((r) => {
+    const fp = pos[r.from], tp = pos[r.to]
+    const label = `${r.from}.${r.from_col} → ${r.to}`
+    return { r, fp, tp,
+             y1: rowY(byName[r.from], fp, r.from_col, false),
+             y2: rowY(byName[r.to], tp, r.to_col, true),
+             label, tip: r.to_col ? `${label}.${r.to_col}` : label }
+  })
+
+  // fan edges arriving at the same target row so they don't stack
+  const inGroups = {}
+  edges.forEach((e) => {
+    if (e.r.from === e.r.to) return
+    const k = `${e.r.to}|${Math.round(e.y2)}`
+    ;(inGroups[k] = inGroups[k] || []).push(e)
+  })
+  Object.values(inGroups).forEach((g) => {
+    if (g.length < 2) return
+    g.sort((a, b) => a.y1 - b.y1)
+    g.forEach((e, i) => { e.y2 += (i - (g.length - 1) / 2) * 7 })
+  })
+
+  // stagger curvature of parallel edges between the same table pair
+  const dup = {}
+  edges.forEach((e) => {
+    const k = `${e.r.from}→${e.r.to}`
+    e.dup = dup[k] || 0
+    dup[k] = e.dup + 1
+  })
+
+  // padded node rects for the obstacle test
+  const rects = tables.map((t) => {
+    const p = pos[t.name]
+    return p && { name: t.name, x: p.x - 8, y: p.y - 8, w: ER.W + 16, h: erHeight(t) + 16 }
+  }).filter(Boolean)
+
+  // label chips: try several spots along each curve and keep the first that
+  // overlaps neither a node nor an already-placed chip (fallback: curve mid)
+  const chips = []
+  const chipW = (e) => e.label.length * 4.5 + 10
+  const chipFree = (cx, cy, w) => {
+    const c = { x: cx - w / 2, y: cy - 9, w, h: 12 }
+    const onNode = rects.some((k) =>   // rects carry +8 pad; +8 here = true node box
+      c.x < k.x + k.w - 8 && k.x + 8 < c.x + c.w && c.y < k.y + k.h - 8 && k.y + 8 < c.y + c.h)
+    const onChip = chips.some((o) =>
+      c.x < o.x + o.w && o.x < c.x + c.w && c.y < o.y + o.h && o.y < c.y + c.h)
+    return { free: !onNode && !onChip, rect: c }
   }
-  const fromLeft = fp.x + ER.W / 2 <= tp.x + ER.W / 2
-  const x1 = fromLeft ? fp.x + ER.W : fp.x
-  const x2 = fromLeft ? tp.x : tp.x + ER.W
-  const o = Math.max(40, Math.abs(x2 - x1) * 0.4) + dup * 14
-  const c1 = fromLeft ? x1 + o : x1 - o
-  const c2 = fromLeft ? x2 - o : x2 + o
-  return { label, tip, d: `M ${x1} ${y1} C ${c1} ${y1}, ${c2} ${y2}, ${x2} ${y2}`,
-           lx: (x1 + 3 * c1 + 3 * c2 + x2) / 8, ly: (y1 + y2) / 2 - 4 } // cubic midpoint
+
+  return edges.map((e) => {
+    const { r, fp, tp, y1, y2 } = e
+    if (r.from === r.to) {                  // self-referencing FK: loop out the right side
+      const x = fp.x + ER.W
+      const o = 46 + e.dup * 14
+      const yb = y1 === y2 ? y2 + ER.ROW : y2
+      const lx = x + o + 6, ly = (y1 + yb) / 2 + 3
+      chips.push({ x: lx - 4, y: ly - 9, w: chipW(e), h: 12 })
+      return { ...e, anchor: 'start', lx, ly,
+               d: `M ${x} ${y1} C ${x + o} ${y1}, ${x + o} ${yb}, ${x} ${yb}` }
+    }
+    const fromLeft = fp.x + ER.W / 2 <= tp.x + ER.W / 2
+    const x1 = fromLeft ? fp.x + ER.W : fp.x
+    const x2 = fromLeft ? tp.x : tp.x + ER.W
+    const o = Math.max(46, Math.abs(x2 - x1) * 0.42) + e.dup * 16
+    const c1 = fromLeft ? x1 + o : x1 - o
+    const c2 = fromLeft ? x2 - o : x2 + o
+    let cy1 = y1, cy2 = y2
+    // sample the curve; when it passes through an unrelated node, bow it
+    // vertically around the blockers. Iterate: the bowed curve can clip a
+    // new node, so accumulate blockers (sticking to one side) until clear.
+    const curveHits = (k) => {
+      for (let i = 1; i < 24; i++) {
+        const t = i / 24
+        const px = erBez(t, x1, c1, c2, x2)
+        const py = erBez(t, y1, cy1, cy2, y2)
+        if (px >= k.x && px <= k.x + k.w && py >= k.y && py <= k.y + k.h) return true
+      }
+      return false
+    }
+    let side = null
+    let blockers = []
+    for (let pass = 0; pass < 3; pass++) {
+      const hits = rects.filter((k) =>
+        k.name !== r.from && k.name !== r.to && !blockers.includes(k) && curveHits(k))
+      if (!hits.length) break
+      blockers = blockers.concat(hits)
+      const mid = (y1 + y2) / 2
+      const above = Math.min(...blockers.map((k) => k.y)) - 26
+      const below = Math.max(...blockers.map((k) => k.y + k.h)) + 26
+      if (!side) side = Math.abs(above - mid) <= Math.abs(below - mid) ? 'above' : 'below'
+      const via = side === 'above' ? above : below
+      // control y overshoots so the curve's midpoint actually reaches `via`
+      cy1 = cy2 = (via - (y1 + y2) / 8) / 0.75
+    }
+    // walk candidate spots along the curve until the chip lands clear
+    const w = chipW(e)
+    let best = null
+    for (const t of [0.5, 0.42, 0.58, 0.34, 0.66, 0.28, 0.72]) {
+      const px = erBez(t, x1, c1, c2, x2)
+      const py = erBez(t, y1, cy1, cy2, y2) - 2
+      const f = chipFree(px, py, w)
+      if (!best) best = { px, py, rect: f.rect }
+      if (f.free) { best = { px, py, rect: f.rect }; break }
+    }
+    chips.push(best.rect)
+    return { ...e,
+      d: `M ${x1} ${y1} C ${c1} ${cy1}, ${c2} ${cy2}, ${x2} ${y2}`,
+      lx: best.px, ly: best.py }
+  })
 }
 
 function ErDiagram({ graph, store, onOpenTable }) {
   const wrapRef = useRef(null)
   const dragRef = useRef(null)
+  const touchedRef = useRef(!!store.view)  // user already panned/zoomed/dragged?
   const [pos, setPos] = useState(store.pos || null)
   const [view, setView] = useState(store.view || { x: 0, y: 0, z: 1 })
   const [sel, setSel] = useState(null)
@@ -563,29 +691,42 @@ function ErDiagram({ graph, store, onOpenTable }) {
     })
     const w = el.clientWidth, h = el.clientHeight
     const bw = Math.max(1, x1 - x0), bh = Math.max(1, y1 - y0)
-    const z = erClamp(Math.min((w - 48) / bw, (h - 48) / bh, 1.1), 0.2, 2.5)
+    const padX = w * 0.06, padY = h * 0.06  // ~6% breathing room all round
+    const z = erClamp(Math.min((w - 2 * padX) / bw, (h - 2 * padY) / bh, 1.1), 0.2, 2.5)
     setView({ z, x: (w - bw * z) / 2 - x0 * z, y: (h - bh * z) / 2 - y0 * z })
   }
 
   useEffect(() => {                         // first open of this scan: arrange + fit
-    if (!pos) {
-      const p = erLayout(graph)
+    let p = pos
+    if (!p) {
+      p = erLayout(graph)
       setPos(p)
       fit(p)
     }
+    // keep the auto-fit honest while the wrap settles (fonts, sidebar,
+    // window resizes) — but stop the moment the user pans/zooms/drags
+    const el = wrapRef.current
+    if (!el || typeof ResizeObserver === 'undefined') return
+    const ro = new ResizeObserver(() => { if (!touchedRef.current) fit(p) })
+    ro.observe(el)
+    return () => ro.disconnect()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const rearrange = () => {
     const p = erLayout(graph)
+    touchedRef.current = false            // fresh auto-layout → auto-fit again
     setPos(p)
     setSel(null)
     fit(p)
   }
 
-  const zoomAt = (f, mx, my) => setView((v) => {
-    const z = erClamp(v.z * f, 0.2, 2.5), k = z / v.z
-    return { z, x: mx - (mx - v.x) * k, y: my - (my - v.y) * k }
-  })
+  const zoomAt = (f, mx, my) => {
+    touchedRef.current = true
+    setView((v) => {
+      const z = erClamp(v.z * f, 0.2, 2.5), k = z / v.z
+      return { z, x: mx - (mx - v.x) * k, y: my - (my - v.y) * k }
+    })
+  }
   const zoomBtn = (f) => {
     const el = wrapRef.current
     if (el) zoomAt(f, el.clientWidth / 2, el.clientHeight / 2)
@@ -627,12 +768,14 @@ function ErDiagram({ graph, store, onOpenTable }) {
 
   const bgDown = (e) => {
     if (e.button !== 0) return
+    touchedRef.current = true
     dragRef.current = { kind: 'pan', sx: e.clientX, sy: e.clientY, ox: view.x, oy: view.y }
     setSel(null)
   }
   const nodeDown = (e, name) => {
     if (e.button !== 0 || !pos?.[name]) return
     e.stopPropagation()
+    touchedRef.current = true
     dragRef.current = { kind: 'node', name, sx: e.clientX, sy: e.clientY,
                         ox: pos[name].x, oy: pos[name].y, z: view.z, moved: false }
     setSel(name)
@@ -640,13 +783,12 @@ function ErDiagram({ graph, store, onOpenTable }) {
   const related = (name) => name === sel ||
     rels.some((r) => (r.from === sel && r.to === name) || (r.to === sel && r.from === name))
 
-  const dupSeen = {}
-  const edges = pos ? rels.map((r) => {
-    const k = `${r.from}→${r.to}`
-    const i = dupSeen[k] || 0
-    dupSeen[k] = i + 1
-    return { r, ...erEdge(r, i, pos, byName) }
-  }) : []
+  const edges = pos ? erRoute(rels, pos, byName, graph.tables) : []
+  const inRel = new Set()
+  rels.forEach((r) => { inRel.add(r.from); inRel.add(r.to) })
+  const orphanPts = pos
+    ? graph.tables.filter((t) => !inRel.has(t.name)).map((t) => pos[t.name]).filter(Boolean)
+    : []
 
   return (
     <div className="er-wrap" ref={wrapRef}>
@@ -661,17 +803,30 @@ function ErDiagram({ graph, store, onOpenTable }) {
           <g transform={`translate(${view.x},${view.y}) scale(${view.z})`}>
             {edges.map((e, i) => {
               const hot = sel && (e.r.from === sel || e.r.to === sel)
+              const lw = e.label.length * 4.5 + 10
               return (
                 <g key={i} className={`er-rel${hot ? ' hot' : ''}${sel && !hot ? ' dim' : ''}`}>
                   <path className="er-edge" markerEnd="url(#er-arrow)" d={e.d}>
                     <title>{e.tip}</title>
                   </path>
-                  {view.z >= 0.55 && (
-                    <text className="er-elabel" x={e.lx} y={e.ly} textAnchor="middle">{e.label}</text>
+                  {view.z >= 0.45 && (
+                    <g>
+                      <rect className="er-elabel-bg" x={e.anchor === 'start' ? e.lx - 4 : e.lx - lw / 2}
+                            y={e.ly - 9} width={lw} height={12} rx="3" />
+                      <text className="er-elabel" x={e.lx} y={e.ly}
+                            textAnchor={e.anchor === 'start' ? 'start' : 'middle'}>{e.label}</text>
+                    </g>
                   )}
                 </g>
               )
             })}
+            {orphanPts.length > 0 && (
+              <text className="er-caption"
+                    x={Math.min(...orphanPts.map((q) => q.x)) + 2}
+                    y={Math.min(...orphanPts.map((q) => q.y)) - 10}>
+                no relationships
+              </text>
+            )}
             {graph.tables.map((t) => {
               const p = pos[t.name]
               if (!p) return null

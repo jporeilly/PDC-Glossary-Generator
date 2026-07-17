@@ -14,6 +14,19 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.10.4] — 2026-07-17
+
+### Changed — ER layout refined; Review guide opens by default
+Schema ER diagram: fixed the mount-time fit race that left the graph
+huddled bottom-right; true bounding-box fit with auto re-fit until first
+interaction; wider layer pitch + neighbour relaxation (dependents align
+with their hubs); edges fan at shared targets, detour around intermediate
+nodes (audited: zero pass-throughs), labels get opaque chips placed to
+avoid every node and each other. Review: the "How to review" guide panel
+now starts expanded, spans the full width, and notes when to visit the
+Dictionary (pending vocabulary from scans; tags draw from the governed
+allow-list).
+
 ## [1.10.3] — 2026-07-17
 
 ### Changed — the Review grid breathes
