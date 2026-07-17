@@ -14,6 +14,44 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.10.3] — 2026-07-17
+
+### Changed — the Review grid breathes
+Ten always-visible inline inputs left every cell squashed (four-character
+Definition boxes at 141 rows). The grid now scrolls inside its own pane with
+real per-column min-widths, a sticky header and frozen Keep / Category / Term
+columns; **Definition and Purpose collapse to one-line previews** that expand
+in place — click either to open a full-width editor row with proper textareas
+and the row's scan evidence (sources, induced pattern, value signature,
+reference values) right underneath. Nothing moved to a modal and nothing was
+dropped: sensitivity, CDE, tags, confidence and the evidence popover all work
+as before, just tighter. The duplicate-cluster bars pin their
+Merge / Disambiguate / Keep separate buttons to the right edge, the AI-agent
+buttons sit in a labelled "AI AGENTS — propose → you apply" group, and a
+collapsed **"How to review — the working order"** panel at the top walks the
+steward through Prune → Resolve duplicates → Enrich & QA → Name → Govern.
+
+### Fixed — "Add to glossary" no longer discards colliding terms' sources
+Both UIs deduped an add-scan on the legacy `Category|Term` key by *skipping*
+any row whose key already existed, so scanning a second source with the same
+schema reported nothing but dups and silently threw away its columns and
+evidence. Collisions now **merge instead of vanish** — the existing term keeps
+the steward's edits and gains the new source's `Source_Column` path(s),
+per-source ratings / keys / DQ dimensions, the higher rating and any missing
+value-pattern evidence (the same fold the scanner itself applies within one
+scan). Distinct terms append exactly as before, and the Connect-card status
+now says how many existing terms absorbed the new source.
+
+### Added — Schema ER diagram; drag-and-drop DDL
+The Schema page gains a Cards | ER diagram toggle (ER by default when
+relationships exist): compact table nodes with PK/FK rows, bezier edges
+from FK column to referenced PK with arrowheads and labels, layered
+auto-layout (hubs left, dependents right, orphans below, barycenter
+crossing reduction), pan/zoom/node-drag and a Re-arrange reset. The
+"diagram a CREATE TABLE script" panel is now a drag-and-drop zone
+(.sql/.ddl/.txt, click-to-browse, auto-runs Diagram SQL) with paste
+preserved.
+
 ## [1.10.2] — 2026-07-17
 
 ### Fixed — PDC dot now lights after a bulk-load run

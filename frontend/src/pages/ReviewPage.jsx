@@ -187,6 +187,7 @@ export default function ReviewPage({ onNavigate }) {
   const [agent, setAgent] = useState(null)         // {label, done, total, cancelling}
   const [proposals, setProposals] = useState(null) // {label, note, items: [...]}
   const [evidence, setEvidence] = useState(null)   // row index | null
+  const [expanded, setExpanded] = useState(null)   // row index whose editor row is open
   const [hmSnap, setHmSnap] = useState(null)       // [{index, keep}] for the H+M toggle revert
   const [busy, setBusy] = useState(null)           // 'load' | 'enhance' | 'save'
   const [saveName, setSaveName] = useState('')
@@ -262,7 +263,7 @@ export default function ReviewPage({ onNavigate }) {
 
   /* ---------- keep / prune ---------- */
 
-  const structuralReset = () => { setHmSnap(null); lastPosRef.current = null }
+  const structuralReset = () => { setHmSnap(null); setExpanded(null); lastPosRef.current = null }
 
   const onKeep = useCallback((e, index, pos) => {
     const on = e.target.checked
@@ -312,6 +313,8 @@ export default function ReviewPage({ onNavigate }) {
   /* ---------- inline edits ---------- */
 
   const onField = useCallback((index, field, value) => { patchRow(index, { [field]: value }) }, [])
+
+  const toggleExpand = useCallback((index) => { setExpanded((e) => (e === index ? null : index)) }, [])
 
   const useName = useCallback((index) => {
     const r = rowsRef.current[index]
@@ -689,6 +692,8 @@ export default function ReviewPage({ onNavigate }) {
         </p>
       </div>
 
+      <ReviewGuide />
+
       <section className="card">
         <header>
           <h2>Review grid <span>prune candidate terms</span></h2>
@@ -723,34 +728,37 @@ export default function ReviewPage({ onNavigate }) {
                   title="Overlay an existing glossary's real definitions, purpose, tags and sensitivity onto matched scanned terms.">
             {busy === 'enhance' ? 'Enhancing…' : 'Enhance from glossary…'}
           </button>
-          <span className="rv-sep" aria-hidden="true" />
-          <span className="lbl">AI AGENTS</span>
-          <button className="ghost sm" disabled={aiDisabled} onClick={runEnrich}
-                  title="Rewrite definitions & purposes with the local LLM. Proposals only — you review the diff before anything lands.">
-            Enrich with LLM
-          </button>
-          <button className="ghost sm" disabled={aiDisabled} onClick={runAiSuggest}
-                  title="Evidence-grounded pass: the local model reads each row's scan evidence (profiled value signature, induced regex, reference values) and proposes names, governed tags and tightened sensitivity.">
-            AI suggest (evidence)
-          </button>
-          <button className="ghost sm" disabled={aiDisabled} onClick={runQa}
-                  title="Definition quality check: the deterministic linter (circular, vague, echoed, duplicated) always runs; the local AI judge adds rewrites when Ollama is up. Flags and proposals only.">
-            AI QA definitions
-          </button>
-          <button className="ghost sm" disabled={aiDisabled} onClick={runCategorize}
-                  title="AI category assignment: files uncategorized terms into the known categories; off-list answers are discarded.">
-            AI categorize
-          </button>
-          <button className="ghost sm" disabled={aiDisabled} onClick={runRetag}
-                  title="Re-derive meaningful, controlled tags for every term from the governed dictionary — deterministic, no rescan.">
-            Suggest tags
-          </button>
-          {anySuggestedNames && (
-            <button className="ghost sm" disabled={locked} onClick={useAllNames}
-                    title="Apply every pending → suggested-name chip at once.">
-              Apply all suggested names
+          <span className="rv-grow" />
+          <span className="rv-agents" role="group" aria-label="AI agents — they propose, you review and apply"
+                title="Each agent run collects its changes into a proposal diff — nothing touches the grid until you tick and apply.">
+            <span className="rv-agentslbl">AI AGENTS<small>propose → you apply</small></span>
+            <button className="ghost sm" disabled={aiDisabled} onClick={runEnrich}
+                    title="Rewrite definitions & purposes with the local LLM. Proposals only — you review the diff before anything lands.">
+              Enrich with LLM
             </button>
-          )}
+            <button className="ghost sm" disabled={aiDisabled} onClick={runAiSuggest}
+                    title="Evidence-grounded pass: the local model reads each row's scan evidence (profiled value signature, induced regex, reference values) and proposes names, governed tags and tightened sensitivity.">
+              AI suggest (evidence)
+            </button>
+            <button className="ghost sm" disabled={aiDisabled} onClick={runQa}
+                    title="Definition quality check: the deterministic linter (circular, vague, echoed, duplicated) always runs; the local AI judge adds rewrites when Ollama is up. Flags and proposals only.">
+              AI QA definitions
+            </button>
+            <button className="ghost sm" disabled={aiDisabled} onClick={runCategorize}
+                    title="AI category assignment: files uncategorized terms into the known categories; off-list answers are discarded.">
+              AI categorize
+            </button>
+            <button className="ghost sm" disabled={aiDisabled} onClick={runRetag}
+                    title="Re-derive meaningful, controlled tags for every term from the governed dictionary — deterministic, no rescan.">
+              Suggest tags
+            </button>
+            {anySuggestedNames && (
+              <button className="ghost sm" disabled={locked} onClick={useAllNames}
+                      title="Apply every pending → suggested-name chip at once.">
+                Apply all suggested names
+              </button>
+            )}
+          </span>
         </div>
 
         {agent && (
@@ -864,18 +872,19 @@ export default function ReviewPage({ onNavigate }) {
         <div className="rv-tablewrap">
           <table className="rv-table">
             <colgroup>
-              <col style={{ width: 40 }} /><col style={{ width: 118 }} /><col style={{ width: 150 }} />
-              <col /><col /><col style={{ width: 110 }} /><col style={{ width: 78 }} />
-              <col style={{ width: 132 }} /><col style={{ width: 72 }} /><col style={{ width: 180 }} />
+              <col style={{ width: 36 }} /><col style={{ width: 140 }} /><col style={{ width: 190 }} />
+              <col /><col /><col style={{ width: 96 }} /><col style={{ width: 62 }} />
+              <col style={{ width: 150 }} /><col style={{ width: 68 }} /><col style={{ width: 156 }} />
             </colgroup>
             <thead>
               <tr>
-                <th>
+                <th className="rv-stick rv-s0">
                   <input ref={masterRef} type="checkbox" checked={vis.length > 0 && keptShown === vis.length}
                          onChange={masterToggle} disabled={!vis.length}
                          title="Keep or clear all shown rows" aria-label="Keep or clear all shown rows" />
                 </th>
-                <th>Category</th><th>Term</th><th>Definition</th><th>Purpose</th>
+                <th className="rv-stick rv-s1">Category</th><th className="rv-stick rv-s2">Term</th>
+                <th>Definition</th><th>Purpose</th>
                 <th>Sensitivity</th><th>CDE</th><th>Tags</th><th>Conf.</th><th>Source</th>
               </tr>
             </thead>
@@ -898,8 +907,15 @@ export default function ReviewPage({ onNavigate }) {
                   <Fragment key={`${k}:${idxs[0]}`}>
                     {cluster && <ClusterHead name={k} count={idxs.length} action={act} rec={rec} locked={locked} onSet={onGroupSet} />}
                     {idxs.map((i) => (
-                      <GridRow key={i} row={rows[i]} index={i} pos={posOf.get(i)}
-                               onField={onField} onKeep={onKeep} onUseName={useName} onEvidence={setEvidence} />
+                      <Fragment key={i}>
+                        <GridRow row={rows[i]} index={i} pos={posOf.get(i)} expanded={expanded === i}
+                                 onField={onField} onKeep={onKeep} onUseName={useName}
+                                 onEvidence={setEvidence} onToggle={toggleExpand} />
+                        {expanded === i && rows[i] && (
+                          <ExpandedRow row={rows[i]} index={i} onField={onField}
+                                       onEvidence={setEvidence} onClose={() => setExpanded(null)} />
+                        )}
+                      </Fragment>
                     ))}
                   </Fragment>
                 )
@@ -929,26 +945,80 @@ export default function ReviewPage({ onNavigate }) {
   )
 }
 
+/* ---------- "How to review" guide: the working order, collapsed by default ----------
+   Same details.card > summary pattern as the Dictionary flywheel explainer;
+   the flow itself is a compact inline SVG in the WorkflowDiagram style
+   (theme tokens only — see review.css .rv-wf rules). */
+
+const GUIDE_STEPS = [
+  { n: '①', title: 'Prune', sub: 'keep / drop · High+Med cull' },
+  { n: '②', title: 'Resolve duplicates', sub: 'Merge · Disambiguate · keep' },
+  { n: '③', title: 'Enrich & QA', sub: 'agents propose — you apply' },
+  { n: '④', title: 'Name the glossary', sub: 'turns autosave on' },
+]
+
+function ReviewGuide() {
+  const W = 158
+  const xs = GUIDE_STEPS.map((_, i) => 4 + i * (W + 24))
+  return (
+    <details className="card rv-guide">
+      <summary>How to review — the working order</summary>
+      <div className="rv-wfwrap">
+        <svg className="rv-wf" viewBox="0 0 820 62"
+             aria-label="Working order: 1 prune the rows, 2 resolve duplicate names, 3 enrich and QA with the AI agents (they propose, you apply), 4 name the glossary to turn on autosave, then set stewardship on the Govern page.">
+          <defs>
+            <marker id="rv-wfhead" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="8" markerHeight="8"
+                    markerUnits="userSpaceOnUse" orient="auto-start-reverse">
+              <path className="rv-wfheadp" d="M0.5 0.5 L7.5 4 L0.5 7.5 Z" />
+            </marker>
+          </defs>
+          {xs.slice(0, -1).map((x) => (
+            <path key={x} className="rv-wfarrow" d={`M${x + W + 4} 31 H${x + W + 18}`} markerEnd="url(#rv-wfhead)" />
+          ))}
+          {GUIDE_STEPS.map((s, i) => (
+            <g className="rv-wfnode" key={s.title}>
+              <rect x={xs[i]} y={8} width={W} height={46} rx={8} />
+              <text className="rv-wft" x={xs[i] + W / 2} y={27} textAnchor="middle">{s.n} {s.title}</text>
+              <text className="rv-wfs" x={xs[i] + W / 2} y={43} textAnchor="middle">{s.sub}</text>
+            </g>
+          ))}
+          <path className="rv-wfarrow rv-wfdotted" d="M734 31 H748" markerEnd="url(#rv-wfhead)" />
+          <g className="rv-wfout">
+            <rect x={752} y={16} width={64} height={30} rx={8} />
+            <text className="rv-wft" x={784} y={35} textAnchor="middle">Govern</text>
+          </g>
+        </svg>
+      </div>
+      <ol className="workcycle">
+        <li><b>Prune.</b> Every scanned column is a candidate — untick <b>Keep</b> on noise (or use <b>Keep High+Med conf</b>) rather than hunting for gaps; table-level terms always stay.</li>
+        <li><b>Resolve duplicates.</b> Same-named terms get a header bar: <b>Merge</b> into one term linked to all its columns, <b>Disambiguate</b> into unique names, or keep separate — <b>AI advise</b> and <b>Find similar</b> recommend, you decide.</li>
+        <li><b>Enrich &amp; QA.</b> The AI AGENTS toolbar never edits the grid: each run opens a diff of proposals you tick and apply (definitions, names, tags, categories, QA rewrites).</li>
+        <li><b>Name the glossary</b> (top right of the grid) so autosave keeps your review, then move on to <b>Set stewardship →</b> on the Govern page.</li>
+      </ol>
+    </details>
+  )
+}
+
 /* ---------- one data row of the review grid ---------- */
 
-const GridRow = memo(function GridRow({ row: r, index, pos, onField, onKeep, onUseName, onEvidence }) {
+const GridRow = memo(function GridRow({ row: r, index, pos, expanded, onField, onKeep, onUseName, onEvidence, onToggle }) {
   const tt = isTableTerm(r)
   const keptRow = truthy(r.Keep)
   const srcs = splitList(r.Source_Column)
   const hasEv = !!(r.Value_Pattern || r.Value_Signature || r.Enum_Values)
   const sev = r.Sensitivity || 'LOW'
   return (
-    <tr className={(keptRow ? '' : 'rv-dropped') + (tt ? ' rv-tterm' : '')}>
-      <td className="rv-keep">
+    <tr className={(keptRow ? '' : 'rv-dropped') + (tt ? ' rv-tterm' : '') + (expanded ? ' rv-open' : '')}>
+      <td className="rv-keep rv-stick rv-s0">
         {tt
           ? <input type="checkbox" checked disabled title="Table-level term — always kept; can't be dropped even at low confidence." aria-label="Table term — always kept" />
           : <input type="checkbox" checked={keptRow} aria-label={`Keep ${r.Term || ''}`} onChange={(e) => onKeep(e, index, pos)} />}
       </td>
-      <td>
+      <td className="rv-stick rv-s1">
         <input type="text" value={r.Category || ''} title={r.Category || ''}
                onChange={(e) => onField(index, 'Category', e.target.value)} aria-label="Category" />
       </td>
-      <td>
+      <td className="rv-stick rv-s2">
         <input type="text" value={r.Term || ''} title={r.Term || ''}
                onChange={(e) => onField(index, 'Term', e.target.value)} aria-label="Term" />
         {tt && <span className="rv-ttbadge" title="Table-level record term — links to the whole table; always kept.">TABLE</span>}
@@ -960,15 +1030,22 @@ const GridRow = memo(function GridRow({ row: r, index, pos, onField, onKeep, onU
         )}
       </td>
       <td>
-        <textarea value={r.Definition || ''} title={r.Definition || ''}
-                  onChange={(e) => onField(index, 'Definition', e.target.value)} aria-label="Definition" />
-        {(r.LLM_Definition === 'Yes' || (r.LLM_Definition === undefined && r.LLM_Enriched === 'Yes')) && <span className="rv-enr">LLM</span>}
-        {r.QA_Issues ? <span className="rv-qaflag" title={`QA: ${String(r.QA_Issues).split(';').join(' · ')}`}>QA ⚠</span> : null}
+        <button className="rv-prev" onClick={() => onToggle(index)} aria-expanded={expanded}
+                title={r.Definition ? `${r.Definition}\n\nClick to edit definition & purpose.` : 'Click to add a definition'}
+                aria-label={`Edit definition and purpose for ${r.Term || 'term'}`}>
+          <span className={r.Definition ? 'rv-prevtext' : 'rv-prevtext empty'}>{r.Definition || 'add definition…'}</span>
+          {(r.LLM_Definition === 'Yes' || (r.LLM_Definition === undefined && r.LLM_Enriched === 'Yes')) && <span className="rv-enr">LLM</span>}
+          {r.QA_Issues ? <span className="rv-qaflag" title={`QA: ${String(r.QA_Issues).split(';').join(' · ')}`}>QA ⚠</span> : null}
+          <span className="rv-caret" aria-hidden="true">{expanded ? '▾' : '▸'}</span>
+        </button>
       </td>
       <td>
-        <textarea value={r.Purpose || ''} placeholder="purpose…"
-                  onChange={(e) => onField(index, 'Purpose', e.target.value)} aria-label="Purpose" />
-        {(r.LLM_Purpose === 'Yes' || (r.LLM_Purpose === undefined && r.LLM_Enriched === 'Yes')) && <span className="rv-enr">LLM</span>}
+        <button className="rv-prev" onClick={() => onToggle(index)} aria-expanded={expanded}
+                title={r.Purpose ? `${r.Purpose}\n\nClick to edit definition & purpose.` : 'Click to add a purpose'}
+                aria-label={`Edit purpose for ${r.Term || 'term'}`}>
+          <span className={r.Purpose ? 'rv-prevtext' : 'rv-prevtext empty'}>{r.Purpose || 'purpose…'}</span>
+          {(r.LLM_Purpose === 'Yes' || (r.LLM_Purpose === undefined && r.LLM_Enriched === 'Yes')) && <span className="rv-enr">LLM</span>}
+        </button>
       </td>
       <td>
         <select className={`rv-sev sev-${sev}`} value={sev}
@@ -1004,6 +1081,63 @@ const GridRow = memo(function GridRow({ row: r, index, pos, onField, onKeep, onU
   )
 })
 
+/* ---------- expanded row editor: full-width Definition + Purpose + evidence ----------
+   The old UI kept always-on textareas in two wide columns and let the page
+   scroll; at 10 columns that squashed everything. Here the two prose fields
+   collapse to one-line previews and this row expands in place (no modal) with
+   full-width textareas and the scan-evidence bits underneath. */
+
+function ExpandedRow({ row: r, index, onField, onEvidence, onClose }) {
+  const srcs = splitList(r.Source_Column)
+  const enums = splitList(r.Enum_Values)
+  return (
+    <tr className="rv-exprow">
+      <td colSpan={10}>
+        <div className="rv-exp" onKeyDown={(e) => { if (e.key === 'Escape') onClose() }}>
+          <div className="rv-expgrid">
+            <label>
+              Definition
+              {(r.LLM_Definition === 'Yes' || (r.LLM_Definition === undefined && r.LLM_Enriched === 'Yes')) && <span className="rv-enr">LLM</span>}
+              <textarea autoFocus value={r.Definition || ''}
+                        onChange={(e) => onField(index, 'Definition', e.target.value)} aria-label="Definition" />
+            </label>
+            <label>
+              Purpose
+              {(r.LLM_Purpose === 'Yes' || (r.LLM_Purpose === undefined && r.LLM_Enriched === 'Yes')) && <span className="rv-enr">LLM</span>}
+              <textarea value={r.Purpose || ''} placeholder="why the business keeps this data…"
+                        onChange={(e) => onField(index, 'Purpose', e.target.value)} aria-label="Purpose" />
+            </label>
+          </div>
+          {r.QA_Issues ? <div className="rv-issues">⚠ QA: {String(r.QA_Issues).split(';').join(' · ')}</div> : null}
+          <div className="rv-expev">
+            <span className="rv-expevk">EVIDENCE</span>
+            <span>
+              sources <b>{srcs.length || 0}</b>
+              {srcs.length > 0 && <>{': '}<code>{srcs.slice(0, 3).join('; ')}{srcs.length > 3 ? ` +${srcs.length - 3} more` : ''}</code></>}
+            </span>
+            {r.Value_Pattern && <span>pattern <code>{r.Value_Pattern}</code></span>}
+            {r.Value_Signature && <span>signature <code>{r.Value_Signature}</code></span>}
+            {enums.length > 0 && (
+              <span>
+                reference values <b>{enums.length}</b>{': '}
+                {enums.slice(0, 6).map((v) => <code key={v} className="rv-expenum">{v}</code>)}
+                {enums.length > 6 ? ` +${enums.length - 6}` : ''}
+              </span>
+            )}
+            {!srcs.length && !hasEvidence(r) && <span className="rv-msg">table-level (conceptual) term — no profiled evidence</span>}
+            <span className="rv-grow" />
+            <button className="ghost sm" onClick={() => onEvidence(index)}
+                    title="All sources and the full scan evidence behind this term">Full evidence…</button>
+            <button className="ghost sm" onClick={onClose} title="Collapse this editor (Esc)">Close ▴</button>
+          </div>
+        </div>
+      </td>
+    </tr>
+  )
+}
+
+const hasEvidence = (r) => !!(r.Value_Pattern || r.Value_Signature || r.Enum_Values)
+
 /* ---------- duplicate cluster header (Merge / Disambiguate / Keep separate) ---------- */
 
 function ClusterHead({ name, count, action, rec, locked, onSet }) {
@@ -1025,7 +1159,6 @@ function ClusterHead({ name, count, action, rec, locked, onSet }) {
             {count} candidate{count !== 1 ? 's' : ''}
             {action === 'merge' ? ' → merged into one' : action === 'split' ? ' → split & renamed' : ''}
           </span>
-          <span className="rv-gsegs seg">{seg('merge', 'Merge')}{seg('split', 'Disambiguate')}{seg('separate', 'Keep separate')}</span>
           {rec && rec.action && (
             <span className="rv-grec">
               Recommended: <b>{recLabel}</b>
@@ -1034,6 +1167,7 @@ function ClusterHead({ name, count, action, rec, locked, onSet }) {
               {' — '}{rec.reason || ''}
             </span>
           )}
+          <span className="rv-gsegs seg">{seg('merge', 'Merge')}{seg('split', 'Disambiguate')}{seg('separate', 'Keep separate')}</span>
         </div>
       </td>
     </tr>

@@ -15,6 +15,16 @@
 label.rv-cbx { display: flex; align-items: center; gap: .35rem; color: var(--text-secondary); font-size: .82rem; }
 button.ghost.sm, button.primary.sm { padding: .32rem .7rem; font-size: .8rem; }
 button.ghost.applied { outline: 2px solid var(--accent); }
+/* the AI-agents toolbar reads as one labelled group, not a second nav */
+.rv-agents {
+  display: inline-flex; flex-wrap: wrap; align-items: center; gap: .45rem;
+  padding: .35rem .6rem; border: 1px dashed var(--baseline); border-radius: 10px;
+}
+.rv-agentslbl {
+  display: inline-flex; flex-direction: column; line-height: 1.2; margin-right: .2rem;
+  font-size: .68rem; color: var(--text-muted); font-weight: 700; letter-spacing: .06em;
+}
+.rv-agentslbl small { font-size: .62rem; font-weight: 500; letter-spacing: .02em; }
 .rv-savename {
   background: var(--surface-2); border: none; border-radius: 8px; color: var(--text-primary);
   padding: .4rem .6rem; font: .84rem system-ui, "Segoe UI", sans-serif; min-width: 230px;
@@ -43,21 +53,84 @@ button.rv-chip.on { outline: 2px solid var(--accent); }
 .rv-progress .progress-track { flex: 1; margin: 0; }
 .rv-progress .ep { font-size: .8rem; color: var(--text-secondary); white-space: nowrap; }
 
-/* ---------- the review grid ---------- */
-.rv-tablewrap { overflow-x: auto; margin-top: 1rem; }
-table.rv-table { width: 100%; min-width: 1140px; border-collapse: collapse; font-size: .84rem; }
-.rv-table th { text-align: left; color: var(--text-muted); font-weight: 500; padding: .35rem .45rem; }
+/* ---------- the review grid ----------
+   The legacy grid kept always-on textareas in two wide auto columns and let
+   the whole page scroll; ten inline inputs left every cell squashed. Now the
+   wrap is the scroller (x AND y, so the header and the Keep/Category/Term
+   columns can stick), each column gets a real min-width, and Definition /
+   Purpose live as one-line previews that expand into a full-width editor row. */
+.rv-tablewrap { overflow: auto; max-height: 70vh; margin-top: 1rem; container-type: inline-size; }
+table.rv-table {
+  width: 100%; min-width: 1230px; table-layout: fixed; /* fixed: the nowrap previews
+  must truncate, not stretch their auto columns to the longest definition */
+  border-collapse: separate; border-spacing: 0 3px; font-size: .84rem;
+}
+.rv-table th {
+  text-align: left; color: var(--text-muted); font-weight: 500; padding: .35rem .45rem;
+  position: sticky; top: 0; z-index: 3; background: var(--surface-1);
+  box-shadow: 0 3px 0 var(--surface-1); /* covers the border-spacing gap under the header */
+}
 .rv-table td { padding: .4rem .45rem; background: var(--surface-2); vertical-align: top; }
-.rv-table tbody tr { border-bottom: 3px solid var(--surface-1); }
+/* frozen Keep / Category / Term columns — offsets match the <colgroup> widths */
+.rv-table td.rv-stick { position: sticky; z-index: 2; background: var(--surface-2); }
+.rv-table th.rv-stick { z-index: 4; }
+.rv-s0 { left: 0; }
+.rv-s1 { left: 36px; }
+.rv-s2 { left: 176px; }
+.rv-table td.rv-s2, .rv-table th.rv-s2 { box-shadow: 10px 0 12px -10px rgba(0, 0, 0, .5); }
+.rv-table th.rv-s2 { box-shadow: 10px 0 12px -10px rgba(0, 0, 0, .5), 0 3px 0 var(--surface-1); }
 .rv-table input[type="text"], .rv-table select, .rv-table textarea {
   width: 100%; background: var(--surface-1); border: none; border-radius: 6px;
   color: var(--text-primary); font: .8rem/1.4 system-ui, "Segoe UI", sans-serif; padding: .32rem .45rem;
 }
-.rv-table textarea { min-height: 52px; resize: vertical; }
+.rv-table select { padding: .32rem .3rem; }
 .rv-table input:focus, .rv-table select:focus, .rv-table textarea:focus { outline: 2px solid var(--accent); }
-tr.rv-dropped td { opacity: .5; }
-tr.rv-dropped td.rv-keep { opacity: 1; }
+/* dim dropped rows via their content, not the cell — sticky cells must stay opaque */
+tr.rv-dropped td > * { opacity: .45; }
+tr.rv-dropped td.rv-keep > * { opacity: 1; }
 .rv-empty { color: var(--text-muted); text-align: center; padding: 1.2rem !important; }
+
+/* Definition / Purpose one-line previews — click to expand the editor row */
+.rv-prev {
+  display: flex; align-items: center; gap: .4rem; width: 100%;
+  background: var(--surface-1); border: none; border-radius: 6px; padding: .34rem .5rem;
+  cursor: pointer; color: var(--text-primary); font: .8rem/1.4 system-ui, "Segoe UI", sans-serif;
+  text-align: left;
+}
+.rv-prev:hover, tr.rv-open .rv-prev { outline: 1px solid var(--baseline); }
+.rv-prev:focus-visible { outline: 2px solid var(--accent); }
+.rv-prevtext { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rv-prevtext.empty { color: var(--text-muted); font-style: italic; }
+.rv-caret { color: var(--text-muted); flex: none; font-size: .68rem; }
+
+/* the expanded editor row — full-width panel pinned to the visible scrollport */
+tr.rv-exprow > td {
+  background: var(--surface-2); border-left: 3px solid var(--accent); padding: .75rem .9rem;
+}
+/* 100cqw = the scrollport width (.rv-tablewrap is an inline-size container),
+   minus the cell's own padding + accent border so the panel never overflows */
+.rv-exp { position: sticky; left: 0; max-width: min(100%, calc(100cqw - 34px)); }
+.rv-expgrid { display: grid; grid-template-columns: 1fr 1fr; gap: .9rem; }
+@media (max-width: 1100px) { .rv-expgrid { grid-template-columns: 1fr; } }
+.rv-expgrid label {
+  position: relative; display: flex; flex-direction: column; gap: .35rem;
+  font-size: .7rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--text-muted);
+}
+.rv-expgrid label .rv-enr { position: absolute; top: 0; right: 0; }
+.rv-expgrid textarea {
+  min-height: 96px; resize: vertical; background: var(--surface-1); border: none; border-radius: 8px;
+  color: var(--text-primary); padding: .55rem .7rem; font: .86rem/1.5 system-ui, "Segoe UI", sans-serif;
+}
+.rv-expgrid textarea:focus { outline: 2px solid var(--accent); }
+.rv-expev {
+  display: flex; flex-wrap: wrap; gap: .35rem 1rem; align-items: center;
+  margin-top: .8rem; font-size: .76rem; color: var(--text-secondary);
+}
+.rv-expev b { color: var(--text-primary); }
+.rv-expev code { background: var(--surface-1); border-radius: 4px; padding: .05rem .35rem; }
+.rv-expenum { margin-right: .25rem; }
+.rv-expevk { font-size: .66rem; font-weight: 700; letter-spacing: .06em; color: var(--text-muted); }
 
 .rv-sev.sev-HIGH { color: var(--status-critical); font-weight: 650; }
 .rv-sev.sev-MEDIUM { color: var(--status-warning); font-weight: 650; }
@@ -93,7 +166,14 @@ tr.rv-dropped td.rv-keep { opacity: 1; }
 
 /* ---------- duplicate cluster headers ---------- */
 tr.rv-gclhead td { background: var(--surface-1); border-left: 3px solid var(--accent); }
-.rv-gclwrap { display: flex; flex-wrap: wrap; gap: .6rem; align-items: center; font-size: .8rem; }
+/* the wrap pins to the visible scrollport (the td spans the whole wide table);
+   the Merge / Disambiguate / Keep separate group pushes to its right edge */
+.rv-gclwrap {
+  display: flex; flex-wrap: wrap; gap: .6rem; align-items: center; font-size: .8rem;
+  position: sticky; left: 0; max-width: min(100%, calc(100cqw - 24px));
+}
+.rv-gsegs { margin-left: auto; }
+.rv-grec { flex: 0 1 auto; min-width: 0; }
 .rv-gclname { font-weight: 650; color: var(--text-primary); }
 .rv-gclcnt { color: var(--text-muted); }
 .rv-gsegs .seg button.rec { outline: 2px dashed var(--accent); }
@@ -128,3 +208,16 @@ tr.rv-gclhead td { background: var(--surface-1); border-left: 3px solid var(--ac
 .rv-evchips { display: flex; flex-wrap: wrap; gap: .35rem; }
 .rv-evchips span { background: var(--surface-2); border-radius: 6px; padding: .1rem .5rem; font-size: .78rem; font-family: Consolas, "Cascadia Mono", monospace; }
 .rv-srclist div { font-family: Consolas, "Cascadia Mono", monospace; font-size: .8rem; padding: .15rem 0; color: var(--text-secondary); }
+
+/* ---------- "How to review" guide — compact SVG flow, WorkflowDiagram style ---------- */
+.rv-guide .rv-wfwrap { max-width: 860px; margin: .9rem 0 .3rem; }
+.rv-wf { width: 100%; height: auto; display: block; }
+.rv-wfnode rect { fill: var(--surface-2); stroke: var(--border); stroke-width: 1; }
+.rv-wft { font: 600 12.5px system-ui, -apple-system, "Segoe UI", sans-serif; fill: var(--text-primary); }
+.rv-wfs { font: 500 10.5px system-ui, -apple-system, "Segoe UI", sans-serif; fill: var(--text-muted); }
+.rv-wfarrow { fill: none; stroke: var(--baseline); stroke-width: 1.5; }
+.rv-wfdotted { stroke-dasharray: 2.5 3.5; }
+.rv-wfheadp { fill: var(--baseline); }
+.rv-wfout rect { fill: none; stroke: var(--gridline); stroke-width: 1; }
+.rv-wfout .rv-wft { fill: var(--text-muted); font-weight: 500; }
+.rv-guide .workcycle { margin-bottom: .3rem; }

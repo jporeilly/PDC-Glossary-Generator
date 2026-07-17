@@ -24,22 +24,57 @@ const pct = (x) => Math.round((x || 0) * 100) + '%'
 
 const rowKey = (r) => `${r.Category}|${String(r.Term || '').toLowerCase()}`
 
-// Merge scanned/harvested rows into the shared workspace, deduping on
-// Category|Term exactly like the old UI's "Add to glossary" path.
+const splitCols = (s) => String(s || '').split(';').map((t) => t.trim()).filter(Boolean)
+
+// One Category|Term collision: fold the new row's source linkage + scan
+// evidence into the existing row (immutably). Mirrors the backend's own
+// within-scan dedupe (suggester.py, "dedup by (Category, Term)"): the kept
+// row's edits win, but it gains the new source's column path(s), per-source
+// ratings / keys / DQ dims, the max rating, and any evidence it was missing.
+function foldSources(base, nr) {
+  const next = { ...base }
+  const seen = new Set(splitCols(base.Source_Column))
+  const cols = [...seen]
+  splitCols(nr.Source_Column).forEach((s) => { if (!seen.has(s)) { seen.add(s); cols.push(s) } })
+  next.Source_Column = cols.join('; ')
+  for (const f of ['Source_Ratings', 'Source_Keys', 'Source_Quality_Dims']) {
+    if (nr[f] && Object.keys(nr[f]).length) next[f] = { ...(base[f] || {}), ...nr[f] }
+  }
+  const rating = Math.max(parseInt(base.Suggested_Rating || 0, 10) || 0,
+                          parseInt(nr.Suggested_Rating || 0, 10) || 0)
+  if (rating || base.Suggested_Rating != null) next.Suggested_Rating = rating
+  for (const f of ['Value_Signature', 'Value_Pattern', 'Enum_Values']) {
+    if (!next[f] && nr[f]) next[f] = nr[f]
+  }
+  return next
+}
+
+// Merge scanned/harvested rows into the shared workspace on the old UI's
+// Category|Term key (static/js/05-connections.js scanConn). The legacy add
+// path SKIPPED a colliding row outright, which silently threw away the new
+// source's columns and evidence — scan the same schema from a second source
+// and "Add to glossary" reported them all as dups with nothing to show.
+// Collisions now merge instead (matching the backend's within-scan dedupe):
+// distinct terms append, same-key terms absorb the new sources/evidence.
 function mergeIntoWorkspace(newRows) {
   const cur = getWorkspace().rows
   if (!cur.length) {
     setRows(newRows)
     return { added: newRows.length, dup: 0 }
   }
-  const have = new Set(cur.map(rowKey))
   const out = [...cur]
+  const at = new Map(out.map((r, i) => [rowKey(r), i]))
   let added = 0
   let dup = 0
   for (const nr of newRows) {
     const k = rowKey(nr)
-    if (have.has(k)) { dup++; continue }
-    have.add(k)
+    if (at.has(k)) {
+      const i = at.get(k)
+      out[i] = foldSources(out[i], nr)
+      dup++
+      continue
+    }
+    at.set(k, out.length)
     out.push(nr)
     added++
   }
@@ -650,9 +685,9 @@ function HarvestCard({ pdc, onConnectionsChanged, onNavigate, glossaryName }) {
       ...pdcAuthBody(pdc), data_source_id: s.fqdn || s.id, data_source_name: s.name || s.id,
     })
     if (d.pdc_summary) collectCards.push(d.pdc_summary)
-    const { added } = mergeIntoWorkspace(d.rows || [])
+    const { added, dup } = mergeIntoWorkspace(d.rows || [])
     const gov = d.scanned?.already_governed || 0
-    note(k, 'good', `✓ added ${added} term(s)${gov ? ` · ${gov} already governed in PDC` : ''}`)
+    note(k, 'good', `✓ added ${added} term(s)${dup ? ` · ${dup} merged into existing` : ''}${gov ? ` · ${gov} already governed in PDC` : ''}`)
     return { added, gov }
   }
 
@@ -1069,7 +1104,7 @@ function ConnCard({ conn, onEdit, onChanged, onDiscoverDb, onDiscoverDocs, onNav
       const d = await apiPost('/api/scan', scanBody(c))
       if (adding) {
         const { added, dup } = mergeIntoWorkspace(d.rows || [])
-        say('good', `Added ${added} term(s)${dup ? ` (${dup} dup)` : ''}.`)
+        say('good', `Added ${added} term(s)${dup ? ` · ${dup} existing term(s) gained this source's columns & evidence` : ''}.`)
         setCheck(null)
       } else {
         setRows(d.rows || [])

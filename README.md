@@ -1,6 +1,6 @@
 # Pentaho Data Catalog Glossary Generator
 
-**Version:** 1.10.2 · validated against Pentaho Data Catalog 11.0.0 (public
+**Version:** 1.10.3 · validated against Pentaho Data Catalog 11.0.0 (public
 API v3). FastAPI backend with interactive API docs at **`/docs`**, and a
 **React 18 + Vite frontend** (`frontend/`, on the shared Policy Generator
 design kit) served from `frontend/dist` when built — the legacy Jinja shell
