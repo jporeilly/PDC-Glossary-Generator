@@ -14,6 +14,17 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.9.1] — 2026-07-17
+
+### Fixed — documentation caught up with the 1.9.0 port
+Docs-only release. REVIEW.md's framework-decision section, written when the
+FastAPI migration was evaluated and deferred (2026-07-10), now records the
+honest history — deferred then, shipped in 1.9.0 — and its refactoring
+notes point at `api.py` instead of the removed `app.py`. REFERENCE.md's
+layout and repository manifest now show the repo-root `pdc_client/` package
+with the `pdc_api.py` shim, list the docs that actually exist, and drop the
+last stray "Flask" wordings. No code changes.
+
 ## [1.9.0] — 2026-07-17
 
 ### Changed — Flask → FastAPI (the Policy Generator port pattern, applied)

@@ -1,6 +1,6 @@
 # Pentaho Data Catalog Glossary Generator
 
-**Version:** 1.9.0 · validated against Pentaho Data Catalog 11.0.0 (public
+**Version:** 1.9.1 · validated against Pentaho Data Catalog 11.0.0 (public
 API v3). FastAPI backend with interactive API docs at **`/docs`**. A committed
 offline **pytest** suite keeps it honest (`pytest -q` from
 `glossary_generator/`): the engine checks, the PDC v3 API shape checks, the
@@ -177,7 +177,8 @@ reached over the network only when you use those features.
 
 On the Ubuntu lab VM, **one bootstrap** (PDC-Scenarios repo) stands up /
 refreshes the whole `~/PDC-Demo` checkout — this app, the **Policy
-Generator**, and the selected vertical's assets (sparse-pulled):
+Generator**, **Catalog Insights**, and the selected vertical's assets
+(sparse-pulled):
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/jporeilly/PDC-Scenarios/main/install-pdc-demo.sh | bash -s -- CSCU

@@ -79,37 +79,38 @@ clean (no syntax errors), no Jinja tags in the template.
 Refactoring is **optional, not required**. Candidates, in priority order:
 1. **PDC v3 job adapter** (see §1) — the only change with functional impact, and only
    if you must run against v3.
-2. **app.py endpoint boilerplate** — ~12 endpoints repeat
-   `version = body.get("version") or "v2"` plus token/reauth setup. A small
-   `@with_pdc(...)` decorator or helper would remove the repetition. Cosmetic.
+2. **api.py endpoint boilerplate** — a dozen-plus endpoints repeat
+   `version = body.get("version") or "v2"` plus token/reauth setup (carried over
+   unchanged by the 1.9.0 FastAPI port). A small `@with_pdc(...)` decorator or
+   helper would remove the repetition. Cosmetic.
 3. **`llm.status()` caching** — it probes Ollama (3s timeout) on every call, including
    inside `suggest_expertise`. A short TTL cache would speed up offline use. Minor.
 4. **File size** — `pdc_api.py` (~1.8k lines) and `suggester.py` (~2.4k) are large but
    cohesive; splitting (auth / entities / jobs) would aid navigation, not correctness.
 
-### Framework decision — Flask vs FastAPI (evaluated 2026-07-10, deferred)
+### Framework decision — Flask vs FastAPI (evaluated 2026-07-10, shipped in 1.9.0)
 
-Considered migrating the backend to FastAPI and decided **against it for this
-app in its current shape**. Rationale:
+First evaluated 2026-07-10 and **deferred**: the wins (async concurrency,
+Pydantic validation, auto-generated OpenAPI docs) looked thin for a
+single-user lab tool whose slow paths are database scans and Ollama
+inference, while the cost was real — dozens of Flask routes (including
+streaming endpoints, file uploads and CSV exports) rewritten to ASGI
+idioms, gunicorn → uvicorn across the launchers and Docker, full
+re-validation against PDC 11.0.0, and a documentation/courseware sweep.
+The revisit trigger on record was the Registry becoming a *service* with
+the app's API as a documented HTTP contract.
 
-- **No benefit at this scale.** FastAPI's wins are async concurrency, Pydantic
-  request validation, and auto-generated OpenAPI docs. This is a single-user
-  lab tool whose slow paths are database scans and Ollama inference — no
-  framework accelerates those — and whose API has one consumer: its own page.
-- **Real cost.** Dozens of Flask routes (including streaming endpoints, file
-  uploads and CSV exports) rewritten to ASGI/Pydantic idioms; gunicorn →
-  uvicorn across `run.sh` / `run.ps1` / Docker; full re-validation against
-  PDC 11.0.0 (which 1.7.x was carefully validated against); and a
-  documentation/courseware sweep — Workshop 1 even shows the
-  `* Serving Flask app 'app'` launcher output that screenshots will capture.
-
-**Revisit trigger:** if the Registry becomes a *service* — the Policy
-Generator (or other tooling) consuming the app's API over HTTP as a
-documented contract rather than reading the registry file — migrate as part
-of that redesign, when re-validation is unavoidable anyway. Until then, if
-API documentation is wanted (e.g. for the Technical Track), serve a
-hand-maintained OpenAPI spec from the existing Flask app instead — a
-fraction of the cost, most of the benefit.
+The migration then **shipped in 1.9.0 (2026-07-17)**, once the Policy
+Generator's FastAPI port had proven a route-for-route pattern that
+collapsed the cost side: `app.py` was ported to `api.py` with all 76
+endpoints keeping their exact request/response contract (streaming
+endpoints included, via `StreamingResponse`), verified by a side-by-side
+parity run against the Flask app before its removal. The launchers now
+boot **uvicorn** (Flask and gunicorn dropped from requirements), Docker
+deployment was removed outright rather than converted, and the originally
+"not worth it" benefits came along for free — Swagger UI at `/docs` and
+additive start/poll job endpoints for the planned React UI. See the 1.9.0
+entry in `CHANGELOG.md` for the full port notes.
 
 ## 5. Changes in this build
 

@@ -41,10 +41,10 @@ the LLM prompt, the import path, teaching notes, and extension points — see
 ```text
 glossary_generator/
   api.py                  FastAPI backend + serves the UI (Swagger at /docs)
-  suggester.py            core: harvest -> suggest -> JSONL (importable, no Flask)
+  suggester.py            core: harvest -> suggest -> JSONL (importable, framework-free)
   dbconn.py               driver-aware DB connections + test + driver status
   llm.py                  Ollama client: definition enrichment + model pull
-  pdc_api/                PDC Public API client (core/entities/terms/jobs/apply/bulkload)
+  pdc_api.py              compatibility shim -> the shared pdc_client package
   templates/index.html    single-page UI (markup only)
   static/style.css        the UI stylesheet
   static/js/00..12-*.js   the UI logic, split per area, loaded in numbered order
@@ -52,14 +52,16 @@ glossary_generator/
   run.sh                  Linux/macOS launcher (venv + deps + run)
   run.ps1 / run.bat       Windows launcher (PowerShell; .bat wrapper)
   requirements.txt
-docs/                     this reference + GUIDE, INSTALL, SUPPLEMENT, ...
+pdc_client/               shared PDC Public API client at the repo root
+                          (core/entities/terms/jobs/apply/bulkload)
+docs/                     this reference + GUIDE, REVIEW, CHANGELOG, ...
 PDC-Scenarios repo        every vertical's data kit, domain pack and courseware
   data_sources/lab/       SHARED PostgreSQL + MinIO for all scenarios
   data_sources/<ID>/      scenario data + installable domain pack
   courseware/<ID>/        workshop guides and topic notes per scenario
 ```
 
-The core (`suggester.py`, `dbconn.py`, `llm.py`) is Flask-free and importable, so
+The core (`suggester.py`, `dbconn.py`, `llm.py`) is framework-free and importable, so
 the same logic backs the web app, the CLI, and any unit tests.
 
 ---
@@ -383,7 +385,7 @@ open("glossary.jsonl", "w").write(records_to_jsonl(to_jsonl_records(rows)))
 
 ## Repository manifest
 
-The Flask app, with the **Registry writer** hooked in at export time, plus the
+The FastAPI app, with the **Registry writer** hooked in at export time, plus the
 **Copper State Credit Union (CSCU)**, **Canyon Trail Outfitters (RETAIL)**,
 **Lakeshore Health Partners (HEALTH)** and **Cascade Precision Components (MFG)**
 training scenarios (additional scenarios plug in as data folders). The **Policy Generator** ships
