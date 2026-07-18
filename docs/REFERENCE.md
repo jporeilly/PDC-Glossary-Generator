@@ -196,8 +196,11 @@ not where your local Docker Postgres/MinIO live.
    sensitivity, PII category, CDE flag, abbreviation, and tags.
 2. **Review** — edit any cell inline; untick **Keep** to drop a term. Confidence
    and the source column guide pruning. Nothing is auto-published.
-3. **Enrich with LLM** *(optional)* — rewrites definitions via Ollama. Safe if
-   Ollama is offline (keeps the heuristic text). Enriched rows show an `LLM` tag.
+3. **Enrich with LLM** *(optional)* — proposes rewritten definitions via Ollama.
+   Proposals land as inline click-to-accept pills on the grid (accept per cell,
+   or Accept all / Dismiss all) — nothing is written until you accept, and the
+   `LLM` provenance pill appears only after a proposal is accepted. Safe if
+   Ollama is offline (keeps the heuristic text).
 4. **Generate JSONL** — emits `Suggested-Glossary.jsonl` (only `Keep=Y` rows)
    for **Business Glossary -> Actions -> Import**.
 
@@ -343,6 +346,8 @@ nudge per run.
 | `POST /api/draft-policies`  | draft PDC pattern/dictionary rules from detection seeds (`format=zip` downloads the bundle) |
 | `POST /api/resolve-fuzzy`   | match outstanding (renamed) term names against PDC's real terms — similarity + AI adjudication |
 | `POST /api/export-pack`     | generate a domain pack from the reviewed scan results (merges over the installed pack; curated_seeds from induced patterns/enums) |
+| `POST /api/discovery-progress` | terminal-aware Data Discovery progress: per-entity profiled map + the discovery job's own status, so the Apply watcher stops when the worker finishes |
+| `POST /api/lab-export`      | upload a just-generated artifact (import JSONL / drafted-policies zip) to the lab MinIO over a saved **write-capable** MinIO/S3 connection — bucket `pdc-exports`, timestamped key |
 
 PDC API version: the app speaks v1/v2/v3 (selector on Apply & harvest; default **v3**, PDC 11's native version). Every request shape is validated against the official v3 OpenAPI spec by the committed pytest suite (`pytest -q tests/test_v3_shapes.py`) — see docs/REVIEW.md §1 for the audit table.
 | `POST /api/generate`        | build import-ready JSONL from the kept rows        |

@@ -14,6 +14,25 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.10.11] — 2026-07-18
+
+### Changed — docs sync
+Docs-only release: README, GUIDE and REFERENCE caught up with 1.10.8→1.10.10.
+The agent write-ups now describe the **inline click-to-accept proposal
+pills** (live per batch, Accept all / Dismiss all, LLM provenance only after
+accept) instead of the retired proposal panel/diff wording; the Review
+guide is documented as the **interactive clickable flow** (Dictionary hop
+and the AI-agent sequence chips included); the Schema ER section carries
+the round-three **Fit** facts (canvas sized to the diagram, 55% zoom floor,
+side-by-side wrap for dense layers); the Apply docs gain the
+**terminal-aware discovery watcher** (per-file profiled ✓ /
+no-DQ-from-PDC / failed wrap-up) and the new **⇪ Send to lab (MinIO)**
+export (`POST /api/lab-export`, bucket `pdc-exports`, write-capable
+connection required); and the DQ semantics are stated everywhere they
+matter — unprofiled columns show **DQ —**, never a fabricated 100.
+REFERENCE's API table adds `/api/discovery-progress` and `/api/lab-export`.
+No code changes.
+
 ## [1.10.10] — 2026-07-18
 
 ### Added

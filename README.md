@@ -1,6 +1,6 @@
 # Pentaho Data Catalog Glossary Generator
 
-**Version:** 1.10.10 · validated against Pentaho Data Catalog 11.0.0 (public
+**Version:** 1.10.11 · validated against Pentaho Data Catalog 11.0.0 (public
 API v3). FastAPI backend with interactive API docs at **`/docs`**, and a
 **React 18 + Vite frontend** (`frontend/`, on the shared Policy Generator
 design kit) served from `frontend/dist` when built — the legacy Jinja shell
@@ -112,7 +112,10 @@ flowchart LR
   MinIO/S3 object browser live on their own **Schema** and **Files**
   sub-pages under Connect. Schema renders as **Cards or an ER diagram**
   (toggle; ER by default when relationships exist) — table nodes with PK/FK
-  rows, FK→PK edges, layered auto-layout, pan/zoom/drag — and its
+  rows, FK→PK edges, layered auto-layout, pan/zoom/drag, and a **Fit that
+  really centres** (the canvas sizes itself to the diagram, dense layers
+  spread wider, and zoom is floored at 55% — a layer that would sink below
+  that wraps into side-by-side node-columns) — and its
   diagram-a-DDL panel is a **drag-and-drop zone** (.sql/.ddl/.txt, paste
   preserved). The sidebar footer's **PDC dot** lights as soon as any page
   really talks to PDC — Get token, a harvest read, or a bulk-load run.
@@ -124,8 +127,11 @@ flowchart LR
   inline; duplicate groups come with an evidence-grounded **Merge /
   Disambiguate / Keep separate recommendation** (escalating to a live
   data-value probe and an AI adjudicator on demand). A **"How to review —
-  the working order"** guide panel (open by default) walks the steward
-  through Prune → Resolve duplicates → Enrich & QA → Name → Govern; the
+  the working order"** guide panel (open by default) is an interactive,
+  clickable flow: ① Prune → ② Resolve duplicates → ③ Approve pending
+  vocabulary (the box hops to the Dictionary, with a come-back note) →
+  ④ the AI agents as sequence chips (Enrich → Suggest · Categorize · Tags →
+  QA as the gate) → ⑤ Name the glossary → Govern (navigates); the
   grid scrolls in its own pane with a sticky header and frozen Keep /
   Category / Term columns, and **Definition and Purpose expand in place**
   to a full-width editor row with the scan evidence right underneath.
@@ -140,8 +146,16 @@ flowchart LR
   outstanding terms — no round-trip through the PDC glossary UI) and **apply
   term links, tags, sensitivity and descriptions back onto PDC entities**
   over the public API v3: column links, table terms and sensitivity rollups,
-  folder rating/DQ/sensitivity rollups, a Data Discovery completion watcher,
-  and a Trust Score rollup to finish.
+  folder rating/DQ/sensitivity rollups, a **terminal-aware Data Discovery
+  watcher** (it stops the moment the discovery worker finishes and prints a
+  per-file wrap-up — profiled ✓ / no-DQ-from-PDC / failed — instead of
+  hanging until its 10-minute budget), and a Trust Score rollup to finish.
+  DQ is honest: an **unprofiled column carries no quality score** — the
+  exports omit `qualityScore` and the apply tables show a muted **DQ —**
+  chip instead of a fabricated 100. The Generate card's JSONL and the
+  drafted-policies zip can also go straight to the lab with **⇪ Send to
+  lab (MinIO)** — an upload to bucket `pdc-exports` over a saved
+  **write-capable** MinIO/S3 connection (`POST /api/lab-export`).
 - **Steward-safe governance** — mistakes are recoverable in-product: every
   vocabulary decision is reversible per item (labelled **✓ Approve /
   ✕ Retire / ⤵ To alias** actions on approved terms and tags), a retire is
@@ -170,8 +184,12 @@ flowchart LR
   expertise, business-domain suggestion, pending-vocabulary review (with
   alias folding), term-id matching at resolve time, the governed-vocabulary
   fold advisor, and **Draft policies (AI)** — detection seeds →
-  ready-to-import PDC pattern/dictionary rule files. Every agent proposes; the steward applies. The grid agents sit
-  in a labelled **"AI AGENTS — propose → you apply"** group and run on
+  ready-to-import PDC pattern/dictionary rule files. Every agent proposes; the steward accepts. Grid-agent
+  results land as **inline click-to-accept pills** right on the affected
+  cells, batch by batch while the run streams — nothing touches a row until
+  you accept its pill (or **Accept all** / **Dismiss all** from the strip
+  above the grid); there is no proposal popup. The agents sit in a labelled
+  **"AI AGENTS — kept rows · propose → you accept"** group and run on
   **kept rows only** — prune 141→95 and they process 95, with progress
   reading "0/95 (kept rows)". Fully offline-safe: no
   Ollama, no problem — heuristics remain.

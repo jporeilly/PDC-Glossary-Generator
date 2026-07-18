@@ -435,7 +435,13 @@ Two sub-pages sit under Connect in the sidebar. **Schema** shows the scanned
 schema as **Cards or an ER diagram** (toggle; ER is the default when
 relationships exist): compact table nodes with PK/FK rows, bezier FK→PK edges
 with arrowheads and labels, layered auto-layout (hubs left, dependents right,
-orphans below), pan/zoom/node-drag and a Re-arrange reset. Its "diagram a
+orphans below), pan/zoom/node-drag and a Re-arrange reset. **Fit really
+centres**: the canvas sizes itself to the diagram (capped at 70% of the
+window), dense layers (>4 tables) spread with a wider vertical gap, the
+layer pitch stretches to fill ~90% of the canvas width, and zoom is floored
+at 55% so node titles stay legible — a layer that would sink below that
+wraps into two side-by-side node-columns instead (very large graphs accept
+the floor and pan). Its "diagram a
 CREATE TABLE script" panel is a **drag-and-drop zone** (`.sql`/`.ddl`/`.txt`,
 click-to-browse, auto-runs Diagram SQL; paste still works). **Files** is the
 MinIO/S3 object browser (folder breadcrumbs, previews, downloads).
@@ -545,10 +551,15 @@ The same engine is callable headless: `POST /api/pdc/bulk-load` with
 Review and refine the suggested terms, then generate.
 
 A **"How to review — the working order"** panel at the top of the page (open
-by default, full width) walks the steward through the pass — **Prune →
-Resolve duplicates → Enrich & QA → Name → Govern** — and says when to visit
-the Dictionary (scans leave pending vocabulary there; row tags draw from the
-governed allow-list).
+by default, full width) is an **interactive, clickable flow**: ① Prune →
+② Resolve duplicates → ③ **Approve pending vocabulary** (the box navigates
+to the Dictionary, with a come-back note — scans leave pending vocabulary
+there, and row tags draw from the governed allow-list) → ④ the **AI agents
+as sequence chips** (Enrich → Suggest · Categorize · Tags → QA as the gate;
+clicking a chip highlights the AI toolbar) → ⑤ Name the glossary → Govern
+(navigates). The ordered list underneath matches, including when to flip to
+the Dictionary (after prune/merge, before the tag agents — approved tags
+feed Suggest tags) and back.
 
 - **Columns**: Keep · Category · Term · Definition · **Purpose** · Sensitivity
   (colour-coded: HIGH red, MEDIUM orange, LOW teal) · CDE · Tags · Confidence · Source.
@@ -564,9 +575,19 @@ governed allow-list).
   sensitivity onto matched terms (and add any the scan missed).
 - **Enrich with LLM** — rewrite definitions with the local model. The AI
   agents (Enrich / AI suggest / AI QA / AI categorize / Suggest tags) sit in
-  a labelled **"AI AGENTS — propose → you apply"** group: every pass renders
-  a diff the steward applies or discards, and the agents run on **kept rows
-  only** — prune 141→95 and they process 95 ("0/95 (kept rows)").
+  a labelled **"AI AGENTS — kept rows · propose → you accept"** group and
+  run on **kept rows only** — prune 141→95 and they process 95 ("0/95
+  (kept rows)"). Results land as **inline click-to-accept pills** on the
+  affected cells, batch by batch while the run streams (there is no
+  proposal popup, and the grid never mutates mid-run): Term gets the
+  classic **→ name** chip, Definition/Purpose previews get an **AI →**
+  pill (tooltip shows the proposed text; the expanded editor shows old vs
+  proposed side by side with its own Accept), and Category / Sensitivity /
+  PII / Tags get compact **AI → value** pills. A slim strip above the grid
+  tracks the run ("N AI proposals on M rows · **Accept all** · **Dismiss
+  all**"), and a live "rows with proposals so far" counter sits next to
+  the progress bar. Accepting a field also carries its provenance flags,
+  so the grid's **LLM** pills appear only after a proposal is accepted.
 - **Save glossary / Load saved…** — see §7.
 - **Generate JSONL** — exports the kept terms. This now lives on the **Govern**
   page (its **Generate &amp; apply** card), not the Glossary page, because
@@ -627,6 +648,12 @@ Always reviewable per row by the steward.
   ≥97 % → 5, ≥90 → 4, ≥80 → 3, ≥70 → 2, else 1. When the global rating is Auto,
   every category is rated on **its own** mean DQ. Resolved to a concrete integer at
   export, so the JSONL and Trust-Score rollup are unchanged.
+  **DQ scores exist only for really-profiled columns.** An unprofiled column
+  (e.g. from a pasted DDL with no data scan) yields **no score** — the Data
+  Elements JSON/CSV omit `qualityScore` and the apply tables show a muted
+  **DQ —** ("not profiled") chip instead of 100. A bare NOT-NULL constraint
+  no longer stands in for completeness on its own; the NOT-NULL proxy applies
+  only when at least one dimension was really measured.
 
 These flow into the generated JSONL (`info.owner/custodian/businessSteward`,
 `stakeholders`, `features.rating`, `reviewedAt`, `status`).
@@ -734,6 +761,26 @@ A few aids make the pipeline easier to follow:
   table-rating roll-up and Trust Score phases. It falls back to a single request if
   streaming isn't available. The underlying write logic is unchanged; the stream
   only reports progress.
+- **Terminal-aware Data Discovery watcher (Apply step 4).** The "N of M
+  profiled…" watcher no longer hangs until its 10-minute budget when PDC
+  finishes without profiling every file (pdf/docx-style types get no Data
+  Quality, so their `profiledAt` never flips). `/api/discovery-progress`
+  also polls the discovery job's own status (when v1/v2 returned a job id)
+  and returns a per-entity profiled map, so the watcher stops the moment
+  the worker reaches a terminal state and prints a per-file wrap-up —
+  profiled ✓ / no-DQ-from-PDC (expected for the type) / failed — plus
+  elapsed time. Hitting the watch budget says so explicitly ("Watch budget
+  reached (10 min)…"); **Stop watching** stays.
+- **⇪ Send to lab (MinIO).** The Generate card's JSONL and the
+  drafted-policies zip each carry a ghost **Send to lab (MinIO)** button
+  that uploads the just-generated artifact to the lab MinIO over one of the
+  app's saved MinIO/S3 connections (a picker appears when several are
+  saved), via `POST /api/lab-export`. The export lands in bucket
+  **`pdc-exports`** (created on first use) under a timestamped key; the
+  success line shows bucket/key and the on-VM path (MinIO console `:9001`,
+  or `mc cp` to `~/Downloads`). The connection must be **write-capable** —
+  the lab's cast MinIO user is read-only, so use a connection with the
+  admin key/secret.
 - **How terms are built (Glossary page).** A "How terms are defined & built"
   panel explains where each field comes from — Term (humanised column name),
   Definition (DB comment → key text → template), Purpose, Sensitivity (name
