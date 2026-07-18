@@ -125,8 +125,10 @@ function SnapshotCard() {
         snapshot so it's inside <code>glossaries.json</code>.
       </p>
       <div className="actions">
-        <a className="badge accent" href="/api/state-snapshot">⬇ Download snapshot</a>
-        <button className="ghost" onClick={() => fileRef.current?.click()}>Restore from snapshot…</button>
+        <button className="ghost" onClick={() => { window.location.href = '/api/state-snapshot' }}>
+          ⬇ Download snapshot
+        </button>
+        <button className="primary" onClick={() => fileRef.current?.click()}>Restore from snapshot…</button>
         <input ref={fileRef} type="file" accept=".zip" style={{ display: 'none' }}
                onChange={(e) => { restore(e.target.files[0]); e.target.value = '' }} />
         {msg && <span className="summary">{msg}</span>}
@@ -256,7 +258,7 @@ function LlmCard({ settings, saveField }) {
         </label>
       </div>
       <div className="actions">
-        <button className="ghost" onClick={() => testConnection()}>Test connection</button>
+        <button className="primary" onClick={() => testConnection()}>Test connection</button>
         <button className="primary" onClick={pullModel} disabled={pull != null && pull.phase !== 'error' && pull.phase !== 'success'}>
           Pull selected model
         </button>
@@ -275,10 +277,11 @@ function LlmCard({ settings, saveField }) {
       <h3 className="subhead">Enrichment tuning</h3>
       <div className="form-grid">
         <label>
-          Company <span className="muted">used in enrichment prompts</span>
+          Company
           <input type="text" placeholder="your organization"
                  defaultValue={settings.company || ''}
                  onBlur={(e) => saveField({ company: e.target.value.trim() })} />
+          <span className="muted">used in enrichment prompts</span>
         </label>
         <label>
           Enrich workers (1–16)

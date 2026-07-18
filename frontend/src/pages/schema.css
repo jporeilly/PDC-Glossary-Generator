@@ -21,7 +21,10 @@
 .ddl-drop > * { pointer-events: none; }  /* keeps dragleave from firing on children */
 .ddl-drop b { color: var(--text-primary); }
 
-/* ---------- ER diagram view (pure SVG canvas) ---------- */
+/* ---------- ER diagram view (pure SVG canvas) ----------
+   The 62vh height is only the pre-layout fallback: ErDiagram sizes the wrap
+   to its content (capped at 70vh) via an inline style so Fit never leaves
+   dead bands above/below the diagram. */
 .er-wrap { position: relative; height: 62vh; min-height: 420px; margin-top: 1rem; border: 1px solid var(--gridline); border-radius: 10px; overflow: hidden; background: var(--surface-1); }
 .er-wrap svg { display: block; width: 100%; height: 100%; cursor: grab; }
 .er-wrap svg:active { cursor: grabbing; }

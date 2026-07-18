@@ -5,13 +5,20 @@
 
 /* ---------- roster ---------- */
 .gov-fnrow { display: flex; gap: .3rem; margin-top: .35rem; flex-wrap: wrap; }
+/* function chips: HELD = filled accent (unmistakable), not-held = muted
+   dashed outline; both stay clickable toggles */
 .gov-fnbtn {
   border: 1px solid var(--baseline); background: none; color: var(--text-muted);
   border-radius: 99px; font: 600 .7rem system-ui, "Segoe UI", sans-serif;
   padding: .12rem .55rem; cursor: pointer;
 }
 .gov-fnbtn:hover { border-color: var(--accent); color: var(--text-secondary); }
-.gov-fnbtn.on { border-color: var(--accent); color: var(--accent); background: var(--surface-1); }
+.gov-fnbtn.off { border-style: dashed; opacity: .8; }
+.gov-fnbtn.on {
+  border-color: var(--accent); color: var(--accent-ink); background: var(--accent);
+  font-weight: 700;
+}
+.gov-fnbtn.on:hover { filter: brightness(1.12); color: var(--accent-ink); }
 
 .gov-exp {
   width: 100%; min-width: 160px; background: var(--surface-1); color: var(--text-primary);
@@ -21,6 +28,20 @@
 .gov-exp:focus { outline: 2px solid var(--accent); }
 
 .gov-invalid { color: var(--status-serious); font-size: .74rem; }
+
+/* ---------- Keycloak fetch: fixed 4-column grid so the two rows line up
+   (Base URL / Realm / Admin realm / Username, then Password / Bearer token
+   with its hint UNDER the input) ---------- */
+.form-grid.gov-kcgrid { grid-template-columns: repeat(4, minmax(150px, 1fr)); }
+.form-grid.gov-kcgrid .gov-kcspan3 { grid-column: span 3; }
+@media (max-width: 980px) {
+  .form-grid.gov-kcgrid { grid-template-columns: 1fr 1fr; }
+  .form-grid.gov-kcgrid .gov-kcspan3 { grid-column: span 2; }
+}
+
+/* stewardship defaults: keep every input on one baseline */
+.gov-inlinerow { display: flex; gap: .5rem; align-items: center; }
+.gov-applycats { margin-top: .15rem; }
 
 /* ---------- stakeholders ---------- */
 .gov-stakelist { display: flex; flex-wrap: wrap; gap: .35rem 1rem; margin-top: .4rem; }

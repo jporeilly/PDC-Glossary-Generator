@@ -430,7 +430,7 @@ function DataElementsCard({ rows, glossaryName, de, setDe }) {
       </p>
       {error && <div className="error">{error}</div>}
       <div className="actions">
-        <button className="ghost" onClick={() => pull()} disabled={busy || rows.length === 0}>
+        <button className="primary" onClick={() => pull()} disabled={busy || rows.length === 0}>
           {busy ? 'Building links…' : 'Pull / refresh links from glossary'}
         </button>
         {de == null && <span className="summary">No links yet — build a glossary, then pull.</span>}

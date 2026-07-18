@@ -192,13 +192,7 @@ tr.rv-gclhead td { background: var(--surface-1); border-left: 3px solid var(--ac
 .rv-evline.diff { color: var(--status-critical); }
 .rv-evline.same { color: var(--status-good); }
 
-.rv-diff { font-size: .8rem; margin-top: .2rem; }
-.rv-diff .fld { color: var(--text-muted); text-transform: uppercase; font-size: .68rem; letter-spacing: .05em; margin-right: .4rem; }
-.rv-diff .from { color: var(--status-critical); text-decoration: line-through; }
-.rv-diff .to { color: var(--status-good); }
 .rv-issues { color: var(--status-warning); font-size: .78rem; margin-top: .2rem; }
-.rv-propbar { display: flex; gap: .7rem; align-items: center; padding-bottom: .6rem; flex-wrap: wrap; }
-.modal.rv-wide { width: min(860px, 100%); }
 
 .rv-evk { color: var(--text-muted); font-size: .74rem; text-transform: uppercase; letter-spacing: .05em; margin: 1rem 0 .3rem; }
 .rv-evv pre {
@@ -209,7 +203,7 @@ tr.rv-gclhead td { background: var(--surface-1); border-left: 3px solid var(--ac
 .rv-evchips span { background: var(--surface-2); border-radius: 6px; padding: .1rem .5rem; font-size: .78rem; font-family: Consolas, "Cascadia Mono", monospace; }
 .rv-srclist div { font-family: Consolas, "Cascadia Mono", monospace; font-size: .8rem; padding: .15rem 0; color: var(--text-secondary); }
 
-/* ---------- "How to review" guide — compact SVG flow, WorkflowDiagram style ---------- */
+/* ---------- "How to review" guide — clickable SVG flow, WorkflowDiagram style ---------- */
 .rv-guide .rv-wfwrap { margin: .9rem 0 .3rem; }
 .rv-wf { width: 100%; height: auto; display: block; }
 .rv-wfnode rect { fill: var(--surface-2); stroke: var(--border); stroke-width: 1; }
@@ -221,3 +215,64 @@ tr.rv-gclhead td { background: var(--surface-1); border-left: 3px solid var(--ac
 .rv-wfout rect { fill: none; stroke: var(--gridline); stroke-width: 1; }
 .rv-wfout .rv-wft { fill: var(--text-muted); font-weight: 500; }
 .rv-guide .workcycle { margin-bottom: .3rem; }
+/* clickable nodes — same hover/focus affordance as the Home diagram */
+.rv-wflink { cursor: pointer; outline: none; }
+.rv-wflink:hover rect, .rv-wflink:focus-visible rect { stroke: var(--accent); stroke-width: 1.5; }
+.rv-wflink:hover text, .rv-wflink:focus-visible text { fill: var(--accent); }
+/* the ④ AI-agents container + its sequence chips */
+.rv-wfgroup > rect { fill: none; stroke: var(--baseline); stroke-width: 1; stroke-dasharray: 3 4; }
+.rv-wfglbl { font: 700 9px system-ui, -apple-system, "Segoe UI", sans-serif; letter-spacing: .07em; fill: var(--text-muted); }
+.rv-wfchip rect { fill: var(--surface-2); stroke: var(--border); stroke-width: 1; }
+.rv-wfct { font: 600 11.5px system-ui, -apple-system, "Segoe UI", sans-serif; fill: var(--text-secondary); }
+/* flash highlight when a guide chip points at an on-page control */
+.rv-flash {
+  outline: 2px solid var(--accent) !important; border-radius: 10px;
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 25%, transparent);
+}
+
+/* ---------- inline agent proposals: click-to-accept pills, no popup ---------- */
+.rv-livecount { font-size: .78rem; font-weight: 650; color: var(--accent); white-space: nowrap; }
+/* the strip above the grid while proposals are pending */
+.rv-propstrip {
+  display: flex; flex-wrap: wrap; gap: .6rem; align-items: center; margin-top: .8rem;
+  padding: .5rem .75rem; border: 1px dashed var(--accent); border-radius: 10px;
+  font-size: .82rem; color: var(--text-secondary);
+}
+.rv-propstrip b { color: var(--text-primary); }
+/* per-cell pill: click accepts just that field's proposal */
+button.rv-aipill {
+  display: inline-block; background: none; cursor: pointer; text-align: left;
+  font-size: .62rem; font-weight: 700; letter-spacing: .03em; color: var(--accent);
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  border-radius: 99px; padding: .05rem .45rem; margin-top: .2rem;
+  max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  animation: rv-fadein .35s ease; flex: none;
+}
+button.rv-aipill:hover { background: color-mix(in srgb, var(--accent) 16%, transparent); }
+@keyframes rv-fadein { from { opacity: 0; } to { opacity: 1; } }
+/* preview cell wrapper: preview button + its pill side by side */
+.rv-cell { display: flex; align-items: center; gap: .3rem; }
+.rv-cell .rv-prev { flex: 1 1 auto; min-width: 0; }
+/* AI-proposed name chip — same look as the classic → chip, dashed underline hint */
+.rv-ren.rv-renai { border-bottom: 1px dashed color-mix(in srgb, var(--accent) 55%, transparent); }
+/* expanded editor: proposed text beside the old value, with its own Accept */
+.rv-propbox {
+  display: flex; gap: .55rem; align-items: baseline; flex-wrap: wrap; margin-top: .45rem;
+  background: var(--surface-1); border-left: 3px solid var(--accent); border-radius: 6px;
+  padding: .45rem .6rem; font-size: .82rem; text-transform: none; letter-spacing: normal;
+  font-weight: 400; color: var(--text-secondary);
+}
+.rv-propbox .rv-propto { flex: 1 1 260px; min-width: 0; color: var(--status-good); }
+
+/* summary-chip counts echo the grid's own palette: Confidence = the Conf.
+   badge colors (good / warning / neutral); Sensitivity = the sev select
+   colors. Chip-scoped selectors (0,2,0) so they beat `.rv-chip b` (0,1,1). */
+.conf-hi { color: var(--status-good); font-weight: 700; }
+.conf-md { color: var(--status-warning); font-weight: 700; }
+.conf-lo { color: var(--text-muted); font-weight: 700; }
+.rv-chip .conf-hi { color: var(--status-good); }
+.rv-chip .conf-md { color: var(--status-warning); }
+.rv-chip .conf-lo { color: var(--text-muted); }
+.rv-chip .sens-hi { color: var(--status-critical); }
+.rv-chip .sens-md { color: var(--status-warning); }
+.rv-chip .sens-lo { color: var(--text-muted); }

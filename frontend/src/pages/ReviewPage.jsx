@@ -163,10 +163,14 @@ function allDupGroups(rowsIn, grpIn) {
 /* ---------- AI agent definitions (each proposes; the steward applies) ---------- */
 
 const CHUNK = 6
-const AGENT_FIELD_LABELS = {
-  Term: 'Term', Definition: 'Definition', Purpose: 'Purpose', Category: 'Category',
-  Sensitivity: 'Sensitivity', Suggested_Tags: 'Tags', Suggested_Name: 'Suggested name',
-  PII_Category: 'PII category', Critical_Data_Element: 'CDE',
+
+// Accepting one proposed field also carries the matching provenance flags so
+// the grid's LLM/QA markers stay truthful.
+const CARRY_FOR = {
+  Definition: ['LLM_Definition', 'LLM_Enriched', 'QA_Issues'],
+  Purpose: ['LLM_Purpose', 'LLM_Enriched'],
+  Suggested_Name: ['LLM_Name'],
+  Term: ['LLM_Name'],
 }
 
 const EMPTY_FILTERS = { q: '', cat: '', sev: '', conf: '', tag: '', pii: false, kept: false }
@@ -184,8 +188,8 @@ export default function ReviewPage({ onNavigate }) {
   const [advising, setAdvising] = useState(false)
   const [sim, setSim] = useState(null)             // {busy, list, error} | null
   const [simThresh, setSimThresh] = useState(0.6)
-  const [agent, setAgent] = useState(null)         // {label, done, total, cancelling}
-  const [proposals, setProposals] = useState(null) // {label, note, items: [...]}
+  const [agent, setAgent] = useState(null)         // {label, done, total, proposed, cancelling}
+  const [proposals, setProposals] = useState(null) // {label, note, items:{rowIndex:{patch, display, issues?}}} — inline pills
   const [evidence, setEvidence] = useState(null)   // row index | null
   const [expanded, setExpanded] = useState(null)   // row index whose editor row is open
   const [hmSnap, setHmSnap] = useState(null)       // [{index, keep}] for the H+M toggle revert
@@ -198,6 +202,8 @@ export default function ReviewPage({ onNavigate }) {
   const visRef = useRef([])
   const rowsRef = useRef(rows)
   rowsRef.current = rows
+  const proposalsRef = useRef(null)                // acceptProp reads the live pills state
+  proposalsRef.current = proposals
   const loadFileRef = useRef(null)
   const enhanceFileRef = useRef(null)
   const masterRef = useRef(null)
@@ -256,6 +262,9 @@ export default function ReviewPage({ onNavigate }) {
   const kept = useMemo(() => rows.reduce((n, r) => n + (truthy(r.Keep) ? 1 : 0), 0), [rows])
   const keptShown = useMemo(() => vis.reduce((n, i) => n + (truthy(rows[i]?.Keep) ? 1 : 0), 0), [vis, rows])
   const anySuggestedNames = useMemo(() => rows.some((r) => r.Suggested_Name && r.Suggested_Name !== r.Term), [rows])
+  const propCount = useMemo(
+    () => (proposals ? Object.values(proposals.items).reduce((a, it) => a + (it.display ? it.display.length : 0), 0) : 0),
+    [proposals])
 
   useEffect(() => {
     if (masterRef.current) masterRef.current.indeterminate = keptShown > 0 && keptShown < vis.length
@@ -493,7 +502,12 @@ export default function ReviewPage({ onNavigate }) {
   // Keep state). Each chunk sends targets.slice(...) rows and re-joins the
   // backend's positional echo through that same slice — d.rows[j] belongs to
   // working[idx[j]] — so dropped rows can never shift the mapping.
-  async function runChunks(label, call, { offlineBreak = true, chunk = CHUNK } = {}) {
+  // Run an agent over the kept rows in chunks. With a `propose` config, each
+  // returned batch is diffed against the base rows RIGHT AWAY and merged into
+  // the inline proposal state — so the click-to-accept pills light up in the
+  // grid batch by batch while the run is still going. The grid itself never
+  // mutates: pills/Accept-all are the only way a proposal lands.
+  async function runChunks(label, call, { offlineBreak = true, chunk = CHUNK, propose = null } = {}) {
     const baseRows = rowsRef.current
     const targets = []
     baseRows.forEach((r, i) => { if (r && truthy(r.Keep)) targets.push(i) })
@@ -504,12 +518,32 @@ export default function ReviewPage({ onNavigate }) {
     }
     const working = baseRows.map((r) => ({ ...r }))
     cancelRef.current = false
-    setAgent({ label, done: 0, total })
+    setAgent({ label, done: 0, total, proposed: 0 })
+    setProposals(null)
     setError(null)
+    const diffOne = (r, w) => {                    // default builder from watch/carry
+      const patch = {}
+      const display = []
+      ;(propose.watch || []).forEach((f) => {
+        const a = r[f] == null ? '' : String(r[f])
+        const b = w[f] == null ? '' : String(w[f])
+        if (a !== b) { patch[f] = w[f] ?? ''; display.push({ field: f, from: a, to: b }) }
+      })
+      ;(propose.carry || []).forEach((f) => {
+        const a = r[f] == null ? '' : String(r[f])
+        const b = w[f] == null ? '' : String(w[f])
+        if (a !== b) patch[f] = w[f] ?? ''
+      })
+      return display.length ? { patch, display } : null
+    }
+    const mkItem = propose ? (propose.build || diffOne) : null
+    const propLabel = (propose && propose.label) || label
     let offline = false
     let failed = 0
+    let proposed = 0
     for (let s = 0; s < total && !cancelRef.current; s += chunk) {
       const idx = targets.slice(s, s + chunk)
+      let add = null
       try {
         const d = await call(idx.map((i) => working[i]))
         if (d.llm && d.llm.online === false) {
@@ -521,88 +555,179 @@ export default function ReviewPage({ onNavigate }) {
           if (i == null || !nr || typeof nr !== 'object') return
           working[i] = { ...working[i], ...nr }
         })
+        if (mkItem) {
+          add = {}
+          idx.forEach((i) => {
+            const it = mkItem(baseRows[i] || {}, working[i] || {})
+            if (it) add[i] = it
+          })
+          if (!Object.keys(add).length) add = null
+        }
       } catch { failed += idx.length }
-      setAgent((a) => (a ? { ...a, done: Math.min(s + chunk, total) } : a))
+      if (add) {
+        proposed += Object.keys(add).length
+        setProposals((p) => ({
+          label: propLabel,
+          note: (propose && propose.note) || '',
+          items: { ...(p ? p.items : {}), ...add },
+        }))
+      }
+      setAgent((a) => (a ? { ...a, done: Math.min(s + chunk, total), proposed } : a))
     }
     setAgent(null)
-    return { baseRows, working, targets, offline, failed, stopped: cancelRef.current }
+    return { baseRows, working, targets, offline, failed, proposed, stopped: cancelRef.current }
   }
 
-  function diffProposals(label, run, watch, carry = [], extraNote = '') {
-    const items = []
-    run.baseRows.forEach((r, i) => {
-      const w = run.working[i]
+  /* ---------- inline proposal pills: accept / dismiss ---------- */
+
+  // Accept ONE field of one row's proposal (field == null accepts the row's
+  // whole patch). Suggested_Name behaves like the classic → chip: it renames
+  // every row that shares the old name in one go. Stable callback (refs) so
+  // the memoized grid rows don't all re-render.
+  const acceptProp = useCallback((index, field) => {
+    const p = proposalsRef.current
+    const it = p && p.items[index]
+    if (!it || !it.patch) return
+    if (field === 'Suggested_Name') {
+      const v = it.patch.Suggested_Name
+      const old = rowsRef.current[index]?.Term || ''
+      let n = 0
+      setRows(rowsRef.current.map((x) => {
+        if ((x.Term || '') !== old) return x
+        n++
+        const nx = { ...x, Term: v, LLM_Name: 'Used' }
+        delete nx.Suggested_Name
+        return nx
+      }))
+      setMsg(n > 1 ? `Renamed all ${n} instances of “${old}” → “${v}”.` : `Renamed to “${v}”.`)
+    } else {
       const patch = {}
-      const display = []
-      watch.forEach((f) => {
-        const a = r[f] == null ? '' : String(r[f])
-        const b = w[f] == null ? '' : String(w[f])
-        if (a !== b) { patch[f] = w[f] ?? ''; display.push({ field: f, from: a, to: b }) }
-      })
-      carry.forEach((f) => {
-        const a = r[f] == null ? '' : String(r[f])
-        const b = w[f] == null ? '' : String(w[f])
-        if (a !== b) patch[f] = w[f] ?? ''
-      })
-      if (display.length) items.push({ index: i, term: r.Term || '', category: r.Category || '', display, patch, selected: true })
+      if (field) {
+        patch[field] = it.patch[field]
+        ;(CARRY_FOR[field] || []).forEach((c) => { if (c in it.patch) patch[c] = it.patch[c] })
+      } else {
+        Object.assign(patch, it.patch)
+      }
+      patchRow(index, patch)
+    }
+    setProposals((prev) => {
+      if (!prev || !prev.items[index]) return prev
+      const cur = prev.items[index]
+      const display = field ? cur.display.filter((d) => d.field !== field) : []
+      if (!display.length) {
+        const items = { ...prev.items }
+        delete items[index]
+        return Object.keys(items).length ? { ...prev, items } : null
+      }
+      const patch = { ...cur.patch }
+      delete patch[field]
+      return { ...prev, items: { ...prev.items, [index]: { ...cur, display, patch } } }
     })
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  function acceptAllProps() {
+    const p = proposals
+    if (!p) return
+    const items = p.items
+    let rowsHit = 0
+    setRows(rowsRef.current.map((r, i) => {
+      const it = items[i]
+      if (!it || !it.patch) return r
+      rowsHit++
+      return { ...r, ...it.patch }
+    }))
+    setProposals(null)
+    structuralReset()
+    setMsg(`Applied every proposal from ${p.label} (${rowsHit} row${rowsHit !== 1 ? 's' : ''}). Proposed names land as → chips — click them (or Apply all suggested names) to rename.`)
+  }
+
+  function dismissProps() {
+    setProposals(null)
+    setMsg('Proposals dismissed — nothing changed.')
+  }
+
+  // Per-run summary once the chunks finish (the pills carry the substance).
+  function runDone(run, label, none) {
     const note = [
-      `ran on ${run.targets.length} kept row${run.targets.length !== 1 ? 's' : ''}`,
-      extraNote,
-      run.offline ? 'Ollama offline' : '',
-      run.stopped ? 'stopped early — rows already processed kept their proposals' : '',
+      run.stopped ? 'stopped early — batches already returned kept their pills' : '',
       run.failed ? `${run.failed} row(s) failed` : '',
     ].filter(Boolean).join(' · ')
-    if (!items.length) {
-      setMsg(`${label}: no changes proposed${note ? ` (${note})` : ''}.`)
-      return
-    }
-    setProposals({ label, note, items })
+    if (!run.proposed) setMsg(`${label}: ${none}${note ? ` (${note})` : ''}.`)
+    else setMsg(`${label}: proposals on ${run.proposed} of ${run.targets.length} kept rows — click the pills to accept, or Accept all above the grid.${note ? ` (${note})` : ''}`)
   }
 
   async function runEnrich() {
-    const run = await runChunks('Enriching definitions & purposes', (rs) => apiPost('/api/enrich', { rows: rs }))
+    const run = await runChunks('Enriching definitions & purposes', (rs) => apiPost('/api/enrich', { rows: rs }), {
+      propose: {
+        label: 'Enrich with LLM',
+        watch: ['Definition', 'Purpose', 'Suggested_Name'],
+        carry: ['LLM_Definition', 'LLM_Purpose', 'LLM_Enriched', 'LLM_Name'],
+      },
+    })
     if (!run) return
     if (run.offline) { setMsg('LLM offline — start Ollama and pull a model on the Settings page, then try again.'); return }
-    diffProposals('Enrich with LLM', run,
-      ['Definition', 'Purpose', 'Suggested_Name'],
-      ['LLM_Definition', 'LLM_Purpose', 'LLM_Enriched', 'LLM_Name'])
+    runDone(run, 'Enrich with LLM', 'no changes proposed')
   }
 
   async function runAiSuggest() {
-    const run = await runChunks('AI suggesting from scan evidence', (rs) => apiPost('/api/ai-suggest', { rows: rs }))
+    const run = await runChunks('AI suggesting from scan evidence', (rs) => apiPost('/api/ai-suggest', { rows: rs }), {
+      propose: {
+        label: 'AI suggest (evidence)',
+        watch: ['Suggested_Name', 'Suggested_Tags', 'Sensitivity', 'Category', 'PII_Category'],
+        carry: ['LLM_Enriched'],
+        note: 'guardrailed: tags governed-only, sensitivity tighten-only',
+      },
+    })
     if (!run) return
     if (run.offline) { setMsg('LLM offline — start Ollama and pull a model on the Settings page, then try again.'); return }
-    diffProposals('AI suggest (evidence)', run,
-      ['Suggested_Name', 'Suggested_Tags', 'Sensitivity', 'Category', 'PII_Category'],
-      ['LLM_Enriched'],
-      'guardrailed: tags governed-only, sensitivity tighten-only, names land as → chips')
+    runDone(run, 'AI suggest (evidence)', 'no changes proposed')
   }
 
   async function runCategorize() {
     const known = cats
-    const run = await runChunks('AI categorizing', (rs) => apiPost('/api/ai-categorize', { rows: rs, categories: known, only_blank: true }))
+    const run = await runChunks('AI categorizing', (rs) => apiPost('/api/ai-categorize', { rows: rs, categories: known, only_blank: true }), {
+      propose: { label: 'AI categorize', watch: ['Category'] },
+    })
     if (!run) return
     if (run.offline) { setMsg('Ollama offline — categorization needs the local model.'); return }
-    diffProposals('AI categorize', run, ['Category'])
+    runDone(run, 'AI categorize', 'every kept row already has a category the model agrees with')
   }
 
   async function runRetag() {
-    const run = await runChunks('Deriving governed tags', (rs) => apiPost('/api/retag', { rows: rs }), { chunk: Math.max(rowsRef.current.length, 1) })
+    const run = await runChunks('Deriving governed tags', (rs) => apiPost('/api/retag', { rows: rs }), {
+      chunk: Math.max(rowsRef.current.length, 1),
+      propose: {
+        label: 'Suggest tags',
+        watch: ['Suggested_Tags'],
+        note: 'deterministic — re-derived from the governed vocabulary (Dictionary page)',
+      },
+    })
     if (!run) return
-    diffProposals('Suggest tags', run, ['Suggested_Tags'], [],
-      'deterministic — re-derived from the governed vocabulary (Dictionary page)')
+    runDone(run, 'Suggest tags', 'the governed vocabulary suggests no tag changes')
   }
 
   // AI QA definitions: linter always runs server-side; the AI judge adds
   // suggestions when Ollama is up. Flags are stamped onto the rows (so the
-  // grid shows the QA chip) but definition rewrites stay proposals.
+  // grid shows the QA chip) but definition rewrites stay click-to-accept pills.
   async function runQa() {
     const run = await runChunks('QA-checking definitions',
-      (rs) => apiPost('/api/qa-definitions', { rows: rs, ai: true }), { offlineBreak: false })
+      (rs) => apiPost('/api/qa-definitions', { rows: rs, ai: true }), {
+        offlineBreak: false,
+        propose: {
+          label: 'AI QA definitions',
+          build: (r, w) => {
+            const hasSugg = !!w.QA_Suggestion && w.QA_Suggestion !== (r.Definition || '')
+            if (!hasSugg) return null
+            return {
+              issues: w.QA_Issues || '',
+              display: [{ field: 'Definition', from: r.Definition || '', to: w.QA_Suggestion }],
+              patch: { Definition: w.QA_Suggestion, QA_Issues: '' },
+            }
+          },
+        },
+      })
     if (!run) return
     const { working } = run
-    const targetSet = new Set(run.targets)
     setRows(rowsRef.current.map((r, i) => {
       const w = working[i]
       const nx = { ...r }
@@ -611,38 +736,9 @@ export default function ReviewPage({ onNavigate }) {
       if (w && w.QA_Issues) nx.QA_Issues = w.QA_Issues
       return nx
     }))
-    const items = []
-    run.baseRows.forEach((r, i) => {
-      if (!targetSet.has(i)) return
-      const w = working[i]
-      if (!w || (!w.QA_Issues && !w.QA_Suggestion)) return
-      const hasSugg = !!w.QA_Suggestion && w.QA_Suggestion !== (r.Definition || '')
-      items.push({
-        index: i,
-        term: r.Term || '',
-        category: r.Category || '',
-        issues: w.QA_Issues || '',
-        display: hasSugg ? [{ field: 'Definition', from: r.Definition || '', to: w.QA_Suggestion }] : [],
-        patch: hasSugg ? { Definition: w.QA_Suggestion, QA_Issues: '' } : null,
-        selected: hasSugg,
-      })
-    })
-    const note = [
-      run.offline ? 'linter only — Ollama offline' : 'linter + AI judge',
-      run.stopped ? 'stopped early' : '',
-      run.failed ? `${run.failed} row(s) failed` : '',
-    ].filter(Boolean).join(' · ')
-    if (!items.length) { setMsg(`Definition QA: nothing flagged across ${run.targets.length} kept rows (${note}).`); return }
-    setMsg(`Definition QA: ${items.length} of ${run.targets.length} kept definitions flagged.`)
-    setProposals({ label: 'AI QA definitions', note, items })
-  }
-
-  function applyProposals() {
-    const sel = proposals.items.filter((it) => it.selected && it.patch)
-    sel.forEach((it) => patchRow(it.index, it.patch))
-    setProposals(null)
-    structuralReset()
-    setMsg(`Applied ${sel.length} change${sel.length !== 1 ? 's' : ''} from ${proposals.label}.`)
+    const flagged = run.targets.reduce((n, i) => n + (working[i] && working[i].QA_Issues ? 1 : 0), 0)
+    const note = run.offline ? 'linter only — Ollama offline' : 'linter + AI judge'
+    setMsg(`Definition QA: ${flagged} of ${run.targets.length} kept definitions flagged (${note})${run.proposed ? ` — ${run.proposed} rewrite pill(s) to accept` : ''}.`)
   }
 
   /* ---------- open / enhance / save ---------- */
@@ -711,14 +807,14 @@ export default function ReviewPage({ onNavigate }) {
         </p>
       </div>
 
-      <ReviewGuide />
+      <ReviewGuide onNavigate={onNavigate} />
 
       <section className="card">
         <header>
           <h2>Review grid <span>prune candidate terms</span></h2>
           {rows.length > 0 && (ws.name || ws.id
             ? (
-              <span className="badge neutral">
+              <span className="badge neutral rv-saved">
                 {ws.name || 'Saved glossary'}
                 {' · '}
                 {ws.saving ? 'saving…' : ws.dirty ? 'unsaved changes (autosave pending)' : ws.savedAt ? `saved ${ws.savedAt}` : 'autosave on'}
@@ -729,7 +825,7 @@ export default function ReviewPage({ onNavigate }) {
                 <input className="rv-savename" type="text" placeholder="Name this glossary to autosave…" value={saveName}
                        onChange={(e) => setSaveName(e.target.value)}
                        onKeyDown={(e) => e.key === 'Enter' && nameAndSave()} />
-                <button className="ghost sm" disabled={!saveName.trim() || busy === 'save'} onClick={nameAndSave}>
+                <button className="primary sm" disabled={!saveName.trim() || busy === 'save'} onClick={nameAndSave}>
                   {busy === 'save' ? 'Saving…' : 'Save glossary'}
                 </button>
               </span>
@@ -748,11 +844,11 @@ export default function ReviewPage({ onNavigate }) {
             {busy === 'enhance' ? 'Enhancing…' : 'Enhance from glossary…'}
           </button>
           <span className="rv-grow" />
-          <span className="rv-agents" role="group" aria-label="AI agents — they run on kept rows only; they propose, you review and apply"
-                title="Each agent processes KEPT rows only — untick Keep to exclude a row — and collects its changes into a proposal diff; nothing touches the grid until you tick and apply.">
-            <span className="rv-agentslbl">AI AGENTS<small>kept rows · propose → you apply</small></span>
+          <span className="rv-agents" role="group" aria-label="AI agents — they run on kept rows only; they propose, you accept per pill"
+                title="Each agent processes KEPT rows only — untick Keep to exclude a row. Results land as click-to-accept pills right on the grid, batch by batch while the run goes; nothing touches a row until you accept its pill (or Accept all).">
+            <span className="rv-agentslbl">AI AGENTS<small>kept rows · propose → you accept</small></span>
             <button className="ghost sm" disabled={aiDisabled} onClick={runEnrich}
-                    title="Rewrite definitions & purposes with the local LLM. Proposals only — you review the diff before anything lands.">
+                    title="Rewrite definitions & purposes with the local LLM. Proposals only — pills land on each row as batches return; click a pill to accept it.">
               Enrich with LLM
             </button>
             <button className="ghost sm" disabled={aiDisabled} onClick={runAiSuggest}
@@ -788,10 +884,30 @@ export default function ReviewPage({ onNavigate }) {
             <div className="progress-track" role="progressbar" aria-valuemin={0} aria-valuemax={agent.total} aria-valuenow={agent.done}>
               <div className="progress-bar" style={{ width: `${Math.round((100 * agent.done) / Math.max(agent.total, 1))}%` }} />
             </div>
+            {(agent.proposed || 0) > 0 && (
+              <span className="rv-livecount"
+                    title="Rows already back from finished batches — their pills are live in the grid right now, click one to accept it. Nothing has touched the grid yet.">
+                {agent.proposed} row{agent.proposed !== 1 ? 's' : ''} with proposals so far
+              </span>
+            )}
             <button className="ghost sm" disabled={agent.cancelling}
                     onClick={() => { cancelRef.current = true; setAgent((a) => (a ? { ...a, cancelling: true } : a)) }}>
               Cancel
             </button>
+          </div>
+        )}
+
+        {proposals && (
+          <div className="rv-propstrip">
+            <span>
+              <b>{proposals.label}</b> — {propCount} AI proposal{propCount !== 1 ? 's' : ''} on{' '}
+              {Object.keys(proposals.items).length} row{Object.keys(proposals.items).length !== 1 ? 's' : ''}
+              {proposals.note ? <span className="muted"> · {proposals.note}</span> : null}
+              <span className="muted"> · click a pill in the grid to accept just that change; the grid&apos;s LLM pills appear only after a proposal is accepted</span>
+            </span>
+            <span className="rv-grow" />
+            <button className="primary sm" disabled={!!agent} onClick={acceptAllProps}>Accept all</button>
+            <button className="ghost sm" disabled={!!agent} onClick={dismissProps}>Dismiss all</button>
           </div>
         )}
 
@@ -807,7 +923,7 @@ export default function ReviewPage({ onNavigate }) {
               PII <b className="sens-hi">{stats.pii}</b>
             </button>
             <span className="rv-chip">
-              Confidence H<b className="sens-hi">{stats.confidence.High}</b> M<b className="sens-md">{stats.confidence.Medium}</b> L<b className="sens-lo">{stats.confidence.Low}</b>
+              Confidence H<b className="conf-hi">{stats.confidence.High}</b> M<b className="conf-md">{stats.confidence.Medium}</b> L<b className="conf-lo">{stats.confidence.Low}</b>
             </span>
             <span className="rv-chip">
               Sensitivity HIGH<b className="sens-hi">{stats.sensitivity.HIGH}</b> MED<b className="sens-md">{stats.sensitivity.MEDIUM}</b> LOW<b className="sens-lo">{stats.sensitivity.LOW}</b>
@@ -928,10 +1044,12 @@ export default function ReviewPage({ onNavigate }) {
                     {idxs.map((i) => (
                       <Fragment key={i}>
                         <GridRow row={rows[i]} index={i} pos={posOf.get(i)} expanded={expanded === i}
+                                 prop={proposals ? proposals.items[i] : undefined} onAcceptProp={acceptProp}
                                  onField={onField} onKeep={onKeep} onUseName={useName}
                                  onEvidence={setEvidence} onToggle={toggleExpand} />
                         {expanded === i && rows[i] && (
                           <ExpandedRow row={rows[i]} index={i} onField={onField}
+                                       prop={proposals ? proposals.items[i] : undefined} onAcceptProp={acceptProp}
                                        onEvidence={setEvidence} onClose={() => setExpanded(null)} />
                         )}
                       </Fragment>
@@ -954,9 +1072,6 @@ export default function ReviewPage({ onNavigate }) {
         </div>
       </section>
 
-      {proposals && (
-        <ProposalModal proposals={proposals} setProposals={setProposals} onApply={applyProposals} />
-      )}
       {evidence != null && rows[evidence] && (
         <EvidenceModal row={rows[evidence]} onClose={() => setEvidence(null)} />
       )}
@@ -964,74 +1079,141 @@ export default function ReviewPage({ onNavigate }) {
   )
 }
 
-/* ---------- "How to review" guide: the working order, collapsed by default ----------
-   Same details.card > summary pattern as the Dictionary flywheel explainer;
-   the flow itself is a compact inline SVG in the WorkflowDiagram style
-   (theme tokens only — see review.css .rv-wf rules). */
+/* ---------- "How to review" guide: the steward's working order ----------
+   A Home-style CLICKABLE flow (components/WorkflowDiagram.jsx interaction
+   pattern): the Dictionary hop and Govern are role=link nodes that navigate
+   via onNavigate; the AI-agent chips and "Name the glossary" highlight the
+   matching on-page control instead of navigating. Open by default,
+   full width, theme tokens only (review.css .rv-wf rules). */
 
-const GUIDE_STEPS = [
-  { n: '①', title: 'Prune', sub: 'keep / drop · High+Med cull' },
-  { n: '②', title: 'Resolve duplicates', sub: 'Merge · Disambiguate · keep' },
-  { n: '③', title: 'Enrich & QA', sub: 'agents propose — you apply' },
-  { n: '④', title: 'Name the glossary', sub: 'turns autosave on' },
-]
+// Flash-highlight the first on-page control that matches one of `sels`.
+function flashTarget(sels) {
+  for (const sel of sels) {
+    const el = document.querySelector(sel)
+    if (!el) continue
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    el.classList.add('rv-flash')
+    window.setTimeout(() => el.classList.remove('rv-flash'), 2200)
+    return
+  }
+}
 
-function ReviewGuide() {
-  const W = 158
-  const xs = GUIDE_STEPS.map((_, i) => 4 + i * (W + 24))
+// One guide box. With onActivate it behaves like a WorkflowDiagram node:
+// role=link (or button for the highlight chips), Enter/Space activates.
+function RvNode({ className = 'rv-wfnode', role = 'link', x, y, w, h, title, sub, chip, onActivate, aria }) {
+  const props = onActivate
+    ? {
+        role, tabIndex: 0, 'aria-label': aria || title,
+        onClick: onActivate,
+        onKeyDown: (e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            onActivate()
+          }
+        },
+      }
+    : {}
+  const cy = y + h / 2
+  return (
+    <g className={`${className}${onActivate ? ' rv-wflink' : ''}`} {...props}>
+      <rect x={x} y={y} width={w} height={h} rx="8" />
+      <text className={chip ? 'rv-wfct' : 'rv-wft'} x={x + w / 2} y={sub ? cy - 5 : cy + 4} textAnchor="middle">{title}</text>
+      {sub && <text className="rv-wfs" x={x + w / 2} y={cy + 12} textAnchor="middle">{sub}</text>}
+    </g>
+  )
+}
+
+function ReviewGuide({ onNavigate }) {
+  const flashAgents = () => flashTarget(['.rv-agents'])
+  const flashName = () => flashTarget(['.rv-savename', '.rv-saved'])
   return (
     <details className="card rv-guide" open>
       <summary>How to review — the working order</summary>
       <div className="rv-wfwrap">
-        <svg className="rv-wf" viewBox="0 0 820 62"
-             aria-label="Working order: 1 prune the rows, 2 resolve duplicate names, 3 enrich and QA with the AI agents (they propose, you apply), 4 name the glossary to turn on autosave, then set stewardship on the Govern page.">
+        <svg className="rv-wf" viewBox="0 0 950 164"
+             aria-label="Working order: 1 prune the rows; 2 resolve duplicate names; 3 hop to the Dictionary page to approve the pending vocabulary, then come back; 4 run the AI agents in sequence — Enrich, then Suggest, Categorize and Tags, with QA last as the gate (they propose, you apply); 5 name the glossary to turn on autosave, then continue to the Govern page. The Dictionary and Govern boxes navigate; the agent chips highlight the AI toolbar.">
           <defs>
             <marker id="rv-wfhead" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="8" markerHeight="8"
                     markerUnits="userSpaceOnUse" orient="auto-start-reverse">
               <path className="rv-wfheadp" d="M0.5 0.5 L7.5 4 L0.5 7.5 Z" />
             </marker>
           </defs>
-          {xs.slice(0, -1).map((x) => (
-            <path key={x} className="rv-wfarrow" d={`M${x + W + 4} 31 H${x + W + 18}`} markerEnd="url(#rv-wfhead)" />
-          ))}
-          {GUIDE_STEPS.map((s, i) => (
-            <g className="rv-wfnode" key={s.title}>
-              <rect x={xs[i]} y={8} width={W} height={46} rx={8} />
-              <text className="rv-wft" x={xs[i] + W / 2} y={27} textAnchor="middle">{s.n} {s.title}</text>
-              <text className="rv-wfs" x={xs[i] + W / 2} y={43} textAnchor="middle">{s.sub}</text>
-            </g>
-          ))}
-          <path className="rv-wfarrow rv-wfdotted" d="M734 31 H748" markerEnd="url(#rv-wfhead)" />
-          <g className="rv-wfout">
-            <rect x={752} y={16} width={64} height={30} rx={8} />
-            <text className="rv-wft" x={784} y={35} textAnchor="middle">Govern</text>
+
+          {/* row 1: prune → resolve → the Dictionary hop (navigates) */}
+          <RvNode x={4} y={8} w={168} h={46} title="① Prune" sub="keep / drop · High+Med cull" />
+          <path className="rv-wfarrow" d="M176 31 H194" markerEnd="url(#rv-wfhead)" />
+          <RvNode x={198} y={8} w={214} h={46} title="② Resolve duplicates" sub="Merge · Disambiguate · AI advise" />
+          <path className="rv-wfarrow" d="M416 31 H434" markerEnd="url(#rv-wfhead)" />
+          <RvNode x={438} y={8} w={264} h={46} title="③ Approve pending vocabulary" sub="Dictionary page ↗ · then come back"
+                  onActivate={() => onNavigate('dictionary')}
+                  aria="Go to the Dictionary page, approve the pending vocabulary your scan seeded, then come back here" />
+
+          {/* wrap connector into row 2 */}
+          <path className="rv-wfarrow" d="M570 58 V72 H60 V82" markerEnd="url(#rv-wfhead)" />
+
+          {/* row 2: the agents run in sequence (chips highlight the toolbar) */}
+          <g className="rv-wfgroup">
+            <rect x={4} y={88} width={568} height={62} rx="10" />
+            <text className="rv-wfglbl" x={14} y={101}>④ AI AGENTS — KEPT ROWS · PROPOSE → YOU APPLY</text>
           </g>
+          <RvNode chip role="button" className="rv-wfnode rv-wfchip" x={14} y={108} w={92} h={32}
+                  title="1 · Enrich" onActivate={flashAgents}
+                  aria="Run Enrich with LLM first — highlights the AI agents toolbar" />
+          <path className="rv-wfarrow" d="M106 124 H118" markerEnd="url(#rv-wfhead)" />
+          <RvNode chip role="button" className="rv-wfnode rv-wfchip" x={122} y={108} w={252} h={32}
+                  title="2 · Suggest · Categorize · Tags" onActivate={flashAgents}
+                  aria="Then AI suggest, AI categorize and Suggest tags — highlights the AI agents toolbar" />
+          <path className="rv-wfarrow" d="M374 124 H386" markerEnd="url(#rv-wfhead)" />
+          <RvNode chip role="button" className="rv-wfnode rv-wfchip" x={390} y={108} w={170} h={32}
+                  title="3 · QA — the gate" onActivate={flashAgents}
+                  aria="AI QA definitions runs last as the quality gate — highlights the AI agents toolbar" />
+
+          <path className="rv-wfarrow" d="M572 119 H590" markerEnd="url(#rv-wfhead)" />
+          <RvNode role="button" x={594} y={96} w={182} h={46} title="⑤ Name the glossary" sub="turns autosave on"
+                  onActivate={flashName} aria="Name the glossary — highlights the save box on the grid header" />
+          <path className="rv-wfarrow" d="M776 119 H794" markerEnd="url(#rv-wfhead)" />
+          <RvNode x={798} y={96} w={140} h={46} title="Govern ↗" sub="set stewardship"
+                  onActivate={() => onNavigate('govern')} aria="Go to the Govern page to set stewardship" />
         </svg>
       </div>
       <ol className="workcycle">
         <li><b>Prune.</b> Every scanned column is a candidate — untick <b>Keep</b> on noise (or use <b>Keep High+Med conf</b>) rather than hunting for gaps; table-level terms always stay.</li>
         <li><b>Resolve duplicates.</b> Same-named terms get a header bar: <b>Merge</b> into one term linked to all its columns, <b>Disambiguate</b> into unique names, or keep separate — <b>AI advise</b> and <b>Find similar</b> recommend, you decide.</li>
-        <li><b>Enrich &amp; QA.</b> The AI AGENTS toolbar never edits the grid: each run opens a diff of proposals you tick and apply (definitions, names, tags, categories, QA rewrites).</li>
+        <li><b>Approve the pending vocabulary — now.</b> After pruning and merging, and <b>before</b> the tag agents, hop to the <b>Dictionary</b> (click the box above): your scan seeded its <i>pending</i> terms and tags. Approve or retire them, then come back — <b>Suggest tags</b> draws from the approved allow-list, so approved tags make it richer.</li>
+        <li><b>Run the AI agents in sequence.</b> <b>Enrich with LLM</b> first (definitions &amp; purposes), then <b>AI suggest</b> / <b>AI categorize</b> / <b>Suggest tags</b>, and <b>AI QA definitions</b> last as the quality gate. Agents never edit the grid: as each batch returns, click-to-accept pills light up on the affected cells — accept them one by one, or <b>Accept all</b> from the strip above the grid. The grid's <b>LLM</b> pills appear only after a proposal is accepted.</li>
         <li><b>Name the glossary</b> (top right of the grid) so autosave keeps your review, then move on to <b>Set stewardship →</b> on the Govern page.</li>
       </ol>
       <p className="hint-line">
-        Worth a look after scanning: the <b>Dictionary</b> (Governance section) — your scan
-        seeded its <i>pending</i> vocabulary. Approving those terms and tags early makes
-        <b> Suggest tags</b> richer here, since tags draw from the governed allow-list.
-        Review edits stay with this glossary — they don't rewrite the Dictionary.
+        Review edits stay with this glossary — they don't rewrite the Dictionary; the
+        Dictionary governs what the agents may propose.
       </p>
     </details>
   )
 }
 
-/* ---------- one data row of the review grid ---------- */
+/* ---------- one data row of the review grid ----------
+   `prop` is this row's inline AI proposal ({patch, display}) — each proposed
+   field renders a click-to-accept pill on its own cell, populated live batch
+   by batch while an agent runs. Nothing lands until a pill (or Accept all)
+   is clicked. */
 
-const GridRow = memo(function GridRow({ row: r, index, pos, expanded, onField, onKeep, onUseName, onEvidence, onToggle }) {
+const GridRow = memo(function GridRow({ row: r, index, pos, expanded, prop, onAcceptProp, onField, onKeep, onUseName, onEvidence, onToggle }) {
   const tt = isTableTerm(r)
   const keptRow = truthy(r.Keep)
   const srcs = splitList(r.Source_Column)
   const hasEv = !!(r.Value_Pattern || r.Value_Signature || r.Enum_Values)
   const sev = r.Sensitivity || 'LOW'
+  // the proposed value for a field, or undefined when nothing is pending
+  const pf = (f) => (prop && prop.patch && prop.display && prop.display.some((d) => d.field === f)
+    ? prop.patch[f] : undefined)
+  const pfDef = pf('Definition')
+  const pfPur = pf('Purpose')
+  const pfSev = pf('Sensitivity')
+  const pfCat = pf('Category')
+  const pfTags = pf('Suggested_Tags')
+  const pfPii = pf('PII_Category')
+  const pfName = pf('Suggested_Name')
+  const pfTerm = pf('Term')
   return (
     <tr className={(keptRow ? '' : 'rv-dropped') + (tt ? ' rv-tterm' : '') + (expanded ? ' rv-open' : '')}>
       <td className="rv-keep rv-stick rv-s0">
@@ -1042,6 +1224,12 @@ const GridRow = memo(function GridRow({ row: r, index, pos, expanded, onField, o
       <td className="rv-stick rv-s1">
         <input type="text" value={r.Category || ''} title={r.Category || ''}
                onChange={(e) => onField(index, 'Category', e.target.value)} aria-label="Category" />
+        {pfCat !== undefined && (
+          <button className="rv-aipill" onClick={() => onAcceptProp(index, 'Category')}
+                  title={`AI proposes category “${pfCat}” — click to accept.`}>
+            AI → {pfCat || '(clear)'}
+          </button>
+        )}
       </td>
       <td className="rv-stick rv-s2">
         <input type="text" value={r.Term || ''} title={r.Term || ''}
@@ -1053,24 +1241,52 @@ const GridRow = memo(function GridRow({ row: r, index, pos, expanded, onField, o
             → {r.Suggested_Name}
           </button>
         )}
+        {pfName !== undefined && pfName !== r.Term && (
+          <button className="rv-ren rv-renai" onClick={() => onAcceptProp(index, 'Suggested_Name')}
+                  title="AI-proposed name from this run — click to accept and rename every row with this name">
+            → {pfName}
+          </button>
+        )}
+        {pfTerm !== undefined && (
+          <button className="rv-ren rv-renai" onClick={() => onAcceptProp(index, 'Term')}
+                  title="AI-proposed term name — click to accept">
+            → {pfTerm}
+          </button>
+        )}
       </td>
       <td>
-        <button className="rv-prev" onClick={() => onToggle(index)} aria-expanded={expanded}
-                title={r.Definition ? `${r.Definition}\n\nClick to edit definition & purpose.` : 'Click to add a definition'}
-                aria-label={`Edit definition and purpose for ${r.Term || 'term'}`}>
-          <span className={r.Definition ? 'rv-prevtext' : 'rv-prevtext empty'}>{r.Definition || 'add definition…'}</span>
-          {(r.LLM_Definition === 'Yes' || (r.LLM_Definition === undefined && r.LLM_Enriched === 'Yes')) && <span className="rv-enr">LLM</span>}
-          {r.QA_Issues ? <span className="rv-qaflag" title={`QA: ${String(r.QA_Issues).split(';').join(' · ')}`}>QA ⚠</span> : null}
-          <span className="rv-caret" aria-hidden="true">{expanded ? '▾' : '▸'}</span>
-        </button>
+        <div className="rv-cell">
+          <button className="rv-prev" onClick={() => onToggle(index)} aria-expanded={expanded}
+                  title={r.Definition ? `${r.Definition}\n\nClick to edit definition & purpose.` : 'Click to add a definition'}
+                  aria-label={`Edit definition and purpose for ${r.Term || 'term'}`}>
+            <span className={r.Definition ? 'rv-prevtext' : 'rv-prevtext empty'}>{r.Definition || 'add definition…'}</span>
+            {(r.LLM_Definition === 'Yes' || (r.LLM_Definition === undefined && r.LLM_Enriched === 'Yes')) && <span className="rv-enr">LLM</span>}
+            {r.QA_Issues ? <span className="rv-qaflag" title={`QA: ${String(r.QA_Issues).split(';').join(' · ')}`}>QA ⚠</span> : null}
+            <span className="rv-caret" aria-hidden="true">{expanded ? '▾' : '▸'}</span>
+          </button>
+          {pfDef !== undefined && (
+            <button className="rv-aipill" onClick={() => onAcceptProp(index, 'Definition')}
+                    title={`AI proposes:\n\n${pfDef}\n\nClick to accept into Definition (expand the row to compare side by side).`}>
+              AI →
+            </button>
+          )}
+        </div>
       </td>
       <td>
-        <button className="rv-prev" onClick={() => onToggle(index)} aria-expanded={expanded}
-                title={r.Purpose ? `${r.Purpose}\n\nClick to edit definition & purpose.` : 'Click to add a purpose'}
-                aria-label={`Edit purpose for ${r.Term || 'term'}`}>
-          <span className={r.Purpose ? 'rv-prevtext' : 'rv-prevtext empty'}>{r.Purpose || 'purpose…'}</span>
-          {(r.LLM_Purpose === 'Yes' || (r.LLM_Purpose === undefined && r.LLM_Enriched === 'Yes')) && <span className="rv-enr">LLM</span>}
-        </button>
+        <div className="rv-cell">
+          <button className="rv-prev" onClick={() => onToggle(index)} aria-expanded={expanded}
+                  title={r.Purpose ? `${r.Purpose}\n\nClick to edit definition & purpose.` : 'Click to add a purpose'}
+                  aria-label={`Edit purpose for ${r.Term || 'term'}`}>
+            <span className={r.Purpose ? 'rv-prevtext' : 'rv-prevtext empty'}>{r.Purpose || 'purpose…'}</span>
+            {(r.LLM_Purpose === 'Yes' || (r.LLM_Purpose === undefined && r.LLM_Enriched === 'Yes')) && <span className="rv-enr">LLM</span>}
+          </button>
+          {pfPur !== undefined && (
+            <button className="rv-aipill" onClick={() => onAcceptProp(index, 'Purpose')}
+                    title={`AI proposes:\n\n${pfPur}\n\nClick to accept into Purpose (expand the row to compare side by side).`}>
+              AI →
+            </button>
+          )}
+        </div>
       </td>
       <td>
         <select className={`rv-sev sev-${sev}`} value={sev}
@@ -1078,6 +1294,18 @@ const GridRow = memo(function GridRow({ row: r, index, pos, expanded, onField, o
           <option>HIGH</option><option>MEDIUM</option><option>LOW</option>
         </select>
         {r.PII_Category ? <div className={`rv-pii sev-${sev}`}>{r.PII_Category}</div> : null}
+        {pfSev !== undefined && (
+          <button className="rv-aipill" onClick={() => onAcceptProp(index, 'Sensitivity')}
+                  title={`AI proposes sensitivity ${pfSev} — click to accept.`}>
+            AI → {pfSev}
+          </button>
+        )}
+        {pfPii !== undefined && (
+          <button className="rv-aipill" onClick={() => onAcceptProp(index, 'PII_Category')}
+                  title={`AI proposes PII category “${pfPii}” — click to accept.`}>
+            AI → {pfPii || '(clear)'}
+          </button>
+        )}
       </td>
       <td>
         <select className={r.Critical_Data_Element === 'Yes' ? 'rv-cde on' : 'rv-cde'}
@@ -1089,6 +1317,12 @@ const GridRow = memo(function GridRow({ row: r, index, pos, expanded, onField, o
       <td>
         <input type="text" value={r.Suggested_Tags || ''} title={r.Suggested_Tags || ''}
                onChange={(e) => onField(index, 'Suggested_Tags', e.target.value)} aria-label="Tags" />
+        {pfTags !== undefined && (
+          <button className="rv-aipill" onClick={() => onAcceptProp(index, 'Suggested_Tags')}
+                  title={`AI proposes tags:\n${pfTags || '(clear)'}\n\nClick to accept.`}>
+            AI → tags
+          </button>
+        )}
       </td>
       <td>
         <span className={`badge ${r.Confidence === 'High' ? 'good' : r.Confidence === 'Medium' ? 'warning' : 'neutral'}`}>
@@ -1112,9 +1346,22 @@ const GridRow = memo(function GridRow({ row: r, index, pos, expanded, onField, o
    collapse to one-line previews and this row expands in place (no modal) with
    full-width textareas and the scan-evidence bits underneath. */
 
-function ExpandedRow({ row: r, index, onField, onEvidence, onClose }) {
+function ExpandedRow({ row: r, index, prop, onAcceptProp, onField, onEvidence, onClose }) {
   const srcs = splitList(r.Source_Column)
   const enums = splitList(r.Enum_Values)
+  // pending AI proposal for a prose field → the old value stays in the
+  // textarea, the proposed text shows beside/below it with its own Accept
+  const pending = (f) => (prop && prop.patch && prop.display && prop.display.some((d) => d.field === f)
+    ? prop.patch[f] : undefined)
+  const pDef = pending('Definition')
+  const pPur = pending('Purpose')
+  const propBox = (field, text) => (
+    <div className="rv-propbox">
+      <span className="rv-expevk">AI PROPOSES</span>
+      <span className="rv-propto">{text}</span>
+      <button className="ghost sm" onClick={() => onAcceptProp(index, field)}>Accept</button>
+    </div>
+  )
   return (
     <tr className="rv-exprow">
       <td colSpan={10}>
@@ -1125,12 +1372,14 @@ function ExpandedRow({ row: r, index, onField, onEvidence, onClose }) {
               {(r.LLM_Definition === 'Yes' || (r.LLM_Definition === undefined && r.LLM_Enriched === 'Yes')) && <span className="rv-enr">LLM</span>}
               <textarea autoFocus value={r.Definition || ''}
                         onChange={(e) => onField(index, 'Definition', e.target.value)} aria-label="Definition" />
+              {pDef !== undefined && propBox('Definition', pDef)}
             </label>
             <label>
               Purpose
               {(r.LLM_Purpose === 'Yes' || (r.LLM_Purpose === undefined && r.LLM_Enriched === 'Yes')) && <span className="rv-enr">LLM</span>}
               <textarea value={r.Purpose || ''} placeholder="why the business keeps this data…"
                         onChange={(e) => onField(index, 'Purpose', e.target.value)} aria-label="Purpose" />
+              {pPur !== undefined && propBox('Purpose', pPur)}
             </label>
           </div>
           {r.QA_Issues ? <div className="rv-issues">⚠ QA: {String(r.QA_Issues).split(';').join(' · ')}</div> : null}
@@ -1257,73 +1506,6 @@ function SimilarityPanel({ sim, threshold, onThreshold, onMerge, onFlip, onDismi
           <button className="ghost sm" onClick={() => onDismiss(idx)}>Dismiss</button>
         </div>
       ))}
-    </div>
-  )
-}
-
-/* ---------- agent proposals: the steward reviews the diff, then applies ---------- */
-
-function ProposalModal({ proposals, setProposals, onApply }) {
-  const selectable = proposals.items.filter((it) => it.patch)
-  const selected = selectable.filter((it) => it.selected)
-  const toggleAll = (on) => setProposals({
-    ...proposals,
-    items: proposals.items.map((it) => (it.patch ? { ...it, selected: on } : it)),
-  })
-  const toggle = (i) => setProposals({
-    ...proposals,
-    items: proposals.items.map((it, j) => (j === i ? { ...it, selected: !it.selected } : it)),
-  })
-  return (
-    <div className="modal-overlay" onClick={() => setProposals(null)}>
-      <div className="modal rv-wide" role="dialog" aria-modal="true" aria-label={`${proposals.label} — proposed changes`}
-           onClick={(e) => e.stopPropagation()}>
-        <header>
-          <h3>{proposals.label} <span className="muted">— {proposals.items.length} row(s) flagged{proposals.note ? ` · ${proposals.note}` : ''}</span></h3>
-          <button className="ghost" onClick={() => setProposals(null)} aria-label="Close">✕</button>
-        </header>
-        <div className="modal-body">
-          <p className="hint-line">
-            Nothing has touched the grid yet — tick the proposals to accept, then Apply. Rows flagged without a
-            proposal are listed for your own edit.
-          </p>
-          {selectable.length > 0 && (
-            <div className="rv-propbar">
-              <label className="rv-cbx">
-                <input type="checkbox" checked={selected.length === selectable.length}
-                       onChange={(e) => toggleAll(e.target.checked)} />
-                Select / deselect all
-              </label>
-              <span className="rv-grow" />
-              <button className="primary sm" disabled={!selected.length} onClick={onApply}>
-                Apply {selected.length} selected
-              </button>
-              <button className="ghost sm" onClick={() => setProposals(null)}>Dismiss all</button>
-            </div>
-          )}
-          {proposals.items.map((it, i) => (
-            <div className="rv-panelrow" key={it.index}>
-              {it.patch
-                ? <input type="checkbox" checked={it.selected} onChange={() => toggle(i)} aria-label={`select ${it.term}`} />
-                : <span style={{ width: 13 }} aria-hidden="true" />}
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <b>{it.term}</b> <span className="muted">{it.category}</span>
-                {it.issues && <div className="rv-issues">⚠ {String(it.issues).split(';').join(' · ')}</div>}
-                {it.display.map((d) => (
-                  <div className="rv-diff" key={d.field}>
-                    <span className="fld">{AGENT_FIELD_LABELS[d.field] || d.field}</span>
-                    {d.from && <span className="from">{d.from}</span>}
-                    {d.from && ' '}
-                    <span className="to">{d.to || '(cleared)'}</span>
-                  </div>
-                ))}
-                {!it.display.length && !it.issues && <div className="rv-msg">no visible change</div>}
-                {!it.patch && it.issues && <div className="rv-msg">no rewrite proposed — edit the definition in the grid</div>}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
     </div>
   )
 }

@@ -229,7 +229,7 @@ export default function SchemaPage({ onNavigate }) {
                     onChange={(e) => setDdlText(e.target.value)}
                     placeholder="Paste your CREATE TABLE statements here, then click Diagram SQL…" />
           <div className="actions">
-            <button className="ghost" onClick={loadSql} disabled={busy}>Diagram SQL</button>
+            <button className="primary" onClick={loadSql} disabled={busy}>Diagram SQL</button>
             <button className="ghost" onClick={() => keys(true)}
                     title="Add the PRIMARY KEY / FOREIGN KEY constraints from this script to the selected database, so PDC and the scan can read them. No data is changed.">
               Set PK/FK in database…
@@ -426,7 +426,7 @@ function KeysPanel({ out, onApply }) {
    session-local store so toggling Cards ⇄ ER doesn't lose a manual
    arrangement; a new scan resets everything. */
 
-const ER = { W: 204, HEAD: 26, ROW: 17, PADB: 7, HGAP: 170, VGAP: 46, MARGIN: 24 }
+const ER = { W: 204, HEAD: 26, ROW: 17, PADB: 7, HGAP: 170, VGAP: 46, VGAP_DENSE: 78, COLGAP: 26, MARGIN: 24 }
 const erClamp = (v, a, b) => Math.max(a, Math.min(b, v))
 const erTrunc = (s, n) => (s && s.length > n ? s.slice(0, n - 1) + '…' : s)
 const erKeyRows = (t) => t.columns.filter((c) => c.pk || c.fk)
@@ -439,7 +439,12 @@ const erHeight = (t) => ER.HEAD + Math.max(erKeyRows(t).length, 1) * ER.ROW + ER
 // rightwards. Four barycenter sweeps then reorder each layer by the mean
 // rank of its neighbours to cut edge crossings. Orphan tables (no resolved
 // relationship at all) line up in a bottom row.
-function erLayout(graph) {
+// The layout is viewport-aware (vp = the wrap's size): dense layers (>4
+// nodes) get a wider vertical gap, a layer whose stack would push the Fit
+// zoom below the 55% legibility floor wraps into two node-columns, and the
+// layer pitch stretches so the diagram fills ~90% of the wrap width at the
+// zoom the content height dictates — no dead bands, no unreadable titles.
+function erLayout(graph, vp = { w: 1100, h: 620 }) {
   const known = new Set(graph.tables.map((t) => t.name))
   const rels = (graph.relationships || []).filter((r) => r.resolved && known.has(r.from) && known.has(r.to))
   const refs = {}, neigh = {}, H = {}
@@ -485,27 +490,52 @@ function erLayout(graph) {
     })
   }
 
-  // vertical coordinates: stack each layer, then relax every node toward the
-  // mean centre of its neighbours (straightens edges and lines dependents up
-  // with their hubs) while keeping at least VGAP between layer neighbours;
-  // each layer is re-centred on its desired centroid so nothing drifts
+  // vertical plan: dense layers breathe (wider gap), and a layer whose stack
+  // would sink the Fit zoom below the 55% legibility floor wraps into two
+  // side-by-side node-columns instead of shrinking the whole diagram
+  const vgapFor = (n) => (n > 4 ? ER.VGAP_DENSE : ER.VGAP)
+  const stackH = (list) => list.reduce((a, t) => a + H[t.name], 0)
+    + Math.max(0, list.length - 1) * vgapFor(list.length)
+  const fitH = Math.max(vp.h, 420) - 2 * ER.MARGIN
+  const orphRow = orphans.length ? 72 + Math.max(...orphans.map((t) => H[t.name])) : 0
+  const maxBH = Math.max(fitH / 0.55 - orphRow, 200)
+  const stacks = cols.map((col) => [col])      // per layer: 1 or 2 node-columns
+  for (let guard = 0; guard < cols.length; guard++) {
+    const tallest = Math.max(0, ...stacks.map((s) => Math.max(0, ...s.map(stackH))))
+    if (tallest <= maxBH) break
+    const cand = stacks
+      .filter((s) => s.length === 1 && s[0].length > 3)
+      .sort((a, b) => stackH(b[0]) - stackH(a[0]))[0]
+    if (!cand) break
+    const c = cand[0]
+    const half = Math.ceil(c.length / 2)
+    cand.length = 0
+    cand.push(c.slice(0, half), c.slice(half))
+  }
+  const parts = stacks.flat().filter((p) => p.length)
+
+  // vertical coordinates: stack each node-column, then relax every node
+  // toward the mean centre of its neighbours (straightens edges and lines
+  // dependents up with their hubs) while keeping the column's gap; each
+  // column is re-centred on its desired centroid so nothing drifts
   const yTop = {}
-  cols.forEach((col) => {
+  parts.forEach((list) => {
     let y = 0
-    col.forEach((t) => { yTop[t.name] = y; y += H[t.name] + ER.VGAP })
+    const g = vgapFor(list.length)
+    list.forEach((t) => { yTop[t.name] = y; y += H[t.name] + g })
   })
   const centre = (n) => yTop[n] + H[n] / 2
   for (let s = 0; s < 3; s++) {
-    cols.forEach((col) => {
-      if (!col.length) return
-      const want = col.map((t) => {
+    parts.forEach((list) => {
+      const g = vgapFor(list.length)
+      const want = list.map((t) => {
         const nb = [...neigh[t.name]].filter((m) => m !== t.name)
         return { t, c: nb.length ? nb.reduce((a, m) => a + centre(m), 0) / nb.length : centre(t.name) }
       }).sort((a, b) => a.c - b.c)
       let bottom = null
       want.forEach((w) => {
         let y = w.c - H[w.t.name] / 2
-        if (bottom != null) y = Math.max(y, bottom + ER.VGAP)
+        if (bottom != null) y = Math.max(y, bottom + g)
         yTop[w.t.name] = y
         bottom = y + H[w.t.name]
       })
@@ -516,20 +546,40 @@ function erLayout(graph) {
     })
   }
 
-  // final coordinates: layers spaced on an even pitch left→right, everything
-  // normalised so the top-most node sits at the margin
+  // horizontal: the canvas is wide, so use it — pitch the layers to fill
+  // ~90% of the wrap at the zoom the content height dictates (≥55% floor)
   const minY = connected.length ? Math.min(...connected.map((t) => yTop[t.name])) : 0
+  const maxYB = connected.length ? Math.max(...connected.map((t) => yTop[t.name] + H[t.name])) : 0
+  const bh = (maxYB - minY) + orphRow
+  const zH = erClamp(fitH / Math.max(bh, 1), 0.55, 1)
+  const layerW = stacks.map((s) => (s.length > 1 ? 2 * ER.W + ER.COLGAP : ER.W))
+  const sumW = layerW.reduce((a, b) => a + b, 0)
+  const targetBW = (Math.max(vp.w, 640) * 0.9) / zH
+  const gapX = stacks.length > 1
+    ? erClamp((targetBW - sumW) / (stacks.length - 1), 120, 560)
+    : 0
   const pos = {}
-  cols.forEach((col, li) => col.forEach((t) => {
-    pos[t.name] = { x: ER.MARGIN + li * (ER.W + ER.HGAP), y: ER.MARGIN + (yTop[t.name] - minY) }
-  }))
+  let lx = ER.MARGIN
+  stacks.forEach((s, li) => {
+    s.forEach((list, pi) => list.forEach((t) => {
+      pos[t.name] = { x: lx + pi * (ER.W + ER.COLGAP), y: ER.MARGIN + (yTop[t.name] - minY) }
+    }))
+    lx += layerW[li] + gapX
+  })
   if (orphans.length) {
     const maxBottom = connected.length
       ? Math.max(...connected.map((t) => pos[t.name].y + H[t.name]))
       : ER.MARGIN
-    let x = ER.MARGIN
     const y = connected.length ? maxBottom + 72 : ER.MARGIN + 18
-    orphans.forEach((t) => { pos[t.name] = { x, y }; x += ER.W + 36 })
+    // spread the orphan row across the width the connected part claims
+    const bwNow = connected.length
+      ? Math.max(...connected.map((t) => pos[t.name].x + ER.W)) - ER.MARGIN
+      : 0
+    const gapO = orphans.length > 1
+      ? erClamp((bwNow - orphans.length * ER.W) / (orphans.length - 1), 36, 420)
+      : 36
+    let x = ER.MARGIN
+    orphans.forEach((t) => { pos[t.name] = { x, y }; x += ER.W + gapO })
   }
   return pos
 }
@@ -670,18 +720,19 @@ function ErDiagram({ graph, store, onOpenTable }) {
   const touchedRef = useRef(!!store.view)  // user already panned/zoomed/dragged?
   const [pos, setPos] = useState(store.pos || null)
   const [view, setView] = useState(store.view || { x: 0, y: 0, z: 1 })
+  const [canvasH, setCanvasH] = useState(store.canvasH || null)
   const [sel, setSel] = useState(null)
+  const posRef = useRef(pos)               // the ResizeObserver refits the CURRENT positions
 
   const byName = {}
   graph.tables.forEach((t) => { byName[t.name] = t })
   const rels = (graph.relationships || []).filter((r) => r.resolved && byName[r.from] && byName[r.to])
 
   // keep the parent's session store current so Cards ⇄ ER keeps arrangements
-  useEffect(() => { store.pos = pos; store.view = view }, [store, pos, view])
+  useEffect(() => { store.pos = pos; store.view = view; store.canvasH = canvasH; posRef.current = pos },
+    [store, pos, view, canvasH])
 
-  const fit = (p = pos) => {
-    const el = wrapRef.current
-    if (!el || !p || !graph.tables.length) return
+  const bounds = (p) => {
     let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity
     graph.tables.forEach((t) => {
       const q = p[t.name]
@@ -689,34 +740,70 @@ function ErDiagram({ graph, store, onOpenTable }) {
       x0 = Math.min(x0, q.x); y0 = Math.min(y0, q.y)
       x1 = Math.max(x1, q.x + ER.W); y1 = Math.max(y1, q.y + erHeight(t))
     })
+    return { x0, y0, bw: Math.max(1, x1 - x0), bh: Math.max(1, y1 - y0) }
+  }
+
+  const fit = (p = pos) => {
+    const el = wrapRef.current
+    if (!el || !p || !graph.tables.length) return
+    const { x0, y0, bw, bh } = bounds(p)
     const w = el.clientWidth, h = el.clientHeight
-    const bw = Math.max(1, x1 - x0), bh = Math.max(1, y1 - y0)
     const padX = w * 0.06, padY = h * 0.06  // ~6% breathing room all round
-    const z = erClamp(Math.min((w - 2 * padX) / bw, (h - 2 * padY) / bh, 1.1), 0.2, 2.5)
+    // floor Fit at 55% so node titles stay legible — a bigger graph pans;
+    // content is centred both ways, so any overflow is cut evenly
+    const z = erClamp(Math.min((w - 2 * padX) / bw, (h - 2 * padY) / bh, 1.1), 0.55, 2.5)
     setView({ z, x: (w - bw * z) / 2 - x0 * z, y: (h - bh * z) / 2 - y0 * z })
   }
+
+  // Size the canvas to its content: exactly tall enough to hold the diagram
+  // at its fit zoom (kills the dead bands above/below), capped at 70% of the
+  // window; the ResizeObserver below refits once the new height applies.
+  const sizeCanvas = (p) => {
+    const el = wrapRef.current
+    if (!el || !p || !graph.tables.length) return
+    const { bw, bh } = bounds(p)
+    const zW = Math.min((el.clientWidth * 0.88) / bw, 1)
+    const need = Math.round(bh * Math.max(zW, 0.55) + 48)
+    setCanvasH(erClamp(need, 420, Math.round(window.innerHeight * 0.7)))
+  }
+
+  const layoutVp = () => ({
+    w: wrapRef.current?.clientWidth || 1100,
+    h: Math.round(window.innerHeight * 0.7),
+  })
 
   useEffect(() => {                         // first open of this scan: arrange + fit
     let p = pos
     if (!p) {
-      p = erLayout(graph)
+      p = erLayout(graph, layoutVp())
       setPos(p)
+      posRef.current = p
+      sizeCanvas(p)
       fit(p)
     }
     // keep the auto-fit honest while the wrap settles (fonts, sidebar,
-    // window resizes) — but stop the moment the user pans/zooms/drags
+    // window resizes, the canvas-height cap) — but stop the moment the
+    // user pans/zooms/drags
     const el = wrapRef.current
     if (!el || typeof ResizeObserver === 'undefined') return
-    const ro = new ResizeObserver(() => { if (!touchedRef.current) fit(p) })
+    const ro = new ResizeObserver(() => { if (!touchedRef.current) fit(posRef.current) })
     ro.observe(el)
     return () => ro.disconnect()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // the canvas-height cap applies one render later — refit against the REAL
+  // clientHeight once it lands (the ResizeObserver alone can miss this beat)
+  useEffect(() => {
+    if (canvasH && !touchedRef.current) fit(posRef.current)
+  }, [canvasH]) // eslint-disable-line react-hooks/exhaustive-deps
+
   const rearrange = () => {
-    const p = erLayout(graph)
+    const p = erLayout(graph, layoutVp())
     touchedRef.current = false            // fresh auto-layout → auto-fit again
     setPos(p)
+    posRef.current = p
     setSel(null)
+    sizeCanvas(p)
     fit(p)
   }
 
@@ -791,7 +878,7 @@ function ErDiagram({ graph, store, onOpenTable }) {
     : []
 
   return (
-    <div className="er-wrap" ref={wrapRef}>
+    <div className="er-wrap" ref={wrapRef} style={canvasH ? { height: canvasH } : undefined}>
       <svg onPointerDown={bgDown} role="img" aria-label="Entity-relationship diagram">
         <defs>
           <marker id="er-arrow" markerWidth="9" markerHeight="8" refX="8" refY="4"

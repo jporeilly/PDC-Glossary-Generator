@@ -14,6 +14,78 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.10.9] — 2026-07-17
+
+### Changed
+**Primary-button sweep** — the action that drives the workflow is now the
+blue primary button on every page, one per panel where possible: Connect's
+Harvest panel **List data sources** and pre-flight **Check in PDC**, Schema's
+**Diagram SQL**, Apply's **Pull / refresh links from glossary** (step 1 of
+Data Elements), Govern's **Apply stewardship to terms** and bottom-nav
+**Resolve term IDs →**, Dictionary's
+**Export domain pack** and the **⤵ AI fold advisor** (now a standard-size
+primary above the Terms table instead of a mini in the heading), Review's
+**Save glossary**, and Settings' **Test connection** plus **Restore from
+snapshot…** (with **⬇ Download snapshot** becoming a standard ghost button
+instead of a link). Settings' Enrichment-tuning row also aligns its three
+inputs on one baseline (the Company hint moved below its input).
+
+**Govern polish** — the roster's Name-&-functions chips now show each
+person's true role state at a glance: a held function is a filled accent
+chip with a ✓ (tooltip says whether it comes from a Keycloak role or a
+manual roster override), a not-held one is a muted dashed outline; both
+remain click-to-toggle. The Keycloak fetch panel is a fixed 4-column grid
+(Base URL / Realm / Admin realm / Username, then Password / Bearer token
+with its hint under the input) with the checkboxes and the primary Fetch
+on one action row. Stewardship defaults aligns every input on one baseline:
+the Domain hint sits inline with its label, ⚡ auto is a compact chip
+attached to the Domain select, and "apply to categories too" lives with
+the Reviewed-date field it accompanies.
+
+### Fixed
+**Apply stewardship stamps kept terms only** — "Apply stewardship to terms"
+was stamping steward / owner / custodian onto every workspace row, dropped
+ones included ("128 of 128" after pruning to 95). It now stamps only rows
+with Keep ticked and reports "… onto N of N kept term(s)"; the per-category
+override cards likewise build from kept rows only, so a category that
+survives solely in dropped rows no longer drives stewardship.
+
+**Schema ER layout, round three** — Fit now really centres: the canvas
+sizes itself to the diagram (capped at 70% of the window) so there are no
+dead bands above or below; dense layers (>4 tables) spread with a wider
+vertical gap; the layer pitch stretches to fill ~90% of the canvas width;
+Fit is floored at 55% zoom so node titles stay legible — a layer that would
+sink below that wraps into two side-by-side node-columns instead (very
+large graphs accept the 55% floor and pan). Verified numerically on a
+14-table / 15-FK / 3-orphan shape: fit 62%, top and bottom margins equal,
+no node overlaps.
+
+**Review guide is now interactive** — "How to review" is a Home-style
+clickable flow: ① Prune → ② Resolve duplicates → ③ Approve pending
+vocabulary (the box navigates to the Dictionary, with a come-back note) →
+④ the AI agents as sequence chips (Enrich → Suggest · Categorize · Tags →
+QA as the gate; chips highlight the AI toolbar) → ⑤ Name the glossary →
+Govern (navigates). The ordered list underneath matches, including when to
+flip to the Dictionary (after prune/merge, before the tag agents — approved
+tags feed Suggest tags) and back.
+
+**AI agent results are now inline pills — the proposal popup is gone.**
+Agents still propose-then-apply (the grid never mutates mid-run), but the
+presentation moved into the grid: as each batch returns, click-to-accept
+pills light up on the affected cells — Term gets the classic **→ name**
+chip, Definition/Purpose previews get an **AI →** pill (tooltip shows the
+proposed text; the expanded editor shows old vs proposed side by side with
+its own Accept), and Category / Sensitivity / PII / Tags get compact
+**AI → value** pills. A slim strip above the grid tracks the run ("N AI
+proposals on M rows · **Accept all** · **Dismiss all**") and a live
+"rows with proposals so far" counter sits next to the progress bar while
+batches stream in. Accepting a field also carries its provenance flags, so
+the grid's **LLM** pills appear only after a proposal is accepted — the
+strip and guide say so explicitly.
+The Review summary chips are colour-matched to the grid: Confidence H/M/L
+in the Conf. badge palette (green / amber / muted); PII and Sensitivity
+keep the sensitivity palette.
+
 ## [1.10.8] — 2026-07-17
 
 ### Changed

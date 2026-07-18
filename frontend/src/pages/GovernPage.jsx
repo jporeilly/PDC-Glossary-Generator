@@ -40,6 +40,10 @@ const SLOT_LABEL = { businessSteward: 'Business steward', owner: 'Owner', custod
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/
 
+// Same Keep semantics as the Review grid — Govern acts on KEPT terms only
+// (dropped rows neither drive the category cards nor receive stamps).
+const isKept = (r) => ['y', 'yes', 'true', '1'].includes(String(r.Keep).toLowerCase())
+
 // Map a user's Keycloak realm roles to a governance function. PDC's model:
 // Business_Steward maintains glossaries; Data_Steward gives governance
 // ownership; Data_Storage_Administrator is the technical custodian.
@@ -353,7 +357,7 @@ export default function GovernPage({ onNavigate }) {
   const [loadError, setLoadError] = useState(null)
 
   const cats = useMemo(
-    () => [...new Set(rows.map((r) => r.Category).filter(Boolean))], [rows])
+    () => [...new Set(rows.filter(isKept).map((r) => r.Category).filter(Boolean))], [rows])
   const accounts = useMemo(
     () => (people || []).filter((p) => p.id), [people])
   const pools = useMemo(() => ({
@@ -775,8 +779,11 @@ export default function GovernPage({ onNavigate }) {
   // autosaved glossary and ride into every export.
   function applyStewardshipToRows() {
     const nm = (id) => personName(people, id)
+    let kept = 0
     let stamped = 0
     const next = rows.map((r) => {
+      if (!isKept(r)) return r                 // dropped rows don't export — leave them alone
+      kept += 1
       const ov = overrides[r.Category] || {}
       const bs = ov.businessSteward || defaults.steward || ''
       const own = ov.owner || defaults.owner || ''
@@ -793,7 +800,7 @@ export default function GovernPage({ onNavigate }) {
       }
     })
     setRows(next)
-    setApplyMsg(`✓ Stamped steward / owner / custodian onto ${stamped} of ${rows.length} term(s) — autosaved with the workspace.`)
+    setApplyMsg(`✓ Stamped steward / owner / custodian onto ${stamped} of ${kept} kept term(s) — autosaved with the workspace.`)
   }
 
   /* ---------- render ---------- */
@@ -833,12 +840,12 @@ export default function GovernPage({ onNavigate }) {
         <h2>Stewardship defaults <span>applied to every kept term (and category) — override per category below</span></h2>
         <div className="form-grid">
           <label>
-            Domain <span className="muted">PDC classifier</span>
-            <span style={{ display: 'flex', gap: '.5rem' }}>
+            <span>Domain <span className="muted">· PDC classifier</span></span>
+            <span className="gov-inlinerow">
               <select value={defaults.domain} onChange={(e) => changeDefaults({ domain: e.target.value })} style={{ flex: 1 }}>
                 {PDC_DOMAINS.map((d) => <option key={d}>{d}</option>)}
               </select>
-              <button className="ghost" onClick={() => autoDomain(true)}
+              <button className="ghost mini" onClick={() => autoDomain(true)}
                       title="Pick the domain classifier from the company data: the installed pack + company name (deterministic keyword map), the local AI as fallback. Saved with the defaults.">
                 ⚡ auto
               </button>
@@ -880,16 +887,17 @@ export default function GovernPage({ onNavigate }) {
               </span>
             )}
           </label>
-          <label>
+          <div className="field">
             Reviewed date
-            <input type="date" value={defaults.reviewed}
+            <input type="date" value={defaults.reviewed} aria-label="Reviewed date"
                    onChange={(e) => changeDefaults({ reviewed: e.target.value })} />
-          </label>
-          <label className="check" style={{ alignSelf: 'end' }}>
-            <input type="checkbox" checked={defaults.applycats}
-                   onChange={(e) => changeDefaults({ applycats: e.target.checked })} />
-            apply to categories too
-          </label>
+            <label className="check gov-applycats"
+                   title="Also stamp Status / Rating / Reviewed onto every category (not just the terms).">
+              <input type="checkbox" checked={defaults.applycats}
+                     onChange={(e) => changeDefaults({ applycats: e.target.checked })} />
+              apply to categories too
+            </label>
+          </div>
         </div>
         <div style={{ marginTop: '.9rem' }}>
           <span className="muted" style={{ fontSize: '.82rem' }}>Stakeholders</span>
@@ -981,7 +989,7 @@ export default function GovernPage({ onNavigate }) {
           </label>
         </div>
         <div className="actions">
-          <button className="ghost" onClick={applyStewardshipToRows} disabled={!rows.length}
+          <button className="primary" onClick={applyStewardshipToRows} disabled={!rows.length}
                   title="Stamp each term's effective Business Steward / Owner / Custodian (defaults + category overrides) onto the review rows — they persist with the saved workspace.">
             Apply stewardship to terms
           </button>
@@ -998,7 +1006,7 @@ export default function GovernPage({ onNavigate }) {
       <div className="actions">
         <button className="ghost" onClick={() => onNavigate('review')}>← Review terms</button>
         <button className="ghost" onClick={() => onNavigate('dictionary')}>Term &amp; Tag dictionary</button>
-        <button className="ghost" onClick={() => onNavigate('apply')}>Resolve term IDs →</button>
+        <button className="primary" onClick={() => onNavigate('apply')}>Resolve term IDs →</button>
       </div>
     </>
   )
@@ -1066,7 +1074,7 @@ function KeycloakCard({ onFetch, msg }) {
         instance. PDC fronts Keycloak at <code>&lt;server&gt;/keycloak</code>; list users from
         the <b>pdc</b> realm, get the admin token from the <b>master</b> realm.
       </p>
-      <div className="form-grid">
+      <div className="form-grid gov-kcgrid">
         <label>
           Base URL
           <input type="text" placeholder="https://host/keycloak" value={kc.base}
@@ -1092,10 +1100,11 @@ function KeycloakCard({ onFetch, msg }) {
           <input type="password" autoComplete="off" value={kc.pass}
                  onChange={(e) => set({ pass: e.target.value })} />
         </label>
-        <label>
-          Bearer token <span className="muted">optional — instead of username / password</span>
-          <input type="text" placeholder="eyJhbGciOi…  (leave blank to use the credentials above)"
+        <label className="gov-kcspan3">
+          Bearer token
+          <input type="text" placeholder="eyJhbGciOi…"
                  value={kc.token} onChange={(e) => set({ token: e.target.value })} />
+          <span className="muted">optional — instead of username / password; leave blank to use the credentials above</span>
         </label>
       </div>
       <div className="actions">
@@ -1178,18 +1187,34 @@ function RosterCard({ people, rosterDirty, rosterMsg, expMsg, onToggleFn,
             )}
             {visible.map(({ p, i }) => {
               const f = personFns(p)
+              const base = roleFns(p.roles)
+              const ov = p.fns || {}
               return (
                 <tr key={p.id || `${p.name}-${i}`}>
                   <td>
                     {p.name || ''}
                     <div className="gov-fnrow">
-                      {fnMap.map(([k, l]) => (
-                        <button key={k} className={`gov-fnbtn${f[k] ? ' on' : ''}`}
-                                onClick={() => onToggleFn(i, k)}
-                                title={`Toggle the ${l} function for this person — your setting overrides the Keycloak role and persists with Save roster. The stewardship pools draw from these.`}>
-                          {l}
-                        </button>
-                      ))}
+                      {fnMap.map(([k, l]) => {
+                        const held = f[k]
+                        const overridden = ov[k] != null && ov[k] !== base[k]
+                        const src = held
+                          ? (overridden
+                            ? 'set manually on the roster (overrides Keycloak)'
+                            : `held via Keycloak role${(p.roles || []).length ? ` — ${(p.roles || []).join(', ')}` : ''}`)
+                          : (overridden
+                            ? 'removed manually on the roster (overrides the Keycloak role)'
+                            : (p.roles || []).length
+                              ? `not held — the Keycloak roles (${(p.roles || []).join(', ')}) don't map to ${l}`
+                              : 'not held — no mapped Keycloak role')
+                        return (
+                          <button key={k} className={`gov-fnbtn${held ? ' on' : ' off'}`}
+                                  aria-pressed={held}
+                                  onClick={() => onToggleFn(i, k)}
+                                  title={`${l}: ${held ? 'HELD' : 'not held'} — ${src}. Click to toggle the override; it persists with Save roster and the stewardship pools draw from it.`}>
+                            {held ? '✓ ' : ''}{l}
+                          </button>
+                        )
+                      })}
                     </div>
                   </td>
                   <td>{p.display_name || ''}</td>

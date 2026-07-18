@@ -759,7 +759,7 @@ function HarvestCard({ pdc, onConnectionsChanged, onNavigate, glossaryName }) {
       <PdcAuthFields pdc={pdc} />
 
       <div className="actions">
-        <button className="ghost" onClick={listSources} disabled={busy}>List data sources</button>
+        <button className="primary" onClick={listSources} disabled={busy}>List data sources</button>
         {sources != null && sel.size > 0 && (
           <button className="primary" onClick={harvestSelected} disabled={busy}>Harvest selected →</button>
         )}
@@ -833,7 +833,7 @@ function HarvestCard({ pdc, onConnectionsChanged, onNavigate, glossaryName }) {
         <input type="text" className="text" placeholder={glossaryName || 'glossary name'}
                value={glossName} onChange={(e) => setGlossName(e.target.value)}
                style={{ flex: '0 1 260px' }} />
-        <button className="ghost" onClick={checkGlossary}
+        <button className="primary" onClick={checkGlossary}
                 title="Does a glossary with this name already exist in PDC? Importing over it creates a duplicate.">
           Check in PDC
         </button>

@@ -582,13 +582,15 @@ export default function DictionaryPage({ onNavigate }) {
         )}
 
         <h3 className="subhead">
-          1 · Terms — canonical business terms; aliases resolve divergent names to one term{' '}
-          <button className="ghost mini act" onClick={foldAdvisor} disabled={foldBusy}
+          1 · Terms — canonical business terms; aliases resolve divergent names to one term
+        </h3>
+        <div className="actions" style={{ marginTop: 0, marginBottom: '.6rem' }}>
+          <button className="primary" onClick={foldAdvisor} disabled={foldBusy}
                   title="Advise alias folds across the governed vocabulary: names are expanded through the pack's abbreviations (mbr → Member) and compared by similarity — identical expansions are near-certain twins; close matches are flagged for review. The unabbreviated spelling is proposed as the canonical. Advice only — you click each fold.">
             {foldBusy ? 'Analyzing…' : '⤵ AI fold advisor'}
-          </button>{' '}
+          </button>
           <span className="hint-inline">spots twin terms (mbr / Member) in the governed vocabulary and advises folds — you click each</span>
-        </h3>
+        </div>
         <div className="vocab-box" style={boxStyle}>
           <table>
             <thead>
@@ -785,7 +787,7 @@ export default function DictionaryPage({ onNavigate }) {
           <button className="primary" onClick={saveDict}>Save dictionary</button>
           <button className="ghost" onClick={load}>Reload</button>
           <a className="badge accent" href="/api/tagdict/export.json">⬇ Export JSON</a>
-          <button className="ghost" onClick={() => exportPack(false)}
+          <button className="primary" onClick={() => exportPack(false)}
                   title="Generate a domain pack from what the scans learned: table mappings, abbreviations, the governed company vocabulary, and curated_seeds carrying the induced value patterns / reference lists — detection seeds specific to THIS company. Merges over the installed pack; where the scan disagrees with the pack, each conflict is listed for you to decide (curated seeds default to the fresher scan evidence). Review, then commit to the scenario repo.">
             Export domain pack
           </button>
