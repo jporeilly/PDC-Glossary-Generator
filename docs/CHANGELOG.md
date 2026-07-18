@@ -14,6 +14,41 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.11.0] — 2026-07-18
+
+### Added — the Glossary half of the no-seed feedback loop (with Policy Generator)
+- **`detection_intent` on Registry concepts.** The Registry writer now states
+  each concept's intent: `"mapping_only"` when the steward flagged the term
+  (the flag always wins), `"seeded"` when the concept carries detection seeds
+  (profiled or curated), and the field is **omitted** when neither applies —
+  that gap is the Policy Generator's cue to ask.
+- **Detection toggle on the Review grid.** The expanded row editor's evidence
+  strip gains a **Detection: Auto / Mapping-only** seg. Mapping-only = the
+  term is governed by term links (Apply) and has no value shape, so the
+  Policy Generator stops expecting a detection method for it. Persists on the
+  row (`Detection_Intent`) via autosave; the legacy UI passes the field
+  through untouched.
+- **Seed-request pickup.** The Policy Generator writes `seed-request*.json`
+  beside the Registry (`{requested_at, registry_file, terms:[{name, reason}]}`)
+  when concepts arrive with no seeds and no intent. New `GET
+  /api/seed-requests` lists pending requests; `POST /api/seed-requests/handle`
+  renames one to `*.handled.json`. The Review page shows a banner —
+  **Show these terms** filters the grid to the requested names, the guidance
+  line spells out the fix (re-scan with Profile data on, or mark free-text
+  terms Mapping-only, then Generate again), **Mark handled** retires it.
+- Tests: `tests/test_seed_loop.py` — intent emission (seeded / flag-wins /
+  omitted) and the seed-request list + handle round-trip.
+
+### Fixed — "What it does" workflow diagram (README + GUIDE)
+The mermaid overview redrawn for clean rendering on GitHub: the Term & Tag
+dictionary now sits fully **inside** the Glossary Generator cluster (between
+Review and Govern, dotted hop Review → dictionary → Govern — no edges
+crossing the main spine), the lab-sources cylinder keeps a two-word label
+with the "DBs · MinIO · DDL" detail on its edge, and the PDC import target
+is a rectangle ("PDC — glossary import") so its label no longer clips.
+Validated with mermaid.parse and a real rendered-geometry check (all labels
+inside their shapes, zero edge crossings).
+
 ## [1.10.11] — 2026-07-18
 
 ### Changed — docs sync

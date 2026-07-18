@@ -1962,6 +1962,54 @@ def api_governance_summary():
         "Access-Control-Allow-Origin": "*",      # read-only; lets the viz app poll cross-origin
         "Cache-Control": "no-store"})
 
+# --------------------------------------------------------------------------- #
+#  Seed-request pickup — the Glossary half of the no-seed feedback loop.
+#
+#  When the Policy Generator finds Registry concepts with no detection seeds
+#  and no detection_intent, it writes seed-request*.json into the SAME
+#  registries/ directory as the Registry it loaded, shape:
+#    {requested_at, registry_file, terms: [{name, reason: "no_seed"}]}
+#  The Review page surfaces pending requests as a banner; "Mark handled"
+#  renames the file to *.handled.json so it stops showing without losing the
+#  paper trail.
+# --------------------------------------------------------------------------- #
+
+@app.get("/api/seed-requests")
+def api_seed_requests():
+    """List pending (un-handled) seed requests from the Policy Generator."""
+    import glob
+    out = []
+    for path in sorted(glob.glob(os.path.join(REGISTRY_DIR, "seed-request*.json"))):
+        if path.endswith(".handled.json"):
+            continue
+        try:
+            with open(path, encoding="utf-8") as f:
+                req = json.load(f) or {}
+        except Exception:
+            continue  # unreadable/partial file — skip, never break the page
+        terms = [t for t in (req.get("terms") or [])
+                 if isinstance(t, dict) and str(t.get("name") or "").strip()]
+        out.append({"file": os.path.basename(path),
+                    "requested_at": req.get("requested_at"),
+                    "registry_file": req.get("registry_file"),
+                    "terms": terms})
+    out.sort(key=lambda r: str(r.get("requested_at") or ""), reverse=True)
+    return {"requests": out}
+
+@app.post("/api/seed-requests/handle")
+def api_seed_request_handle(body: dict = Body(default={})):
+    """Mark one seed request handled: rename seed-request*.json -> *.handled.json."""
+    name = os.path.basename(str((body or {}).get("file") or "").strip())
+    if not (name.startswith("seed-request") and name.endswith(".json")
+            and not name.endswith(".handled.json")):
+        return _err("not a seed-request file", 400)
+    path = os.path.join(REGISTRY_DIR, name)
+    if not os.path.isfile(path):
+        return _err("not found", 404)
+    dest = path[:-len(".json")] + ".handled.json"
+    os.replace(path, dest)   # atomic; overwrites a stale marker on every OS
+    return {"handled": name, "renamed_to": os.path.basename(dest)}
+
 @app.post("/api/export-pack")
 def api_export_pack(body: dict = Body(default={})):
     """Generate a domain pack from the reviewed scan results: table mappings,

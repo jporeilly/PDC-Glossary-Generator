@@ -137,6 +137,14 @@ def build_registry(rows, glossary_name: str, glossary_id: str = None) -> dict:
                      "ref": k.get("ref") or None}
                 for sc, k in (r.get('Source_Keys') or {}).items()
                 if isinstance(k, dict)}
+        # detection intent — the Glossary half of the no-seed feedback loop.
+        # "mapping_only": the steward flagged the term (Review grid's Detection
+        # toggle) as governed by term links only — no value shape exists, so the
+        # Policy Generator stops expecting a detection method for it. The flag
+        # always wins. Otherwise "seeded" when detection seeds exist; when
+        # neither, the field is omitted (legacy shape — Policy may then write a
+        # seed-request asking the steward to decide).
+        intent = str(r.get('Detection_Intent') or '').strip().lower()
         concepts.append({
             "concept": concept,
             "term_name": term,
@@ -150,6 +158,8 @@ def build_registry(rows, glossary_name: str, glossary_id: str = None) -> dict:
             "sources": [c.strip() for c in str(r.get('Source_Column') or '').split(';') if c.strip()],
             "keys": keys,
             "method": None,
+            **({"detection_intent": "mapping_only"} if intent == 'mapping_only'
+               else {"detection_intent": "seeded"} if detect else {}),
         })
     return {"schema": "classification-registry/1", "glossary": glossary_name,
             "glossary_id": glossary_id, "pack": None, "concepts": concepts,

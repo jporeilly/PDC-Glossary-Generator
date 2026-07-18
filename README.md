@@ -1,6 +1,6 @@
 # Pentaho Data Catalog Glossary Generator
 
-**Version:** 1.10.11 · validated against Pentaho Data Catalog 11.0.0 (public
+**Version:** 1.11.0 · validated against Pentaho Data Catalog 11.0.0 (public
 API v3). FastAPI backend with interactive API docs at **`/docs`**, and a
 **React 18 + Vite frontend** (`frontend/`, on the shared Policy Generator
 design kit) served from `frontend/dist` when built — the legacy Jinja shell
@@ -87,22 +87,22 @@ order:
 ```mermaid
 %%{init: {'theme':'base','themeVariables':{'primaryColor':'#EEF6FA','primaryBorderColor':'#1C7293','primaryTextColor':'#22333B','secondaryColor':'#DBEEF3','tertiaryColor':'#F7FBFD','lineColor':'#1C7293','fontFamily':'Segoe UI, sans-serif','fontSize':'13px','clusterBkg':'#F7FBFD','clusterBorder':'#CFE3EC'}}}%%
 flowchart LR
-    SRC[("lab sources")] -- "DBs · MinIO · DDL" --> CON
+    SRC[("lab<br/>sources")] -- "DBs · MinIO · DDL" --> CON
     subgraph APP["Glossary Generator"]
         HOME["Home<br/>workflow stepper"] --> CON["Connect<br/>Schema · Files"]
-        CON --> REV["Review<br/>terms · tags<br/>duplicates"]
+        CON --> REV["Review<br/>terms · tags · duplicates"]
         REV --> GOV["Govern<br/>stewards · approval"]
         GOV --> APPLY["Apply<br/>generate · resolve ids<br/>apply to PDC"]
         REV -.-> DICT[["Term & Tag dictionary<br/>governed vocabulary"]]
-        GOV -.-> DICT
+        DICT -.-> GOV
     end
-    APPLY -- "JSONL" --> PDC[("PDC glossary")]
+    APPLY -- "JSONL" --> PDCI["PDC — glossary import"]
     APPLY -- "writes" --> REG[["Classification<br/>Registry"]]
     REG --> PG["Policy Generator"]
     classDef contract fill:#0A3D52,color:#fff,stroke:#0A3D52
     classDef pdc fill:#DBEEF3,stroke:#065A82,color:#0A3D52,stroke-width:2px
     class REG contract
-    class PDC pdc
+    class PDCI pdc
 ```
 
 - **Connect** — live database scan (PostgreSQL, SQL Server, MySQL/MariaDB,

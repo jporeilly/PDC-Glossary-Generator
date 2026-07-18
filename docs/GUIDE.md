@@ -399,22 +399,22 @@ one stop on it:
 ```mermaid
 %%{init: {'theme':'base','themeVariables':{'primaryColor':'#EEF6FA','primaryBorderColor':'#1C7293','primaryTextColor':'#22333B','secondaryColor':'#DBEEF3','tertiaryColor':'#F7FBFD','lineColor':'#1C7293','fontFamily':'Segoe UI, sans-serif','fontSize':'13px','clusterBkg':'#F7FBFD','clusterBorder':'#CFE3EC'}}}%%
 flowchart LR
-    SRC[("lab sources")] -- "DBs · MinIO · DDL" --> CON
+    SRC[("lab<br/>sources")] -- "DBs · MinIO · DDL" --> CON
     subgraph APP["Glossary Generator"]
         HOME["Home<br/>workflow stepper"] --> CON["Connect<br/>Schema · Files"]
-        CON --> REV["Review<br/>terms · tags<br/>duplicates"]
+        CON --> REV["Review<br/>terms · tags · duplicates"]
         REV --> GOV["Govern<br/>stewards · approval"]
         GOV --> APPLY["Apply<br/>generate · resolve ids<br/>apply to PDC"]
         REV -.-> DICT[["Term &amp; Tag dictionary<br/>governed vocabulary"]]
-        GOV -.-> DICT
+        DICT -.-> GOV
     end
-    APPLY -- "JSONL" --> PDC[("PDC glossary")]
+    APPLY -- "JSONL" --> PDCI["PDC — glossary import"]
     APPLY -- "writes" --> REG[["Classification<br/>Registry"]]
     REG --> PG["Policy Generator"]
     classDef contract fill:#0A3D52,color:#fff,stroke:#0A3D52
     classDef pdc fill:#DBEEF3,stroke:#065A82,color:#0A3D52,stroke-width:2px
     class REG contract
-    class PDC pdc
+    class PDCI pdc
 ```
 
 ### 2. Home
@@ -875,6 +875,22 @@ The order matters because each step feeds the next:
 After step 6 the Registry is current; after step 7 the flywheel is closed.
 `Save dictionary` is only needed after hand-editing tags/rules — approvals
 and scan accretion persist on their own.
+
+### Closing the seed loop with the Policy Generator
+
+Since 1.11.0 every Registry concept states its **detection intent**:
+`"seeded"` (it carries profiled/curated detection seeds), `"mapping_only"`
+(the steward flagged it — governed by term links only, no value shape
+exists, so the Policy Generator stops expecting a detection method), or the
+field is **absent** (no seeds, no decision). The flag lives on the Review
+grid: open a row's editor and use the **Detection: Auto / Mapping-only** seg
+in the evidence strip. When the Policy Generator loads a Registry whose
+concepts have neither seeds nor intent, it writes `seed-request.json` beside
+the Registry; the Review page picks it up as a banner — **Show these terms**
+filters the grid to the requested names, then either re-scan with **Profile
+data** on (columns that should have a shape) or mark free-text terms
+**Mapping-only**, **Generate** again, and **Mark handled** to retire the
+request (the file is renamed `*.handled.json`, keeping the paper trail).
 
 ### The pack generator (Dictionary → Export domain pack)
 

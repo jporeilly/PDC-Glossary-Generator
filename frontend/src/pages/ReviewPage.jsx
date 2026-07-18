@@ -173,7 +173,9 @@ const CARRY_FOR = {
   Term: ['LLM_Name'],
 }
 
-const EMPTY_FILTERS = { q: '', cat: '', sev: '', conf: '', tag: '', pii: false, kept: false }
+// `names` is the seed-request focus filter (Set of lowercased term names) —
+// only the Policy Generator banner's "Show these terms" sets it.
+const EMPTY_FILTERS = { q: '', cat: '', sev: '', conf: '', tag: '', pii: false, kept: false, names: null }
 
 export default function ReviewPage({ onNavigate }) {
   const ws = useWorkspace()
@@ -195,6 +197,7 @@ export default function ReviewPage({ onNavigate }) {
   const [hmSnap, setHmSnap] = useState(null)       // [{index, keep}] for the H+M toggle revert
   const [busy, setBusy] = useState(null)           // 'load' | 'enhance' | 'save'
   const [saveName, setSaveName] = useState('')
+  const [seedReqs, setSeedReqs] = useState([])     // Policy Generator seed requests (banner)
 
   const cancelRef = useRef(false)
   const snapRef = useRef(null)                     // raw-scan snapshot for Reset all
@@ -214,6 +217,33 @@ export default function ReviewPage({ onNavigate }) {
     if (rows.length && !snapRef.current) snapRef.current = deep(rows)
   }, [rows])
 
+  // Seed requests from the Policy Generator (the no-seed feedback loop): it
+  // drops seed-request.json beside the Registry when concepts arrive with no
+  // detection seeds and no stated intent. Best-effort — the grid never blocks.
+  useEffect(() => {
+    let alive = true
+    apiGet('/api/seed-requests')
+      .then((d) => { if (alive) setSeedReqs((d && d.requests) || []) })
+      .catch(() => {})
+    return () => { alive = false }
+  }, [])
+
+  const seedFocus = useCallback((sr) => {
+    setFilters((f) => {
+      if (f.names) return { ...f, names: null }
+      return { ...f, names: new Set(sr.terms.map((t) => String(t.name || '').trim().toLowerCase())) }
+    })
+  }, [])
+
+  async function seedHandled(sr) {
+    try {
+      await apiPost('/api/seed-requests/handle', { file: sr.file })
+      setSeedReqs((rs) => rs.filter((r) => r.file !== sr.file))
+      setFilters((f) => (f.names ? { ...f, names: null } : f))
+      setMsg(`Seed request ${sr.file} marked handled.`)
+    } catch (err) { setError(err.message) }
+  }
+
   /* ---------- filtering + clustering ---------- */
 
   const shown = useMemo(() => {
@@ -227,6 +257,7 @@ export default function ReviewPage({ onNavigate }) {
       if (filters.tag && !splitList(r.Suggested_Tags).includes(filters.tag)) return
       if (filters.pii && !r.PII_Category) return
       if (filters.kept && !truthy(r.Keep)) return
+      if (filters.names && !filters.names.has(String(r.Term || '').trim().toLowerCase())) return
       if (q) {
         const hay = `${r.Term || ''} ${r.Definition || ''} ${r.Source_Column || ''} ${r.Category || ''} ${r.Suggested_Tags || ''}`.toLowerCase()
         if (!hay.includes(q)) return
@@ -913,6 +944,28 @@ export default function ReviewPage({ onNavigate }) {
 
         {error && <div className="error">{error}</div>}
 
+        {seedReqs.map((sr) => (
+          <div key={sr.file} className="rv-seedreq" role="status">
+            <span>
+              <b>Policy Generator requested detection seeds for {sr.terms.length} term{sr.terms.length !== 1 ? 's' : ''}</b>
+              {sr.requested_at ? <span className="muted"> · {sr.requested_at}</span> : null}
+              {sr.registry_file ? <span className="muted"> · {sr.registry_file}</span> : null}
+            </span>
+            <button className={`ghost sm${filters.names ? ' applied' : ''}`} onClick={() => seedFocus(sr)}
+                    title="Filter the grid to just the requested terms; click again to show everything.">
+              {filters.names ? 'Showing these terms — clear' : 'Show these terms'}
+            </button>
+            <button className="ghost sm" onClick={() => seedHandled(sr)}
+                    title="Rename the request file to .handled.json so it stops showing here — do this after re-scanning or marking terms Mapping-only, then Generate again.">
+              Mark handled
+            </button>
+            <span className="rv-seedhint">
+              Re-scan with <b>Profile data</b> on for columns that should have a value shape; mark free-text
+              terms <b>Mapping-only</b> (open the row&apos;s editor — Detection toggle), then <b>Generate</b> again.
+            </span>
+          </div>
+        ))}
+
         {rows.length > 0 && (
           <div className="rv-chips">
             <span className="rv-chip">Terms<b>{stats.terms}</b></span>
@@ -1399,6 +1452,16 @@ function ExpandedRow({ row: r, index, prop, onAcceptProp, onField, onEvidence, o
               </span>
             )}
             {!srcs.length && !hasEvidence(r) && <span className="rv-msg">table-level (conceptual) term — no profiled evidence</span>}
+            <span className="rv-detseg"
+                  title="Mapping-only = governed by term links (Apply), no value shape exists — Policy stops expecting a detection method.">
+              <span className="rv-expevk">DETECTION</span>
+              <span className="seg" role="group" aria-label="Detection intent">
+                <button className={r.Detection_Intent !== 'mapping_only' ? 'on' : ''}
+                        onClick={() => onField(index, 'Detection_Intent', '')}>Auto</button>
+                <button className={r.Detection_Intent === 'mapping_only' ? 'on' : ''}
+                        onClick={() => onField(index, 'Detection_Intent', 'mapping_only')}>Mapping-only</button>
+              </span>
+            </span>
             <span className="rv-grow" />
             <button className="ghost sm" onClick={() => onEvidence(index)}
                     title="All sources and the full scan evidence behind this term">Full evidence…</button>
