@@ -13,8 +13,6 @@ VERSION, the changelog and this README drift apart. The sidebar
 **version pill** is clickable — it shows the running build's release notes
 and flags a pulled-but-not-restarted mismatch.
 
-![1784366725164](image/README/1784366725164.png)
-
 A local-first web app that **scans your data sources, suggests a business
 glossary, lets a steward review and govern it, and exports import-ready JSONL**
 for **Pentaho Data Catalog → Business Glossary → Import** — so the glossary and
