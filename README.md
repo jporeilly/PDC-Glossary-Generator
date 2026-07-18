@@ -1,6 +1,6 @@
 # Pentaho Data Catalog Glossary Generator
 
-**Version:** 1.10.7 · validated against Pentaho Data Catalog 11.0.0 (public
+**Version:** 1.10.8 · validated against Pentaho Data Catalog 11.0.0 (public
 API v3). FastAPI backend with interactive API docs at **`/docs`**, and a
 **React 18 + Vite frontend** (`frontend/`, on the shared Policy Generator
 design kit) served from `frontend/dist` when built — the legacy Jinja shell
@@ -12,6 +12,8 @@ endpoint contract via TestClient, and a docs-consistency test that fails when
 VERSION, the changelog and this README drift apart. The sidebar
 **version pill** is clickable — it shows the running build's release notes
 and flags a pulled-but-not-restarted mismatch.
+
+![1784366725164](image/README/1784366725164.png)
 
 A local-first web app that **scans your data sources, suggests a business
 glossary, lets a steward review and govern it, and exports import-ready JSONL**
@@ -87,15 +89,17 @@ order:
 ```mermaid
 %%{init: {'theme':'base','themeVariables':{'primaryColor':'#EEF6FA','primaryBorderColor':'#1C7293','primaryTextColor':'#22333B','secondaryColor':'#DBEEF3','tertiaryColor':'#F7FBFD','lineColor':'#1C7293','fontFamily':'Segoe UI, sans-serif','fontSize':'13px','clusterBkg':'#F7FBFD','clusterBorder':'#CFE3EC'}}}%%
 flowchart LR
-    SRC[("lab sources<br/>databases · MinIO · DDL")] --> CON
-    HOME["Home<br/>workflow stepper"] --> CON["Connect<br/>↳ Schema · ↳ Files"]
-    CON --> REV["Review<br/>terms · tags · duplicates"]
-    REV --> GOV["Govern<br/>stewards · ratings · approval"]
-    GOV --> APPLY["Apply<br/>generate · resolve ids · apply"]
-    REV -.-> DICT[["Term &amp; Tag dictionary<br/>governed vocabulary"]]
-    GOV -.-> DICT
-    APPLY -- "JSONL export" --> PDC[("PDC<br/>Business Glossary import")]
-    APPLY -- "writes" --> REG[["Classification Registry"]]
+    SRC[("lab sources")] -- "DBs · MinIO · DDL" --> CON
+    subgraph APP["Glossary Generator"]
+        HOME["Home<br/>workflow stepper"] --> CON["Connect<br/>Schema · Files"]
+        CON --> REV["Review<br/>terms · tags<br/>duplicates"]
+        REV --> GOV["Govern<br/>stewards · approval"]
+        GOV --> APPLY["Apply<br/>generate · resolve ids<br/>apply to PDC"]
+        REV -.-> DICT[["Term & Tag dictionary<br/>governed vocabulary"]]
+        GOV -.-> DICT
+    end
+    APPLY -- "JSONL" --> PDC[("PDC glossary")]
+    APPLY -- "writes" --> REG[["Classification<br/>Registry"]]
     REG --> PG["Policy Generator"]
     classDef contract fill:#0A3D52,color:#fff,stroke:#0A3D52
     classDef pdc fill:#DBEEF3,stroke:#065A82,color:#0A3D52,stroke-width:2px
@@ -311,13 +315,13 @@ optional.
 
 ## Documentation
 
-| Document                                                   | What it covers                                                                       |
-| ---------------------------------------------------------- | ------------------------------------------------------------------------------------ |
-| [REFERENCE.md](docs/REFERENCE.md)                           | App reference: env vars, drivers, Ollama/GPU, API, repository manifest               |
-| [GUIDE.md](docs/GUIDE.md)                                   | THE manual: why (Registry) + install/setup + walkthrough + real-PDC operating notes  |
-| [CHANGELOG.md](docs/CHANGELOG.md)                           | Release history                                                                      |
-| [PDC-VM-TROUBLESHOOTING.md](docs/PDC-VM-TROUBLESHOOTING.md) | PDC platform errors on the lab VM (OpenSearch init, site-wide 404, certs, licensing) |
-| [PDC-Scenarios](https://github.com/jporeilly/PDC-Scenarios)      | Every vertical's data kit, domain pack and courseware — incl. the shared lab and lab-setup.docx (Parts A–I) |
+| Document                                                   | What it covers                                                                                                |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| [REFERENCE.md](docs/REFERENCE.md)                           | App reference: env vars, drivers, Ollama/GPU, API, repository manifest                                        |
+| [GUIDE.md](docs/GUIDE.md)                                   | THE manual: why (Registry) + install/setup + walkthrough + real-PDC operating notes                           |
+| [CHANGELOG.md](docs/CHANGELOG.md)                           | Release history                                                                                               |
+| [PDC-VM-TROUBLESHOOTING.md](docs/PDC-VM-TROUBLESHOOTING.md) | PDC platform errors on the lab VM (OpenSearch init, site-wide 404, certs, licensing)                          |
+| [PDC-Scenarios](https://github.com/jporeilly/PDC-Scenarios) | Every vertical's data kit, domain pack and courseware — incl. the shared lab and lab-setup.docx (Parts A–I) |
 
 *All scenario data — Copper State Credit Union, Canyon Trail Outfitters,
 Lakeshore Health Partners and Cascade Precision Components — is fictional and

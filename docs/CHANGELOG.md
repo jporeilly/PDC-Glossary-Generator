@@ -14,6 +14,18 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.10.8] — 2026-07-17
+
+### Changed
+Home: the saved-glossaries table now uses a fixed column layout so every
+header sits over its column, with Terms/Kept right-aligned end to end.
+The blank "Glossary" column is now **"PDC glossary"** with a tooltip —
+it's the export name set via the Govern page's Glossary name field —
+and shows a muted, hinted — until one is set. The "What it does"
+workflow diagram (README + GUIDE) was redrawn: app pages grouped in a
+Glossary Generator subgraph, short cylinder/edge labels and wrapped
+node text so nothing clips.
+
 ## [1.10.7] — 2026-07-17
 
 ### Changed — docs sync

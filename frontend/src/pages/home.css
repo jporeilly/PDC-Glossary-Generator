@@ -21,3 +21,15 @@
 /* external outputs (PDC import, Policy Generator) — outlined, not clickable */
 .wf .wf-out rect { fill: none; stroke: var(--gridline); stroke-width: 1; }
 .wf .wf-out text { font-size: 11px; font-weight: 500; fill: var(--text-muted); }
+
+/* Saved-glossaries table — fixed layout so each header sits over its column,
+   numeric headers right-aligned to match their td.num values */
+.gloss-table { table-layout: fixed; }
+.gloss-table th.num { text-align: right; }
+.gloss-table col.c-name { width: 26%; }
+.gloss-table col.c-gloss { width: 24%; }
+.gloss-table col.c-terms { width: 4.5rem; }
+.gloss-table col.c-kept { width: 4.5rem; }
+.gloss-table col.c-disc { width: 6.5rem; }
+.gloss-table col.c-saved { width: 11.5rem; }
+.gloss-table col.c-del { width: 3rem; }

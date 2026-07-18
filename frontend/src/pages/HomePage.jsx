@@ -143,10 +143,17 @@ function SavedGlossaries({ onNavigate }) {
       {items?.length === 0 && <p className="hint-line">No saved glossaries yet — scan a connection to start one.</p>}
       {items?.length > 0 && (
         <div className="table-scroll">
-          <table>
+          <table className="gloss-table">
+            <colgroup>
+              <col className="c-name" /><col className="c-gloss" /><col className="c-terms" />
+              <col className="c-kept" /><col className="c-disc" /><col className="c-saved" />
+              <col className="c-del" />
+            </colgroup>
             <thead>
               <tr>
-                <th>Name</th><th>Glossary</th><th className="num">Terms</th>
+                <th>Name</th>
+                <th title="The PDC glossary name used at Generate/export — set via the Govern page's Glossary name field">PDC glossary</th>
+                <th className="num">Terms</th>
                 <th className="num">Kept</th><th>Discovery</th><th>Saved</th><th></th>
               </tr>
             </thead>
@@ -155,7 +162,10 @@ function SavedGlossaries({ onNavigate }) {
                 <tr key={g.id} className="row-link" title={`Load ${g.name}`}
                     onClick={() => busyId == null && load(g.id)}>
                   <td className="mapping-link cell-clip">{busyId === g.id ? 'Loading…' : g.name}</td>
-                  <td className="cell-clip">{g.glossary_name ?? '—'}</td>
+                  <td className="cell-clip">
+                    {g.glossary_name
+                      ?? <span className="notes" title="Not named yet — set the Glossary name on the Govern page before Generate">—</span>}
+                  </td>
                   <td className="num">{g.terms}</td>
                   <td className="num">{g.kept}</td>
                   <td>{g.has_discovery ? <span className="badge neutral">profile</span> : <span className="notes">—</span>}</td>
