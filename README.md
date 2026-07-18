@@ -18,6 +18,8 @@ glossary, lets a steward review and govern it, and exports import-ready JSONL**
 for **Pentaho Data Catalog → Business Glossary → Import** — so the glossary and
 its tags stay governed instead of drifting.
 
+![1784366725164](image/README/1784366725164.png)
+
 The app is **scenario-generic**; each training scenario ships as a separate,
 self-contained bundle — data kit, domain pack and courseware — served by one
 shared lab stack:
