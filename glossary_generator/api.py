@@ -876,6 +876,90 @@ def list_objects_route(body: dict = Body(default={})):
     except Exception as e:
         return _err(f"Could not list objects: {e}", 400)
 
+@app.post("/api/lab-export")
+def lab_export(body: dict = Body(default={})):
+    """Upload a just-generated artifact (glossary import JSONL / drafted-policies
+       zip) to the lab MinIO over one of the app's saved MinIO/S3 connections, so
+       it's grabbable ON the VM (console :9001 or `mc cp`) without a file share.
+
+       Body: {filename, text? | b64?, content_type?, connection?, bucket?}.
+       `connection` is a saved connection id or name (required only when several
+       MinIO/S3 connections exist); `bucket` defaults to pdc-exports and is
+       created when missing. Returns {ok, bucket, key, size, connection,
+       endpoint, hint}."""
+    import base64
+    import datetime
+    body = body or {}
+    filename = (body.get("filename") or "").strip().replace("\\", "/").rsplit("/", 1)[-1]
+    filename = "-".join(filename.split())      # spaces make `mc cp` keys awkward
+    if not filename:
+        return _err("filename is required", 400)
+    text, b64 = body.get("text"), body.get("b64")
+    if text is None and not b64:
+        return _err("nothing to export — provide 'text' or 'b64'", 400)
+    try:
+        data = text.encode("utf-8") if text is not None else base64.b64decode(b64)
+    except Exception as e:
+        return _err(f"could not decode payload: {e}", 400)
+    stores = [c for c in _load_connections()
+              if str(c.get("type", "")).lower() in ("minio", "s3")]
+    if not stores:
+        return _err("no saved MinIO/S3 connection — add one on the Connect page "
+                    "(or import the bulk-loader CSV) first", 400)
+    want = str(body.get("connection") or "").strip().lower()
+    if want:
+        conn = next((c for c in stores
+                     if str(c.get("id", "")).lower() == want
+                     or str(c.get("name", "")).strip().lower() == want), None)
+        if conn is None:
+            return _err("no MinIO/S3 connection named %r — saved: %s"
+                        % (body.get("connection"),
+                           ", ".join(c.get("name", "?") for c in stores)), 404)
+    elif len(stores) == 1:
+        conn = stores[0]
+    else:
+        return _err("several MinIO/S3 connections are saved — pass 'connection' "
+                    "(id or name): " + ", ".join(c.get("name", "?") for c in stores), 400)
+    cfg = conn.get("config") or {}
+    bucket = (body.get("bucket") or "pdc-exports").strip()
+    key = datetime.datetime.now().strftime("%Y%m%d-%H%M%S") + "-" + filename
+    ctype = (body.get("content_type") or "").strip() or suggester._guess_ctype(filename)
+    try:
+        s3 = suggester._s3_client(cfg)
+    except Exception as e:
+        return _err(str(e), 400)
+    note = ""
+    try:
+        try:
+            s3.head_bucket(Bucket=bucket)
+        except Exception:
+            try:
+                s3.create_bucket(Bucket=bucket)   # export bucket, created on first use
+            except Exception:
+                # lab accounts often can't create buckets (e.g. the cast MinIO
+                # user) — fall back to the connection's own bucket under a
+                # pdc-exports/ prefix, so the export still lands somewhere the
+                # account can write and the console can browse
+                fallback = (cfg.get("bucket") or "").strip()
+                if not fallback:
+                    raise
+                bucket, key = fallback, "pdc-exports/" + key
+                note = (" (no rights to create a bucket — dropped under "
+                        "pdc-exports/ in the connection's own bucket instead)")
+        s3.put_object(Bucket=bucket, Key=key, Body=data, ContentType=ctype)
+    except Exception as e:
+        msg = f"upload to {cfg.get('endpoint') or 'the object store'} failed: {e}"
+        if "AccessDenied" in str(e):
+            msg += (" — this connection's account looks read-only (the lab's cast "
+                    "MinIO users are); save a connection with a write-capable "
+                    "account (e.g. the lab admin) and pick that one instead")
+        return _err(msg, 502)
+    return {"ok": True, "bucket": bucket, "key": key, "size": len(data),
+            "connection": conn.get("name"), "endpoint": cfg.get("endpoint"),
+            "note": note.strip(" ()") if note else "",
+            "hint": ("on the VM: MinIO console :9001 → bucket %s, or "
+                     "`mc cp local/%s/%s ~/Downloads`%s" % (bucket, bucket, key, note))}
+
 @app.post("/api/object-bytes")
 def object_bytes_route(body: dict = Body(default={})):
     """Stream a whole object (PDF/image) so the browser can render it inline. Creds
@@ -2283,12 +2367,25 @@ def trigger_profiling(body: dict = Body(default={})):
     }
     return res
 
+_JOB_TERMINAL = ("COMPLETED", "COMPLETE", "SUCCESS", "SUCCEEDED", "DONE",
+                 "FINISHED", "FAILED", "FAIL", "ERROR", "CANCELLED", "CANCELED")
+
 @app.post("/api/discovery-progress")
 def api_discovery_progress(body: dict = Body(default={})):
     """Version-agnostic Data Discovery progress: compare each scoped entity's
     system.profiledAt against the pre-submission baseline — v3's bulk job
     endpoint returns no job id, so the entities themselves are the truth.
-    Body: {ids, baseline, base_url, auth...}. Returns {profiled, total, done}."""
+
+    Terminal-aware: PDC never profiles some file types (pdf/docx often yield
+    no Data Quality), so an entity's profiledAt may NEVER flip even though the
+    discovery worker finished long ago. When the caller passes the job_id that
+    trigger-profiling returned (v1/v2 — v3's bulk endpoint has none), the
+    worker's own status is polled too, and `worker_done` tells the watcher to
+    stop instead of hanging until its budget runs out.
+
+    Body: {ids, baseline, job_id?, base_url, auth...}.
+    Returns {profiled, total, done, per: {id: bool}, job: {status, activity,
+    worker, duration, error} | null, worker_done}."""
     import pdc_api
     body = body or {}
     ids = [str(x) for x in (body.get("ids") or []) if str(x).strip()]
@@ -2303,9 +2400,23 @@ def api_discovery_progress(body: dict = Body(default={})):
         snap = pdc_api.profiled_snapshot(base, token, ids, version=version, verify_tls=verify)
     except Exception as e:
         return _err(str(e), 502)
-    changed = [i for i in ids if snap.get(i) and snap.get(i) != baseline.get(i)]
+    changed = {i for i in ids if snap.get(i) and snap.get(i) != baseline.get(i)}
+    # the discovery job/worker state, when a job id exists to poll (best-effort:
+    # a status fetch that fails must not break the entity-based progress signal)
+    job, worker_done = None, False
+    job_id = str(body.get("job_id") or "").strip()
+    if job_id:
+        try:
+            st = pdc_api.job_status(base, token, job_id, version=version, verify_tls=verify)
+            st.pop("raw", None)
+            job = st
+            worker_done = str(st.get("status") or "").upper() in _JOB_TERMINAL
+        except Exception:
+            job = None
     return {"profiled": len(changed), "total": len(ids),
-            "done": len(changed) == len(ids) and bool(ids)}
+            "done": len(changed) == len(ids) and bool(ids),
+            "per": {i: (i in changed) for i in ids},
+            "job": job, "worker_done": worker_done}
 
 @app.post("/api/job-status")
 def job_status_route(body: dict = Body(default={})):

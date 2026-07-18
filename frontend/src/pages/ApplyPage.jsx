@@ -159,6 +159,78 @@ function GenerateCard({ rows, glossaryName, governance, settings, onNavigate }) 
   const [draft, setDraft] = useState(null)
   const [draftBusy, setDraftBusy] = useState(false)
   const [draftAi, setDraftAi] = useState(true)
+  // "Send to lab": upload the artifact to the lab MinIO over a saved connection
+  const [labConns, setLabConns] = useState([])
+  const [labConn, setLabConn] = useState('')
+  const [labBusy, setLabBusy] = useState(false)
+  const [labMsg, setLabMsg] = useState(null)
+
+  useEffect(() => {
+    apiGet('/api/connections')
+      .then((d) => {
+        const stores = (d.connections || []).filter((c) => ['minio', 's3'].includes(String(c.type || '').toLowerCase()))
+        setLabConns(stores)
+        if (stores.length) setLabConn(stores[0].id || stores[0].name)
+      })
+      .catch(() => {})
+  }, [])
+
+  async function sendToLab(kind) {
+    setLabBusy(true)
+    setLabMsg(null)
+    try {
+      let payload
+      if (kind === 'jsonl') {
+        payload = {
+          filename: `${gen.stats?.glossary || 'glossary-import'}.jsonl`,
+          text: gen.jsonl, content_type: 'application/x-ndjson',
+        }
+      } else {
+        // the policies bundle is binary — regenerate the zip, then base64 it over
+        const res = await fetch('/api/draft-policies', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ rows, glossary_name: glossaryName, format: 'zip' }),
+        })
+        if (!res.ok) throw new Error(res.statusText)
+        const buf = new Uint8Array(await res.arrayBuffer())
+        let bin = ''
+        for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode(...buf.subarray(i, i + 0x8000))
+        payload = { filename: 'drafted-policies.zip', b64: btoa(bin), content_type: 'application/zip' }
+      }
+      const d = await apiPost('/api/lab-export', { ...payload, connection: labConn })
+      setLabMsg(
+        <span className="ok">
+          ✓ Sent to lab MinIO ({d.connection}) — <code>{d.bucket}/{d.key}</code> · on the VM:
+          MinIO console <code>:9001</code> or <code>mc cp</code> to <code>~/Downloads</code>.
+        </span>,
+      )
+    } catch (e) {
+      setLabMsg(<span className="warn">Send to lab failed: {e.message}</span>)
+    } finally {
+      setLabBusy(false)
+    }
+  }
+
+  // ghost export button (Generate/Draft stay the drivers) + a picker when
+  // several MinIO/S3 connections are saved
+  const labExportControls = (kind) => (
+    <>
+      {labConns.length > 1 && (
+        <select value={labConn} onChange={(e) => setLabConn(e.target.value)}
+                title="Which saved MinIO/S3 connection receives the export">
+          {labConns.map((c) => <option key={c.id || c.name} value={c.id || c.name}>{c.name}</option>)}
+        </select>
+      )}
+      <button className="ghost" onClick={() => sendToLab(kind)}
+              disabled={labBusy || !labConns.length}
+              title={labConns.length
+                ? 'Upload to the lab MinIO (bucket pdc-exports, created if missing) so you can grab it on the VM'
+                : 'Save a MinIO/S3 connection on the Connect page first'}>
+        {labBusy ? 'Sending…' : '⇪ Send to lab (MinIO)'}
+      </button>
+    </>
+  )
 
   async function generate() {
     setBusy(true)
@@ -228,6 +300,7 @@ function GenerateCard({ rows, glossaryName, governance, settings, onNavigate }) 
             ⬇ Download {gen.stats?.glossary || 'glossary'}.jsonl
           </button>
         )}
+        {gen && labExportControls('jsonl')}
         <button className="ghost" onClick={() => onNavigate('govern')}>← Govern &amp; stewardship</button>
       </div>
       {gen && (
@@ -256,7 +329,9 @@ function GenerateCard({ rows, glossaryName, governance, settings, onNavigate }) 
         {draft && (
           <button className="ghost" onClick={downloadDraftZip}>⬇ Download bundle (zip)</button>
         )}
+        {draft && labExportControls('zip')}
       </div>
+      {labMsg && <p className="summary">{labMsg}</p>}
       {draft && (
         <div className="summary">
           <b>{draft.patterns.length}</b> data pattern(s), <b>{draft.dictionaries.length}</b>{' '}
@@ -325,12 +400,13 @@ function ConnectionCard({ conn, setConn, saveConn }) {
         for next time; your password and the token are <b>never saved</b> — the token is held in
         memory for this session only and expires on its own.
       </p>
-      <div className="form-grid">
+      <div className="form-grid apply-conngrid">
         <label>
           PDC base URL
           <input type="text" placeholder="https://pdc.example.com" value={conn.base}
                  onChange={(e) => setConn((v) => ({ ...v, base: e.target.value }))}
                  onBlur={(e) => saveConn({ base: e.target.value })} />
+          <span className="muted">the PDC server root — remembered for next time</span>
         </label>
         <label>
           API version
@@ -338,35 +414,40 @@ function ConnectionCard({ conn, setConn, saveConn }) {
                   title="PDC 11 serves v1, v2 and v3 side by side. v3 is its native version; v2 remains fully supported.">
             <option>v3</option><option>v2</option><option>v1</option>
           </select>
+          <span className="muted">v3 is PDC 11's native version</span>
         </label>
         <label>
-          Keycloak realm <span className="muted">default pdc</span>
+          Keycloak realm
           <input type="text" value={conn.realm}
                  onChange={(e) => setConn((v) => ({ ...v, realm: e.target.value }))}
                  onBlur={(e) => saveConn({ realm: e.target.value })} />
+          <span className="muted">default pdc</span>
         </label>
         <label>
           Username
           <input type="text" autoComplete="off" value={conn.user}
                  onChange={(e) => setConn((v) => ({ ...v, user: e.target.value }))} />
+          <span className="muted">a PDC admin account</span>
         </label>
         <label>
           Password
           <input type="password" autoComplete="off" value={conn.pass}
                  onChange={(e) => setConn((v) => ({ ...v, pass: e.target.value }))} />
+          <span className="muted">never saved — used once to mint the token</span>
         </label>
-        <label>
-          Bearer token <span className="muted">optional — auto-filled by Get admin token</span>
-          <input type="text" placeholder="paste a JWT to skip login" autoComplete="off" value={conn.token}
+        <label className="apply-connspan3">
+          Bearer token
+          <input type="text" placeholder="eyJhbGciOi…" autoComplete="off" value={conn.token}
                  onChange={(e) => setConn((v) => ({ ...v, token: e.target.value }))} />
+          <span className="muted">optional — auto-filled by Get admin token; paste a JWT to skip login</span>
         </label>
-        <label className="check" style={{ alignSelf: 'end' }}>
+      </div>
+      <div className="actions">
+        <label className="check">
           <input type="checkbox" checked={conn.verify}
                  onChange={(e) => saveConn({ verify: e.target.checked })} />
           verify TLS cert
         </label>
-      </div>
-      <div className="actions">
         <button className="primary" onClick={getToken} disabled={busy}
                 title="Authenticate via Keycloak and drop a fresh JWT into the token field. Shows the account role and expiry.">
           {busy ? 'Authenticating…' : 'Get admin token'}
@@ -910,7 +991,17 @@ function RateChip({ v }) {
   return v ? <span className="rate-chip" title={`Suggested rating ${v}/5`}>★ {v}</span> : null
 }
 function DqChip({ v }) {
-  return v || v === 0 ? <span className="dq-chip" title={`Data Quality score ${v}/100`}>DQ {v}</span> : null
+  // null/undefined = the column was never profiled (or DQ was switched off in
+  // step 1) — show an explicit "not profiled" chip, never a made-up score
+  if (v == null) {
+    return (
+      <span className="dq-chip na"
+            title="No Data Quality score — column not profiled (or the DQ score was disabled in step 1)">
+        DQ —
+      </span>
+    )
+  }
+  return <span className="dq-chip" title={`Data Quality score ${v}/100`}>DQ {v}</span>
 }
 
 function ApplyResults({ d }) {
@@ -1122,7 +1213,12 @@ function ProfilingCard({ de, authBody }) {
       setCheck(d.check)
       // v3's bulk endpoint returns no job id — poll the ENTITIES instead: their
       // profiledAt flips when discovery finishes. Works on every API version.
-      if (d.scope_ids?.length) watchDiscovery(d.scope_ids, d.baseline || {})
+      // The job id (v1/v2) rides along so the watcher can also see the WORKER
+      // finish — some file types (pdf/docx) never get a DQ, so their profiledAt
+      // never flips and entity-polling alone would hang until the budget ran out.
+      if (d.scope_ids?.length) {
+        watchDiscovery(d.scope_ids, d.baseline || {}, d.scope || [], d.job_id || null)
+      }
     } catch (e) {
       setMsg(`Profiling failed: ${e.message}`)
     } finally {
@@ -1130,27 +1226,82 @@ function ProfilingCard({ de, authBody }) {
     }
   }
 
-  async function watchDiscovery(ids, baseline) {
+  // Per-file wrap-up once the discovery worker has finished: ✓ profiled,
+  // no-DQ-from-PDC (worker done but profiledAt never flipped — expected for
+  // pdf/docx-style types PDC doesn't compute DQ for), or failed (worker errored).
+  function finalReport(ids, labels, per, job, elapsed) {
+    const status = String(job?.status || '').toUpperCase()
+    const failed = ['FAILED', 'FAIL', 'ERROR', 'CANCELLED', 'CANCELED'].includes(status)
+    const done = ids.filter((i) => per[i]).length
+    return (
+      <span>
+        <b className={failed ? 'warn' : 'ok'}>
+          {failed ? '⚠' : '✓'} Data Discovery worker finished ({status || 'COMPLETED'}) in {elapsed} —{' '}
+          {done} of {ids.length} target(s) profiled.
+        </b>
+        <span className="watch-report">
+          {ids.map((id, i) => (
+            <span key={id} className="watch-file">
+              <code>{labels[i] || `target ${i + 1}`}</code>
+              {per[id]
+                ? <span className="ok"> profiled ✓</span>
+                : failed
+                  ? <span className="warn"> failed{job?.error ? ` — ${job.error}` : ''}</span>
+                  : <span className="notes"> no DQ from PDC (expected for this file type — pdf/docx and friends profile metadata only)</span>}
+            </span>
+          ))}
+        </span>
+        {done > 0 && (
+          <span className="notes">
+            Re-pull the Data Elements (step 1) or the app-vs-PDC side-by-side to see each
+            profiled file's Data Quality — then re-Apply and recalculate Trust.
+          </span>
+        )}
+      </span>
+    )
+  }
+
+  async function watchDiscovery(ids, baseline, labels = [], jobId = null) {
     cancelRef.current = false
     setWatch({ profiled: 0, total: ids.length })
     const started = Date.now()
+    const budgetMs = 10 * 60 * 1000
+    const fmtElapsed = (ms) => {
+      const s = Math.round(ms / 1000)
+      return s >= 60 ? `${Math.floor(s / 60)}m ${s % 60}s` : `${s}s`
+    }
     let last = 0
-    while (!cancelRef.current && Date.now() - started < 10 * 60 * 1000) {
+    let lastPer = {}
+    let lastJob = null
+    while (!cancelRef.current && Date.now() - started < budgetMs) {
       await new Promise((r) => setTimeout(r, 6000))
       if (cancelRef.current) break
       try {
-        const d = await apiPost('/api/discovery-progress', { ...authBody(), ids, baseline })
+        const d = await apiPost('/api/discovery-progress', {
+          ...authBody(), ids, baseline, ...(jobId ? { job_id: jobId } : {}),
+        })
         last = d.profiled
+        lastPer = d.per || {}
+        lastJob = d.job || lastJob
         setWatch({ profiled: d.profiled, total: d.total })
+        const elapsed = fmtElapsed(Date.now() - started)
         if (d.done) {
+          // every target's profiledAt flipped — the all-profiled happy path
           setWatch(null)
           setMsg(
             <b className="ok">
-              ✓ Data Discovery complete — {d.total} of {d.total} profiled. Re-pull the Data
-              Elements (step 1) or the app-vs-PDC side-by-side to see each file's Data Quality —
-              then re-Apply and recalculate Trust.
+              ✓ Data Discovery complete — {d.total} of {d.total} profiled in {elapsed}. Re-pull
+              the Data Elements (step 1) or the app-vs-PDC side-by-side to see each file's Data
+              Quality — then re-Apply and recalculate Trust.
             </b>,
           )
+          return
+        }
+        if (d.worker_done) {
+          // terminal-aware finish: the WORKER is done even though some files never
+          // profiled (PDC yields no DQ for some types) — report per file, don't hang
+          setWatch(null)
+          setMsg(finalReport(ids, labels, lastPer, d.job, elapsed))
           return
         }
       } catch {
@@ -1158,10 +1309,19 @@ function ProfilingCard({ de, authBody }) {
       }
     }
     setWatch(null)
+    const elapsed = fmtElapsed(Date.now() - started)
     if (cancelRef.current) {
-      setJobMsg(`Stopped watching — the job keeps running in PDC (Workers page); ${last} profiled so far.`)
+      setJobMsg(`Stopped watching after ${elapsed} — the job keeps running in PDC (Workers page); ${last} of ${ids.length} profiled so far.`)
     } else {
-      setJobMsg(`Still running after 10 min (${last} profiled) — folders sometimes don't report per-entity timestamps; check PDC's Workers page for the job itself.`)
+      setJobMsg(
+        <>
+          <b className="warn">Watch budget reached (10 min)</b> — stopped polling after {elapsed} with{' '}
+          <b>{last}</b> of {ids.length} profiled{lastJob?.status ? <> · job last seen <b>{lastJob.status}</b></> : null}.
+          The job may still be running — check PDC's Workers page, or Check job status here.
+          Folders sometimes don't report per-entity timestamps; files PDC can't compute DQ for
+          (pdf/docx) never flip to profiled at all.
+        </>,
+      )
     }
   }
 

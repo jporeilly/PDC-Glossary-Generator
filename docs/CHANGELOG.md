@@ -14,6 +14,51 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.10.10] — 2026-07-18
+
+### Added
+**"Send to lab" export (Apply)** — the Generate card's JSONL and the drafted-
+policies zip each gain a ghost **⇪ Send to lab (MinIO)** button that uploads
+the just-generated artifact to the lab MinIO over one of the app's saved
+MinIO/S3 connections (a picker appears when several are saved), via the new
+`POST /api/lab-export`. The export lands in bucket **pdc-exports** (created
+on first use) under a timestamped key; the success line shows bucket/key and
+the on-VM path (MinIO console `:9001`, or `mc cp` to `~/Downloads`).
+
+### Changed
+**Discovery watcher is terminal-aware (Apply step 4)** — the "N of M
+profiled…" watcher no longer hangs until its 10-minute budget when PDC
+finishes without profiling every file (pdf/docx-style types get no Data
+Quality, so their `profiledAt` never flips). `/api/discovery-progress` now
+also polls the discovery job's own status (when v1/v2 returned a job id) and
+returns a per-entity profiled map; the watcher stops the moment the worker
+reaches a terminal state and prints a per-file wrap-up — profiled ✓ /
+no-DQ-from-PDC (expected for the type) / failed — plus elapsed time. Hitting
+the watch budget now says so explicitly ("Watch budget reached (10 min)…")
+instead of a vague still-running note. Stop watching stays.
+
+**PDC connection panel (Apply)** — same clean grid treatment Govern's
+Keycloak fetch panel got in 1.10.9: a fixed 4-column grid (Base URL / API
+version / Keycloak realm / Username, then Password / Bearer token spanning
+three columns) with the hints under their inputs, and the TLS tick moved to
+the action row beside the primary **Get admin token**.
+
+### Fixed
+**DQ 100 was assertable without profiling** — `quality_score_column()` let a
+bare NOT NULL constraint stand in for completeness when nothing was profiled,
+so unprofiled scans (e.g. pasted DDL) showed a wall of DQ 100s claiming
+perfect quality about data nobody sampled. An unprofiled column now yields
+**no score** — the Data Elements JSON/CSV omit `qualityScore` and the apply
+tables show a muted **DQ —** ("not profiled") chip instead of 100. The
+NOT-NULL proxy still applies when at least one dimension was really measured.
+Verified against the CSCU lab database (192.168.1.200:5433, read-only): on
+live-profiled scans the 100s are genuine — the planted defects are null/blank
+based and DO score lower (accounts.close_dt 0, ach_payments.return_cd 17,
+transactions.mcc_cd 35, merch_nm 65, branches.mgr_emp_id 67,
+loans.collateral_desc 67, suspicious_activity.mbr_id 75), while the remaining
+columns' completeness truly is 1.0 on the small lab tables and PDC-style
+format defects that stay format-valid are invisible to sampling.
+
 ## [1.10.9] — 2026-07-17
 
 ### Changed

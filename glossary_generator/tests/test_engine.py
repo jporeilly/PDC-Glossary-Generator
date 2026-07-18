@@ -332,3 +332,44 @@ class TestDetection:
         rec = llm_detect.recommend(ram_gb=8.0, vram_gb=None, gpu_count=0)
         assert rec.model == "llama3.2:1b"
         assert "OLLAMA_SCHED_SPREAD" not in rec.env_suggestions
+
+
+class TestDataQualityScore:
+    """DQ scores must be earned by measurement — never manufactured by the
+    NOT-NULL fallback when nothing was profiled (the 'wall of DQ 100s')."""
+
+    def test_unprofiled_column_scores_none_not_100(self):
+        import suggester
+        # pasted-DDL / unprofiled scan: no dimensions measured — a NOT NULL
+        # constraint alone must not assert perfect quality
+        assert suggester.quality_score_column(notnull=True) is None
+        assert suggester.quality_score_column() is None
+        assert suggester.quality_score_column(notnull=True, expect_unique=True) is None
+
+    def test_notnull_proxy_still_counts_alongside_a_real_measurement(self):
+        import suggester
+        q = suggester.quality_score_column(validity=0.5, notnull=True)
+        assert q == round((0.4 * 1.0 + 0.3 * 0.5) / 0.7 * 100)
+
+    def test_profiled_dimensions_score_and_renormalise(self):
+        import suggester
+        assert suggester.quality_score_column(completeness=1.0) == 100
+        assert suggester.quality_score_column(completeness=0.5) == 50
+        q = suggester.quality_score_column(completeness=1.0, uniqueness=0.8,
+                                           expect_unique=True)
+        assert q == round((0.4 * 1.0 + 0.3 * 0.8) / 0.7 * 100)
+
+    def test_data_element_links_leave_unprofiled_quality_empty(self):
+        import suggester
+        rows = [_row("Member Number", "cscu_core.members.mbr_no",
+                     Source_Quality_Dims={"cscu_core.members.mbr_no":
+                                          {"c": None, "u": None, "v": None,
+                                           "eu": True, "nn": True}}),
+                _row("Member Name", "cscu_core.members.full_nm",
+                     Source_Quality_Dims={"cscu_core.members.full_nm":
+                                          {"c": 0.9, "u": 0.5, "v": None,
+                                           "eu": False, "nn": False}})]
+        links = suggester.data_element_links(rows, policy={"mode": "all"})
+        by = {l["column_name"]: l for l in links}
+        assert by["mbr_no"]["quality"] is None, "unprofiled -> no score, not 100"
+        assert by["full_nm"]["quality"] == 90, "measured completeness scores as before"

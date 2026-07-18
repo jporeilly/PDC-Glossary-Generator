@@ -1062,14 +1062,23 @@ def quality_score_column(completeness=None, uniqueness=None, validity=None,
     Scores only the dimensions that can be measured for this column and
     renormalises the weights over them, so a column missing a dimension is not
     unfairly dragged down:
-      completeness  non-empty / sampled rows (proxy: NOT NULL -> 1.0 if unprofiled)
+      completeness  non-empty / sampled rows (proxy: NOT NULL -> 1.0, but only
+                    when at least one dimension was actually measured)
       uniqueness    distinct / non-null, counted ONLY when uniqueness is expected
                     (primary key or identifier-like) -- otherwise a defect-free
                     low-cardinality column would score badly
       validity      share of values conforming to the detected type/pattern
 
     Returns an int 0-100, or None when nothing is measurable (so the caller can
-    skip writing a qualityScore rather than assert a misleading 0)."""
+    skip writing a qualityScore rather than assert a misleading 0).
+
+    A column that was never profiled returns None even when it is NOT NULL:
+    letting the schema constraint alone stand in for completeness manufactured
+    a wall of DQ 100s on unprofiled scans (e.g. pasted DDL), asserting perfect
+    quality about data nobody ever sampled. Not profiled now means no score,
+    not 100."""
+    if completeness is None and uniqueness is None and validity is None:
+        return None                 # nothing was profiled — no score, not 100
     w = dict(DQ_WEIGHTS)
     if weights:
         for k in w:

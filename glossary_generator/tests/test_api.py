@@ -219,3 +219,109 @@ class TestJobs:
         st = self._wait(client, job["job"])
         assert st["status"] == "done" and st["result"]["phase"] == "success"
         assert st["done"] == 100 and st["total"] == 100
+
+
+class TestLabExport:
+    """POST /api/lab-export — push a generated artifact to the lab MinIO over a
+    saved connection (bucket pdc-exports, created on first use)."""
+
+    def _clear_conns(self):
+        import api
+        api._save_connections([])
+
+    def test_no_minio_connection_400(self, client):
+        self._clear_conns()
+        r = client.post("/api/lab-export", json={"filename": "x.jsonl", "text": "{}"})
+        assert r.status_code == 400 and "MinIO" in r.json()["error"]
+
+    def test_missing_filename_or_payload_400(self, client):
+        assert client.post("/api/lab-export", json={"text": "{}"}).status_code == 400
+        assert client.post("/api/lab-export",
+                           json={"filename": "x.jsonl"}).status_code == 400
+
+    def test_uploads_via_saved_connection(self, client, monkeypatch):
+        import suggester
+        self._clear_conns()
+        client.post("/api/connections",
+                    json={"name": "LabMinio", "type": "minio",
+                          "config": {"endpoint": "http://minio:9000", "bucket": "docs"}})
+        calls = {}
+
+        class FakeS3:
+            def head_bucket(self, Bucket):
+                raise RuntimeError("NoSuchBucket")   # forces the create path
+
+            def create_bucket(self, Bucket):
+                calls["created"] = Bucket
+
+            def put_object(self, Bucket, Key, Body, ContentType):
+                calls["put"] = (Bucket, Key, Body, ContentType)
+
+        monkeypatch.setattr(suggester, "_s3_client", lambda cfg: FakeS3())
+        r = client.post("/api/lab-export",
+                        json={"filename": "glossary-import.jsonl",
+                              "text": '{"a":1}\n',
+                              "content_type": "application/x-ndjson"})
+        d = r.json()
+        assert r.status_code == 200 and d["ok"] is True
+        assert d["bucket"] == "pdc-exports" and calls["created"] == "pdc-exports"
+        bkt, key, body, ctype = calls["put"]
+        assert bkt == "pdc-exports" and key.endswith("-glossary-import.jsonl")
+        assert body == b'{"a":1}\n' and ctype == "application/x-ndjson"
+        assert d["connection"] == "LabMinio" and ":9001" in d["hint"]
+
+    def test_several_connections_need_an_explicit_pick(self, client, monkeypatch):
+        import suggester
+        self._clear_conns()
+        for n in ("LabMinio", "OtherStore"):
+            client.post("/api/connections",
+                        json={"name": n, "type": "minio",
+                              "config": {"endpoint": "http://m:9000", "bucket": "b"}})
+
+        class FakeS3:
+            def head_bucket(self, Bucket): pass
+            def put_object(self, **kw): pass
+
+        monkeypatch.setattr(suggester, "_s3_client", lambda cfg: FakeS3())
+        r = client.post("/api/lab-export", json={"filename": "a.zip", "b64": "UEs="})
+        assert r.status_code == 400 and "connection" in r.json()["error"]
+        r = client.post("/api/lab-export", json={"filename": "a.zip", "b64": "UEs=",
+                                                 "connection": "OtherStore"})
+        assert r.status_code == 200 and r.json()["connection"] == "OtherStore"
+
+
+class TestDiscoveryProgress:
+    """POST /api/discovery-progress — terminal-aware: reports the worker's own
+    state so the UI can stop when the job finishes even if some files never
+    flip profiledAt (PDC computes no DQ for e.g. pdf/docx)."""
+
+    def test_worker_done_reported_even_when_not_all_profiled(self, client, monkeypatch):
+        import api
+        import pdc_api
+        monkeypatch.setattr(api, "_pdc_token_and_reauth", lambda *a, **k: ("tok", None))
+        monkeypatch.setattr(pdc_api, "profiled_snapshot",
+                            lambda *a, **k: {"id1": "2026-07-18T10:00:00", "id2": None})
+        monkeypatch.setattr(pdc_api, "job_status",
+                            lambda *a, **k: {"status": "COMPLETED", "activity": "done",
+                                             "error": "", "raw": {}})
+        r = client.post("/api/discovery-progress",
+                        json={"base_url": "https://pdc", "ids": ["id1", "id2"],
+                              "baseline": {"id1": None, "id2": None}, "job_id": "j1"})
+        d = r.json()
+        assert r.status_code == 200
+        assert d["profiled"] == 1 and d["total"] == 2 and d["done"] is False
+        assert d["per"] == {"id1": True, "id2": False}
+        assert d["worker_done"] is True and d["job"]["status"] == "COMPLETED"
+
+    def test_without_job_id_the_old_contract_holds(self, client, monkeypatch):
+        import api
+        import pdc_api
+        monkeypatch.setattr(api, "_pdc_token_and_reauth", lambda *a, **k: ("tok", None))
+        monkeypatch.setattr(pdc_api, "profiled_snapshot",
+                            lambda *a, **k: {"id1": "t1", "id2": "t2"})
+        r = client.post("/api/discovery-progress",
+                        json={"base_url": "https://pdc", "ids": ["id1", "id2"],
+                              "baseline": {}})
+        d = r.json()
+        assert d["done"] is True and d["profiled"] == 2
+        assert d["job"] is None and d["worker_done"] is False
