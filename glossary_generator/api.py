@@ -1690,6 +1690,10 @@ def api_draft_policies(body: dict = Body(default={})):
     draft = policy_draft.draft_from_rows(rows, glossary_name=gname,
                                          prefix=body.get("prefix"),
                                          hints=hints, governed_tags=gov)
+    # DQ expectations ride the same bundle: the induced pattern / reference list
+    # / profiled baselines re-expressed as conformance checks (custom-only).
+    draft["quality"] = policy_draft.dq_rules_from_rows(rows, glossary_name=gname,
+                                                       prefix=body.get("prefix"))
     if (body.get("format") or "").lower() == "zip":
         data = policy_draft.to_zip_bytes(draft)
         return Response(data, media_type="application/zip",
@@ -1702,6 +1706,9 @@ def api_draft_policies(body: dict = Body(default={})):
                               "seed": d.get("seed", "profiled"),
                               "name": d["rule"][0]["name"],
                               "values": d["values_filename"]} for d in draft["dictionaries"]],
+            "quality": [{"filename": q["filename"], "term": q["term"],
+                         "name": q["rule"]["name"], "checks": q["checks"]}
+                        for q in draft["quality"]],
             "skipped": draft["skipped"], "used_llm": used_llm}
 
 @app.post("/api/qa-definitions")

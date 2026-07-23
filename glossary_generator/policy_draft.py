@@ -139,6 +139,92 @@ def _valid_regex(rx):
         return False
 
 
+# ------------------------------------------------------------------ DQ rules
+# Data-quality expectations — the third leg of the industry-standard split:
+#   glossary   = what the concept IS,
+#   detection  = which columns ARE one (Patterns/Dictionaries above),
+#   quality    = are the VALUES valid (these).
+# Every check is derived from the scan itself (custom, deterministic): the
+# induced value regex becomes a format-conformance check, a profiled reference
+# list becomes an allowed-values check, and the profiled completeness /
+# uniqueness become baseline thresholds ("don't regress below what the scan
+# measured"). Nothing inbuilt — a term with no profiled signal gets no rule.
+
+def _floor2(x):
+    try:
+        return int(float(x) * 100) / 100.0
+    except (TypeError, ValueError):
+        return None
+
+
+def dq_rules_from_rows(rows, glossary_name="Business Glossary", prefix=None):
+    """rows -> [{filename, term, rule, checks}] — one DQ-expectation artifact per
+    kept term that carries at least one scan-derived signal."""
+    prefix = (prefix or "").strip() or re.sub(r"\s+", " ", str(glossary_name or "")).split(" ")[0] or "Rule"
+    out, seen = [], set()
+    for r in rows or []:
+        if not isinstance(r, dict) or not _kept(r):
+            continue
+        term = (r.get("Term") or "").strip()
+        cols = _cols_of(r)
+        if not term or term in seen or not cols:
+            continue
+        seen.add(term)
+        vp = (r.get("Value_Pattern") or "").strip()
+        sig = (r.get("Value_Signature") or "").strip()
+        enums = [v.strip() for v in str(r.get("Enum_Values") or "").split(";") if v.strip()]
+        dims = r.get("Source_Quality_Dims") or {}
+        keys = r.get("Source_Keys") or {}
+        expectations = []
+        for col in cols:
+            checks = []
+            if vp:
+                checks.append({"check": "format", "regex": vp,
+                               **({"signature": sig} if sig else {}),
+                               "source": "profiled"})
+            if len(enums) >= 2:
+                checks.append({"check": "allowed_values", "values": enums,
+                               "source": "profiled"})
+            d = dims.get(col) or {}
+            comp = _floor2(d.get("c"))
+            if d.get("nn"):
+                checks.append({"check": "not_null", "min_completeness": 1.0,
+                               "source": "schema (NOT NULL)"})
+            elif comp is not None:
+                checks.append({"check": "not_null", "min_completeness": comp,
+                               "observed": comp, "source": "profiled baseline"})
+            uniq = _floor2(d.get("u"))
+            k = keys.get(col) or {}
+            if d.get("eu") or k.get("pk"):
+                checks.append({"check": "unique",
+                               "min_uniqueness": uniq if uniq is not None else 1.0,
+                               **({"observed": uniq} if uniq is not None else {}),
+                               "source": ("schema (PRIMARY KEY)" if k.get("pk")
+                                          else "profiled baseline")})
+            if checks:
+                expectations.append({"column": col, "checks": checks})
+        if not expectations:
+            continue
+        name = f"{prefix} {term} DQ"
+        out.append({
+            "filename": f"{_slug(prefix)}_{_slug(term)}_dq.json",
+            "term": term,
+            "checks": sum(len(e["checks"]) for e in expectations),
+            "rule": {
+                "type": "DataQualityExpectations",
+                "name": name,
+                "term": term,
+                "category": (r.get("Category") or None),
+                "glossary": glossary_name,
+                "note": ("derived from the scan's own profile — format = induced value "
+                         "regex, allowed_values = profiled reference list, thresholds = "
+                         "measured baselines (a run below baseline is a regression)"),
+                "expectations": expectations,
+            },
+        })
+    return out
+
+
 # Column kinds whose VALUES carry no detectable shape — a surrogate integer key,
 # a date, a person/free-text name, or a raw amount. You can't recognise an
 # "Account ID" or a date by its value (any integer/date could be one), so these
@@ -267,9 +353,16 @@ def to_zip_bytes(draft):
             z.writestr("Dictionaries/" + d["filename"], json.dumps(d["rule"], indent=2) + "\n")
             z.writestr("Dictionaries/" + d["values_filename"], d["csv"])
             index.append(f"dictionary,{d['rule'][0]['name']},Dictionaries/{d['filename']},{d['term']}")
+        for q in draft.get("quality", []):
+            z.writestr("Quality/" + q["filename"], json.dumps(q["rule"], indent=2) + "\n")
+            index.append(f"quality,{q['rule']['name']},Quality/{q['filename']},{q['term']}")
         z.writestr("INDEX.csv", "\n".join(index) + "\n")
         z.writestr("README.txt",
                    "Drafted by the Glossary Generator from scan evidence.\n"
-                   "Import via PDC: Management -> Data Identification -> Patterns / Dictionaries -> Import.\n"
+                   "Patterns/ and Dictionaries/: import via PDC Management -> Data Identification -> Import.\n"
+                   "Quality/: data-quality expectations (data-contract style) derived from the same\n"
+                   "profile - format = the induced value regex, allowed_values = the profiled\n"
+                   "reference list, completeness/uniqueness thresholds = the measured baselines\n"
+                   "(a later run below its baseline is a regression). Feed them to your DQ runner.\n"
                    "Review every rule before importing - these are drafts, not decisions.\n")
     return buf.getvalue()

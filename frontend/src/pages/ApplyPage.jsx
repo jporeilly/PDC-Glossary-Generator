@@ -385,6 +385,15 @@ function GenerateCard({ rows, glossaryName, governance, settings, onNavigate }) 
           {draft.dictionaries.map((d) => (
             <div key={d.filename}>· dictionary <code>{d.filename}</code> — {d.term} ({d.seed || 'profiled'}, values: <code>{d.values}</code>)</div>
           ))}
+          {(draft.quality || []).length > 0 && (
+            <div style={{ marginTop: '.35rem' }}>
+              <b>{draft.quality.length}</b> DQ expectation rule{draft.quality.length !== 1 ? 's' : ''}
+              <span className="muted"> — format / allowed-values / completeness / uniqueness checks derived from the same profile (Quality/ in the bundle); feed them to your DQ runner</span>
+            </div>
+          )}
+          {(draft.quality || []).map((q) => (
+            <div key={q.filename}>· dq <code>{q.filename}</code> — {q.term} ({q.checks} check{q.checks !== 1 ? 's' : ''})</div>
+          ))}
           {(draft.skipped || []).length > 0 && (
             <div className="notes" style={{ marginTop: '.5rem' }}>
               <b>{draft.skipped.length} term(s) skipped</b> — a rule needs a value <i>shape</i> (a

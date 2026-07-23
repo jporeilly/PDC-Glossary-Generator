@@ -14,6 +14,26 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.13.0] — 2026-07-23
+
+### Added — Data-quality expectation rules in the policies bundle
+- **Draft policies now emits a third artifact class: `Quality/` DQ-expectation
+  rules** — the industry-standard three-layer split completed (glossary = what
+  it is, detection = which columns are one, quality = are the values valid).
+  One JSON per kept term with scan-derived signals, data-contract style:
+  - **format** — the induced value regex (+ signature) as a conformance check
+    (e.g. Loan Number must match `^LN-\d{6}$`),
+  - **allowed_values** — the profiled reference list,
+  - **not_null** — threshold 1.0 from a NOT NULL constraint, else the measured
+    completeness as a baseline,
+  - **unique** — for PKs / identifier-shaped columns, baseline = measured
+    uniqueness.
+  Every check carries its `source` (profiled / schema). Custom-only: same
+  discipline as the patterns — no inbuilt thresholds; a term with no profiled
+  signal gets no rule, and baselines mean "a run below what the scan measured
+  is a regression". Included in the zip bundle (`Quality/`, INDEX, README) and
+  Send-to-lab; the Apply summary lists each rule with its check count.
+
 ## [1.12.0] — 2026-07-23
 
 ### Added — Best-practice structural-key pruning (glossary ≠ physical schema)
