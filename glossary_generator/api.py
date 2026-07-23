@@ -795,12 +795,30 @@ def get_settings():
     """Return the current settings."""
     return _load_settings()
 
-def _load_gloss():
-    """Load the saved-glossary store (maps id -> {name, rows})."""
+def _load_gloss(strict=False):
+    """Load the saved-glossary store (maps id -> {name, rows}).
+
+    strict=True raises when the file EXISTS but cannot be read/parsed, instead
+    of returning an empty store — the write paths use it so a transient read
+    failure (file locked by another process, encoding hiccup) can never
+    masquerade as "no glossaries" and let the subsequent full rewrite silently
+    discard every saved glossary."""
+    if strict and os.path.isfile(GLOSS_FILE):
+        with open(GLOSS_FILE, encoding="utf-8") as f:
+            return (json.load(f) or {}).get("glossaries", {})
     return _read_json(GLOSS_FILE, {"glossaries": {}}).get("glossaries", {})
 
 def _save_gloss(g):
-    """Persist the saved-glossary store."""
+    """Persist the saved-glossary store. Before any rewrite that SHRINKS the
+    store, snapshot the current file to glossaries.json.bak — a one-deep safety
+    net so a bad rewrite is always recoverable."""
+    try:
+        prev = _read_json(GLOSS_FILE, {"glossaries": {}}).get("glossaries", {})
+        if len(g) < len(prev):
+            import shutil
+            shutil.copy2(GLOSS_FILE, GLOSS_FILE + ".bak")
+    except Exception:
+        pass
     _write_json(GLOSS_FILE, {"glossaries": g})
 
 @app.get("/api/glossaries")
@@ -821,7 +839,11 @@ def save_glossary(body: dict = Body(default={})):
     """Save (or overwrite) a named glossary of review rows."""
     import datetime
     body = body or {}
-    g = _load_gloss()
+    try:
+        g = _load_gloss(strict=True)
+    except Exception as e:
+        return _err("glossary store unreadable (%s) — refusing to save over it; "
+                    "retry in a moment or check %s" % (e, GLOSS_FILE), 503)
     gid = body.get("id") or uuid.uuid4().hex[:12]
     body["id"] = gid
     body["savedAt"] = datetime.datetime.now().isoformat(timespec="seconds")
@@ -840,7 +862,13 @@ def get_glossary(gid: str):
 @app.delete("/api/glossaries/{gid}")
 def delete_glossary(gid: str):
     """Delete a saved glossary by id."""
-    g = _load_gloss(); g.pop(gid, None); _save_gloss(g)
+    try:
+        g = _load_gloss(strict=True)
+    except Exception as e:
+        return _err("glossary store unreadable (%s) — refusing to delete; "
+                    "retry in a moment" % e, 503)
+    g.pop(gid, None)
+    _save_gloss(g)
     return {"ok": True}
 
 @app.post("/api/settings")

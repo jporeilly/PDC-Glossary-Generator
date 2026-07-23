@@ -1210,7 +1210,28 @@ def suggest(tables, schema=None):
             quality = quality_score_column(completeness=qdims["c"], uniqueness=qdims["u"],
                                            validity=qdims["v"], expect_unique=qdims["eu"],
                                            notnull=qdims["nn"])
-            rows.append({"Keep": "Y", "Category": category, "Term": name,
+            # Best-practice prune (deterministic, reversible): a surrogate PK / FK
+            # reference-id is structural, not a business term — its concept lives
+            # on the natural key it references and reaches PDC via the term↔column
+            # link, so it starts un-kept. Natural/business keys (formatted → a
+            # value pattern), PII, and coded columns are always kept. The PK/FK
+            # relationship graph is preserved in the Registry regardless (see
+            # registry/bridge.py), so pruning the term never loses the joins.
+            _surrogate = bool(re.search(r"(^|_)id$|_id$|identifier", c["column"].lower()))
+            _has_shape = bool(prof.get("pattern") or prof.get("signature") or prof.get("enum"))
+            # identity PII on an id-like name is a real natural identifier
+            # (tax_id → GOVERNMENT_ID stays a term); FINANCIAL from a bare
+            # prefix match (acct_id) is noise and doesn't block the prune
+            _identity_pii = pii in ("GOVERNMENT_ID", "CONTACT_INFO", "PERSONAL_NAME",
+                                    "DEMOGRAPHIC", "ADDRESS_INFO")
+            _structural = bool((c["pk"] or c["fk"]) and _surrogate
+                               and not _identity_pii and not _has_shape)
+            rows.append({"Keep": ("N" if _structural else "Y"),
+                         "Prune_Reason": (("structural key — surrogate %s, tagged via the "
+                                           "term↔column link, not a business term"
+                                           % ("PK" if c["pk"] else "FK reference"))
+                                          if _structural else ""),
+                         "Category": category, "Term": name,
                          "Source_Column": src,
                          "Definition": define(c), "Purpose": purpose(c, category, name, pii),
                          "Sensitivity": sens,
@@ -1255,6 +1276,14 @@ def suggest(tables, schema=None):
             for f in ("Value_Signature", "Value_Pattern", "Enum_Values"):
                 if not seen[key].get(f) and r.get(f):
                     seen[key][f] = r[f]
+            # A term survives the structural-key prune when ANY of its merged
+            # columns is non-structural — the dictionary canonicalizes a surrogate
+            # (mbr_id) and its natural key (mbr_no) onto ONE term, and the natural
+            # key must win: the concept stays kept, the id column just rides along
+            # as an extra linked source.
+            if str(r.get("Keep", "Y")).upper() == "Y" and str(seen[key].get("Keep")).upper() != "Y":
+                seen[key]["Keep"] = "Y"
+                seen[key]["Prune_Reason"] = ""
             continue
         seen[key] = r
         out.append(r)

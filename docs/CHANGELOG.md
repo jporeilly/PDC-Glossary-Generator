@@ -14,6 +14,37 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.12.0] — 2026-07-23
+
+### Added — Best-practice structural-key pruning (glossary ≠ physical schema)
+- **The scan auto-prunes structural keys as business terms** (deterministic,
+  reversible): a surrogate PK / FK reference-id (`*_id` name, no identity PII,
+  no profiled value shape) arrives with **Keep un-ticked**, a **KEY** badge and
+  the reason on the row, and a **"Structural keys auto-pruned N"** chip. Natural
+  / business keys (`mbr_no`, `acct_no` — formatted, or identity PII like
+  `tax_id`) are always kept. Ticking Keep restores any row. Mirrors how mature
+  catalogs (Actian/Zeenea, Collibra, Alation) model it: keys belong to the
+  physical layer, not the business glossary.
+- **The Registry now carries a `physical_model`** built from EVERY scanned
+  column's PK/FK facts (kept or pruned) — keys + FK relationship edges — so the
+  join graph is authoritative and independent of glossary curation. Pruning a
+  key as a term never loses the relationship; the Policy Generator reads
+  identity/reference-join context from the physical model.
+- When the dictionary canonicalizes a surrogate and its natural key onto ONE
+  term (`mbr_id` + `mbr_no` → "Member Number"), the natural key wins: the merged
+  term stays kept with both columns linked.
+- Auto-pruned keys sit **outside duplicate resolution** (they never form or join
+  Merge/Disambiguate groups) and **Keep High+Med conf** won't silently resurrect
+  them (key columns are High confidence).
+
+### Fixed — glossary store hardened against silent wipe
+- The saved-glossary store was read-modify-rewrite with a loader that returned
+  an EMPTY store on any read error — so a transient failure (e.g. the file
+  locked by a second backend instance) could make a save silently discard every
+  other saved glossary. Write paths now use a **strict load** (refuse to save /
+  delete when the file exists but is unreadable, HTTP 503) and any rewrite that
+  **shrinks** the store first snapshots the file to `glossaries.json.bak`.
+
 ## [1.11.3] — 2026-07-23
 
 ### Fixed — Lab object store (MinIO) config UX

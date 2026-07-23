@@ -161,8 +161,34 @@ def build_registry(rows, glossary_name: str, glossary_id: str = None) -> dict:
             **({"detection_intent": "mapping_only"} if intent == 'mapping_only'
                else {"detection_intent": "seeded"} if detect else {}),
         })
+    # Physical model — the schema/relationship layer. Built from EVERY scanned
+    # column's PK/FK (all rows, kept OR pruned), so the join graph is
+    # authoritative and independent of glossary curation: pruning a surrogate key
+    # as a business term never loses the relationship. Mirrors how mature
+    # catalogs keep keys/relationships in the physical layer, decoupled from the
+    # business glossary — the Policy Generator gets its identity/reference-join
+    # context from here rather than from whichever terms happened to survive.
+    phys, relationships, seen_edge = {}, [], set()
+    for r in rows or []:
+        if not isinstance(r, dict) or r.get('type') == 'category':
+            continue
+        for sc, k in (r.get('Source_Keys') or {}).items():
+            if not isinstance(k, dict):
+                continue
+            cur = phys.setdefault(sc, {"column": sc, "pk": False, "fk": False, "ref": None})
+            cur["pk"] = cur["pk"] or bool(k.get('pk'))
+            cur["fk"] = cur["fk"] or bool(k.get('fk'))
+            cur["ref"] = cur["ref"] or (k.get('ref') or None)
+            if k.get('fk') and k.get('ref'):
+                edge = (sc, k['ref'])
+                if edge not in seen_edge:
+                    seen_edge.add(edge)
+                    relationships.append({"from": sc, "to": k['ref'], "type": "fk"})
+
     return {"schema": "classification-registry/1", "glossary": glossary_name,
             "glossary_id": glossary_id, "pack": None, "concepts": concepts,
+            "physical_model": {"keys": sorted(phys.values(), key=lambda x: x["column"]),
+                               "relationships": relationships},
             "tag_vocabulary": vocab, "governance_audit": _audit_summary(),
             "references": {}}
 

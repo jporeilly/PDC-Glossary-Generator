@@ -114,6 +114,10 @@ function activeNames(grp) {
 
 function keyOf(r, i, active) {
   if (isTableTerm(r)) return soloKey(i)
+  // an auto-pruned structural key (surrogate PK/FK) is not a business term, so
+  // it never joins a duplicate group — Merge/Disambiguate applies to KEPT
+  // business terms only. Ticking Keep restores it to normal clustering.
+  if (r.Prune_Reason && !truthy(r.Keep)) return soloKey(i)
   if (r._grp != null && active.has(r._grp)) return r._grp
   return String(r.Term || '').trim()
 }
@@ -329,6 +333,7 @@ export default function ReviewPage({ onNavigate }) {
     () => [...new Set(rows.flatMap((r) => splitList(r.Suggested_Tags)))].sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase())),
     [rows])
   const kept = useMemo(() => rows.reduce((n, r) => n + (truthy(r.Keep) ? 1 : 0), 0), [rows])
+  const prunedKeys = useMemo(() => rows.reduce((n, r) => n + (r?.Prune_Reason && !truthy(r.Keep) ? 1 : 0), 0), [rows])
   const keptShown = useMemo(() => vis.reduce((n, i) => n + (truthy(rows[i]?.Keep) ? 1 : 0), 0), [vis, rows])
   const anySuggestedNames = useMemo(() => rows.some((r) => r.Suggested_Name && r.Suggested_Name !== r.Term), [rows])
   const propCount = useMemo(
@@ -383,6 +388,9 @@ export default function ReviewPage({ onNavigate }) {
       if (!idxs.has(i)) return r
       snap.push({ index: i, keep: r.Keep })
       if (isTableTerm(r)) return r
+      // an auto-pruned structural key is High confidence ("Key column") but was
+      // deliberately un-kept by the scan — don't silently resurrect it here
+      if (r.Prune_Reason && !truthy(r.Keep)) return r
       return { ...r, Keep: r.Confidence === 'High' || r.Confidence === 'Medium' ? 'Y' : 'N' }
     }))
     setHmSnap(snap)
@@ -1025,6 +1033,12 @@ export default function ReviewPage({ onNavigate }) {
               Sensitivity HIGH<b className="sens-hi">{stats.sensitivity.HIGH}</b> MED<b className="sens-md">{stats.sensitivity.MEDIUM}</b> LOW<b className="sens-lo">{stats.sensitivity.LOW}</b>
             </span>
             {stats.enriched > 0 && <span className="rv-chip">LLM-enriched<b>{stats.enriched}</b></span>}
+            {prunedKeys > 0 && (
+              <span className="rv-chip"
+                    title="Surrogate PK / FK reference-id columns the scan auto-pruned as business terms (best practice — the KEY badge in the grid). Their PK/FK relationships still travel to the Registry's physical model; tick Keep on a row to restore it as a term.">
+                Structural keys auto-pruned<b>{prunedKeys}</b>
+              </span>
+            )}
           </div>
         )}
 
@@ -1273,8 +1287,8 @@ function ReviewGuide({ onNavigate }) {
         </svg>
       </div>
       <ol className="workcycle">
-        <li><b>Prune.</b> Every scanned column is a candidate — untick <b>Keep</b> on noise (or use <b>Keep High+Med conf</b>) rather than hunting for gaps; table-level terms always stay.</li>
-        <li><b>Resolve duplicates.</b> Same-named terms get a header bar: <b>Merge</b> into one term linked to all its columns, <b>Disambiguate</b> into unique names, or keep separate — <b>AI advise</b> and <b>Find similar</b> recommend, you decide.</li>
+        <li><b>Prune.</b> Every scanned column is a candidate — untick <b>Keep</b> on noise (or use <b>Keep High+Med conf</b>) rather than hunting for gaps; table-level terms always stay. <b>Structural keys arrive already pruned</b> (the <b>KEY</b> badge): a surrogate PK / FK reference-id isn&apos;t a business term — its PK/FK relationship still travels to the Registry&apos;s physical model, and ticking Keep restores it.</li>
+        <li><b>Resolve duplicates.</b> Same-named <i>kept</i> terms get a header bar: <b>Merge</b> into one term linked to all its columns, <b>Disambiguate</b> into unique names, or keep separate — <b>AI advise</b> and <b>Find similar</b> recommend, you decide. Auto-pruned keys sit outside duplicate resolution.</li>
         <li><b>Approve the pending vocabulary — now.</b> After pruning and merging, and <b>before</b> the tag agents, hop to the <b>Dictionary</b> (click the box above): your scan seeded its <i>pending</i> terms and tags. Approve or retire them, then come back — <b>Suggest tags</b> draws from the approved allow-list, so approved tags make it richer.</li>
         <li><b>Run the AI agents in sequence.</b> <b>Enrich with LLM</b> first (definitions &amp; purposes), then <b>AI suggest</b> / <b>AI categorize</b> / <b>Suggest tags</b>, and <b>AI QA definitions</b> last as the quality gate. Agents never edit the grid: as each batch returns, click-to-accept pills light up on the affected cells — accept them one by one, or <b>Accept all</b> from the strip above the grid. The grid's <b>LLM</b> pills appear only after a proposal is accepted.</li>
         <li><b>Name the glossary</b> (top right of the grid) so autosave keeps your review, then move on to <b>Set stewardship →</b> on the Govern page.</li>
@@ -1344,6 +1358,12 @@ const GridRow = memo(function GridRow({ row: r, index, pos, expanded, prop, onAc
         <input type="text" value={r.Term || ''} title={r.Term || ''}
                onChange={(e) => onField(index, 'Term', e.target.value)} aria-label="Term" />
         {tt && <span className="rv-ttbadge" title="Table-level record term — links to the whole table; always kept.">TABLE</span>}
+        {!keptRow && r.Prune_Reason && (
+          <span className="rv-ttbadge rv-keybadge"
+                title={`Auto-pruned by the scan: ${r.Prune_Reason}. The PK/FK relationship still travels to the Registry's physical model — tick Keep to restore it as a term.`}>
+            KEY
+          </span>
+        )}
         {r.Suggested_Name && r.Suggested_Name !== r.Term && (
           <button className="rv-ren" onClick={() => onUseName(index)}
                   title="LLM-suggested name from a cryptic column — click to apply to every row with this name">

@@ -158,6 +158,9 @@ tr.rv-exprow > td {
   display: inline-block; font-size: .6rem; font-weight: 700; color: var(--text-muted);
   border: 1px solid var(--baseline); border-radius: 4px; padding: 0 .3rem; margin-top: .25rem;
 }
+/* auto-pruned structural key (surrogate PK / FK reference-id): starts un-kept,
+   relationship still travels to the Registry's physical model */
+.rv-keybadge { color: var(--status-warning); border-color: var(--status-warning); margin-left: .3rem; }
 .rv-ren {
   display: block; background: none; border: none; cursor: pointer; text-align: left;
   color: var(--accent); font-size: .74rem; font-weight: 600; padding: 0; margin-top: .25rem;
