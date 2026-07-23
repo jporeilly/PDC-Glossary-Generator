@@ -16,6 +16,16 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
 
 ## [1.11.3] — 2026-07-23
 
+### Fixed — Lab object store (MinIO) config UX
+- The HTTPS toggle is now **authoritative over the endpoint scheme**: an
+  explicit `https://` in the URL no longer silently overrode an un-ticked box
+  (which produced confusing TLS errors). Toggling HTTPS rewrites the scheme, and
+  typing a scheme syncs the box.
+- An inline **nudge** when the endpoint uses the **console port `:9001`** or has
+  **no port** — the S3 API is on `:9000`.
+- `(optional)` sits inline with the **Bucket** label (was dropping to its own
+  line under the flex-column label).
+
 ### Changed — Draft policies are custom-only (no inbuilt canonical shapes)
 - Removed the hardcoded `_CANONICAL_SEEDS` (SSN `nnn-nn-nnnn`, email regex) from
   `policy_draft.py`. The Policy Generator now authors a Data Pattern / Dictionary

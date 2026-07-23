@@ -337,6 +337,22 @@ function LabStoreCard() {
 
   const set = (patch) => setCfg((c) => ({ ...c, ...patch }))
 
+  // Keep the endpoint scheme and the HTTPS box in sync so they can't disagree
+  // (a leading https:// in the URL used to silently win over an un-ticked box).
+  const onEndpoint = (v) => {
+    const m = /^(https?):\/\//i.exec(v.trim())
+    set(m ? { endpoint: v, secure: m[1].toLowerCase() === 'https' } : { endpoint: v })
+  }
+  const onSecure = (checked) => {
+    const next = (cfg?.endpoint || '').replace(/^https?:\/\//i, checked ? 'https://' : 'http://')
+    set({ secure: checked, endpoint: next })
+  }
+  // Nudge on the two lab mistakes: the console port, or an S3 URL with no port.
+  const ep = (cfg?.endpoint || '').trim()
+  const epWarn = /:9001(\/|$)/.test(ep) ? 'That’s the web console port — the S3 API is on :9000.'
+    : (ep && !/:\d+/.test(ep)) ? 'No port given — the lab S3 API is on :9000 (e.g. http://pentaho.io:9000).'
+    : ''
+
   async function check(config) {
     setStatus({ state: 'checking', message: 'Checking…' })
     try {
@@ -373,10 +389,11 @@ function LabStoreCard() {
         <label>
           Endpoint
           <input type="text" placeholder="http://pentaho.io:9000" value={cfg.endpoint}
-                 onChange={(e) => set({ endpoint: e.target.value })} />
+                 onChange={(e) => onEndpoint(e.target.value)} />
+          {epWarn && <span className="warn" style={{ fontSize: '.78rem' }}>{epWarn}</span>}
         </label>
         <label>
-          Bucket <span className="muted">(optional)</span>
+          <span>Bucket <span className="muted">(optional)</span></span>
           <input type="text" placeholder="pdc-exports (created on first use)" value={cfg.bucket}
                  onChange={(e) => set({ bucket: e.target.value })} />
         </label>
@@ -392,7 +409,7 @@ function LabStoreCard() {
         </label>
         <label className="check">
           <input type="checkbox" checked={!!cfg.secure}
-                 onChange={(e) => set({ secure: e.target.checked })} />
+                 onChange={(e) => onSecure(e.target.checked)} />
           Use HTTPS (TLS) — leave off for a plain-HTTP lab MinIO on :9000
         </label>
       </div>
