@@ -159,7 +159,7 @@ order:
   methods deploy and Data Identification runs. Everything lands in the
   append-only audit trail.
 
-<img width="1418" height="2167" alt="image" src="https://github.com/user-attachments/assets/0780b24b-9263-4b75-b414-84907c6fb1b8" />
+<img width="1416" height="3092" alt="image" src="https://github.com/user-attachments/assets/1778bda8-f9d0-4cf5-ae95-02505fd7a4d9" />
 
 - **State that takes care of itself** — the app auto-resumes your last saved
   glossary on start and **autosaves** the workspace every 30 seconds (and on
