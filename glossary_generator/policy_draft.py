@@ -139,6 +139,28 @@ def _valid_regex(rx):
         return False
 
 
+# Column kinds whose VALUES carry no detectable shape — a surrogate integer key,
+# a date, a person/free-text name, or a raw amount. You can't recognise an
+# "Account ID" or a date by its value (any integer/date could be one), so these
+# are governed by the term↔column link (tagged on Apply), never a value pattern.
+# Deliberately narrow: codes/statuses and formatted numbers (account_no,
+# routing, zip, phone, ssn, email…) are NOT here — those become dictionaries /
+# patterns once profiled.
+_NO_SHAPE = re.compile(
+    r"(^|_)id$|_id$|identifier"                 # surrogate-key ids
+    r"|(^|_)dt$|date|dob|birth"                 # dates
+    r"|(^|_)nm$|name"                           # names / free text
+    r"|amount|(^|_)amt$|balance|(^|_)bal$",     # raw amounts
+    re.I)
+
+
+def _no_value_shape(cols):
+    """True when EVERY source column is a kind with no detectable value shape, so
+    the term is a link-only concern rather than a not-yet-profiled one."""
+    names = [str(c).split(".")[-1] for c in (cols or []) if c]
+    return bool(names) and all(_NO_SHAPE.search(n) for n in names)
+
+
 def draft_from_rows(rows, glossary_name="Business Glossary", prefix=None,
                     hints=None, governed_tags=None):
     """rows -> {'patterns': [...], 'dictionaries': [...], 'skipped': [...]}.
@@ -193,7 +215,10 @@ def draft_from_rows(rows, glossary_name="Business Glossary", prefix=None,
                 skipped.append({"term": term, "why": "document term — identify documents with vocabulary dictionaries, not value shapes"})
                 continue
             elif not sig and not (r.get("Enum_Values") or "").strip():
-                skipped.append({"term": term, "why": "no profiled evidence on the row — re-scan the live source with value profiling on to induce a custom pattern, or add a curated seed for this term to the domain pack"})
+                if _no_value_shape(_cols_of(r)):
+                    skipped.append({"term": term, "why": "tagged via the term↔column link, not a value pattern — a surrogate id / date / name / amount has no value shape to detect (expected)"})
+                else:
+                    skipped.append({"term": term, "why": "no profiled evidence on the row — re-scan the live source with value profiling on to induce a custom pattern, or add a curated seed for this term to the domain pack"})
                 continue
             else:
                 skipped.append({"term": term, "why": "no stable shape in the data (free text, names, amounts, dates)"})

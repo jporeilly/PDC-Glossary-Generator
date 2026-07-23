@@ -57,6 +57,15 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   (scan classifier + value profiling + governed-tag floors; only a steward
   raises it). The LLM prompt no longer asks for sensitivity or PII.
 
+### Changed — Draft-policies skip reasons distinguish link-only from not-profiled
+- The big "no profiled evidence — re-scan" bucket lumped together columns that
+  will *never* have a value shape (surrogate integer keys, dates, names, raw
+  amounts) with ones that simply weren't profiled. A column-name heuristic now
+  splits them: surrogate-id / date / name / amount columns read *"tagged via the
+  term↔column link, not a value pattern — …(expected)"*, so the steward isn't
+  told to re-scan a column that can't be seeded. On CSCU this turns an alarming
+  72-term "re-scan" list into ~32 expected link-only + ~20 actually-actionable.
+
 ### Fixed — Draft-policies "skipped" list showed "undefined" for every term
 - The skipped-terms line read `s.reason`, but `draft_from_rows` returns the
   reason in `s.why`, so every skipped term rendered `— undefined`. It now shows
