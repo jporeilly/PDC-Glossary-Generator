@@ -20,7 +20,6 @@ its tags stay governed instead of drifting.
 
 <img width="1337" height="1454" alt="image" src="https://github.com/user-attachments/assets/cf4d56af-6de2-4b0f-94b7-d28284f5366a" />
 
-
 The app is **scenario-generic**; each training scenario ships as a separate,
 self-contained bundle — data kit, domain pack and courseware — served by one
 shared lab stack:
@@ -99,7 +98,9 @@ order:
   preserved). The sidebar footer's **PDC dot** lights as soon as any page
   really talks to PDC — Get token, a harvest read, or a bulk-load run.
 
-<img width="1435" height="5046" alt="image" src="https://github.com/user-attachments/assets/2d80df27-6f25-4f14-a136-62827ebdf9c4" />
+<img width="1410" height="2480" alt="image" src="https://github.com/user-attachments/assets/059add03-4b02-4496-8bf2-1f046f4dbc5c" />
+
+<img width="1410" height="2545" alt="image" src="https://github.com/user-attachments/assets/e2ae7975-59d7-4779-a449-db493b966470" />
   
 - **Review** — one suggested term per business-meaningful column, with inferred
   sensitivity, PII category, CDE flag, governed lower-case tags, and an
