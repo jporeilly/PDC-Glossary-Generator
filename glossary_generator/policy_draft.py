@@ -157,6 +157,29 @@ def _floor2(x):
         return None
 
 
+# Type-conformance checks from the scanned column TYPE (schema metadata — still
+# custom/deterministic). Valuable where the rules actually run: extracts and
+# landing zones, where the engine no longer enforces the type. Name fallback for
+# date-shaped columns covers rows scanned before types were persisted.
+_TYPE_DATE = re.compile(r"date|time(stamp)?", re.I)
+_TYPE_NUM = re.compile(r"int|decimal|numeric|float|double|real|money", re.I)
+_NAME_DATE = re.compile(r"(^|_)(dt|date|dob|ts)($|_)|date|birth|timestamp", re.I)
+
+
+def _type_check(col, ctype):
+    t = str(ctype or "").strip()
+    if t:
+        if _TYPE_DATE.search(t):
+            return {"check": "valid_date", "source": "schema (type %s)" % t}
+        if _TYPE_NUM.search(t):
+            return {"check": "numeric", "source": "schema (type %s)" % t}
+        return None
+    name = col.split(".")[-1]
+    if _NAME_DATE.search(name):
+        return {"check": "valid_date", "source": "column name (date-shaped)"}
+    return None
+
+
 def dq_rules_from_rows(rows, glossary_name="Business Glossary", prefix=None):
     """rows -> [{filename, term, rule, checks}] — one DQ-expectation artifact per
     kept term that carries at least one scan-derived signal."""
@@ -175,9 +198,13 @@ def dq_rules_from_rows(rows, glossary_name="Business Glossary", prefix=None):
         enums = [v.strip() for v in str(r.get("Enum_Values") or "").split(";") if v.strip()]
         dims = r.get("Source_Quality_Dims") or {}
         keys = r.get("Source_Keys") or {}
+        types = r.get("Source_Types") or {}
         expectations = []
         for col in cols:
             checks = []
+            tc = _type_check(col, types.get(col))
+            if tc:
+                checks.append(tc)
             if vp:
                 checks.append({"check": "format", "regex": vp,
                                **({"signature": sig} if sig else {}),

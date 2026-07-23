@@ -1254,6 +1254,10 @@ def suggest(tables, schema=None):
                                                         if c.get("fk") and c.get("ref_table")
                                                         else None)}}
                                          if (c["pk"] or c["fk"]) else {}),
+                         # physical type per column — schema metadata the DQ
+                         # expectations derive type-conformance checks from
+                         "Source_Types": ({src: str(c.get("type") or "")}
+                                          if c.get("type") else {}),
                          "Status": "Draft", "Confidence": conf, "Suggested_Reason": reason,
                          # scan evidence: the induced value format / reference list —
                          # carried through save + export so the Registry can hand the
@@ -1269,6 +1273,7 @@ def suggest(tables, schema=None):
             # carry each merged column's own rating; representative = best of them
             seen[key].setdefault("Source_Ratings", {}).update(r.get("Source_Ratings", {}))
             seen[key].setdefault("Source_Keys", {}).update(r.get("Source_Keys", {}))
+            seen[key].setdefault("Source_Types", {}).update(r.get("Source_Types", {}))
             seen[key]["Suggested_Rating"] = max(seen[key].get("Suggested_Rating", 0),
                                                 r.get("Suggested_Rating", 0))
             # carry each merged column's own DQ dimensions

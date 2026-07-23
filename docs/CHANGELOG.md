@@ -14,6 +14,18 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.13.1] — 2026-07-23
+
+### Added — type-derived DQ checks (dates & numerics)
+- The scan now persists each column's **physical type** on the row
+  (`Source_Types`), and DQ expectations derive **type-conformance checks** from
+  it: date/timestamp columns get `valid_date`, numeric columns get `numeric` —
+  sourced `schema (type …)`. Valuable where the rules actually run (extracts /
+  landing zones, where the engine no longer enforces types). A name-shaped
+  fallback (`*_dt`, `date`, `dob`…) covers rows scanned before types were
+  persisted. Still custom-only: the type is the scan's own metadata.
+- On CSCU this lifts the bundle from 28 to **43 DQ rules**, dates included.
+
 ## [1.13.0] — 2026-07-23
 
 ### Added — Data-quality expectation rules in the policies bundle
