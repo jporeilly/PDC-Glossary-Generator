@@ -127,6 +127,9 @@ order:
   the business domain auto-derives from the company data. Plus ratings,
   review dates, and a steward approval gate over the vocabulary with a full
   audit trail.
+
+ <img width="1412" height="3474" alt="image" src="https://github.com/user-attachments/assets/9490a3bc-5f95-4473-95e9-ba893d4de9fe" />
+  
 - **Generate & apply** — export the kept terms as PDC-importable JSONL, then
   resolve term ids (fuzzy + **in-place AI matching** for renamed or
   outstanding terms — no round-trip through the PDC glossary UI) and **apply
@@ -143,7 +146,7 @@ order:
   lab (MinIO)** — an upload to bucket `pdc-exports` over a saved
   **write-capable** MinIO/S3 connection (`POST /api/lab-export`).
 
- <img width="1412" height="3474" alt="image" src="https://github.com/user-attachments/assets/9490a3bc-5f95-4473-95e9-ba893d4de9fe" />
+
    
 - **Steward-safe governance** — mistakes are recoverable in-product: every
   vocabulary decision is reversible per item (labelled **✓ Approve /
