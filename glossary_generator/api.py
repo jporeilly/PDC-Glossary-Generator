@@ -864,6 +864,25 @@ def test_minio(body: dict = Body(default={})):
     cfg = (body or {}).get("minio", {})
     return suggester.test_minio(cfg)
 
+@app.post("/api/lab-minio-status")
+def lab_minio_status(body: dict = Body(default={})):
+    """Reachability + auth check for the 'Send to lab' MinIO status dot. Takes an
+       explicit `config`/`minio` object, or a saved `connection` id/name to look
+       up. Bucket-agnostic (the export bucket is created on first use)."""
+    body = body or {}
+    cfg = body.get("config") or body.get("minio")
+    if not cfg and body.get("connection"):
+        want = str(body.get("connection")).strip().lower()
+        stores = [c for c in _load_connections()
+                  if str(c.get("type", "")).lower() in ("minio", "s3")]
+        conn = next((c for c in stores
+                     if str(c.get("id", "")).lower() == want
+                     or str(c.get("name", "")).strip().lower() == want), None)
+        cfg = (conn or {}).get("config")
+    if not cfg:
+        return {"ok": False, "message": "no lab MinIO connection configured"}
+    return suggester.reach_minio(cfg)
+
 @app.post("/api/list-objects")
 def list_objects_route(body: dict = Body(default={})):
     """Browse a MinIO/S3 bucket one folder level at a time (folders + files)."""

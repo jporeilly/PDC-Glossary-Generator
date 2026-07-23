@@ -52,6 +52,7 @@ export default function SettingsPage({ version }) {
       <div className="set-grid">
         <SnapshotCard />
         <LlmCard settings={settings} saveField={saveField} />
+        <LabStoreCard />
         <DetectCard />
         <DriversCard />
 
@@ -301,6 +302,110 @@ function LlmCard({ settings, saveField }) {
         <code>LLM_BATCH</code> at runtime. Higher workers/batch = faster enrichment but
         heavier on the GPU.
       </p>
+    </section>
+  )
+}
+
+/* ---------- lab object store (MinIO) — the "Send to lab" export target ----------
+   Configures a single dedicated MinIO/S3 connection (id 'lab-minio') that the
+   Apply page's "Send to lab" uploads to. Test uses the bucket-agnostic
+   reachability check so it goes green on valid endpoint+credentials even before
+   the export bucket exists. */
+
+const EMPTY_LAB = { endpoint: '', access_key: '', secret_key: '', bucket: '', secure: false }
+
+function LabStoreCard() {
+  const [cfg, setCfg] = useState(null)
+  const [connId, setConnId] = useState(null)
+  const [status, setStatus] = useState(null)   // {state:'checking'|'ok'|'bad', message}
+  const [busy, setBusy] = useState(false)
+
+  useEffect(() => {
+    apiGet('/api/connections').then((d) => {
+      const stores = (d.connections || []).filter((c) => ['minio', 's3'].includes(String(c.type || '').toLowerCase()))
+      const lab = stores.find((c) => c.id === 'lab-minio')
+        || stores.find((c) => String(c.name || '').toLowerCase() === 'lab minio')
+      if (lab) {
+        setConnId(lab.id)
+        setCfg({ ...EMPTY_LAB, ...(lab.config || {}) })
+        check({ ...EMPTY_LAB, ...(lab.config || {}) })
+      } else {
+        setCfg({ ...EMPTY_LAB })
+      }
+    }).catch(() => setCfg({ ...EMPTY_LAB }))
+  }, [])  // eslint-disable-line react-hooks/exhaustive-deps
+
+  const set = (patch) => setCfg((c) => ({ ...c, ...patch }))
+
+  async function check(config) {
+    setStatus({ state: 'checking', message: 'Checking…' })
+    try {
+      const d = await apiPost('/api/lab-minio-status', { config })
+      setStatus({ state: d.ok ? 'ok' : 'bad', message: d.message || (d.ok ? 'Connected' : 'Not connected') })
+    } catch (e) {
+      setStatus({ state: 'bad', message: e.message })
+    }
+  }
+
+  async function save() {
+    setBusy(true)
+    try {
+      const d = await apiPost('/api/connections', { id: connId || 'lab-minio', name: 'Lab MinIO', type: 'minio', config: cfg })
+      setConnId((d.connection && d.connection.id) || 'lab-minio')
+      await check(cfg)
+    } catch (e) {
+      setStatus({ state: 'bad', message: e.message })
+    }
+    setBusy(false)
+  }
+
+  if (!cfg) return <section className="card span2"><h2>Lab object store (MinIO)</h2><p className="loading">Loading…</p></section>
+
+  return (
+    <section className="card span2">
+      <h2>Lab object store <span>MinIO — the “Send to lab” export target</span></h2>
+      <p className="hint-line">
+        Where <b>Apply → Send to lab</b> uploads the generated JSONL / policies so you can grab
+        them on the demo VM. The <b>S3 API is on <code>:9000</code></b> — <code>:9001</code> is the
+        web console only, and <code>mc</code> also talks to <code>:9000</code>.
+      </p>
+      <div className="form-grid">
+        <label>
+          Endpoint
+          <input type="text" placeholder="http://pentaho.io:9000" value={cfg.endpoint}
+                 onChange={(e) => set({ endpoint: e.target.value })} />
+        </label>
+        <label>
+          Bucket <span className="muted">(optional)</span>
+          <input type="text" placeholder="pdc-exports (created on first use)" value={cfg.bucket}
+                 onChange={(e) => set({ bucket: e.target.value })} />
+        </label>
+        <label>
+          Access key
+          <input type="text" autoComplete="off" value={cfg.access_key}
+                 onChange={(e) => set({ access_key: e.target.value })} />
+        </label>
+        <label>
+          Secret key
+          <input type="password" autoComplete="off" value={cfg.secret_key}
+                 onChange={(e) => set({ secret_key: e.target.value })} />
+        </label>
+        <label className="check">
+          <input type="checkbox" checked={!!cfg.secure}
+                 onChange={(e) => set({ secure: e.target.checked })} />
+          Use HTTPS (TLS) — leave off for a plain-HTTP lab MinIO on :9000
+        </label>
+      </div>
+      <div className="actions">
+        <button className="ghost" onClick={() => check(cfg)} disabled={!cfg.endpoint}>Test connection</button>
+        <button className="primary" onClick={save} disabled={busy || !cfg.endpoint}>{busy ? 'Saving…' : 'Save lab store'}</button>
+        {status && (
+          <span className="conn" style={{ fontSize: '.85rem' }}>
+            <span className={`dot ${status.state === 'ok' ? 'ok' : status.state === 'checking' ? 'checking' : 'bad'}`} />
+            {status.message}
+          </span>
+        )}
+      </div>
     </section>
   )
 }

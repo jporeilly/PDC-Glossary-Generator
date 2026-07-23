@@ -1303,16 +1303,52 @@ def test_minio(cfg):
                 tagging = False
         return {"ok": True, "message": "Bucket reachable", "objects": n, "tagging": tagging}
     except Exception as ex:
-        msg = f"Connection failed: {ex}"
-        s = str(ex)
-        if "WRONG_VERSION_NUMBER" in s:
-            msg += (" — the endpoint answered plain HTTP to a TLS handshake: this "
-                    "port has no TLS. Use http:// in the endpoint and untick HTTPS "
-                    "(MinIO on :9000 is usually plain HTTP in the lab).")
-        elif "record layer failure" in s or "UNEXPECTED_RECORD" in s:
-            msg += (" — scheme mismatch between the endpoint URL and the TLS toggle; "
-                    "make http/https and the HTTPS tick agree.")
-        return {"ok": False, "message": msg}
+        return {"ok": False, "message": _minio_error_hint(ex)}
+
+
+def _minio_error_hint(ex):
+    """Turn a boto/botocore exception into a one-line reason with a lab-specific
+       hint for the common mistakes (TLS scheme mismatch, wrong keys, wrong port)."""
+    s = str(ex)
+    msg = f"Connection failed: {ex}"
+    if "WRONG_VERSION_NUMBER" in s:
+        msg += (" — the endpoint answered plain HTTP to a TLS handshake: this "
+                "port has no TLS. Use http:// in the endpoint and untick HTTPS "
+                "(MinIO on :9000 is usually plain HTTP in the lab).")
+    elif "record layer failure" in s or "UNEXPECTED_RECORD" in s:
+        msg += (" — scheme mismatch between the endpoint URL and the TLS toggle; "
+                "make http/https and the HTTPS tick agree.")
+    elif "InvalidAccessKeyId" in s:
+        msg += " — the access key doesn't exist on this MinIO; check the Access key."
+    elif "SignatureDoesNotMatch" in s:
+        msg += " — the secret key is wrong for that access key."
+    elif "Could not connect" in s or "Connection refused" in s or "Failed to establish" in s or "timed out" in s:
+        msg += (" — endpoint unreachable. The S3 API is on :9000 (:9001 is the "
+                "web console only); check host/port and that MinIO is up.")
+    return msg
+
+
+def reach_minio(cfg):
+    """Bucket-agnostic reachability + auth check for the connection status dot.
+       list_buckets validates the endpoint and credentials without needing a
+       specific bucket to exist (the lab export bucket is created on first use).
+       {ok, message, buckets?}."""
+    try:
+        s3 = _s3_client(cfg)
+    except Exception as e:
+        return {"ok": False, "needs_driver": "boto3" in str(e), "message": str(e)}
+    try:
+        resp = s3.list_buckets()
+        names = [b.get("Name") for b in resp.get("Buckets", [])]
+        return {"ok": True, "message": "Connected", "buckets": names}
+    except Exception as ex:
+        # An authenticated-but-unauthorized account (some lab "cast" users can
+        # write to their own bucket but not list) still proves the endpoint and
+        # keys are good — treat that as connected, just without listing rights.
+        if "AccessDenied" in str(ex):
+            return {"ok": True, "message": "Connected (account can't list buckets)",
+                    "buckets": []}
+        return {"ok": False, "message": _minio_error_hint(ex)}
 
 _TEXT_EXTS = {"txt", "csv", "tsv", "json", "jsonl", "ndjson", "xml", "md", "log",
               "yaml", "yml", "html", "htm", "sql", "py", "sh", "conf", "ini", "properties"}

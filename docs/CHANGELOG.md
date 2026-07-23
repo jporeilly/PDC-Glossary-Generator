@@ -14,6 +14,24 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.11.2] — 2026-07-23
+
+### Added — Lab MinIO connection status + configuration
+- **Connectivity dot on "Send to lab".** The Apply page's export controls now
+  show a live green/red dot for the lab MinIO, with the reason inline (e.g.
+  *InvalidAccessKeyId — the access key doesn't exist*) and a **Configure →**
+  link to Settings when it's not reachable. Backed by a new bucket-agnostic
+  reachability check (`suggester.reach_minio` via `list_buckets`, so it goes
+  green on a valid endpoint+credentials even before the export bucket exists)
+  and `POST /api/lab-minio-status`.
+- **Settings → "Lab object store (MinIO)"** card to configure the export target
+  (endpoint, access/secret key, optional bucket, HTTPS) with a Test button +
+  status dot. Saves a dedicated `lab-minio` connection that "Send to lab"
+  prefers. The hint spells out that the **S3 API is on `:9000`** (`:9001` is the
+  web console only, and `mc` also uses `:9000`).
+- Error hints for the common lab mistakes: wrong keys, TLS/scheme mismatch, and
+  hitting the console port instead of the S3 API port.
+
 ## [1.11.1] — 2026-07-23
 
 ### Added — Review AI-agent guidance + toolbar order

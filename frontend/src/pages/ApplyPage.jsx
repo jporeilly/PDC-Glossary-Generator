@@ -164,16 +164,33 @@ function GenerateCard({ rows, glossaryName, governance, settings, onNavigate }) 
   const [labConn, setLabConn] = useState('')
   const [labBusy, setLabBusy] = useState(false)
   const [labMsg, setLabMsg] = useState(null)
+  const [labStatus, setLabStatus] = useState(null)  // {state:'checking'|'ok'|'bad', message}
 
   useEffect(() => {
     apiGet('/api/connections')
       .then((d) => {
         const stores = (d.connections || []).filter((c) => ['minio', 's3'].includes(String(c.type || '').toLowerCase()))
         setLabConns(stores)
-        if (stores.length) setLabConn(stores[0].id || stores[0].name)
+        // prefer the dedicated lab store (Settings) when present, else the first
+        const lab = stores.find((c) => c.id === 'lab-minio')
+          || stores.find((c) => String(c.name || '').toLowerCase() === 'lab minio')
+          || stores[0]
+        if (lab) setLabConn(lab.id || lab.name)
       })
       .catch(() => {})
   }, [])
+
+  // Live connectivity for the status dot: re-check whenever the selected lab
+  // connection changes (and on first load once it's set).
+  useEffect(() => {
+    if (!labConn) { setLabStatus(null); return undefined }
+    let stale = false
+    setLabStatus({ state: 'checking', message: 'Checking lab MinIO…' })
+    apiPost('/api/lab-minio-status', { connection: labConn })
+      .then((d) => { if (!stale) setLabStatus({ state: d.ok ? 'ok' : 'bad', message: d.message || (d.ok ? 'Connected' : 'Not connected') }) })
+      .catch((e) => { if (!stale) setLabStatus({ state: 'bad', message: e.message }) })
+    return () => { stale = true }
+  }, [labConn])
 
   async function sendToLab(kind) {
     setLabBusy(true)
@@ -213,24 +230,43 @@ function GenerateCard({ rows, glossaryName, governance, settings, onNavigate }) 
   }
 
   // ghost export button (Generate/Draft stay the drivers) + a picker when
-  // several MinIO/S3 connections are saved
-  const labExportControls = (kind) => (
-    <>
-      {labConns.length > 1 && (
-        <select value={labConn} onChange={(e) => setLabConn(e.target.value)}
-                title="Which saved MinIO/S3 connection receives the export">
-          {labConns.map((c) => <option key={c.id || c.name} value={c.id || c.name}>{c.name}</option>)}
-        </select>
-      )}
-      <button className="ghost" onClick={() => sendToLab(kind)}
-              disabled={labBusy || !labConns.length}
-              title={labConns.length
-                ? 'Upload to the lab MinIO (bucket pdc-exports, created if missing) so you can grab it on the VM'
-                : 'Save a MinIO/S3 connection on the Connect page first'}>
-        {labBusy ? 'Sending…' : '⇪ Send to lab (MinIO)'}
-      </button>
-    </>
-  )
+  // several MinIO/S3 connections are saved, plus a live connectivity dot
+  const labExportControls = (kind) => {
+    const st = labStatus?.state
+    const dotCls = st === 'ok' ? 'ok' : st === 'checking' ? 'checking' : st === 'bad' ? 'bad' : 'muted'
+    const label = !labConns.length ? 'no lab store configured'
+      : st === 'ok' ? 'lab MinIO connected'
+      : st === 'checking' ? 'checking…'
+      : st === 'bad' ? 'lab MinIO not connected'
+      : 'lab MinIO'
+    return (
+      <>
+        {labConns.length > 1 && (
+          <select value={labConn} onChange={(e) => setLabConn(e.target.value)}
+                  title="Which saved MinIO/S3 connection receives the export">
+            {labConns.map((c) => <option key={c.id || c.name} value={c.id || c.name}>{c.name}</option>)}
+          </select>
+        )}
+        <button className="ghost" onClick={() => sendToLab(kind)}
+                disabled={labBusy || !labConns.length}
+                title={labConns.length
+                  ? (st === 'bad' ? (labStatus?.message || 'Lab MinIO not reachable')
+                     : 'Upload to the lab MinIO (bucket pdc-exports, created if missing) so you can grab it on the VM')
+                  : 'Configure the lab MinIO in Settings first'}>
+          {labBusy ? 'Sending…' : '⇪ Send to lab (MinIO)'}
+        </button>
+        <span className="conn" style={{ fontSize: '.82rem' }} title={labStatus?.message || 'lab MinIO connectivity'}>
+          <span className={`dot ${dotCls}`} />{label}
+        </span>
+        {(st === 'bad' || !labConns.length) && (
+          <button className="nav" onClick={() => onNavigate('settings')}
+                  title="Open Settings → Lab object store to set the endpoint / credentials">
+            Configure →
+          </button>
+        )}
+      </>
+    )
+  }
 
   async function generate() {
     setBusy(true)

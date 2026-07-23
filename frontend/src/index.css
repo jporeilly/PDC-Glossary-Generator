@@ -260,9 +260,13 @@ button.version-pill:hover { background: var(--gridline); }
 .conn { display: flex; align-items: center; gap: .5rem; font-size: .76rem; color: var(--text-muted); padding: .1rem .2rem; }
 .conn a { color: var(--text-secondary); text-decoration: none; }
 .conn a:hover { color: var(--accent); }
-.dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+.dot { width: 8px; height: 8px; border-radius: 50%; flex: none; background: var(--text-muted); }
 .dot.ok { background: var(--status-good); }
 .dot.warn { background: var(--status-warning); }
+.dot.bad { background: var(--status-critical); }
+.dot.muted { background: var(--baseline); }
+.dot.checking { background: var(--status-warning); animation: dot-pulse 1s ease-in-out infinite; }
+@keyframes dot-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
 
 .main { min-width: 0; display: flex; flex-direction: column; }
 .topbar {
