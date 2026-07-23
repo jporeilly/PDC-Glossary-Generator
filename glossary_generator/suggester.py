@@ -858,6 +858,29 @@ def classify(col):
             return cat, sens, list(tags)
     return None, "LOW", []
 
+# The PII categories the scan classifier can legitimately assign — the
+# authoritative allow-list for the guard-rail below.
+PII_CATEGORIES = {cat for _, _, cat, _, _ in PII_RULES}
+
+def guard_pii_row(r):
+    """Guard-rail a row's PII_Category to what the scan actually supports.
+
+    On an UN-PROFILED column the deterministic name classifier is the only
+    legitimate source, so the value is clamped to it — rejecting any category the
+    scanner wouldn't assign (e.g. an imported/legacy 'ADDRESS_INFO' on an id
+    column, or 'PERSONAL_NAME' on an ssn, both of which the classifier corrects).
+    A profiled column is trusted (value profiling can legitimately override the
+    name), so its value is kept if valid, else cleared. Returns the guarded
+    category ("" = not PII)."""
+    cur = (r.get("PII_Category") or "").strip()
+    profiled = bool((r.get("Value_Signature") or "").strip()
+                    or (r.get("Value_Pattern") or "").strip()
+                    or (r.get("Enum_Values") or "").strip())
+    if profiled:
+        return cur if cur in PII_CATEGORIES else ""
+    col = str(r.get("Source_Column") or "").split(";")[0].strip().split(".")[-1]
+    return classify(col)[0] or ""
+
 def define(c):
     """Compose a plain-language DEFINITION for a column.
 

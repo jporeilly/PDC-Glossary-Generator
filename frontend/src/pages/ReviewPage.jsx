@@ -172,7 +172,7 @@ const AGENT_DESC = [
   { label: 'Enrich with LLM',
     desc: 'Rewrites each term’s Definition and Purpose with the local model, filling in blank or thin descriptions.' },
   { label: 'AI suggest (evidence)',
-    desc: 'Reads each row’s scan evidence — value signature, induced regex and sample values — and proposes a clearer name, governed tags and a tightened sensitivity. Guardrailed: tags stay governed-only and sensitivity can only be raised, never lowered.' },
+    desc: 'Reads each row’s scan evidence — value signature, induced regex and sample values — and proposes a clearer name, governed tags, and a category only when the current one is blank. Guardrailed so the LLM can’t drift governed fields: tags stay governed-only, an existing category is never overwritten, and sensitivity and PII stay deterministic from the scan (PII is re-asserted from the scan classifier, correcting any value the scanner wouldn’t assign).' },
   { label: 'AI categorize',
     desc: 'Files terms that have no category into your existing category list; answers that aren’t a known category are discarded, and rows that already have one are left alone.' },
   { label: 'Suggest tags',

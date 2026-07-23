@@ -288,9 +288,13 @@ class TestPolicyDraft:
                                            hints={"Member Number": {"column_regex": "([bad",
                                                                     "tags": ["pii", "rogue-tag"]}},
                                            governed_tags=["pii", "identifier", "compliance"])
-        assert len(art["patterns"]) == 2
-        assert {p["seed"] for p in art["patterns"]} == {"profiled", "canonical"}
+        # Custom-only: patterns come solely from profiled scan evidence. SSN has
+        # none, so with the inbuilt canonical shapes removed it is SKIPPED (not
+        # given a hardcoded pattern that could drift against the real data).
+        assert len(art["patterns"]) == 1
+        assert {p["seed"] for p in art["patterns"]} == {"profiled"}
         assert len(art["dictionaries"]) == 1 and "LOW" in art["dictionaries"][0]["csv"]
+        assert any(s["term"] == "SSN" for s in art["skipped"])
         assert any(s["term"] == "Memo Text" for s in art["skipped"])
         mn = [p for p in art["patterns"] if p["term"] == "Member Number"][0]
         blob = json.dumps(mn["rule"])
@@ -300,7 +304,9 @@ class TestPolicyDraft:
     def test_draft_zips_into_import_bundle(self):
         import io
         import zipfile
-        rows = [_row("SSN", "cscu_core.members.ssn", PII_Category="GOVERNMENT_ID"),
+        # profiled pattern + profiled dictionary — custom-only, no inbuilt seeds
+        rows = [_row("Member Number", "cscu_core.members.mbr_no",
+                     Value_Pattern=r"^CSCU-\d{6}$", Value_Signature="AAAA-nnnnnn"),
                 _row("Risk Rating", "cscu_core.kyc.risk_cd", Enum_Values="LOW;MEDIUM;HIGH")]
         art = policy_draft.draft_from_rows(rows, prefix="CSCU", governed_tags=["pii"])
         z = zipfile.ZipFile(io.BytesIO(policy_draft.to_zip_bytes(art)))

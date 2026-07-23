@@ -570,10 +570,11 @@ def _suggest_one(row, allow_tags, categories, model=None, num_gpu=None):
         "Evidence from scanning the actual data:\n- %s\n\n"
         "Categories (choose one): %s\n"
         "Governed tag allow-list (use ONLY these): %s\n\n"
-        "Return JSON with keys: term (concise singular business name), category, "
-        "tags (array, only from the allow-list, the most relevant 2-5), sensitivity "
-        "(LOW, MEDIUM or HIGH - never lower than the current value), rationale "
-        "(one short sentence grounded in the evidence)."
+        "Return JSON with keys: term (concise singular business name), category "
+        "(one from the list, ONLY useful when the current category is blank), "
+        "tags (array, only from the allow-list, the most relevant 2-5), rationale "
+        "(one short sentence grounded in the evidence). Do NOT return sensitivity "
+        "or PII — those are set deterministically from the scan."
     ) % (
         (" at " + COMPANY) if COMPANY else "",
         row.get("Term", ""), row.get("Category", ""), row.get("Sensitivity", "LOW"),
@@ -583,8 +584,6 @@ def _suggest_one(row, allow_tags, categories, model=None, num_gpu=None):
         ", ".join(allow_tags or []) or "(none)",
     )
     return _complete_json(prompt, model=model, num_gpu=num_gpu)
-
-_SENS_ORDER = {"LOW": 0, "MEDIUM": 1, "HIGH": 2}
 
 def suggest_terms_rows(rows, allow_tags=None, categories=None, only_low_confidence=False,
                        model=None, compute=None, workers=None):
@@ -640,9 +639,11 @@ def suggest_terms_rows(rows, allow_tags=None, categories=None, only_low_confiden
             r["LLM_Name"] = "Yes"
             counts["names"] += 1
             changed = True
-        # category: accept only a known category
+        # category: accept a known category, but only to FILL A BLANK — never
+        # overwrite a category the scan or steward already set (matches AI
+        # categorize's only-blank rule; keeps the LLM from drifting governance).
         cat = str(out.get("category") or "").strip()
-        if cat and cats and cat in cats and cat != r.get("Category"):
+        if cat and cats and cat in cats and not (r.get("Category") or "").strip():
             r["Category"] = cat
             counts["category"] += 1
             changed = True
@@ -659,13 +660,10 @@ def suggest_terms_rows(rows, allow_tags=None, categories=None, only_low_confiden
                 r["Suggested_Tags"] = ";".join(cur + added)
                 counts["tags"] += 1
                 changed = True
-        # sensitivity: tighten only
-        sens = str(out.get("sensitivity") or "").strip().upper()
-        cur_s = str(r.get("Sensitivity") or "LOW").upper()
-        if sens in _SENS_ORDER and _SENS_ORDER[sens] > _SENS_ORDER.get(cur_s, 0):
-            r["Sensitivity"] = sens
-            counts["sensitivity"] += 1
-            changed = True
+        # sensitivity: NOT set by the AI. It's deterministic — the scan
+        # classifier + value profiling set it, the governed-tag sensitivity
+        # floors raise it, and only a steward lifts it by hand. The LLM must not
+        # drift a governed field, so its sensitivity opinion is ignored.
         if changed:
             r["AI_Suggested"] = "Yes"
             r["LLM_Enriched"] = "Yes"

@@ -14,6 +14,49 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.11.3] — 2026-07-23
+
+### Changed — Draft policies are custom-only (no inbuilt canonical shapes)
+- Removed the hardcoded `_CANONICAL_SEEDS` (SSN `nnn-nn-nnnn`, email regex) from
+  `policy_draft.py`. The Policy Generator now authors a Data Pattern / Dictionary
+  **only** from a concept's own profiled scan evidence (induced `Value_Pattern`
+  or reference list) — never an inbuilt shape, which could misclassify against
+  the real data and cause drift (e.g. stamping an SSN rule gated on
+  `GOVERNMENT_ID` when the column is classified otherwise).
+- A concept like SSN still gets a custom policy — but the pattern is induced
+  from the actual values, so re-scan the source with **value profiling on**. The
+  skip reason now says exactly that.
+- **Curated domain-pack seeds now flow into Draft policies** (not just the
+  Registry): `draft_from_rows` fills a gap from the versioned pack's
+  `curated_seeds` (source `curated`) when profiling can't induce one — the
+  custom-only program's generic baseline, still no hardcoded shapes. Profiled
+  evidence always wins; the UI labels each artifact `profiled` or `curated` and
+  counts them.
+
+### Changed — AI-suggest guard-rails tightened (no governed-field drift)
+- **PII_Category is re-asserted from the scan classifier.** AI-suggest now runs
+  a deterministic PII guard (`suggester.guard_pii_row`): an un-profiled column is
+  clamped to what the classifier assigns, rejecting any value the scanner
+  wouldn't (an `ssn` mislabeled `PERSONAL_NAME` becomes `GOVERNMENT_ID`; a
+  spurious `ADDRESS_INFO` on an id column is cleared). Profiled columns are
+  trusted. Surfaces as a proposal pill. (The AI never *set* PII — this heals
+  drift from imports/legacy scans and prevents future drift.)
+- **AI-suggest no longer overwrites a category** — it only fills a **blank** one
+  (matching AI categorize); an existing category the scan/steward set is kept.
+- **AI-suggest no longer proposes sensitivity** — sensitivity stays deterministic
+  (scan classifier + value profiling + governed-tag floors; only a steward
+  raises it). The LLM prompt no longer asks for sensitivity or PII.
+
+### Fixed — Draft-policies "skipped" list showed "undefined" for every term
+- The skipped-terms line read `s.reason`, but `draft_from_rows` returns the
+  reason in `s.why`, so every skipped term rendered `— undefined`. It now shows
+  the real reason, **grouped by reason** with a lead-in noting a rule needs a
+  value *shape* (a profiled value pattern or a reference-value list), not just
+  tags — e.g. *no profiled evidence on the row — re-scan the live source*
+  (SSN and most columns land here when the glossary was built without live
+  value profiling), *no stable shape (free text, names, amounts, dates)*,
+  *table-level term*, and *document term*.
+
 ## [1.11.2] — 2026-07-23
 
 ### Added — Lab MinIO connection status + configuration

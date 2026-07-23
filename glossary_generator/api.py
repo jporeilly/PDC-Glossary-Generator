@@ -1208,6 +1208,20 @@ def ai_suggest(body: dict = Body(default={})):
     rows, counts, used_llm = llm.suggest_terms_rows(
         rows, allow_tags=allow, categories=cats,
         only_low_confidence=only_low, model=model, compute=compute)
+    # Guard-rail: PII_Category is authoritative from the SCAN, never a free guess.
+    # Re-assert the scan classifier for un-profiled columns so a bad value (an
+    # import, a legacy scan, or any agent) can't survive — e.g. an ssn mislabeled
+    # PERSONAL_NAME becomes GOVERNMENT_ID, an id column's spurious ADDRESS_INFO is
+    # cleared. Surfaces as a proposal pill (PII_Category is a watched field), so
+    # the steward still applies it. Runs deterministically, LLM or not.
+    pii_fixed = 0
+    for r in rows:
+        g = suggester.guard_pii_row(r)
+        if g != (r.get("PII_Category") or "").strip():
+            r["PII_Category"] = g
+            pii_fixed += 1
+    if pii_fixed:
+        counts["pii"] = pii_fixed
     return {"rows": rows, "updated": counts, "used_llm": used_llm,
             "stats": _stats(rows), "llm": llm.status(model)}
 
@@ -1657,6 +1671,7 @@ def api_draft_policies(body: dict = Body(default={})):
                           "seed": p.get("seed", "profiled"),
                           "name": p["rule"][0]["name"]} for p in draft["patterns"]],
             "dictionaries": [{"filename": d["filename"], "term": d["term"],
+                              "seed": d.get("seed", "profiled"),
                               "name": d["rule"][0]["name"],
                               "values": d["values_filename"]} for d in draft["dictionaries"]],
             "skipped": draft["skipped"], "used_llm": used_llm}

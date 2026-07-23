@@ -372,15 +372,32 @@ function GenerateCard({ rows, glossaryName, governance, settings, onNavigate }) 
         <div className="summary">
           <b>{draft.patterns.length}</b> data pattern(s), <b>{draft.dictionaries.length}</b>{' '}
           dictionar{draft.dictionaries.length === 1 ? 'y' : 'ies'}
+          {(() => {
+            const all = [...draft.patterns, ...draft.dictionaries]
+            const cur = all.filter((x) => x.seed === 'curated').length
+            const prof = all.filter((x) => x.seed !== 'curated').length
+            return <> · <b>{prof}</b> custom (profiled){cur ? <> · <b>{cur}</b> from curated pack seeds</> : ''}</>
+          })()}
           {draft.used_llm ? ' · AI-polished' : draftAi ? ' · Ollama offline — deterministic only' : ''}
           {draft.patterns.map((p) => (
             <div key={p.filename}>· pattern <code>{p.filename}</code> — {p.term} ({p.seed})</div>
           ))}
           {draft.dictionaries.map((d) => (
-            <div key={d.filename}>· dictionary <code>{d.filename}</code> — {d.term} (values: <code>{d.values}</code>)</div>
+            <div key={d.filename}>· dictionary <code>{d.filename}</code> — {d.term} ({d.seed || 'profiled'}, values: <code>{d.values}</code>)</div>
           ))}
           {(draft.skipped || []).length > 0 && (
-            <div className="notes">skipped: {draft.skipped.map((s) => (typeof s === 'string' ? s : `${s.term} — ${s.reason}`)).join(' · ')}</div>
+            <div className="notes" style={{ marginTop: '.5rem' }}>
+              <b>{draft.skipped.length} term(s) skipped</b> — a rule needs a value <i>shape</i> (a
+              profiled value pattern or a reference-value list), not just tags. Grouped by reason:
+              {Object.entries((draft.skipped || []).reduce((m, s) => {
+                const why = typeof s === 'string' ? s : (s.why || 'no detection seed on the row')
+                const term = typeof s === 'string' ? s : s.term
+                ;(m[why] = m[why] || []).push(term)
+                return m
+              }, {})).map(([why, terms]) => (
+                <div key={why} style={{ marginTop: '.25rem' }}>· <b>{why}</b> — {terms.join(', ')}</div>
+              ))}
+            </div>
           )}
         </div>
       )}
