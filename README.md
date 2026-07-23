@@ -119,8 +119,8 @@ order:
   Category / Term columns, and **Definition and Purpose expand in place**
   to a full-width editor row with the scan evidence right underneath.
 
+<img width="1417" height="2167" alt="image" src="https://github.com/user-attachments/assets/64658e49-8ae4-4ad2-9ce3-89ef9d4473c4" />
 
-  
 - **Govern** — steward/owner/custodian assignment driven by the
   Keycloak-fetched roster: candidate pools are **constrained to each person's
   actual roster roles**, expertise beats defaults only on a strict win, and
@@ -142,6 +142,7 @@ order:
   drafted-policies zip can also go straight to the lab with **⇪ Send to
   lab (MinIO)** — an upload to bucket `pdc-exports` over a saved
   **write-capable** MinIO/S3 connection (`POST /api/lab-export`).
+  
 - **Steward-safe governance** — mistakes are recoverable in-product: every
   vocabulary decision is reversible per item (labelled **✓ Approve /
   ✕ Retire / ⤵ To alias** actions on approved terms and tags), a retire is
@@ -157,6 +158,9 @@ order:
   no-ops), and the preview notes that live facets appear in PDC only after
   methods deploy and Data Identification runs. Everything lands in the
   append-only audit trail.
+
+<img width="1418" height="2167" alt="image" src="https://github.com/user-attachments/assets/0780b24b-9263-4b75-b414-84907c6fb1b8" />
+
 - **State that takes care of itself** — the app auto-resumes your last saved
   glossary on start and **autosaves** the workspace every 30 seconds (and on
   page close) once it exists; all state survives `git pull` untouched, and
