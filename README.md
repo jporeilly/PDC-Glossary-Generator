@@ -146,6 +146,7 @@ order:
   lab (MinIO)** — an upload to bucket `pdc-exports` over a saved
   **write-capable** MinIO/S3 connection (`POST /api/lab-export`).
 
+<img width="1416" height="1514" alt="image" src="https://github.com/user-attachments/assets/ff266022-ac94-4148-b51b-28096aafa850" />
 
    
 - **Steward-safe governance** — mistakes are recoverable in-product: every
