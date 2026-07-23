@@ -84,27 +84,6 @@ workshop figures are in [diagrams/](glossary_generator/diagrams/).
 One pass through the app, page by page — the sidebar stepper walks the same
 order:
 
-```mermaid
-%%{init: {'theme':'base','themeVariables':{'primaryColor':'#EEF6FA','primaryBorderColor':'#1C7293','primaryTextColor':'#22333B','secondaryColor':'#DBEEF3','tertiaryColor':'#F7FBFD','lineColor':'#1C7293','fontFamily':'Segoe UI, sans-serif','fontSize':'13px','clusterBkg':'#F7FBFD','clusterBorder':'#CFE3EC'}}}%%
-flowchart LR
-    SRC[("lab<br/>sources")] -- "DBs · MinIO · DDL" --> CON
-    subgraph APP["Glossary Generator"]
-        HOME["Home<br/>workflow stepper"] --> CON["Connect<br/>Schema · Files"]
-        CON --> REV["Review<br/>terms · tags · duplicates"]
-        REV --> GOV["Govern<br/>stewards · approval"]
-        GOV --> APPLY["Apply<br/>generate · resolve ids<br/>apply to PDC"]
-        REV -.-> DICT[["Term & Tag dictionary<br/>governed vocabulary"]]
-        DICT -.-> GOV
-    end
-    APPLY -- "JSONL" --> PDCI["PDC — glossary import"]
-    APPLY -- "writes" --> REG[["Classification<br/>Registry"]]
-    REG --> PG["Policy Generator"]
-    classDef contract fill:#0A3D52,color:#fff,stroke:#0A3D52
-    classDef pdc fill:#DBEEF3,stroke:#065A82,color:#0A3D52,stroke-width:2px
-    class REG contract
-    class PDCI pdc
-```
-
 - **Connect** — live database scan (PostgreSQL, SQL Server, MySQL/MariaDB,
   Oracle), MinIO/S3 document stores, or a plain DDL file. Or skip direct access
   entirely and **harvest from what PDC has already cataloged**. The schema
@@ -119,6 +98,9 @@ flowchart LR
   diagram-a-DDL panel is a **drag-and-drop zone** (.sql/.ddl/.txt, paste
   preserved). The sidebar footer's **PDC dot** lights as soon as any page
   really talks to PDC — Get token, a harvest read, or a bulk-load run.
+
+<img width="1435" height="5046" alt="image" src="https://github.com/user-attachments/assets/2d80df27-6f25-4f14-a136-62827ebdf9c4" />
+  
 - **Review** — one suggested term per business-meaningful column, with inferred
   sensitivity, PII category, CDE flag, governed lower-case tags, and an
   evidence-based confidence signal. The scan **learns value formats from the
@@ -135,6 +117,9 @@ flowchart LR
   grid scrolls in its own pane with a sticky header and frozen Keep /
   Category / Term columns, and **Definition and Purpose expand in place**
   to a full-width editor row with the scan evidence right underneath.
+
+
+  
 - **Govern** — steward/owner/custodian assignment driven by the
   Keycloak-fetched roster: candidate pools are **constrained to each person's
   actual roster roles**, expertise beats defaults only on a strict win, and
