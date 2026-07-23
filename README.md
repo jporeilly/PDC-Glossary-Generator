@@ -142,7 +142,9 @@ order:
   drafted-policies zip can also go straight to the lab with **⇪ Send to
   lab (MinIO)** — an upload to bucket `pdc-exports` over a saved
   **write-capable** MinIO/S3 connection (`POST /api/lab-export`).
-  
+
+ <img width="1412" height="3474" alt="image" src="https://github.com/user-attachments/assets/9490a3bc-5f95-4473-95e9-ba893d4de9fe" />
+   
 - **Steward-safe governance** — mistakes are recoverable in-product: every
   vocabulary decision is reversible per item (labelled **✓ Approve /
   ✕ Retire / ⤵ To alias** actions on approved terms and tags), a retire is
