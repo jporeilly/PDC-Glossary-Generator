@@ -8,6 +8,7 @@ venv/
 connections.json
 settings.json
 glossaries.json
+glossaries.json.bak
 tag_dictionary.json
 audit_log.json
 people.json
