@@ -8,7 +8,7 @@
 // to the old UI's endpoint (POST /api/glossaries) and only run once the
 // glossary has an id or a name — a scratch grid is never persisted silently.
 
-import { useSyncExternalStore } from 'react'
+import { useCallback, useState, useSyncExternalStore } from 'react'
 import { apiGet, apiPost } from './api.js'
 
 const ws = {
@@ -51,6 +51,47 @@ export function useWorkspace() {
   return useSyncExternalStore(subscribe, getWorkspace)
 }
 
+/* ---------- session-scoped page UI state ----------
+   App renders only the active page, so an inactive page unmounts and its local
+   useState resets — navigate Review → Dictionary → Review and the filters, the
+   open editor row, duplicate-resolution state and scroll would all be gone even
+   though the rows above survive. This module-level cache keeps a page's
+   transient UI for the session (cleared on a full reload, like the rows). Keys
+   are namespaced per page, e.g. 'review.filters'. */
+
+const uiCache = new Map()
+
+export function getUi(key, fallback = null) {
+  return uiCache.has(key) ? uiCache.get(key) : fallback
+}
+
+export function setUi(key, value) {
+  uiCache.set(key, value)
+}
+
+// Drop every cached UI value under a namespace — call when the underlying data
+// is replaced (e.g. a different glossary is opened) so stale filters/resolution
+// state can't bleed across.
+export function clearUi(prefix) {
+  for (const k of [...uiCache.keys()]) if (k.startsWith(prefix)) uiCache.delete(k)
+}
+
+// useState whose value survives unmount/remount within the session. Same API as
+// useState (value + setter, functional updates supported); the value is mirrored
+// into uiCache under `key` so the next mount restores it.
+export function usePersistentState(key, initial) {
+  const [v, setV] = useState(() =>
+    uiCache.has(key) ? uiCache.get(key) : (typeof initial === 'function' ? initial() : initial))
+  const set = useCallback((next) => {
+    setV((prev) => {
+      const val = typeof next === 'function' ? next(prev) : next
+      uiCache.set(key, val)
+      return val
+    })
+  }, [key])
+  return [v, set]
+}
+
 /* ---------- mutations (each marks dirty + schedules the autosave) ---------- */
 
 export function setRows(rows, { dirty = true } = {}) {
@@ -65,7 +106,13 @@ export function patchRow(index, patch) {
 }
 
 export function setGlossaryMeta({ name, glossaryName } = {}) {
-  if (name != null) ws.name = name
+  if (name != null) {
+    ws.name = name
+    // The PDC glossary name (used at export) defaults to the saved-glossary
+    // name so the Govern "Glossary name" field isn't blank — still editable,
+    // and an explicit glossaryName below always wins.
+    if (!ws.glossaryName) ws.glossaryName = name
+  }
   if (glossaryName != null) ws.glossaryName = glossaryName
   markDirty()
 }
@@ -107,6 +154,7 @@ export function clearWorkspace() {
   ws.id = null; ws.name = ''; ws.glossaryName = ''
   ws.rows = []; ws.discovery = null; ws.governance = null
   ws.dirty = false; ws.savedAt = null; ws.saveError = null
+  clearUi('review.')
   emit()
 }
 
@@ -123,13 +171,17 @@ export async function openGlossary(id) {
   const g = await apiGet(`/api/glossaries/${id}`)
   ws.id = g.id
   ws.name = g.name || ''
-  ws.glossaryName = g.glossary_name || ''
+  // Fall back to the saved-glossary name so the Govern "Glossary name" field is
+  // pre-filled instead of blank when the glossary was saved without an explicit
+  // PDC glossary name.
+  ws.glossaryName = g.glossary_name || g.name || ''
   ws.rows = g.rows || []
   ws.discovery = g.discovery || null
   ws.governance = g.governance || null
   ws.dirty = false
   ws.savedAt = g.savedAt || null
   ws.saveError = null
+  clearUi('review.')   // a different glossary — its filters/resolutions don't apply
   emit()
   return g
 }

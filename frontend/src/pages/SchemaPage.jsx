@@ -449,9 +449,30 @@ function erLayout(graph, vp = { w: 1100, h: 620 }) {
   const rels = (graph.relationships || []).filter((r) => r.resolved && known.has(r.from) && known.has(r.to))
   const refs = {}, neigh = {}, H = {}
   graph.tables.forEach((t) => { refs[t.name] = []; neigh[t.name] = new Set(); H[t.name] = erHeight(t) })
+
+  // inbound-reference count: how many distinct tables reference each table.
+  // The bigger a hub, the further left it wants to sit (dependents fan right).
+  const inref = {}, edge = new Set()
+  graph.tables.forEach((t) => { inref[t.name] = 0 })
+  rels.forEach((r) => { if (r.from !== r.to) edge.add(r.from + '>' + r.to) })
+  edge.forEach((k) => { inref[k.split('>')[1]]++ })
+
+  // Mutual-FK 2-cycles (e.g. branches.mgr_emp_id ⇄ employees.br_id) would
+  // otherwise pin one hub in the leftmost layer via an incidental back-edge,
+  // stranding it far from the tables that reference it and stretching those
+  // edges across the whole diagram. Drop the edge INTO the less-referenced
+  // table so the bigger hub stays left and its partner floats to its natural
+  // depth. (Longer cycles still fall back to the `visiting` guard below.)
+  const dropped = new Set()
+  edge.forEach((k) => {
+    const [a, b] = k.split('>')            // a references b (b is the hub side)
+    if (!edge.has(b + '>' + a)) return     // not a mutual pair
+    if (inref[b] < inref[a] || (inref[b] === inref[a] && a < b)) dropped.add(k)
+  })
+
   rels.forEach((r) => {
     if (r.from === r.to) { neigh[r.from].add(r.from); return } // self-loop: connected, but no layering pull
-    refs[r.from].push(r.to)
+    if (!dropped.has(r.from + '>' + r.to)) refs[r.from].push(r.to)
     neigh[r.from].add(r.to)
     neigh[r.to].add(r.from)
   })
@@ -478,7 +499,7 @@ function erLayout(graph, vp = { w: 1100, h: 620 }) {
   // barycenter sweeps: sort every layer by the mean rank of its neighbours
   const rank = {}
   cols.forEach((col) => col.forEach((t, i) => { rank[t.name] = i }))
-  for (let s = 0; s < 4; s++) {
+  for (let s = 0; s < 8; s++) {
     cols.forEach((col) => {
       const bary = {}
       col.forEach((t) => {
@@ -525,7 +546,7 @@ function erLayout(graph, vp = { w: 1100, h: 620 }) {
     list.forEach((t) => { yTop[t.name] = y; y += H[t.name] + g })
   })
   const centre = (n) => yTop[n] + H[n] / 2
-  for (let s = 0; s < 3; s++) {
+  for (let s = 0; s < 5; s++) {
     parts.forEach((list) => {
       const g = vgapFor(list.length)
       const want = list.map((t) => {

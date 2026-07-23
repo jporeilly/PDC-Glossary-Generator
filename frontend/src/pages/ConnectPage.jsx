@@ -22,6 +22,26 @@ const fmtBytes = (b) => {
 
 const pct = (x) => Math.round((x || 0) * 100) + '%'
 
+// File-type colour coding for the Document-discovery panels. Known extensions
+// get a fixed hue (see .ftype-* in connect.css); anything else falls back to
+// the muted default via .ftype-other.
+const FTYPE_COLORED = new Set(['pdf', 'docx', 'doc', 'csv', 'tsv', 'xlsx', 'xls', 'json', 'xml', 'txt', 'md'])
+const ftypeClass = (ext) => {
+  const e = (ext || '').toLowerCase()
+  return `ftype ftype-${FTYPE_COLORED.has(e) ? e : 'other'}`
+}
+// Extension of an object key ("a/b/report.pdf" -> "pdf"); "" when none.
+const extOf = (key) => {
+  const b = (key || '').split('/').pop()
+  const i = b.lastIndexOf('.')
+  return i > 0 ? b.slice(i + 1).toLowerCase() : ''
+}
+// Split a key into [dir-with-trailing-slash, filename] for the two-tone display.
+const splitKey = (key) => {
+  const i = (key || '').lastIndexOf('/')
+  return i >= 0 ? [key.slice(0, i + 1), key.slice(i + 1)] : ['', key || '']
+}
+
 const rowKey = (r) => `${r.Category}|${String(r.Term || '').toLowerCase()}`
 
 const splitCols = (s) => String(s || '').split(';').map((t) => t.trim()).filter(Boolean)
@@ -1332,65 +1352,64 @@ function DocsPanel({ docs, onRefilter }) {
           <div className="tile" key={l}><div className="value">{String(v ?? '—')}</div><div className="label">{l}</div></div>
         ))}
       </div>
-      <div className="grid-2">
-        <div>
-          <h3 className="subhead">By file type</h3>
+      <div className="discovery-grid">
+        <div className="disc-panel">
+          <div className="disc-head"><h3>By file type</h3><span className="disc-count">{(d.by_type || []).length}</span></div>
           <div className="type-bars">
             {(d.by_type || []).map((t) => (
-              <div className="type-bar" key={t.ext}>
+              <div className={`type-bar ${ftypeClass(t.ext)}`} key={t.ext}>
                 <span><code>{t.ext}</code></span>
                 <span className="tb-track"><span className="tb-fill" style={{ width: pct(t.count / maxCount), display: 'block' }} /></span>
-                <span className="tb-num">{t.count.toLocaleString()} · {fmtBytes(t.bytes)}</span>
+                <span className="tb-num"><b>{t.count.toLocaleString()}</b> · {fmtBytes(t.bytes)}</span>
               </div>
             ))}
             {(d.by_type || []).length === 0 && <p className="hint-line">none</p>}
           </div>
         </div>
-        <div>
-          <h3 className="subhead">By folder</h3>
-          <div className="table-scroll">
-            <table>
-              <thead><tr><th>Folder</th><th className="num">Files</th><th></th><th className="num">Size</th></tr></thead>
-              <tbody>
-                {(d.by_folder || []).map((f) => (
-                  <tr key={f.name}>
-                    <td><b>{f.name}</b></td>
-                    <td className="num">{f.count.toLocaleString()}</td>
-                    <td><MiniBar frac={f.bytes / maxFolder} /></td>
-                    <td className="num">{fmtBytes(f.bytes)}</td>
-                  </tr>
-                ))}
-                {(d.by_folder || []).length === 0 && <tr><td colSpan={4} className="notes">none</td></tr>}
-              </tbody>
-            </table>
+        <div className="disc-panel">
+          <div className="disc-head"><h3>By folder</h3><span className="disc-count">{(d.by_folder || []).length}</span></div>
+          <div className="folder-list">
+            {(d.by_folder || []).map((f) => (
+              <div className="folder-row" key={f.name}>
+                <span className="fr-name" title={f.name}>{f.name}</span>
+                <span className="fr-count">{f.count.toLocaleString()}</span>
+                <span className="fr-track"><span className="fr-fill" style={{ width: pct(f.bytes / maxFolder), display: 'block' }} /></span>
+                <span className="fr-size">{fmtBytes(f.bytes)}</span>
+              </div>
+            ))}
+            {(d.by_folder || []).length === 0 && <p className="hint-line">none</p>}
           </div>
         </div>
-        <div>
-          <h3 className="subhead">Largest objects</h3>
-          <div className="table-scroll">
-            <table><tbody>
-              {(d.largest || []).map((o) => (
-                <tr key={o.key}>
-                  <td className="cell-clip" title={o.key}><code>{o.key}</code></td>
-                  <td className="num">{fmtBytes(o.bytes)}</td>
-                </tr>
-              ))}
-              {(d.largest || []).length === 0 && <tr><td className="notes">none</td></tr>}
-            </tbody></table>
+        <div className="disc-panel">
+          <div className="disc-head"><h3>Largest objects</h3><span className="disc-sub">by size</span></div>
+          <div className="obj-list">
+            {(d.largest || []).map((o) => {
+              const [dir, name] = splitKey(o.key)
+              return (
+                <div className={`obj-row ${ftypeClass(extOf(o.key))}`} key={o.key} title={o.key}>
+                  <span className="ext-dot" />
+                  <span className="obj-key"><span className="obj-dir">{dir}</span><span className="obj-name">{name}</span></span>
+                  <span className="obj-meta">{fmtBytes(o.bytes)}</span>
+                </div>
+              )
+            })}
+            {(d.largest || []).length === 0 && <p className="hint-line">none</p>}
           </div>
         </div>
-        <div>
-          <h3 className="subhead">Most recent</h3>
-          <div className="table-scroll">
-            <table><tbody>
-              {(d.newest || []).map((o) => (
-                <tr key={o.key}>
-                  <td className="cell-clip" title={o.key}><code>{o.key}</code></td>
-                  <td className="num">{(o.modified || '').slice(0, 10)}</td>
-                </tr>
-              ))}
-              {(d.newest || []).length === 0 && <tr><td className="notes">none</td></tr>}
-            </tbody></table>
+        <div className="disc-panel">
+          <div className="disc-head"><h3>Most recent</h3><span className="disc-sub">by date</span></div>
+          <div className="obj-list">
+            {(d.newest || []).map((o) => {
+              const [dir, name] = splitKey(o.key)
+              return (
+                <div className={`obj-row ${ftypeClass(extOf(o.key))}`} key={o.key} title={o.key}>
+                  <span className="ext-dot" />
+                  <span className="obj-key"><span className="obj-dir">{dir}</span><span className="obj-name">{name}</span></span>
+                  <span className="obj-meta">{(o.modified || '').slice(0, 10)}</span>
+                </div>
+              )
+            })}
+            {(d.newest || []).length === 0 && <p className="hint-line">none</p>}
           </div>
         </div>
       </div>

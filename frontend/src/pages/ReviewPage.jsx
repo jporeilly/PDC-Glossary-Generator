@@ -12,7 +12,7 @@
 // applies the selected ones — nothing mutates the grid behind your back.
 import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { apiGet, apiPost } from './../api.js'
-import { useWorkspace, setRows, patchRow, setGlossaryMeta, save } from './../state.js'
+import { useWorkspace, usePersistentState, getUi, setUi, setRows, patchRow, setGlossaryMeta, save } from './../state.js'
 import './review.css'
 
 /* ---------- row helpers (ported from the old UI's core) ---------- */
@@ -164,6 +164,24 @@ function allDupGroups(rowsIn, grpIn) {
 
 const CHUNK = 6
 
+// One-line "what it does" per agent — the single source for both the "How to
+// review" guide and the proposal strip that appears when a run finishes, so the
+// explanation is right there when you're deciding whether to accept. Keyed by
+// the agent's proposal label (matches the toolbar button text).
+const AGENT_DESC = [
+  { label: 'Enrich with LLM',
+    desc: 'Rewrites each term’s Definition and Purpose with the local model, filling in blank or thin descriptions.' },
+  { label: 'AI suggest (evidence)',
+    desc: 'Reads each row’s scan evidence — value signature, induced regex and sample values — and proposes a clearer name, governed tags and a tightened sensitivity. Guardrailed: tags stay governed-only and sensitivity can only be raised, never lowered.' },
+  { label: 'AI categorize',
+    desc: 'Files terms that have no category into your existing category list; answers that aren’t a known category are discarded, and rows that already have one are left alone.' },
+  { label: 'Suggest tags',
+    desc: 'Re-derives controlled tags for every term from the governed Dictionary vocabulary — deterministic: no LLM and no rescan.' },
+  { label: 'AI QA definitions', gate: true,
+    desc: 'A deterministic linter flags circular, vague, echoed or duplicated definitions; when Ollama is up, the AI judge also proposes rewrites.' },
+]
+const AGENT_META = Object.fromEntries(AGENT_DESC.map((a) => [a.label, a]))
+
 // Accepting one proposed field also carries the matching provenance flags so
 // the grid's LLM/QA markers stay truthful.
 const CARRY_FOR = {
@@ -181,26 +199,33 @@ export default function ReviewPage({ onNavigate }) {
   const ws = useWorkspace()
   const rows = ws.rows
 
-  const [filters, setFilters] = useState(EMPTY_FILTERS)
+  // Persisted across page navigation (App unmounts the inactive page) so the
+  // steward's working context survives a hop to the Dictionary and back — see
+  // usePersistentState in state.js. Cleared when a different glossary loads.
+  const [filters, setFilters] = usePersistentState('review.filters', EMPTY_FILTERS)
+  const [grp, setGrp] = usePersistentState('review.grp', {})           // {name: {action, base}}
+  const [bulk, setBulk] = usePersistentState('review.bulk', { merge: false, disambig: false })
+  const [sim, setSim] = usePersistentState('review.sim', null)         // {busy, list, error} | null
+  const [simThresh, setSimThresh] = usePersistentState('review.simThresh', 0.6)
+  const [expanded, setExpanded] = usePersistentState('review.expanded', null) // open editor row index
+  const [hmSnap, setHmSnap] = usePersistentState('review.hmSnap', null)       // [{index, keep}] for the H+M toggle revert
+
+  // Transient — safe to reset on navigation (in-flight runs, one-off messages).
   const [msg, setMsg] = useState('')
   const [error, setError] = useState(null)
-  const [grp, setGrp] = useState({})               // {name: {action, base}}
-  const [bulk, setBulk] = useState({ merge: false, disambig: false })
-  const [reco, setReco] = useState({})             // {name: recommendation}
+  const [reco, setReco] = useState({})             // {name: recommendation} — re-derived on mount
   const [advising, setAdvising] = useState(false)
-  const [sim, setSim] = useState(null)             // {busy, list, error} | null
-  const [simThresh, setSimThresh] = useState(0.6)
   const [agent, setAgent] = useState(null)         // {label, done, total, proposed, cancelling}
   const [proposals, setProposals] = useState(null) // {label, note, items:{rowIndex:{patch, display, issues?}}} — inline pills
   const [evidence, setEvidence] = useState(null)   // row index | null
-  const [expanded, setExpanded] = useState(null)   // row index whose editor row is open
-  const [hmSnap, setHmSnap] = useState(null)       // [{index, keep}] for the H+M toggle revert
   const [busy, setBusy] = useState(null)           // 'load' | 'enhance' | 'save'
   const [saveName, setSaveName] = useState('')
   const [seedReqs, setSeedReqs] = useState([])     // Policy Generator seed requests (banner)
 
   const cancelRef = useRef(false)
-  const snapRef = useRef(null)                     // raw-scan snapshot for Reset all
+  // raw-scan snapshot for Reset all — persisted so remounting doesn't recapture
+  // it from already-edited rows (which would make Reset all reset to the edits).
+  const snapRef = useRef(getUi('review.snap'))
   const lastPosRef = useRef(null)                  // shift-click keep anchor
   const visRef = useRef([])
   const rowsRef = useRef(rows)
@@ -210,11 +235,24 @@ export default function ReviewPage({ onNavigate }) {
   const loadFileRef = useRef(null)
   const enhanceFileRef = useRef(null)
   const masterRef = useRef(null)
+  const tableWrapRef = useRef(null)                // scroll container — position persisted across nav
+
+  // Restore the grid scroll position on mount and keep it current, so hopping
+  // to the Dictionary and back lands you where you left off.
+  useEffect(() => {
+    const el = tableWrapRef.current
+    if (!el) return undefined
+    const saved = getUi('review.scroll', 0)
+    if (saved) el.scrollTop = saved
+    const onScroll = () => setUi('review.scroll', el.scrollTop)
+    el.addEventListener('scroll', onScroll, { passive: true })
+    return () => el.removeEventListener('scroll', onScroll)
+  }, [])
 
   // Capture the reset-point the first time rows appear (scan/load happened on
   // another page); the load/enhance actions below refresh it explicitly.
   useEffect(() => {
-    if (rows.length && !snapRef.current) snapRef.current = deep(rows)
+    if (rows.length && !snapRef.current) { snapRef.current = deep(rows); setUi('review.snap', snapRef.current) }
   }, [rows])
 
   // Seed requests from the Policy Generator (the no-seed feedback loop): it
@@ -599,7 +637,8 @@ export default function ReviewPage({ onNavigate }) {
         proposed += Object.keys(add).length
         setProposals((p) => ({
           label: propLabel,
-          note: (propose && propose.note) || '',
+          desc: (AGENT_META[propLabel] || {}).desc || '',
+          gate: !!(AGENT_META[propLabel] || {}).gate,
           items: { ...(p ? p.items : {}), ...add },
         }))
       }
@@ -706,7 +745,6 @@ export default function ReviewPage({ onNavigate }) {
         label: 'AI suggest (evidence)',
         watch: ['Suggested_Name', 'Suggested_Tags', 'Sensitivity', 'Category', 'PII_Category'],
         carry: ['LLM_Enriched'],
-        note: 'guardrailed: tags governed-only, sensitivity tighten-only',
       },
     })
     if (!run) return
@@ -730,7 +768,6 @@ export default function ReviewPage({ onNavigate }) {
       propose: {
         label: 'Suggest tags',
         watch: ['Suggested_Tags'],
-        note: 'deterministic — re-derived from the governed vocabulary (Dictionary page)',
       },
     })
     if (!run) return
@@ -784,7 +821,7 @@ export default function ReviewPage({ onNavigate }) {
       const text = await f.text()
       const d = await apiPost('/api/load-glossary', { glossary: text })
       setRows(d.rows || [])
-      snapRef.current = deep(d.rows || [])
+      snapRef.current = deep(d.rows || []); setUi('review.snap', snapRef.current)
       setGrp({}); setBulk({ merge: false, disambig: false }); setReco({}); setSim(null)
       setFilters(EMPTY_FILTERS)
       structuralReset()
@@ -804,7 +841,7 @@ export default function ReviewPage({ onNavigate }) {
       const text = await f.text()
       const d = await apiPost('/api/enhance-glossary', { rows: rowsRef.current, glossary: text, append_missing: true })
       setRows(d.rows || [])
-      snapRef.current = deep(d.rows || [])
+      snapRef.current = deep(d.rows || []); setUi('review.snap', snapRef.current)
       setGrp({}); setBulk({ merge: false, disambig: false })
       structuralReset()
       const rp = d.report || {}
@@ -886,10 +923,6 @@ export default function ReviewPage({ onNavigate }) {
                     title="Evidence-grounded pass: the local model reads each row's scan evidence (profiled value signature, induced regex, reference values) and proposes names, governed tags and tightened sensitivity.">
               AI suggest (evidence)
             </button>
-            <button className="ghost sm" disabled={aiDisabled} onClick={runQa}
-                    title="Definition quality check: the deterministic linter (circular, vague, echoed, duplicated) always runs; the local AI judge adds rewrites when Ollama is up. Flags and proposals only.">
-              AI QA definitions
-            </button>
             <button className="ghost sm" disabled={aiDisabled} onClick={runCategorize}
                     title="AI category assignment: files uncategorized terms into the known categories; off-list answers are discarded.">
               AI categorize
@@ -897,6 +930,10 @@ export default function ReviewPage({ onNavigate }) {
             <button className="ghost sm" disabled={aiDisabled} onClick={runRetag}
                     title="Re-derive meaningful, controlled tags for every term from the governed dictionary — deterministic, no rescan.">
               Suggest tags
+            </button>
+            <button className="ghost sm" disabled={aiDisabled} onClick={runQa}
+                    title="Definition quality check, run last as the gate: the deterministic linter (circular, vague, echoed, duplicated) always runs; the local AI judge adds rewrites when Ollama is up. Flags and proposals only.">
+              AI QA definitions
             </button>
             {anySuggestedNames && (
               <button className="ghost sm" disabled={locked} onClick={useAllNames}
@@ -930,12 +967,18 @@ export default function ReviewPage({ onNavigate }) {
 
         {proposals && (
           <div className="rv-propstrip">
-            <span>
-              <b>{proposals.label}</b> — {propCount} AI proposal{propCount !== 1 ? 's' : ''} on{' '}
-              {Object.keys(proposals.items).length} row{Object.keys(proposals.items).length !== 1 ? 's' : ''}
-              {proposals.note ? <span className="muted"> · {proposals.note}</span> : null}
-              <span className="muted"> · click a pill in the grid to accept just that change; the grid&apos;s LLM pills appear only after a proposal is accepted</span>
-            </span>
+            <div className="rv-proptext">
+              <div className="rv-propline">
+                <b>{proposals.label}</b>
+                {proposals.gate && <span className="rv-gate">the gate · runs last</span>}
+                <span> — {propCount} AI proposal{propCount !== 1 ? 's' : ''} on{' '}
+                  {Object.keys(proposals.items).length} row{Object.keys(proposals.items).length !== 1 ? 's' : ''}</span>
+              </div>
+              {proposals.desc && <div className="rv-propdesc">{proposals.desc}</div>}
+              <div className="rv-propdesc muted">
+                Click a pill in the grid to accept just that change; the grid’s LLM pills appear only after a proposal is accepted.
+              </div>
+            </div>
             <span className="rv-grow" />
             <button className="primary sm" disabled={!!agent} onClick={acceptAllProps}>Accept all</button>
             <button className="ghost sm" disabled={!!agent} onClick={dismissProps}>Dismiss all</button>
@@ -1057,7 +1100,7 @@ export default function ReviewPage({ onNavigate }) {
                            onClose={() => setSim(null)} />
         )}
 
-        <div className="rv-tablewrap">
+        <div className="rv-tablewrap" ref={tableWrapRef}>
           <table className="rv-table">
             <colgroup>
               <col style={{ width: 36 }} /><col style={{ width: 140 }} /><col style={{ width: 190 }} />
@@ -1236,6 +1279,19 @@ function ReviewGuide({ onNavigate }) {
         <li><b>Run the AI agents in sequence.</b> <b>Enrich with LLM</b> first (definitions &amp; purposes), then <b>AI suggest</b> / <b>AI categorize</b> / <b>Suggest tags</b>, and <b>AI QA definitions</b> last as the quality gate. Agents never edit the grid: as each batch returns, click-to-accept pills light up on the affected cells — accept them one by one, or <b>Accept all</b> from the strip above the grid. The grid's <b>LLM</b> pills appear only after a proposal is accepted.</li>
         <li><b>Name the glossary</b> (top right of the grid) so autosave keeps your review, then move on to <b>Set stewardship →</b> on the Govern page.</li>
       </ol>
+
+      <div className="rv-agentdocs-h">
+        What each AI agent does
+        <small>— all run on <b>kept rows only</b> and <i>propose</i> changes; nothing lands until you accept a pill (or <b>Accept all</b>)</small>
+      </div>
+      <ul className="workcycle rv-agentdocs">
+        {AGENT_DESC.map((a) => (
+          <li key={a.label}>
+            <b>{a.label}</b>{a.gate && <span className="rv-gate">the gate · runs last</span>} — {a.desc}
+          </li>
+        ))}
+      </ul>
+
       <p className="hint-line">
         Review edits stay with this glossary — they don't rewrite the Dictionary; the
         Dictionary governs what the agents may propose.

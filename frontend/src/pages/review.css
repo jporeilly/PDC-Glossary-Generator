@@ -228,6 +228,12 @@ tr.rv-gclhead td { background: var(--surface-1); border-left: 3px solid var(--ac
 .rv-wfout rect { fill: none; stroke: var(--gridline); stroke-width: 1; }
 .rv-wfout .rv-wft { fill: var(--text-muted); font-weight: 500; }
 .rv-guide .workcycle { margin-bottom: .3rem; }
+/* per-agent explanations under the working-order steps */
+.rv-agentdocs-h { margin: 1rem 0 .1rem; font-size: .84rem; font-weight: 650; color: var(--text-primary); }
+.rv-agentdocs-h small { font-weight: 400; color: var(--text-muted); }
+.rv-guide .rv-agentdocs { margin-top: .1rem; }
+.rv-gate { margin-left: .35rem; font-size: .66rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em;
+  color: var(--accent-ink); background: var(--accent); border-radius: 99px; padding: .06rem .45rem; vertical-align: middle; white-space: nowrap; }
 /* clickable nodes — same hover/focus affordance as the Home diagram */
 .rv-wflink { cursor: pointer; outline: none; }
 .rv-wflink:hover rect, .rv-wflink:focus-visible rect { stroke: var(--accent); stroke-width: 1.5; }
@@ -252,6 +258,9 @@ tr.rv-gclhead td { background: var(--surface-1); border-left: 3px solid var(--ac
   font-size: .82rem; color: var(--text-secondary);
 }
 .rv-propstrip b { color: var(--text-primary); }
+.rv-proptext { flex: 1 1 340px; min-width: 0; display: flex; flex-direction: column; gap: .2rem; }
+.rv-propline { color: var(--text-secondary); }
+.rv-propdesc { font-size: .8rem; line-height: 1.45; }
 /* per-cell pill: click accepts just that field's proposal */
 button.rv-aipill {
   display: inline-block; background: none; cursor: pointer; text-align: left;

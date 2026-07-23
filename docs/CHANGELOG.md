@@ -14,6 +14,79 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.11.1] — 2026-07-23
+
+### Added — Review AI-agent guidance + toolbar order
+- Each agent now has a one-line **"what it does"** explanation (Enrich, AI
+  suggest, AI categorize, Suggest tags, AI QA definitions), sourced once and
+  shown in **both** the "How to review" guide **and** the proposal strip that
+  appears when a run finishes — so the explanation is right there when you're
+  deciding whether to accept. Previously that detail lived only in the buttons'
+  hover tooltips.
+- **AI QA definitions** moved to the **end** of the AI-agents toolbar so the
+  button order matches the documented working sequence — QA is the quality gate
+  and runs last, after Enrich → AI suggest → AI categorize → Suggest tags.
+
+### Fixed — Govern "Glossary name" no longer starts blank
+- The **Apply stewardship** "Glossary name" field (the PDC glossary name written
+  into the JSONL at export) sat empty until typed, even when the workspace
+  already had a saved-glossary name. It now defaults to the saved name — set
+  when a glossary is opened or first named — so it's pre-filled and still
+  editable (an explicit value always wins).
+
+### Fixed — Govern "⚡ auto" domain button pushed under the next column
+- On the **Stewardship defaults** row, the Domain `<select>` (flex:1) kept its
+  default `min-width:auto`, so it wouldn't shrink below its longest option and
+  the inline **⚡ auto** classifier button overflowed the cell — sliding under
+  the next field and becoming unclickable. The select can now shrink
+  (`min-width:0`) and the button holds its width, so both fit on the row.
+
+### Fixed — Review page lost its working state on navigation
+- Leaving the Review page (e.g. hopping to the **Dictionary** to approve
+  vocabulary) and coming back reset the grid's filters, the open editor row,
+  duplicate-resolution (Merge/Disambiguate) state, Find-similar results, the
+  Keep-High+Med revert snapshot and the scroll position — the App renders only
+  the active page, so the inactive one unmounts and its local `useState` was
+  discarded. These now persist for the session via a small `usePersistentState`
+  cache in `state.js` (namespaced `review.*`), cleared when a **different**
+  glossary is opened so nothing bleeds across.
+- Also fixed a related latent bug: the **Reset all** baseline (`snapRef`) was
+  re-captured from the *already-edited* rows on remount, so Reset all would
+  reset to your edits rather than the raw scan. The baseline is now persisted.
+
+### Changed — Schema ER diagram auto-layout
+- **Mutual-FK cycles no longer strand a hub in the leftmost layer.** A pair
+  like `branches.mgr_emp_id ⇄ employees.br_id` is a 2-cycle; the old
+  cycle-breaker kept an incidental back-edge that pinned `employees` to the
+  far-left column even though `kyc_reviews` and `suspicious_activity` (far
+  right) reference it — so those FK edges spanned the whole diagram. The
+  layout now drops the edge into the **less-referenced** table of each mutual
+  pair, so the bigger hub stays left and its partner floats to its natural
+  depth beside the tables that use it.
+- **Result on the CSCU core-banking schema (14 tables, 15 FKs):** edge
+  crossings 12 → 7 (only one a true crossing), total edge length −17%,
+  bounding box 1824×587 → 1176×583 — so *Fit* opens at ~79% instead of the
+  55% floor, and the graph is centred with no clipped curves or labels.
+- More barycenter ordering sweeps (4 → 8) and vertical relax passes (3 → 5)
+  for a bit more crossing reduction on denser schemas.
+
+### Changed — Document discovery panel clarity + colour coding
+- **Clean 2×2 layout.** The four breakdowns (By file type, By folder,
+  Largest objects, Most recent) used the shared auto-fit `.grid-2`, which
+  wrapped to **three** columns on a wide Connect card and orphaned "Most
+  recent" on its own row with a large empty gap. They now sit in a fixed
+  2×2 of bordered panels (each with an uppercase heading + count chip),
+  collapsing to a single column under 820px.
+- **File-type colour coding.** Each extension gets a fixed hue (pdf red,
+  docx blue, csv green, xlsx teal, json amber, txt slate, md violet;
+  anything else muted). The hue drives the *By file type* bar and a small
+  colour dot on every Largest/Most-recent row, tying the two views together.
+- **Readable object keys.** Largest/Most-recent rows now show the folder
+  prefix muted and the filename bold (instead of one long clipped mono
+  string), using the wider half-card column before ellipsizing.
+- React edition only (`frontend/`); the legacy Jinja fallback
+  (`templates/` + `static/js/05-connections.js`) is unchanged.
+
 ## [1.11.0] — 2026-07-18
 
 ### Added — the Glossary half of the no-seed feedback loop (with Policy Generator)

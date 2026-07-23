@@ -39,8 +39,13 @@
   .form-grid.gov-kcgrid .gov-kcspan3 { grid-column: span 2; }
 }
 
-/* stewardship defaults: keep every input on one baseline */
+/* stewardship defaults: keep every input on one baseline. The select must be
+   allowed to shrink (min-width:0 — flex items default to min-width:auto, so a
+   select won't shrink below its longest option and the ⚡ auto button gets
+   pushed out of the cell, under the next column); the button never shrinks. */
 .gov-inlinerow { display: flex; gap: .5rem; align-items: center; }
+.gov-inlinerow select { min-width: 0; }
+.gov-inlinerow button { flex: none; }
 .gov-applycats { margin-top: .15rem; }
 
 /* ---------- stakeholders ---------- */
