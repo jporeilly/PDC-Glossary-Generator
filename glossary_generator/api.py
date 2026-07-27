@@ -67,6 +67,7 @@ import policy_draft
 import defqa
 import packgen
 import llm
+import llm_providers
 import llm_detect
 import dbconn
 import seed_sample
@@ -131,7 +132,20 @@ DEFAULT_SETTINGS = {"theme": "light",
                     "llm_timeout": float(os.environ.get("LLM_TIMEOUT", "30")),
                     "company": os.environ.get("GLOSSARY_COMPANY", "your organization"),
                     "llm_workers": llm._clampint(os.environ.get("LLM_WORKERS", "4"), 4, 1, 16),
-                    "llm_batch": llm._clampint(os.environ.get("LLM_BATCH", "6"), 6, 1, 20)}
+                    "llm_batch": llm._clampint(os.environ.get("LLM_BATCH", "6"), 6, 1, 20),
+                    # LLM provider: ollama (local) or a hosted one. API keys are
+                    # deliberately NOT here — they live in llm_providers' in-memory
+                    # store or the provider's env var, so the State snapshot (which
+                    # zips settings.json) never carries billing credentials.
+                    "llm_provider": os.environ.get("LLM_PROVIDER", "ollama"),
+                    "azure_endpoint": os.environ.get("AZURE_OPENAI_ENDPOINT", ""),
+                    "azure_api_version": os.environ.get(
+                        "AZURE_OPENAI_API_VERSION", llm_providers.DEFAULT_AZURE_API_VERSION)}
+
+# Never persisted to settings.json, whatever a client sends (see above).
+_CREDENTIAL_FIELDS = {"api_key", "apikey", "key", "secret", "token",
+                      "anthropic_api_key", "openai_api_key",
+                      "google_api_key", "azure_openai_api_key"}
 
 def _read_json(path, default):
     """Read and JSON-parse `path`, returning `default` when the file is missing or unreadable."""
@@ -218,6 +232,9 @@ def _apply_llm_settings(s=None):
                   company=s.get("company") or None,
                   workers=s.get("llm_workers"),
                   batch=s.get("llm_batch"))
+    llm_providers.configure(provider=s.get("llm_provider") or None,
+                            azure_endpoint=s.get("azure_endpoint"),
+                            azure_api_version=s.get("azure_api_version") or None)
 
 _apply_llm_settings()       # apply persisted LLM settings at startup
 
@@ -874,11 +891,59 @@ def delete_glossary(gid: str):
 @app.post("/api/settings")
 def save_settings(body: dict = Body(default={})):
     """Persist the settings supplied by the client, and apply any LLM config change
-       (Ollama URL / model / timeout) to the running client immediately."""
-    s = _load_settings(); s.update(body or {})
+       (provider / URL / model / timeout) to the running client immediately.
+
+       Credential fields are stripped before writing: API keys are session-only
+       (POST /api/llm-key) or come from the environment, so they can never reach
+       settings.json and therefore never ride along in a State snapshot."""
+    incoming = {k: v for k, v in (body or {}).items()
+                if k.lower() not in _CREDENTIAL_FIELDS}
+    s = _load_settings(); s.update(incoming)
     _write_json(SETTINGS_FILE, s)
     _apply_llm_settings(s)
     return s
+
+@app.get("/api/llm-providers")
+def llm_providers_route():
+    """Provider catalog for the Settings page: label, suggested models, which
+       env var supplies the key, whether the SDK is installed, and whether a key
+       currently resolves. Never returns a key value."""
+    return {"providers": llm_providers.catalog(),
+            "selected": llm_providers.PROVIDER,
+            "azure_endpoint": llm_providers.AZURE_ENDPOINT,
+            "azure_api_version": llm_providers.AZURE_API_VERSION}
+
+@app.post("/api/llm-key")
+def llm_key_route(body: dict = Body(default={})):
+    """Set (or clear, with a blank value) a provider API key for THIS PROCESS
+       ONLY. Nothing is written to disk — restart and the key is gone unless the
+       provider's environment variable supplies it. Returns only where the key
+       resolves from, never the key."""
+    body = body or {}
+    provider = str(body.get("provider") or "").strip().lower()
+    if provider not in llm_providers.PROVIDERS:
+        return _err("unknown provider %r" % body.get("provider"), 400)
+    llm_providers.set_key(provider, body.get("api_key"))
+    return {"ok": True, "provider": provider,
+            "has_key": bool(llm_providers.resolve_key(provider)),
+            "key_source": llm_providers.key_source(provider)}
+
+@app.post("/api/llm-test")
+def llm_test_route(body: dict = Body(default={})):
+    """Round-trip the selected provider so the Settings dot reflects a real call
+       (SDK importable, key valid, model id accepted). Body: {provider?, model?}."""
+    body = body or {}
+    provider = (body.get("provider") or llm_providers.PROVIDER).strip().lower()
+    model = (body.get("model") or "").strip() or None
+    if provider == "ollama":
+        s = llm.status(model)
+        return {"ok": bool(s.get("online")), "provider": "ollama",
+                "model": s.get("model"),
+                "message": ("Connected to %s · %s" % (s.get("url"), s.get("model")))
+                           if s.get("online") else
+                           ("Offline at %s%s" % (s.get("url"),
+                            " — " + s["error"] if s.get("error") else ""))}
+    return llm_providers.test_connection(model=model, provider=provider)
 
 @app.post("/api/test-connection")
 def test_connection(body: dict = Body(default={})):

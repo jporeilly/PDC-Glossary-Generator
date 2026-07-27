@@ -14,6 +14,42 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.14.0] — 2026-07-23
+
+### Added — hosted LLM providers (Anthropic, OpenAI, Azure OpenAI, Google)
+- The AI agents are no longer Ollama-only. A new **`llm_providers.py`** adds a
+  provider abstraction behind the two functions every agent already funnelled
+  through (`llm._complete` / `_complete_json`), so Enrich, AI suggest, QA,
+  categorize, Suggest tags, policy hints, duplicate adjudication, expertise and
+  domain all work on any provider with no per-agent changes.
+- **Settings → LLM provider** picks the backend. Ollama-only controls (URL, GPU
+  offload, Pull model, installed-model list) hide for hosted providers, which
+  instead show an API-key field — plus endpoint / API-version for Azure. Model
+  ids are suggestions, never a whitelist: a custom id is always allowed, since
+  vendors add and retire ids on their own schedule.
+- **API keys are session-only by design.** A key entered in Settings lives in
+  process memory and is *never* written to `settings.json`, so the State
+  snapshot (which zips that file) can't leak billing credentials; `POST
+  /api/settings` also strips credential-shaped fields defensively. Persist a key
+  by exporting the provider's env var (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`,
+  `AZURE_OPENAI_API_KEY`, `GOOGLE_API_KEY`). Resolution is session → env, and the
+  UI is told only *whether* a key resolves and from where — never its value.
+- Each SDK (`anthropic`, `openai` — which covers Azure too — and `google-genai`)
+  is imported lazily and listed as optional in `requirements.txt`, matching the
+  boto3 pattern: absent SDKs degrade to a clear *"run: pip install …"* rather
+  than breaking startup. New endpoints: `GET /api/llm-providers`,
+  `POST /api/llm-key`, `POST /api/llm-test` (a real round trip, so the Settings
+  result reflects key validity and model id, not just configuration).
+- Hosted replies are JSON-parsed tolerantly (bare object, ``` fence, or prose
+  around it) since only Ollama guarantees raw JSON.
+
+### Fixed — Ollama model status could report a model as present when it wasn't
+- `llm.status()` matched the model tag by prefix, so `llama3.2:3b` reported
+  `model_present: true` when only `llama3.2:latest` was pulled — the UI showed
+  "online" while every generation call 404'd. It now matches the exact tag.
+  Switching the provider back to Ollama also prefers a model actually pulled on
+  the host instead of the catalog default.
+
 ## [1.13.1] — 2026-07-23
 
 ### Added — type-derived DQ checks (dates & numerics)

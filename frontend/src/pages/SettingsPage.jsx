@@ -144,30 +144,70 @@ function LlmCard({ settings, saveField }) {
   const [installed, setInstalled] = useState([])
   const [testMsg, setTestMsg] = useState(null)
   const [pull, setPull] = useState(null)   // {phase, pct, label} while pulling
+  const [providers, setProviders] = useState([])
+  const [apiKey, setApiKey] = useState('')   // never populated from the server
+  const [keyMsg, setKeyMsg] = useState(null)
+
+  const provider = settings.llm_provider || 'ollama'
+  const pmeta = providers.find((p) => p.id === provider) || null
+  const isLocal = provider === 'ollama'
 
   const model = settings.model || 'llama3.2:3b'
-  const isCurated = MODELS.some((m) => m.tag === model)
+  const suggested = isLocal ? MODELS.map((m) => m.tag) : (pmeta?.models || [])
+  const isCurated = suggested.includes(model)
   const [custom, setCustom] = useState(isCurated || !model ? '' : model)
-  const selectValue = installed.includes(model) || isCurated ? model : model ? CUSTOM : 'llama3.2:3b'
+  const selectValue = installed.includes(model) || isCurated ? model : model ? CUSTOM : (suggested[0] || CUSTOM)
 
   const refreshModels = () =>
     apiGet('/api/models')
       .then((b) => setInstalled(b.models ?? []))
       .catch(() => {})
 
-  useEffect(() => { refreshModels() }, [])
+  const refreshProviders = () =>
+    apiGet('/api/llm-providers')
+      .then((b) => setProviders(b.providers || []))
+      .catch(() => {})
 
+  useEffect(() => { refreshModels(); refreshProviders() }, [])
+
+  // Switching provider also resets the model — an Ollama tag sent to Anthropic
+  // (or vice versa) is a guaranteed 404, so never carry one across.
+  async function onProviderChange(next) {
+    const meta = providers.find((p) => p.id === next)
+    setTestMsg(null); setKeyMsg(null); setCustom('')
+    // Going back to Ollama, prefer a model that is actually pulled on this host —
+    // the catalog default is only a suggestion and may not be installed, which
+    // would leave the app "online" but unable to generate.
+    const nextModel = next === 'ollama'
+      ? (installed.includes(model) ? model : (installed[0] || meta?.default_model || ''))
+      : (meta?.default_model || '')
+    await saveField({ llm_provider: next, model: nextModel })
+    refreshProviders()
+    if (next === 'ollama') refreshModels()
+  }
+
+  // Session-only: POSTed to /api/llm-key, never written to settings.json.
+  async function saveKey() {
+    setKeyMsg('Saving…')
+    try {
+      const d = await apiPost('/api/llm-key', { provider, api_key: apiKey })
+      setApiKey('')
+      setKeyMsg(d.has_key
+        ? `Key set for this session (source: ${d.key_source}). Not written to disk.`
+        : 'Key cleared for this session.')
+      refreshProviders()
+    } catch (err) { setKeyMsg(`Failed: ${err.message}`) }
+  }
+
+  // One round trip against whichever provider is selected — so the result
+  // reflects a real call (key valid, model id accepted), not just config.
   async function testConnection(patch = {}) {
     setTestMsg('Testing connection…')
     if (Object.keys(patch).length) await saveField(patch)
     try {
       const m = patch.model ?? model
-      const s = await apiGet(`/api/llm-status?model=${encodeURIComponent(m)}`)
-      setTestMsg(s.online
-        ? `✓ Connected to ${s.url}` + (s.model_present === false
-            ? ` — model ${s.model} not pulled (use Pull selected model)`
-            : ` · model ${s.model} ready`)
-        : `✗ Offline at ${s.url}${s.error ? ` — ${s.error}` : ''}. In Docker, set the URL to http://host.docker.internal:11434.`)
+      const d = await apiPost('/api/llm-test', { provider, model: m })
+      setTestMsg((d.ok ? '✓ ' : '✗ ') + d.message)
     } catch (err) {
       setTestMsg(`✗ Test failed: ${err.message}`)
     }
@@ -206,14 +246,58 @@ function LlmCard({ settings, saveField }) {
 
   return (
     <section className="card span2">
-      <h2>Local LLM <span>Ollama — enrichment, QA and the AI agents</span></h2>
+      <h2>LLM provider <span>powers enrichment, QA and the AI agents</span></h2>
       <div className="form-grid">
         <label>
-          Ollama URL
-          <input type="text" placeholder="http://localhost:11434"
-                 defaultValue={settings.ollama_url || ''}
-                 onBlur={(e) => testConnection({ ollama_url: e.target.value.trim() })} />
+          Provider
+          <select value={provider} onChange={(e) => onProviderChange(e.target.value)}>
+            {(providers.length ? providers : [{ id: 'ollama', label: 'Ollama (local)' }]).map((p) => (
+              <option key={p.id} value={p.id}>{p.label}</option>
+            ))}
+          </select>
+          {pmeta && !pmeta.installed && (
+            <span className="warn" style={{ fontSize: '.78rem' }}>
+              SDK missing — run <code>pip install {pmeta.package}</code>
+            </span>
+          )}
         </label>
+        {isLocal && (
+          <label>
+            Ollama URL
+            <input type="text" placeholder="http://localhost:11434"
+                   defaultValue={settings.ollama_url || ''}
+                   onBlur={(e) => testConnection({ ollama_url: e.target.value.trim() })} />
+          </label>
+        )}
+        {!isLocal && (
+          <label>
+            API key
+            <input type="password" autoComplete="off" value={apiKey}
+                   placeholder={pmeta?.has_key
+                     ? `set (from ${pmeta.key_source}) — type to replace`
+                     : `not set — or export ${pmeta?.env || ''}`}
+                   onChange={(e) => setApiKey(e.target.value)} />
+            <span className="muted" style={{ fontSize: '.78rem' }}>
+              session only — never written to settings.json or a snapshot
+            </span>
+          </label>
+        )}
+        {provider === 'azure' && (
+          <>
+            <label>
+              Azure endpoint
+              <input type="text" placeholder="https://my-resource.openai.azure.com"
+                     defaultValue={settings.azure_endpoint || ''}
+                     onBlur={(e) => saveField({ azure_endpoint: e.target.value.trim() })} />
+            </label>
+            <label>
+              API version
+              <input type="text" placeholder="2024-10-21"
+                     defaultValue={settings.azure_api_version || ''}
+                     onBlur={(e) => saveField({ azure_api_version: e.target.value.trim() })} />
+            </label>
+          </>
+        )}
         <label>
           Timeout (s)
           <input type="number" min="1" step="1" placeholder="30"
@@ -223,19 +307,28 @@ function LlmCard({ settings, saveField }) {
         <label>
           Model
           <select value={selectValue} onChange={(e) => onModelChange(e.target.value)}>
-            {installed.length > 0 && (
+            {isLocal && installed.length > 0 && (
               <optgroup label="Installed (ready to use)">
                 {installed.map((t) => <option key={t} value={t}>{t}</option>)}
               </optgroup>
             )}
-            <optgroup label="Suggested — not yet pulled">
-              {MODELS.filter((m) => !installed.includes(m.tag)).map((m) => (
-                <option key={m.tag} value={m.tag}>
-                  {m.tag} · {m.size}{m.rec ? ' · recommended' : ''}
-                </option>
-              ))}
-            </optgroup>
-            <option value={CUSTOM}>Custom…</option>
+            {isLocal ? (
+              <optgroup label="Suggested — not yet pulled">
+                {MODELS.filter((m) => !installed.includes(m.tag)).map((m) => (
+                  <option key={m.tag} value={m.tag}>
+                    {m.tag} · {m.size}{m.rec ? ' · recommended' : ''}
+                  </option>
+                ))}
+              </optgroup>
+            ) : (
+              (pmeta?.models || []).length > 0 && (
+                <optgroup label="Suggested">
+                  {pmeta.models.map((t) => <option key={t} value={t}>{t}</option>)}
+                </optgroup>
+              )
+            )}
+            {/* vendors add and retire ids on their own schedule — always allow a custom one */}
+            <option value={CUSTOM}>{provider === 'azure' ? 'Deployment name…' : 'Custom…'}</option>
           </select>
         </label>
         {selectValue === CUSTOM && (
@@ -246,24 +339,33 @@ function LlmCard({ settings, saveField }) {
                    onBlur={() => custom.trim() && (saveField({ model: custom.trim() }), testConnection({ model: custom.trim() }))} />
           </label>
         )}
-        <label>
-          GPU offload
-          <span className="seg">
-            {[['auto', 'Auto'], ['gpu', 'Max'], ['cpu', 'Off']].map(([c, l]) => (
-              <button key={c} type="button" className={(settings.compute || 'auto') === c ? 'on' : undefined}
-                      onClick={() => saveField({ compute: c })}>
-                {l}
-              </button>
-            ))}
-          </span>
-        </label>
+        {isLocal && (
+          <label>
+            GPU offload
+            <span className="seg">
+              {[['auto', 'Auto'], ['gpu', 'Max'], ['cpu', 'Off']].map(([c, l]) => (
+                <button key={c} type="button" className={(settings.compute || 'auto') === c ? 'on' : undefined}
+                        onClick={() => saveField({ compute: c })}>
+                  {l}
+                </button>
+              ))}
+            </span>
+          </label>
+        )}
       </div>
       <div className="actions">
         <button className="primary" onClick={() => testConnection()}>Test connection</button>
-        <button className="primary" onClick={pullModel} disabled={pull != null && pull.phase !== 'error' && pull.phase !== 'success'}>
-          Pull selected model
-        </button>
+        {isLocal ? (
+          <button className="primary" onClick={pullModel} disabled={pull != null && pull.phase !== 'error' && pull.phase !== 'success'}>
+            Pull selected model
+          </button>
+        ) : (
+          <button className="ghost" onClick={saveKey} disabled={!apiKey.trim() && !pmeta?.has_key}>
+            {apiKey.trim() ? 'Set key (session)' : 'Clear key'}
+          </button>
+        )}
         {testMsg && <span className="summary">{testMsg}</span>}
+        {!isLocal && keyMsg && <span className="summary">{keyMsg}</span>}
       </div>
       {pull && (
         <>
@@ -272,8 +374,20 @@ function LlmCard({ settings, saveField }) {
         </>
       )}
       <p className="hint-line">
-        Saved here, the URL <b>overrides</b> the <code>OLLAMA_URL</code> environment
-        variable — no restart needed. Clear a field to fall back to the environment default.
+        {isLocal ? (
+          <>
+            Saved here, the URL <b>overrides</b> the <code>OLLAMA_URL</code> environment
+            variable — no restart needed. Clear a field to fall back to the environment default.
+          </>
+        ) : (
+          <>
+            A key entered here lasts for <b>this session only</b> — it is never written to{' '}
+            <code>settings.json</code>, so a State snapshot can be shared safely. To persist one,
+            export <code>{pmeta?.env}</code> before starting the app. Everything else
+            (provider, model{provider === 'azure' ? ', endpoint' : ''}) is saved and applied
+            without a restart.
+          </>
+        )}
       </p>
       <h3 className="subhead">Enrichment tuning</h3>
       <div className="form-grid">

@@ -19,6 +19,8 @@ import concurrent.futures
 
 import httpx
 
+import llm_providers          # hosted providers (Anthropic / OpenAI / Azure / Google)
+
 MODEL      = os.environ.get("LLM_MODEL", "llama3.2:3b")
 OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://localhost:11434").rstrip("/")
 TIMEOUT    = float(os.environ.get("LLM_TIMEOUT", "30"))
@@ -71,6 +73,21 @@ def _post(url, payload, timeout=None):
     return r.json()
 
 
+def _warm(model=None):
+    """Preload the model so the first real batch doesn't pay the cold-load cost.
+       Ollama-only: hosted providers have nothing to warm, and firing this at a
+       local Ollama while a cloud provider is selected would load the wrong
+       model. Best-effort — a failure here never blocks the agent run."""
+    if not llm_providers.is_local():
+        return
+    try:
+        _post(OLLAMA_URL + "/api/generate",
+              {"model": model or MODEL, "prompt": "ok", "stream": False,
+               "options": {"num_predict": 1}}, timeout=max(TIMEOUT, 120))
+    except Exception:
+        pass
+
+
 def placement():
     """Where loaded models actually run, from Ollama /api/ps (the real truth,
        set by the SERVER's OS env + hardware - not by this app). Returns e.g.
@@ -99,24 +116,37 @@ def placement():
         return {"known": False}
 
 def status(model=None):
-    """Report whether local Ollama is reachable and which model is selected."""
+    """Report whether the selected LLM backend is reachable and which model is
+       chosen. Hosted providers report readiness from SDK + key + model (a real
+       round trip only happens on the Settings Test button)."""
     model = model or MODEL
-    """Return a dict describing whether Ollama is reachable and has the model."""
+    if not llm_providers.is_local():
+        return llm_providers.status(model=model)
     try:
         tags = httpx.get(OLLAMA_URL + "/api/tags", timeout=3).json()
         models = [m.get("name", "") for m in tags.get("models", [])]
         return {"online": True, "backend": "ollama", "model": model, "url": OLLAMA_URL,
                 "models": models,
-                "model_present": any(model.split(":")[0] in m for m in models),
+                # Exact tag match. A prefix match ("llama3.2" in "llama3.2:latest")
+                # reported a model as present when only a DIFFERENT tag of it was
+                # pulled, so the UI showed "online" while every call 404'd.
+                "model_present": model in models,
                 "placement": placement()}
     except Exception as e:
         return {"online": False, "backend": "ollama", "model": model,
                 "url": OLLAMA_URL, "error": str(e)}
 
 def _complete(prompt, model=None, num_gpu=None):
-    """Run a single prompt through Ollama and return the completion text."""
+    """Single completion. Returns text or None on any failure.
+
+       Every agent in the app reaches the model through here (or _complete_json
+       below), so this is the one place that has to know about providers: a
+       hosted provider is delegated to llm_providers, and the Ollama path below
+       is unchanged."""
     model = model or MODEL
-    """Single completion. Returns text or None on any failure."""
+    if not llm_providers.is_local():
+        return llm_providers.complete(prompt, SYSTEM, json_mode=False,
+                                      model=model, timeout=TIMEOUT)
     options = {"temperature": 0.2}
     if num_gpu is not None:
         options["num_gpu"] = num_gpu
@@ -130,9 +160,15 @@ def _complete(prompt, model=None, num_gpu=None):
 
 
 def _complete_json(prompt, model=None, num_gpu=None):
-    """Single completion in Ollama JSON mode. Returns a parsed dict, or None on any
+    """Single completion in JSON mode. Returns a parsed dict, or None on any
        failure. Used to get definition + purpose from ONE round trip per row."""
     model = model or MODEL
+    if not llm_providers.is_local():
+        # Hosted models honour a JSON response format but may still wrap the
+        # object in a ``` fence, so parse tolerantly rather than json.loads().
+        return llm_providers.parse_json(
+            llm_providers.complete(prompt, SYSTEM, json_mode=True,
+                                   model=model, timeout=TIMEOUT))
     options = {"temperature": 0.2}
     if num_gpu is not None:
         options["num_gpu"] = num_gpu
@@ -506,7 +542,12 @@ def suggest_expertise(people, categories=None, overwrite=False, model=None,
 
 # --------------------------------------------------------------- model management
 def list_models():
-    """Return installed model names from Ollama, or [] if offline."""
+    """Model names for the Settings dropdown: installed models from Ollama, or
+       the hosted provider's suggested ids (never a whitelist — a custom id is
+       always allowed, since vendors add and retire ids on their own schedule)."""
+    if not llm_providers.is_local():
+        meta = llm_providers.PROVIDERS.get(llm_providers.PROVIDER) or {}
+        return list(meta.get("models") or [])
     try:
         tags = httpx.get(OLLAMA_URL + "/api/tags", timeout=3).json()
         return [m.get("name", "") for m in tags.get("models", [])]
@@ -610,9 +651,7 @@ def suggest_terms_rows(rows, allow_tags=None, categories=None, only_low_confiden
     # warm the model first: a cold load can outlive LLM_TIMEOUT and would make
     # the first batch fail silently (calls return None until the model is resident)
     try:
-        _post(OLLAMA_URL + "/api/generate",
-              {"model": model or MODEL, "prompt": "ok", "stream": False,
-               "options": {"num_predict": 1}}, timeout=max(TIMEOUT, 120))
+        _warm(model)
     except Exception:
         pass
 
@@ -741,9 +780,7 @@ def adjudicate_groups(groups, model=None, compute=None, workers=None):
 
     # warm the model first (a cold load can outlive LLM_TIMEOUT and fail silently)
     try:
-        _post(OLLAMA_URL + "/api/generate",
-              {"model": model or MODEL, "prompt": "ok", "stream": False,
-               "options": {"num_predict": 1}}, timeout=max(TIMEOUT, 120))
+        _warm(model)
     except Exception:
         pass
 
@@ -812,9 +849,7 @@ def policy_hints_rows(concepts, allow_tags=None, model=None, compute=None, worke
     workers = max(1, min(workers, 16))
     allow = [t for t in (allow_tags or [])]
     try:
-        _post(OLLAMA_URL + "/api/generate",
-              {"model": model or MODEL, "prompt": "ok", "stream": False,
-               "options": {"num_predict": 1}}, timeout=max(TIMEOUT, 120))
+        _warm(model)
     except Exception:
         pass
 
@@ -882,9 +917,7 @@ def qa_definitions_rows(rows, model=None, compute=None, workers=None):
                if str(r.get("Keep", "Y")).strip().lower() in ("y", "yes", "true", "1")
                and (r.get("Term") or "").strip()]
     try:
-        _post(OLLAMA_URL + "/api/generate",
-              {"model": model or MODEL, "prompt": "ok", "stream": False,
-               "options": {"num_predict": 1}}, timeout=max(TIMEOUT, 120))
+        _warm(model)
     except Exception:
         pass
 
@@ -942,9 +975,7 @@ def categorize_rows(rows, categories, model=None, compute=None, workers=None,
     if not targets:
         return rows, 0, True
     try:
-        _post(OLLAMA_URL + "/api/generate",
-              {"model": model or MODEL, "prompt": "ok", "stream": False,
-               "options": {"num_predict": 1}}, timeout=max(TIMEOUT, 120))
+        _warm(model)
     except Exception:
         pass
 
@@ -1038,9 +1069,7 @@ def review_pending_terms(pending, governed, model=None, compute=None, workers=No
     workers = max(1, min(workers, 16))
     gov_lower = {g.lower(): g for g in gov}
     try:
-        _post(OLLAMA_URL + "/api/generate",
-              {"model": model or MODEL, "prompt": "ok", "stream": False,
-               "options": {"num_predict": 1}}, timeout=max(TIMEOUT, 120))
+        _warm(model)
     except Exception:
         pass
 
@@ -1121,9 +1150,7 @@ def match_terms(items, model=None, compute=None, workers=None):
         workers = WORKERS
     workers = max(1, min(workers, 16))
     try:
-        _post(OLLAMA_URL + "/api/generate",
-              {"model": model or MODEL, "prompt": "ok", "stream": False,
-               "options": {"num_predict": 1}}, timeout=max(TIMEOUT, 120))
+        _warm(model)
     except Exception:
         pass
 
