@@ -524,7 +524,10 @@ def _profile_values(name, vals, sample_n):
     if frac(RX_PHONE) >= 0.6 and 7 <= avg_digits <= 15 and has_sep >= 0.3:
         return {**base, "pii": "CONTACT_INFO", "sensitivity": "MEDIUM", "confidence": "High",
                 "reason": "Profiled: phone-format values", "kind": "phone", "valid": round(frac(RX_PHONE), 3)}
-    if distinct <= 12 and n >= 10:
+    # an enum is a SMALL SET OF REPEATED CODES — require actual repetition
+    # (uniq <= .5): a tiny demo table's 10 distinct ids otherwise profiles as
+    # an "enum", which reads as reference data and blocks the key prune
+    if distinct <= 12 and n >= 10 and uniq <= 0.5:
         return {**base, "confidence": "Medium", "kind": "enum",
                 "reason": f"Profiled: low cardinality ({distinct} distinct - reference-data candidate)",
                 "enum": sorted(set(strs))[:12]}
@@ -1218,7 +1221,11 @@ def suggest(tables, schema=None):
             # relationship graph is preserved in the Registry regardless (see
             # registry/bridge.py), so pruning the term never loses the joins.
             _surrogate = bool(re.search(r"(^|_)id$|_id$|identifier", c["column"].lower()))
-            _has_shape = bool(prof.get("pattern") or prof.get("signature") or prof.get("enum"))
+            # only FORMATTED evidence (a value pattern/signature like AWC-CG-001001)
+            # marks a natural key worth keeping; an enum on a declared key is just
+            # a low-cardinality FK — the reference-data concept lives on the
+            # referenced table, so it doesn't block the structural prune
+            _has_shape = bool(prof.get("pattern") or prof.get("signature"))
             # identity PII on an id-like name is a real natural identifier
             # (tax_id → GOVERNMENT_ID stays a term); FINANCIAL from a bare
             # prefix match (acct_id) is noise and doesn't block the prune

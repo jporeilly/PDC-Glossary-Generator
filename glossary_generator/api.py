@@ -1273,6 +1273,11 @@ def scan(body: dict = Body(default={})):
         if src == "postgres" or src == "db":
             cfg = body.get("conn") or {}
             tables = suggester.harvest_live(cfg, cfg.get("schema"))
+            # label sources with the schema actually scanned — the UI nests it
+            # in conn, so suggest() otherwise falls back to 'public' and every
+            # Source_Column (and dictionary accretion) carries the wrong schema
+            if not body.get("schema"):
+                body["schema"] = cfg.get("schema")
             if cfg.get("profile"):
                 try:
                     suggester.profile_live(cfg, tables, cfg.get("schema"))
