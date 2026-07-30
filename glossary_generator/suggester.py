@@ -123,6 +123,28 @@ def _harvest_oracle(conn, owner):
              "comment": comments.get((t, col), "") or ""})
     return tables
 
+def _inherit_view_keys(tables, views, pks, fks, fkref):
+    """Views can't declare constraints, but information_schema.columns lists
+    them like tables — so a summary view's re-exposed id column arrives
+    key-less and dodges the structural prune. A view column that name-matches
+    a KEY column of a scanned BASE table is a passthrough of that key, not a
+    new business term: inherit the key flag (as an FK reference to the key's
+    home — a PK match wins; an FK match resolves to ITS referenced column)."""
+    key_home = {}
+    for (t, c) in fks:
+        if t not in views:
+            key_home.setdefault(c, fkref.get((t, c)) or (t, c))
+    for (t, c) in pks:
+        if t not in views:
+            key_home[c] = (t, c)          # PK owner is the canonical home
+    for v in views:
+        for col in tables.get(v, []):
+            home = key_home.get(col["column"])
+            if home and not (col["pk"] or col["fk"]):
+                col["fk"] = True
+                col["ref_table"], col["ref_col"] = home
+
+
 def harvest_live(cfg, schema=None):
     """Live scan via a Python DB-API driver (see dbconn.py). cfg is a dict:
        {engine, host, port, database, schema, user, password, ssl}.
@@ -249,6 +271,18 @@ def harvest_live(cfg, schema=None):
                  "ref_col": ref[1] if ref else None,
                  "notnull": bool(notnull), "unique": False,
                  "comment": comments.get((t, col), "") or ""})
+        if eng == "postgresql" and (pks or fks):
+            try:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """SELECT c.relname FROM pg_class c
+                           JOIN pg_namespace n ON n.oid = c.relnamespace
+                           WHERE n.nspname = %s AND c.relkind IN ('v', 'm')""",
+                        (schema,))
+                    views = {r[0] for r in cur.fetchall()}
+                _inherit_view_keys(tables, views, pks, fks, fkref or {})
+            except Exception:
+                pass  # best-effort: without relkind info, views scan as before
     finally:
         conn.close()
     return tables

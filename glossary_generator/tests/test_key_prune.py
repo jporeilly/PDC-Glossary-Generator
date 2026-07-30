@@ -38,6 +38,25 @@ class TestKeyPrune:
         assert "structural key" in r["Prune_Reason"]
         assert r["Source_Column"] == "awc_operations.customers.customer_id"
 
+    def test_view_column_inherits_base_table_key(self):
+        # a summary VIEW re-exposing customers.customer_id can't declare an FK;
+        # the name-match against the base table's PK marks it structural anyway
+        tables = {
+            "customers": [self._col("customer_id", pk=True)],
+            "customer_billing_summary": [
+                dict(self._col("customer_id"), table="customer_billing_summary"),
+                dict(self._col("total_outstanding"), table="customer_billing_summary")],
+        }
+        suggester._inherit_view_keys(tables, {"customer_billing_summary"},
+                                     pks={("customers", "customer_id")}, fks=set(), fkref={})
+        vcols = {c["column"]: c for c in tables["customer_billing_summary"]}
+        assert vcols["customer_id"]["fk"] is True
+        assert vcols["customer_id"]["ref_table"] == "customers"
+        assert vcols["total_outstanding"]["fk"] is False   # non-key names untouched
+        rows = suggester.suggest(tables, schema="awc_operations")
+        r = self._row_for(rows, "total_outstanding")       # non-key stays a kept term
+        assert r["Keep"] == "Y"
+
     def test_formatted_natural_key_stays_kept(self):
         # a value SIGNATURE (formatted account number) marks a natural key
         rows = suggester.suggest({"customers": [
