@@ -233,3 +233,30 @@ export function scheduleSave(delay = DEBOUNCE_MS) {
 setInterval(() => {
   if (ws.dirty && ws.rows.length && !ws.saving) save()
 }, AUTOSAVE_MS)
+
+/* ---------- leaving the page ----------
+   The workspace lives in tab memory and the autosave only runs for a NAMED
+   glossary, on a 2s debounce. Without an exit flush, "Add to glossary"
+   followed by a reload silently lost the merge — the recurring "the JDBC
+   scan didn't add its terms" report. On the way out: flush a pending save
+   with sendBeacon (it survives page teardown, where a normal fetch is
+   killed); if the grid holds rows that CAN'T autosave yet (no name), ask
+   the browser for the leave-confirmation instead. */
+window.addEventListener('pagehide', () => {
+  if (!ws.dirty || !ws.rows.length || !canAutosave()) return
+  const body = new Blob([JSON.stringify({
+    id: ws.id || undefined,
+    name: ws.name || ws.glossaryName || 'Untitled glossary',
+    glossary_name: ws.glossaryName || undefined,
+    rows: ws.rows,
+    governance: ws.governance || undefined,
+    discovery: ws.discovery || undefined,
+  })], { type: 'application/json' })
+  if (navigator.sendBeacon('/api/glossaries', body)) ws.dirty = false
+})
+window.addEventListener('beforeunload', (e) => {
+  if (ws.dirty && ws.rows.length && !canAutosave()) {
+    e.preventDefault()
+    e.returnValue = ''   // legacy Chrome shows the prompt only with returnValue set
+  }
+})
