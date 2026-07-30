@@ -880,7 +880,18 @@ def save_glossary(body: dict = Body(default={})):
     body["savedAt"] = datetime.datetime.now().isoformat(timespec="seconds")
     g[gid] = body
     _save_gloss(g)
-    return {"id": gid, "savedAt": body["savedAt"], "name": body.get("name")}
+    # one-way Review -> Dictionary flow: accepted enrichments/edits in the
+    # saved rows refresh the dictionary's PENDING entries (never governed),
+    # so the steward reviews the enriched version, not the raw scan capture
+    try:
+        refreshed = tagdict.refresh_pending(body.get("rows") or [])
+    except Exception:
+        refreshed = 0
+    if refreshed:
+        audit.record("dictionary.refresh_pending", actor=body.get("actor"),
+                     glossary=body.get("name"), refreshed=refreshed)
+    return {"id": gid, "savedAt": body["savedAt"], "name": body.get("name"),
+            "pending_refreshed": refreshed}
 
 @app.get("/api/glossaries/{gid}")
 def get_glossary(gid: str):

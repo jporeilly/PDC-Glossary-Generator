@@ -790,6 +790,104 @@ def accrete(rows, source=None, persist=True):
     return n
 
 
+def refresh_pending(rows, persist=True):
+    """Carry ACCEPTED Review-grid improvements (LLM enrich/QA proposals the
+    steward accepted, or manual grid edits) forward into the PENDING company
+    terms, so the Dictionary's steward queue shows the enriched version
+    instead of the raw scan capture. Called from the glossary save, so only
+    applied changes ever flow — proposals the steward didn't accept never
+    reach the dictionary, and approved/governed/generic entries are NEVER
+    touched (the approval gate stays with the steward).
+
+    Matching: by name or alias first. A row whose (possibly QA-corrected)
+    name matches nothing is matched by source-column overlap against the
+    pending entries; the pending entry is then renamed to the corrected name
+    with the raw scan name kept as an alias — so the next scan folds into
+    the corrected term instead of re-proposing the misread (the 'Phone
+    Level' → 'pH Level' case). If the corrected name already belongs to
+    ANOTHER entry, the stale pending duplicate folds into it as an alias.
+    Returns the number of pending entries updated/folded."""
+    d = load()
+    changed = 0
+    with _LOCK:
+        terms = d.setdefault("terms", {})
+        tusage = d.setdefault("term_usage", {})
+        idx = _term_index(d)
+
+        def is_pending(name):
+            m = terms.get(name) or {}
+            return m.get("layer") != "generic" and m.get("status", "approved") == "pending"
+
+        # source column -> pending entry name, for rename detection
+        by_src = {}
+        for name in terms:
+            if not is_pending(name):
+                continue
+            for s in (terms[name] or {}).get("sources") or []:
+                by_src.setdefault(str(s).strip().lower(), name)
+
+        def apply_row(meta, r):
+            hit = 0
+            definition = str(r.get("Definition") or "").strip()[:200]
+            if definition and definition != meta.get("definition"):
+                meta["definition"] = definition; hit = 1
+            category = (r.get("Category") or "").strip()
+            if category and category != meta.get("category"):
+                meta["category"] = category; hit = 1
+            return hit
+
+        for r in rows or []:
+            if not isinstance(r, dict):
+                continue
+            term = (r.get("Term") or "").strip()
+            if not term or _JUNK_TERM.match(term):
+                continue
+            srcs = [c.strip().lower() for c in str(r.get("Source_Column") or "").split(";") if c.strip()]
+            canon = idx.get(term.lower())
+            if canon is not None:
+                if is_pending(canon):
+                    changed += apply_row(terms[canon], r)
+                # a stale pending twin of this entry (same source, old scan
+                # misread) folds in as an alias instead of lingering pending
+                stale = next((by_src[s] for s in srcs
+                              if s in by_src and by_src[s] != canon), None)
+                if stale and is_pending(stale):
+                    meta = terms.pop(stale)
+                    aliases = terms[canon].setdefault("aliases", [])
+                    if stale not in aliases:
+                        aliases.append(stale)
+                    if stale in tusage:
+                        tusage[canon] = sorted(set(tusage.pop(stale)) | set(tusage.get(canon) or []))
+                    idx[stale.lower()] = canon
+                    for s in list(by_src):
+                        if by_src[s] == stale:
+                            del by_src[s]
+                    changed += 1
+                continue
+            # unknown name — a rename. Find the pending entry it came from.
+            old = next((by_src[s] for s in srcs if s in by_src), None)
+            if not old:
+                continue
+            meta = terms.pop(old)
+            aliases = meta.setdefault("aliases", [])
+            if old not in aliases:
+                aliases.append(old)
+            terms[term] = meta
+            apply_row(meta, r)
+            if old in tusage:
+                merged = sorted(set(tusage.pop(old)) | set(tusage.get(term) or []))
+                tusage[term] = merged
+            idx[term.lower()] = term
+            idx[old.lower()] = term
+            for s in list(by_src):
+                if by_src[s] == old:
+                    by_src[s] = term
+            changed += 1
+        if changed and persist:
+            _save_locked()
+    return changed
+
+
 def _facet_norm(s):
     return re.sub(r"[^a-z0-9]", "", str(s).lower())
 

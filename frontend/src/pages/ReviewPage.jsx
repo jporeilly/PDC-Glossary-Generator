@@ -1241,7 +1241,7 @@ function ReviewGuide({ onNavigate }) {
       <summary>How to review — the working order</summary>
       <div className="rv-wfwrap">
         <svg className="rv-wf" viewBox="0 0 950 164"
-             aria-label="Working order: 1 prune the rows; 2 resolve duplicate names; 3 hop to the Dictionary page to approve the pending vocabulary, then come back; 4 run the AI agents in sequence — Enrich, then Suggest, Categorize and Tags, with QA last as the gate (they propose, you apply); 5 name the glossary to turn on autosave, then continue to the Govern page. The Dictionary and Govern boxes navigate; the agent chips highlight the AI toolbar.">
+             aria-label="Working order: 1 prune the rows; 2 resolve duplicate names; 3 name the glossary — autosave keeps your review and streams accepted improvements into the Dictionary's pending vocabulary; 4 run the AI agents in sequence — Enrich, then Suggest, Categorize and Tags, with QA last as the gate (they propose, you apply); 5 when you're happy with the review, go to the Dictionary page and approve the pending vocabulary — it already carries your enrichments — then continue to the Govern page. The Dictionary and Govern boxes navigate; the agent chips highlight the AI toolbar.">
           <defs>
             <marker id="rv-wfhead" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="8" markerHeight="8"
                     markerUnits="userSpaceOnUse" orient="auto-start-reverse">
@@ -1249,19 +1249,21 @@ function ReviewGuide({ onNavigate }) {
             </marker>
           </defs>
 
-          {/* row 1: prune → resolve → the Dictionary hop (navigates) */}
+          {/* row 1: prune → resolve → name (autosave = the Review→Dictionary sync) */}
           <RvNode x={4} y={8} w={168} h={46} title="① Prune" sub="keep / drop · High+Med cull" />
           <path className="rv-wfarrow" d="M176 31 H194" markerEnd="url(#rv-wfhead)" />
           <RvNode x={198} y={8} w={214} h={46} title="② Resolve duplicates" sub="Merge · Disambiguate · AI advise" />
           <path className="rv-wfarrow" d="M416 31 H434" markerEnd="url(#rv-wfhead)" />
-          <RvNode x={438} y={8} w={264} h={46} title="③ Approve pending vocabulary" sub="Dictionary page ↗ · then come back"
-                  onActivate={() => onNavigate('dictionary')}
-                  aria="Go to the Dictionary page, approve the pending vocabulary your scan seeded, then come back here" />
+          <RvNode role="button" x={438} y={8} w={244} h={46} title="③ Name the glossary" sub="autosave on · syncs the Dictionary"
+                  onActivate={flashName}
+                  aria="Name the glossary — autosave keeps your review and streams accepted improvements into the Dictionary's pending vocabulary" />
 
           {/* wrap connector into row 2 */}
-          <path className="rv-wfarrow" d="M570 58 V72 H60 V82" markerEnd="url(#rv-wfhead)" />
+          <path className="rv-wfarrow" d="M560 58 V72 H60 V82" markerEnd="url(#rv-wfhead)" />
 
-          {/* row 2: the agents run in sequence (chips highlight the toolbar) */}
+          {/* row 2: the agents run in sequence (chips highlight the toolbar),
+              then ONE hop to the Dictionary — the pending vocabulary already
+              carries the accepted enrichments, so there's no coming back */}
           <g className="rv-wfgroup">
             <rect x={4} y={88} width={568} height={62} rx="10" />
             <text className="rv-wfglbl" x={14} y={101}>④ AI AGENTS — KEPT ROWS · PROPOSE → YOU APPLY</text>
@@ -1279,19 +1281,20 @@ function ReviewGuide({ onNavigate }) {
                   aria="AI QA definitions runs last as the quality gate — highlights the AI agents toolbar" />
 
           <path className="rv-wfarrow" d="M572 119 H590" markerEnd="url(#rv-wfhead)" />
-          <RvNode role="button" x={594} y={96} w={182} h={46} title="⑤ Name the glossary" sub="turns autosave on"
-                  onActivate={flashName} aria="Name the glossary — highlights the save box on the grid header" />
-          <path className="rv-wfarrow" d="M776 119 H794" markerEnd="url(#rv-wfhead)" />
-          <RvNode x={798} y={96} w={140} h={46} title="Govern ↗" sub="set stewardship"
+          <RvNode x={594} y={96} w={224} h={46} title="⑤ Approve pending vocabulary" sub="Dictionary ↗ · enriched by your review"
+                  onActivate={() => onNavigate('dictionary')}
+                  aria="When you're happy with the review, go to the Dictionary page — the pending vocabulary already carries your accepted enrichments; approve or retire it there" />
+          <path className="rv-wfarrow" d="M822 119 H840" markerEnd="url(#rv-wfhead)" />
+          <RvNode x={844} y={96} w={102} h={46} title="Govern ↗" sub="stewardship"
                   onActivate={() => onNavigate('govern')} aria="Go to the Govern page to set stewardship" />
         </svg>
       </div>
       <ol className="workcycle">
         <li><b>Prune.</b> Every scanned column is a candidate — untick <b>Keep</b> on noise (or use <b>Keep High+Med conf</b>) rather than hunting for gaps; table-level terms always stay. <b>Structural keys arrive already pruned</b> (the <b>KEY</b> badge): a surrogate PK / FK reference-id isn&apos;t a business term — its PK/FK relationship still travels to the Registry&apos;s physical model, and ticking Keep restores it.</li>
         <li><b>Resolve duplicates.</b> Same-named <i>kept</i> terms get a header bar: <b>Merge</b> into one term linked to all its columns, <b>Disambiguate</b> into unique names, or keep separate — <b>AI advise</b> and <b>Find similar</b> recommend, you decide. Auto-pruned keys sit outside duplicate resolution.</li>
-        <li><b>Approve the pending vocabulary — now.</b> After pruning and merging, and <b>before</b> the tag agents, hop to the <b>Dictionary</b> (click the box above): your scan seeded its <i>pending</i> terms and tags. Approve or retire them, then come back — <b>Suggest tags</b> draws from the approved allow-list, so approved tags make it richer.</li>
-        <li><b>Run the AI agents in sequence.</b> <b>Enrich with LLM</b> first (definitions &amp; purposes), then <b>AI suggest</b> / <b>AI categorize</b> / <b>Suggest tags</b>, and <b>AI QA definitions</b> last as the quality gate. Agents never edit the grid: as each batch returns, click-to-accept pills light up on the affected cells — accept them one by one, or <b>Accept all</b> from the strip above the grid. The grid's <b>LLM</b> pills appear only after a proposal is accepted.</li>
-        <li><b>Name the glossary</b> (top right of the grid) so autosave keeps your review, then move on to <b>Set stewardship →</b> on the Govern page.</li>
+        <li><b>Name the glossary</b> (top right of the grid) — autosave keeps your review <b>and</b> streams every accepted improvement into the Dictionary&apos;s <i>pending</i> vocabulary, so the two never drift. The flow is one-way: Review edits refresh pending entries; nothing in the Dictionary is approved without you.</li>
+        <li><b>Run the AI agents in sequence.</b> <b>Enrich with LLM</b> first (definitions &amp; purposes), then <b>AI suggest</b> / <b>AI categorize</b> / <b>Suggest tags</b>, and <b>AI QA definitions</b> last as the quality gate. Agents never edit the grid: as each batch returns, click-to-accept pills light up on the affected cells — accept them one by one, or <b>Accept all</b> from the strip above the grid. The grid's <b>LLM</b> pills appear only after a proposal is accepted. (<b>Suggest tags</b> proposes from the <i>approved</i> allow-list — tags you approve on the Dictionary enrich the next scan&apos;s run: the flywheel.)</li>
+        <li><b>Approve the pending vocabulary — once, at the end.</b> When you&apos;re happy with the review, hop to the <b>Dictionary</b> (click the box above): its pending terms and tags already carry your accepted definitions and corrected names (a fixed name folds the scan&apos;s raw misread in as an alias, so rescans don&apos;t re-propose it). Approve or retire, then <b>Set stewardship →</b> on the Govern page.</li>
       </ol>
 
       <div className="rv-agentdocs-h">
@@ -1307,8 +1310,10 @@ function ReviewGuide({ onNavigate }) {
       </ul>
 
       <p className="hint-line">
-        Review edits stay with this glossary — they don't rewrite the Dictionary; the
-        Dictionary governs what the agents may propose.
+        Review flows one way into the Dictionary: autosave refreshes its <i>pending</i>
+        entries with your accepted edits (never the approved vocabulary — approval stays
+        a steward click on the Dictionary page). The Dictionary in turn governs what the
+        agents may propose.
       </p>
     </details>
   )
