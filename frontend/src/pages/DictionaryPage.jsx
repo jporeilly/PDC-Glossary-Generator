@@ -155,7 +155,7 @@ export default function DictionaryPage({ onNavigate }) {
       'it retired through reloads and Reseeds, and the next Export domain pack will offer to ' +
       'remove it from the installed pack too. A future scan that finds real evidence can ' +
       're-propose it as pending — approving it then lifts the tombstone. Recorded in the audit trail.')) return
-    review('term', [t.term], 'reject', undefined, `Rejected term "${t.term}".`)
+    review('term', [t.term], 'reject', undefined, `Retired term "${t.term}".`)
   }
 
   function tagRetire(t) {
@@ -163,7 +163,7 @@ export default function DictionaryPage({ onNavigate }) {
       `Retire tag "${t.tag}" from the governed allow-list?\n\nDurable across reseeds (tombstoned); ` +
       'the next Export domain pack will offer to remove it from the pack. A rule that still emits ' +
       'it will re-add it with a warning. Recorded in the audit trail.')) return
-    review('tag', [t.tag], 'reject', undefined, `Rejected tag "${t.tag}".`)
+    review('tag', [t.tag], 'reject', undefined, `Retired tag "${t.tag}".`)
   }
 
   function retireEmpty(names) {
@@ -192,17 +192,23 @@ export default function DictionaryPage({ onNavigate }) {
     const acc = {}
     let done = 0
     let usedLlm = false
+    const batches = Math.ceil(names.length / BATCH)
     try {
       for (let i = 0; i < names.length && !cancelRef.current; i += BATCH) {
+        const slice = names.slice(i, i + BATCH)
+        const batch = i / BATCH + 1
+        // publish the in-flight action BEFORE the call, so the UI can say
+        // which batch and which terms the AI is judging right now
+        setProg({ done: i, total: names.length, batch, batches, names: slice })
         const d = await apiPost('/api/tagdict/ai-review', {
           model: settings?.model || null, compute: settings?.compute,
-          names: names.slice(i, i + BATCH),
+          names: slice,
         })
         Object.assign(acc, d.advice || {})
         usedLlm = usedLlm || !!d.used_llm
         done = Math.min(i + BATCH, names.length)
         setAdvice({ ...acc })                // recommendations appear batch by batch
-        setProg({ done, total: names.length })
+        setProg({ done, total: names.length, batch, batches, names: slice })
       }
       const n = Object.keys(acc).length
       const offline = usedLlm ? '' : ' (Ollama offline — duplicate check only)'
@@ -481,6 +487,21 @@ export default function DictionaryPage({ onNavigate }) {
                 <div className="progress-track">
                   <div className="progress-bar" style={{ width: `${Math.round((prog.done / prog.total) * 100)}%` }} />
                 </div>
+                {prog.batches > 1 && prog.batches <= 20 && (
+                  <div className="dict-review-steps">
+                    {Array.from({ length: prog.batches }, (_, b) => {
+                      const mine = b + 1
+                      const state = mine < prog.batch || (mine === prog.batch && prog.done > b * BATCH)
+                        ? ' done' : mine === prog.batch ? ' active' : ''
+                      return (
+                        <span key={mine} className={'dict-review-step' + state}
+                              title={mine === prog.batch ? (prog.names || []).join(', ') : undefined}>
+                          {state === ' done' ? '✓ ' : ''}{mine}
+                        </span>
+                      )
+                    })}
+                  </div>
+                )}
                 <p className="summary">
                   {cancelRef.current
                     ? 'Finishing current batch…'
@@ -491,6 +512,11 @@ export default function DictionaryPage({ onNavigate }) {
                     Cancel
                   </button>
                 </p>
+                {!cancelRef.current && prog.names && prog.done < prog.total && (
+                  <p className="dict-review-now notes">
+                    Batch {prog.batch}/{prog.batches} — judging: {prog.names.join(' · ')}
+                  </p>
+                )}
               </>
             )}
             {pendingTerms.length > 0 && (
@@ -507,7 +533,8 @@ export default function DictionaryPage({ onNavigate }) {
                 {pendingTerms.map((t) => {
                   const adv = advice[t.term]
                   const advLabel = adv
-                    ? { approve: 'Approve', reject: 'Reject', alias: `Alias of ${adv.target || ''}` }[adv.action]
+                    // 'reject' is the API verb; the user-facing action is Retire (matches the button)
+                    ? { approve: 'Approve', reject: 'Retire', alias: `Alias of ${adv.target || ''}` }[adv.action]
                     : ''
                   return (
                     <div className="pending-item" key={t.term}>

@@ -82,3 +82,18 @@ button.mini.act { white-space: nowrap; color: var(--text-primary); }
   padding: .45rem .65rem; font: .86rem system-ui, "Segoe UI", sans-serif;
 }
 .dict-inline-form input:focus, .dict-inline-form select:focus { outline: 2px solid var(--accent); }
+
+/* AI-review batch strip — same idiom as the Migration tool's release-check
+   steps: done batches tick green, the active one pulses, the rest wait. */
+.dict-review-steps { display: flex; gap: .4rem; flex-wrap: wrap; margin: .1rem 0 .3rem; }
+.dict-review-step {
+  padding: .2rem .7rem; border-radius: 99px; font-size: .75rem;
+  background: var(--surface-2); color: var(--text-muted);
+}
+.dict-review-step.active {
+  background: var(--accent); color: var(--accent-ink);
+  animation: dict-review-pulse 1.2s ease-in-out infinite;
+}
+.dict-review-step.done { color: var(--status-good); }
+@keyframes dict-review-pulse { 50% { opacity: .55; } }
+.dict-review-now { margin: .1rem 0 0; }
