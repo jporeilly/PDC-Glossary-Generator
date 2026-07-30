@@ -156,7 +156,12 @@ function LlmCard({ settings, saveField }) {
   const suggested = isLocal ? MODELS.map((m) => m.tag) : (pmeta?.models || [])
   const isCurated = suggested.includes(model)
   const [custom, setCustom] = useState(isCurated || !model ? '' : model)
-  const selectValue = installed.includes(model) || isCurated ? model : model ? CUSTOM : (suggested[0] || CUSTOM)
+  // customMode is explicit UI state: selectValue is otherwise DERIVED from the
+  // saved model, so picking "Custom…" (which saves nothing) snapped straight
+  // back to the old model and the custom input never appeared
+  const [customMode, setCustomMode] = useState(false)
+  const selectValue = customMode ? CUSTOM
+    : installed.includes(model) || isCurated ? model : model ? CUSTOM : (suggested[0] || CUSTOM)
 
   const refreshModels = () =>
     apiGet('/api/models')
@@ -174,7 +179,7 @@ function LlmCard({ settings, saveField }) {
   // (or vice versa) is a guaranteed 404, so never carry one across.
   async function onProviderChange(next) {
     const meta = providers.find((p) => p.id === next)
-    setTestMsg(null); setKeyMsg(null); setCustom('')
+    setTestMsg(null); setKeyMsg(null); setCustom(''); setCustomMode(false)
     // Going back to Ollama, prefer a model that is actually pulled on this host —
     // the catalog default is only a suggestion and may not be installed, which
     // would leave the app "online" but unable to generate.
@@ -235,9 +240,11 @@ function LlmCard({ settings, saveField }) {
   function onModelChange(v) {
     if (v === CUSTOM) {
       setCustom('')
+      setCustomMode(true)   // show the custom input; nothing saved until it's filled
       return
     }
     setCustom('')
+    setCustomMode(false)
     saveField({ model: v })
     testConnection({ model: v })
   }
@@ -334,9 +341,14 @@ function LlmCard({ settings, saveField }) {
         {selectValue === CUSTOM && (
           <label>
             Custom model
-            <input type="text" placeholder="e.g. gemma2:2b" value={custom}
+            <input type="text" placeholder="e.g. gemma2:2b" value={custom} autoFocus
                    onChange={(e) => setCustom(e.target.value)}
-                   onBlur={() => custom.trim() && (saveField({ model: custom.trim() }), testConnection({ model: custom.trim() }))} />
+                   onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur() }}
+                   onBlur={() => {
+                     const v = custom.trim()
+                     if (v) { saveField({ model: v }); testConnection({ model: v }) }
+                     else setCustomMode(false)   // left empty — back to the saved model
+                   }} />
           </label>
         )}
         {isLocal && (
