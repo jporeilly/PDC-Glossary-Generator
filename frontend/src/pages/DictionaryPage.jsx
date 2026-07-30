@@ -484,8 +484,15 @@ export default function DictionaryPage({ onNavigate }) {
             </div>
             {prog && (
               <>
-                <div className="progress-track">
+                <div className="progress-track dict-review-track">
                   <div className="progress-bar" style={{ width: `${Math.round((prog.done / prog.total) * 100)}%` }} />
+                  {/* the batch in flight: a pulsing segment ahead of the solid done
+                      portion, so even a 1-batch run visibly shows the AI working */}
+                  {prog.done < prog.total && prog.names && (
+                    <div className="dict-review-bar-active"
+                         style={{ left: `${(prog.done / prog.total) * 100}%`,
+                                  width: `${(prog.names.length / prog.total) * 100}%` }} />
+                  )}
                 </div>
                 {prog.batches > 1 && prog.batches <= 20 && (
                   <div className="dict-review-steps">

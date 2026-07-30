@@ -97,3 +97,11 @@ button.mini.act { white-space: nowrap; color: var(--text-primary); }
 .dict-review-step.done { color: var(--status-good); }
 @keyframes dict-review-pulse { 50% { opacity: .55; } }
 .dict-review-now { margin: .1rem 0 0; }
+
+/* the in-flight batch segment inside the progress track */
+.dict-review-track { position: relative; }
+.dict-review-bar-active {
+  position: absolute; top: 0; height: 100%; border-radius: 4px;
+  background: var(--accent); opacity: .35;
+  animation: dict-review-pulse 1.2s ease-in-out infinite;
+}

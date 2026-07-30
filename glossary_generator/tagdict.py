@@ -850,14 +850,15 @@ def summary():
     # per tag / distinct source columns per term) — idempotent under rescans
     usage = d.get("usage", {}); tusage = d.get("term_usage", {})
     tags = []
-    for t, meta in sorted(d.get("tags", {}).items()):
+    # case-insensitive: 'pH Level' belongs with the P's, not after Z
+    for t, meta in sorted(d.get("tags", {}).items(), key=lambda kv: kv[0].lower()):
         meta = meta or {}
         tags.append({"tag": t, "label": meta.get("label", t), "layer": meta.get("layer", "company"),
                      "status": ("generic" if meta.get("layer") == "generic" else meta.get("status", "approved")),
                      "sensitivity_floor": meta.get("sensitivity_floor"),
                      "count": len(usage.get(t) or ()), "examples": d.get("examples", {}).get(t, [])})
     terms = []
-    for n, meta in sorted(d.get("terms", {}).items()):
+    for n, meta in sorted(d.get("terms", {}).items(), key=lambda kv: kv[0].lower()):
         meta = meta or {}
         terms.append({"term": n, "aliases": meta.get("aliases", []), "layer": meta.get("layer", "company"),
                       "status": ("generic" if meta.get("layer") == "generic" else meta.get("status", "approved")),
