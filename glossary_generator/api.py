@@ -155,24 +155,38 @@ def _read_json(path, default):
     except Exception:
         return default
 
+_WRITE_JSON_LOCK = threading.Lock()
+
 def _write_json(path, data):
     """Serialise `data` to `path` as pretty-printed JSON, atomically.
        Writes to a temp file in the same directory then os.replace()s it into
        place, so a crash mid-write can never truncate or corrupt the target
-       (e.g. people.json / settings.json)."""
-    import tempfile
+       (e.g. people.json / settings.json).
+       A process-wide lock serialises writers, and the replace retries briefly:
+       on Windows os.replace fails with PermissionError while ANY other handle
+       holds the target open — a concurrent _read_json in another request
+       thread, or an antivirus scan — so back-to-back settings saves 500'd."""
+    import tempfile, time
     d = os.path.dirname(os.path.abspath(path)) or "."
-    fd, tmp = tempfile.mkstemp(dir=d, prefix=".tmp-", suffix=".json")
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2, ensure_ascii=False)
-        os.replace(tmp, path)
-    except Exception:
+    with _WRITE_JSON_LOCK:
+        fd, tmp = tempfile.mkstemp(dir=d, prefix=".tmp-", suffix=".json")
         try:
-            os.unlink(tmp)
-        except OSError:
-            pass
-        raise
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=2, ensure_ascii=False)
+            for attempt in range(10):
+                try:
+                    os.replace(tmp, path)
+                    break
+                except PermissionError:
+                    if attempt == 9:
+                        raise
+                    time.sleep(0.05 * (attempt + 1))
+        except Exception:
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass
+            raise
 
 def _load_people():
     """Load the saved people roster (list of account dicts) from disk."""
