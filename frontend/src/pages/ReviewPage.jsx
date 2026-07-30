@@ -346,7 +346,11 @@ export default function ReviewPage({ onNavigate }) {
 
   /* ---------- keep / prune ---------- */
 
-  const structuralReset = () => { setHmSnap(null); setExpanded(null); lastPosRef.current = null }
+  // Any change that reorders/merges rows also drops still-pending AI pills:
+  // proposals are keyed by row index, so after a merge they'd attach to the
+  // WRONG rows. Decide pills first (the guide's order); re-running an agent
+  // regenerates them cheaply if a structural change discarded some.
+  const structuralReset = () => { setHmSnap(null); setExpanded(null); lastPosRef.current = null; setProposals(null) }
 
   const onKeep = useCallback((e, index, pos) => {
     const on = e.target.checked
@@ -596,7 +600,9 @@ export default function ReviewPage({ onNavigate }) {
     const working = baseRows.map((r) => ({ ...r }))
     cancelRef.current = false
     setAgent({ label, done: 0, total, proposed: 0 })
-    setProposals(null)
+    // NOTE: pending proposals from a previous agent are KEPT — new proposals
+    // merge in per row/field below, so running the next agent never forces an
+    // Accept all / Dismiss all decision on the last one's pills
     setError(null)
     const diffOne = (r, w) => {                    // default builder from watch/carry
       const patch = {}
@@ -643,12 +649,28 @@ export default function ReviewPage({ onNavigate }) {
       } catch { failed += idx.length }
       if (add) {
         proposed += Object.keys(add).length
-        setProposals((p) => ({
-          label: propLabel,
-          desc: (AGENT_META[propLabel] || {}).desc || '',
-          gate: !!(AGENT_META[propLabel] || {}).gate,
-          items: { ...(p ? p.items : {}), ...add },
-        }))
+        setProposals((p) => {
+          // merge per row: a field proposed again is replaced by the newer
+          // agent's take; other fields' pending pills survive untouched
+          const items = { ...(p ? p.items : {}) }
+          for (const [i, it] of Object.entries(add)) {
+            const cur = items[i]
+            if (!cur) { items[i] = it; continue }
+            items[i] = {
+              ...cur, ...it,
+              patch: { ...cur.patch, ...it.patch },
+              display: [...cur.display.filter((d) => !it.display.some((n) => n.field === d.field)), ...it.display],
+            }
+          }
+          const mixed = !!(p && p.label !== propLabel)
+          return {
+            label: mixed ? 'AI agents' : propLabel,
+            desc: mixed ? 'proposals from several agents — accept per pill, or all at once'
+                        : (AGENT_META[propLabel] || {}).desc || '',
+            gate: !!(AGENT_META[propLabel] || {}).gate || !!(p && p.gate),
+            items,
+          }
+        })
       }
       setAgent((a) => (a ? { ...a, done: Math.min(s + chunk, total), proposed } : a))
     }
@@ -871,7 +893,10 @@ export default function ReviewPage({ onNavigate }) {
   /* ---------- render ---------- */
 
   const noRows = rows.length === 0
-  const aiDisabled = noRows || !!agent || !!proposals
+  // pending proposals do NOT disable the agents: new runs merge their
+  // proposals into the pending pills (see runChunks) instead of wiping them,
+  // so nobody is forced through Accept all / Dismiss all to keep working
+  const aiDisabled = noRows || !!agent
 
   return (
     <>
