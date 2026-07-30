@@ -845,7 +845,7 @@ export default function DictionaryPage({ onNavigate }) {
               {!pack.applied && (
                 <>
                   {' '}
-                  <button className="ghost mini" onClick={() => exportPack(true)}>Apply to this app</button>{' '}
+                  <button className="primary mini" onClick={() => exportPack(true)}>Apply to this app</button>{' '}
                   <span className="notes">writes the pack + reseeds the dictionary (approved items survive)</span>
                 </>
               )}
