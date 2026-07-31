@@ -181,7 +181,7 @@ that wraps into side-by-side node-columns) — and its
 diagram-a-DDL panel is a **drag-and-drop zone** (.sql/.ddl/.txt, paste
 preserved). 
 <p align="center">
-  <img alt="Schema — the ER diagram with PK/FK edges" src="docs/images/connect-schema.png" width="900"><br>
+  <img alt="Schema — the ER diagram with PK/FK edges" src="docs/images/schema.png" width="900"><br>
   <em>Schema — the ER diagram with PK/FK edges</em>
 </p>
 The sidebar footer's **PDC dot** lights as soon as any page
