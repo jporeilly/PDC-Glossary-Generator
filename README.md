@@ -18,7 +18,7 @@ glossary, lets a steward review and govern it, and exports import-ready JSONL**
 for **Pentaho Data Catalog → Business Glossary → Import** — so the glossary and
 its tags stay governed instead of drifting.
 
-<img width="1337" height="1454" alt="image" src="https://github.com/user-attachments/assets/cf4d56af-6de2-4b0f-94b7-d28284f5366a" />
+
 
 The app is **scenario-generic**; each training scenario ships as a separate,
 self-contained bundle — data kit, domain pack and courseware — served by one
@@ -98,9 +98,8 @@ order:
   preserved). The sidebar footer's **PDC dot** lights as soon as any page
   really talks to PDC — Get token, a harvest read, or a bulk-load run.
 
-<img width="1410" height="2480" alt="image" src="https://github.com/user-attachments/assets/059add03-4b02-4496-8bf2-1f046f4dbc5c" />
 
-<img width="1410" height="2545" alt="image" src="https://github.com/user-attachments/assets/e2ae7975-59d7-4779-a449-db493b966470" />
+
   
 - **Review** — one suggested term per business-meaningful column, with inferred
   sensitivity, PII category, CDE flag, governed lower-case tags, and an
@@ -119,7 +118,7 @@ order:
   Category / Term columns, and **Definition and Purpose expand in place**
   to a full-width editor row with the scan evidence right underneath.
 
-<img width="1417" height="2167" alt="image" src="https://github.com/user-attachments/assets/64658e49-8ae4-4ad2-9ce3-89ef9d4473c4" />
+
 
 - **Govern** — steward/owner/custodian assignment driven by the
   Keycloak-fetched roster: candidate pools are **constrained to each person's
@@ -128,7 +127,7 @@ order:
   review dates, and a steward approval gate over the vocabulary with a full
   audit trail.
 
- <img width="1412" height="3474" alt="image" src="https://github.com/user-attachments/assets/9490a3bc-5f95-4473-95e9-ba893d4de9fe" />
+
   
 - **Generate & apply** — export the kept terms as PDC-importable JSONL, then
   resolve term ids (fuzzy + **in-place AI matching** for renamed or
@@ -146,7 +145,7 @@ order:
   lab (MinIO)** — an upload to bucket `pdc-exports` over a saved
   **write-capable** MinIO/S3 connection (`POST /api/lab-export`).
 
-<img width="1416" height="1514" alt="image" src="https://github.com/user-attachments/assets/ff266022-ac94-4148-b51b-28096aafa850" />
+
 
    
 - **Steward-safe governance** — mistakes are recoverable in-product: every
@@ -165,7 +164,7 @@ order:
   methods deploy and Data Identification runs. Everything lands in the
   append-only audit trail.
 
-<img width="1416" height="3092" alt="image" src="https://github.com/user-attachments/assets/1778bda8-f9d0-4cf5-ae95-02505fd7a4d9" />
+
 
 - **State that takes care of itself** — the app auto-resumes your last saved
   glossary on start and **autosaves** the workspace every 30 seconds (and on
