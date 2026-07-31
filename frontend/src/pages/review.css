@@ -301,3 +301,6 @@ button.rv-aipill:hover { background: color-mix(in srgb, var(--accent) 16%, trans
 .rv-chip .sens-hi { color: var(--status-critical); }
 .rv-chip .sens-md { color: var(--status-warning); }
 .rv-chip .sens-lo { color: var(--text-muted); }
+
+/* what the Detection choice will write into the Registry, for THIS row */
+.rv-detwhy { font-size: .74rem; opacity: .85; margin-left: .4rem; }

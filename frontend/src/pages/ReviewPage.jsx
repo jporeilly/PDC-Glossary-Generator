@@ -1570,6 +1570,17 @@ function ExpandedRow({ row: r, index, prop, onAcceptProp, onField, onEvidence, o
                 <button className={r.Detection_Intent === 'mapping_only' ? 'on' : ''}
                         onClick={() => onField(index, 'Detection_Intent', 'mapping_only')}>Mapping-only</button>
               </span>
+              {/* the choice only shows up in the exported Registry, so spell out
+                  what it does for THIS row — with a value shape it seeds a
+                  detection method; without one, Auto leaves Policy to ask for a
+                  seed while Mapping-only closes the question */}
+              <span className="rv-msg rv-detwhy">
+                {r.Detection_Intent === 'mapping_only'
+                  ? '→ Registry says mapping_only — Policy won’t ask for a detection seed'
+                  : hasEvidence(r)
+                    ? '→ Registry seeds detection from this row’s value shape'
+                    : '→ no value shape: Registry leaves detection open, so Policy will request a seed'}
+              </span>
             </span>
             <span className="rv-grow" />
             <button className="ghost sm" onClick={() => onEvidence(index)}
