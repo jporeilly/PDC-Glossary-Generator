@@ -269,6 +269,29 @@ function pdcAuthReady(pdc) {
 }
 
 function PdcAuthFields({ pdc }) {
+  const [tok, setTok] = useState(null)   // {tone, text} after a Get token click
+
+  // Mint the bearer token from the username/password already typed above, so
+  // the operator can confirm WHO they are before anything writes — and every
+  // later call in the run (create, ingest, profile / discover) reuses it.
+  async function getToken() {
+    setTok({ tone: '', text: 'Authenticating…' })
+    try {
+      const d = await apiPost('/api/pdc-token', {
+        base_url: pdc.base.trim(), username: pdc.user, password: pdc.pass,
+        version: (pdc.ver || 'v2').trim(), realm: 'pdc', verify_tls: pdc.verify,
+      })
+      pdc.set({ token: d.token || '' })
+      const c = d.claims || {}
+      const who = c.username || c.preferred_username || pdc.user
+      const roles = (c.roles || []).join(', ')
+      const exp = c.expires_at || c.exp_human || ''
+      setTok({ tone: 'good', text: `✓ token for ${who}${roles ? ` · ${roles}` : ''}${exp ? ` · expires ${exp}` : ''}` })
+    } catch (err) {
+      setTok({ tone: 'bad', text: `✗ ${err.message}` })
+    }
+  }
+
   return (
     <>
       <div className="form-grid">
@@ -300,10 +323,22 @@ function PdcAuthFields({ pdc }) {
       </div>
       <div className="form-grid" style={{ marginTop: '.8rem' }}>
         <label style={{ gridColumn: '1 / -1' }}>
-          Bearer token <span className="muted">optional — use instead of username / password</span>
+          Bearer token <span className="muted">optional — Get token fills it from the username / password above</span>
           <input type="text" autoComplete="off" placeholder="eyJhbGciOi…" value={pdc.token}
                  onChange={(e) => pdc.set({ token: e.target.value })} />
         </label>
+      </div>
+      <div className="actions" style={{ marginTop: '.5rem' }}>
+        <button className="ghost connect-sm" onClick={getToken}
+                disabled={!pdc.base.trim() || !(pdc.user && pdc.pass)}
+                title="Authenticate to PDC now and keep the bearer token for this session — every call in the run (create, ingest, profile / discover) reuses it.">
+          Get token
+        </button>
+        {pdc.token.trim() && (
+          <button className="ghost connect-sm" onClick={() => { pdc.set({ token: '' }); setTok(null) }}
+                  title="Forget the token and go back to username / password">Clear</button>
+        )}
+        {tok && <span className={tok.tone === 'bad' ? 'error' : 'summary'}>{tok.text}</span>}
       </div>
     </>
   )
@@ -318,7 +353,7 @@ const BL_BADGE = {
 
 function BulkLoadCard({ pdc, onConnectionsChanged }) {
   const [csv, setCsv] = useState('')
-  const [opts, setOpts] = useState({ ingest: true, replace: false, internal: false, profile: false })
+  const [opts, setOpts] = useState({ ingest: true, replace: false, profile: false })
   const [msg, setMsg] = useState('')
   const [running, setRunning] = useState(false)
   const [progress, setProgress] = useState(null)   // {done, total}
@@ -384,8 +419,7 @@ function BulkLoadCard({ pdc, onConnectionsChanged }) {
     setMsg(dry ? 'Building payloads…' : 'Loading… creating, testing and ingesting each source.')
     const payload = {
       ...pdcAuthBody(pdc), csv, dry_run: !!dry,
-      options: { ingest: opts.ingest, wait: true, replace_existing: opts.replace, internal_scan: opts.internal,
-                 profile: opts.profile },
+      options: { ingest: opts.ingest, wait: true, replace_existing: opts.replace, profile: opts.profile },
     }
     try {
       const result = await runJob('bulk-load', payload, (job) => {
@@ -459,12 +493,9 @@ function BulkLoadCard({ pdc, onConnectionsChanged }) {
         <label className="check" title="If a source already exists in PDC, delete and recreate it so corrected CSV values take effect.">
           <input type="checkbox" checked={opts.replace}
                  onChange={(e) => setOpts({ ...opts, replace: e.target.checked })} /> recreate if exists</label>
-        <label className="check" title="After the ingest, run PDC's analysis job per source type — Data Profiling over a database's tables (distributions, uniqueness, patterns), Data Discovery over an object store's files. Public API (worker DATA_PROFILE); adds a few minutes per source. A file source needs its Scan Files run first, or there is nothing to discover.">
+        <label className="check" title="After the ingest, run PDC's analysis job per source type — Data Profiling over a database's tables (distributions, uniqueness, patterns), Data Discovery over an object store's files. For an object store this also runs the file scan first (PDC's own Scan Files call), since Discovery analyses what that scan catalogs. Adds a few minutes per source.">
           <input type="checkbox" checked={opts.profile}
                  onChange={(e) => setOpts({ ...opts, profile: e.target.checked })} /> profile / discover</label>
-        <label className="check" title="EXPERIMENTAL: scan object stores via PDC's internal /api/start-job endpoint — not part of the public API.">
-          <input type="checkbox" checked={opts.internal}
-                 onChange={(e) => setOpts({ ...opts, internal: e.target.checked })} /> scan object stores (internal API ⚠)</label>
         <span style={{ flex: 1 }} />
         <button className="ghost" disabled={running} onClick={() => run(true)}>Dry run</button>
         <button className="primary" disabled={running} onClick={() => run(false)}>Create &amp; ingest →</button>
