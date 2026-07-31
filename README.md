@@ -159,12 +159,16 @@ order. Expand a step for what it does and how it looks.
 <summary><b>① Connect</b> — scan a database, an object store or a DDL file (or harvest from PDC)</summary>
 
 <br>
-
+**Bulk load** registers many sources in PDC at once from a CSV, ingests each
+one's metadata, and can run the analysis pass straight after —
+**Data Profiling** over a database's tables, **Data Discovery** over an
+object store's files — so the setup is one stop with no step forgotten.
+<p align="center">
+  <img alt="Connect — saved connections, bulk load and the live scan" src="docs/images/connect.png" width="900"><br>
+  <em>Connect — saved connections, bulk load and the live scan</em>
+</p>
 Live database scan (PostgreSQL, SQL Server, MySQL/MariaDB,
 Oracle), MinIO/S3 document stores, or a plain DDL file. 
-
-
-
 Or skip direct access entirely and **harvest from what PDC has already cataloged**. The schema
 browser (tables, PK/FK relationships, write-back of missing keys) and the
 MinIO/S3 object browser live on their own **Schema** and **Files**
@@ -175,29 +179,13 @@ really centres** (the canvas sizes itself to the diagram, dense layers
 spread wider, and zoom is floored at 55% — a layer that would sink below
 that wraps into side-by-side node-columns) — and its
 diagram-a-DDL panel is a **drag-and-drop zone** (.sql/.ddl/.txt, paste
-preserved). The sidebar footer's **PDC dot** lights as soon as any page
-really talks to PDC — Get token, a harvest read, or a bulk-load run.
-
-**Bulk load** registers many sources in PDC at once from a CSV, ingests each
-one's metadata, and can run the analysis pass straight after —
-**Data Profiling** over a database's tables, **Data Discovery** over an
-object store's files — so the setup is one stop with no step forgotten.
-
-<!-- screenshot slots — drop the files in docs/images/ and uncomment
-<p align="center">
-  <img alt="Connect — saved connections, bulk load and the live scan" src="docs/images/connect.png" width="900"><br>
-  <em>Connect — saved connections, bulk load and the live scan</em>
-</p>
+preserved). 
 <p align="center">
   <img alt="Schema — the ER diagram with PK/FK edges" src="docs/images/connect-schema.png" width="900"><br>
   <em>Schema — the ER diagram with PK/FK edges</em>
 </p>
-<p align="center">
-  <img alt="Files — the MinIO/S3 object browser" src="docs/images/connect-files.png" width="900"><br>
-  <em>Files — the MinIO/S3 object browser</em>
-</p>
--->
-
+The sidebar footer's **PDC dot** lights as soon as any page
+really talks to PDC — Get token, a harvest read, or a bulk-load run.
 </details>
 
 <details>
