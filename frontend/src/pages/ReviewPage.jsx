@@ -595,7 +595,9 @@ export default function ReviewPage({ onNavigate }) {
     }
     const working = baseRows.map((r) => ({ ...r }))
     cancelRef.current = false
-    setAgent({ label, done: 0, total, proposed: 0 })
+    const startedAt = Date.now()
+    const batches = Math.ceil(total / chunk)
+    setAgent({ label, done: 0, total, proposed: 0, batch: 0, batches, startedAt, names: [] })
     // NOTE: pending proposals from a previous agent are KEPT — new proposals
     // merge in per row/field below, so running the next agent never forces an
     // Accept all / Dismiss all decision on the last one's pills
@@ -623,6 +625,10 @@ export default function ReviewPage({ onNavigate }) {
     let timedOut = 0
     for (let s = 0; s < total && !cancelRef.current; s += chunk) {
       const idx = targets.slice(s, s + chunk)
+      // announce the batch BEFORE the call — a model batch can take 30s+, and a
+      // bar that only moves on completion reads as "stuck"
+      setAgent((a) => (a ? { ...a, batch: Math.floor(s / chunk) + 1,
+                             names: idx.map((i) => (baseRows[i] || {}).Term).filter(Boolean) } : a))
       let add = null
       try {
         const d = await call(idx.map((i) => working[i]))
@@ -762,7 +768,10 @@ export default function ReviewPage({ onNavigate }) {
   // The default agent: one call per row covering every LLM-decidable field.
   async function runAiPass() {
     const run = await runChunks('AI pass — definitions, purposes, names, categories, tags',
-      (rs) => apiPost('/api/ai-pass', { rows: rs, model: settings?.model || null, compute: settings?.compute }), {
+      // no model/compute here: ReviewPage has no settings prop (that was a
+      // copy from the Dictionary page and threw ReferenceError before the
+      // fetch, failing every row) — the server uses its configured model
+      (rs) => apiPost('/api/ai-pass', { rows: rs }), {
         propose: {
           label: 'AI pass (all fields)',
           watch: ['Definition', 'Purpose', 'Suggested_Name', 'Suggested_Tags', 'Category', 'PII_Category'],
@@ -939,9 +948,15 @@ export default function ReviewPage({ onNavigate }) {
             <span className="ep">
               {agent.cancelling ? 'Finishing current batch…' : `${agent.label} — ${agent.done}/${agent.total} (kept rows) · ${Math.round((100 * agent.done) / Math.max(agent.total, 1))}%`}
             </span>
-            <div className="progress-track" role="progressbar" aria-valuemin={0} aria-valuemax={agent.total} aria-valuenow={agent.done}>
+            <div className="progress-track rv-agenttrack" role="progressbar" aria-valuemin={0} aria-valuemax={agent.total} aria-valuenow={agent.done}>
               <div className="progress-bar" style={{ width: `${Math.round((100 * agent.done) / Math.max(agent.total, 1))}%` }} />
+              {agent.done < agent.total && (agent.names || []).length > 0 && (
+                <div className="rv-agentinflight"
+                     style={{ left: `${(agent.done / Math.max(agent.total, 1)) * 100}%`,
+                              width: `${(agent.names.length / Math.max(agent.total, 1)) * 100}%` }} />
+              )}
             </div>
+            <AgentEta agent={agent} />
             {(agent.proposed || 0) > 0 && (
               <span className="rv-livecount"
                     title="Rows already back from finished batches — their pills are live in the grid right now, click one to accept it. Nothing has touched the grid yet.">
@@ -1168,6 +1183,31 @@ export default function ReviewPage({ onNavigate }) {
         <EvidenceModal row={rows[evidence]} onClose={() => setEvidence(null)} />
       )}
     </>
+  )
+}
+
+/* Live elapsed / ETA under the agent bar. A batched model run is minutes long,
+   so the steward needs to see it moving and know roughly how long is left —
+   the rate comes from the batches already finished. */
+function AgentEta({ agent }) {
+  const [, tick] = useState(0)
+  useEffect(() => {
+    const t = setInterval(() => tick((n) => n + 1), 1000)
+    return () => clearInterval(t)
+  }, [])
+  const secs = Math.max(0, Math.round((Date.now() - agent.startedAt) / 1000))
+  const mmss = (n) => `${Math.floor(n / 60)}:${String(Math.round(n % 60)).padStart(2, '0')}`
+  const perRow = agent.done > 0 ? secs / agent.done : 0
+  const left = perRow > 0 ? Math.round(perRow * (agent.total - agent.done)) : 0
+  return (
+    <p className="rv-agenteta notes">
+      {agent.batches > 1 && <>batch <b>{agent.batch}</b> of {agent.batches} · </>}
+      elapsed {mmss(secs)}
+      {agent.done > 0 && <> · ~{mmss(left)} left · {perRow.toFixed(1)}s/row</>}
+      {(agent.names || []).length > 0 && agent.done < agent.total && (
+        <> · now: {agent.names.slice(0, 4).join(' · ')}{agent.names.length > 4 ? ` +${agent.names.length - 4}` : ''}</>
+      )}
+    </p>
   )
 }
 

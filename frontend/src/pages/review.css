@@ -304,3 +304,13 @@ button.rv-aipill:hover { background: color-mix(in srgb, var(--accent) 16%, trans
 
 /* what the Detection choice will write into the Registry, for THIS row */
 .rv-detwhy { font-size: .74rem; opacity: .85; margin-left: .4rem; }
+
+/* agent run: the batch currently in flight, and the elapsed/ETA line */
+.rv-agenttrack { position: relative; }
+.rv-agentinflight {
+  position: absolute; top: 0; height: 100%; border-radius: 4px;
+  background: var(--accent); opacity: .35;
+  animation: rv-agentpulse 1.2s ease-in-out infinite;
+}
+@keyframes rv-agentpulse { 50% { opacity: .55; } }
+.rv-agenteta { margin: .15rem 0 0; font-size: .75rem; opacity: .85; }
