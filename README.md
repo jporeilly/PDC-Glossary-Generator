@@ -163,8 +163,11 @@ order. Expand a step for what it does and how it looks.
 <br>
 
 Live database scan (PostgreSQL, SQL Server, MySQL/MariaDB,
-Oracle), MinIO/S3 document stores, or a plain DDL file. Or skip direct access
-entirely and **harvest from what PDC has already cataloged**. The schema
+Oracle), MinIO/S3 document stores, or a plain DDL file. 
+
+
+
+Or skip direct access entirely and **harvest from what PDC has already cataloged**. The schema
 browser (tables, PK/FK relationships, write-back of missing keys) and the
 MinIO/S3 object browser live on their own **Schema** and **Files**
 sub-pages under Connect. Schema renders as **Cards or an ER diagram**
