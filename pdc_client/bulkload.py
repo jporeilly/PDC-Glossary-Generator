@@ -190,7 +190,8 @@ def source_entity_ids(base_url, token, resource_name=None, resource_id=None,
         ex = find_existing_data_source(base_url, token, resource_name, version,
                                        verify_tls, timeout) or {}
         rid = ex.get("_id") or ex.get("resourceId") or ex.get("id")
-    url = clean_base(base_url) + f"/api/public/v3/entities/filter?extended=false&size={int(limit)}"
+    # the filter API rejects size > 500 ("/size must be <= 500")
+    url = clean_base(base_url) + f"/api/public/v3/entities/filter?extended=false&size={min(int(limit), 500)}"
     out = _req("POST", url, token=token, body={"filters": {}},
                verify_tls=verify_tls, timeout=timeout)
     rows = out.get("data", out) if isinstance(out, dict) else out
@@ -429,8 +430,14 @@ def bulk_load_one(base_url, token, row, version="v2", verify_tls=True, timeout=3
         _kind = str(row.get("kind") or "").strip().lower()
         _is_object_store = _kind in ("minio", "s3", "aws_s3") or body.get("databaseType") == "AWS"
         if do_ingest and _is_object_store:
-            if internal_scan:
-                # EXPERIMENTAL: PDC's internal /api/start-job — the UI's Scan Files call.
+            # An object store's files reach the catalog ONLY through the file
+            # scan, and Data Discovery analyses what that scan produced — so
+            # "profile / discover" has to run the scan first or it discovers
+            # nothing. The public API doesn't expose the trigger, so this uses
+            # PDC's internal /api/start-job (the UI's own Scan Files call) with
+            # the same bearer token.
+            if internal_scan or do_profile:
+                # PDC's internal /api/start-job — the UI's Scan Files call.
                 data = dict(body)
                 data["resourceId"] = rec["resourceId"]
                 _fq = (cr.get("record") or {}).get("fqdnId") if isinstance(cr, dict) else None
@@ -444,7 +451,7 @@ def bulk_load_one(base_url, token, row, version="v2", verify_tls=True, timeout=3
                     ingest_ok = True
                     rec["ingest"] = "OK"
                     rec["job"] = "SENT"
-                    rec["note"] = "file scan triggered via PDC internal /api/start-job (experimental — verify in PDC)"
+                    rec["note"] = "file scan triggered (PDC internal /api/start-job — the UI's Scan Files call)"
                     if wait and jr["job_id"]:
                         w = wait_job(base_url, token, jr["job_id"], version, verify_tls,
                                      timeout, poll_wait=poll_wait, max_wait=max_wait)
@@ -454,7 +461,15 @@ def bulk_load_one(base_url, token, row, version="v2", verify_tls=True, timeout=3
                                 rec["error"] = "internal scan: " + str(w["error"])[:200]
                 except Exception as e:
                     rec["ingest"] = "FAIL"
-                    rec["error"] = "internal /api/start-job failed: " + str(e)[:200]
+                    msg = str(e)[:200]
+                    # PDC's proxy routes the INTERNAL api by hostname: reached on a
+                    # bare IP it 401s even with a valid token, while the public API
+                    # answers fine — so only the file scan fails, confusingly.
+                    host = urllib.parse.urlparse(clean_base(base_url)).hostname or ""
+                    if "401" in msg and re.match(r"^\d{1,3}(\.\d{1,3}){3}$", host):
+                        msg += (" — PDC routes its internal API by hostname; use the vhost URL "
+                                "(e.g. https://pentaho.io) as the PDC base URL, not the IP %s." % host)
+                    rec["error"] = "internal /api/start-job failed: " + msg
             else:
                 # Public API doesn't expose the object-store file-scan trigger; create the
                 # source correctly and leave the scan to PDC's Scan Files (or the toggle).
@@ -486,7 +501,7 @@ def bulk_load_one(base_url, token, row, version="v2", verify_tls=True, timeout=3
         # object stores skip the ingest (no public file-scan trigger), so gate on
         # a good create instead: Data Discovery still runs over whatever files a
         # previous Scan Files put in the catalog.
-        if do_profile and create_ok and rec["job"] in ("OK", "SENT", "SKIP"):
+        if do_profile and create_ok and rec["job"] in ("OK", "SENT", "SKIP", "TIMEOUT"):
             try:
                 pr = profile_source(base_url, token, rec["resourceName"], version,
                                     verify_tls, timeout, wait=wait,
