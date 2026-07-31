@@ -36,9 +36,15 @@ def test_version_markers_agree():
         f"docs/CHANGELOG.md top entry {m and m.group(1)} != VERSION {version}"
 
     # the repo README's version stamp
-    m = re.search(r"\*\*Version:\*\*\s*([0-9][^\s·]*)", _read(REPO, "README.md"))
+    readme = _read(REPO, "README.md")
+    m = re.search(r"\*\*Version:\*\*\s*([0-9][^\s·]*)", readme)
     assert m and m.group(1) == version, \
         f"README.md **Version:** {m and m.group(1)} != VERSION {version}"
+
+    # …and its shields.io version badge (a second stamp = a second way to drift)
+    m = re.search(r"img\.shields\.io/badge/version-([0-9][^-]*)-", readme)
+    assert m and m.group(1) == version, \
+        f"README.md version badge {m and m.group(1)} != VERSION {version}"
 
 
 def test_readme_reflects_fastapi_port():

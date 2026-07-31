@@ -1,7 +1,51 @@
-# Pentaho Data Catalog Glossary Generator
+<h1 align="center">Pentaho Data Catalog Glossary Generator</h1>
 
-**Version:** 1.14.0 · validated against Pentaho Data Catalog 11.0.0 (public
-API v3). FastAPI backend with interactive API docs at **`/docs`**, and a
+<p align="center">
+  <b>Scan your data sources → suggest a business glossary → govern it → export import-ready JSONL.</b><br>
+  A local-first web app for <b>Pentaho Data Catalog → Business Glossary → Import</b> —<br>
+  so the glossary and its tags stay governed instead of drifting.
+</p>
+
+<p align="center">
+  <img alt="Version 1.14.0" src="https://img.shields.io/badge/version-1.14.0-0F766E">
+  <img alt="Pentaho Data Catalog 11.0.0" src="https://img.shields.io/badge/Pentaho%20Data%20Catalog-11.0.0-1f6feb">
+  <img alt="Public API v3" src="https://img.shields.io/badge/public%20API-v3-1f6feb">
+  <img alt="Python 3.9+" src="https://img.shields.io/badge/python-3.9%2B-3776AB">
+  <img alt="FastAPI + React 18" src="https://img.shields.io/badge/FastAPI%20%2B%20React%2018-informational">
+  <img alt="Offline pytest suite" src="https://img.shields.io/badge/tests-offline%20pytest-success">
+</p>
+
+<p align="center">
+  <a href="#overview"><b>Overview</b></a> ·
+  <a href="#why--the-registry"><b>Why — the Registry</b></a> ·
+  <a href="#walkthrough"><b>Walkthrough</b></a> ·
+  <a href="#beyond-the-walkthrough"><b>Beyond the walkthrough</b></a> ·
+  <a href="#install--run"><b>Install &amp; run</b></a> ·
+  <a href="#repository-layout"><b>Repository layout</b></a> ·
+  <a href="#documentation"><b>Documentation</b></a>
+</p>
+
+---
+
+**Version:** 1.14.0 · validated against Pentaho Data Catalog 11.0.0 (public API v3).
+
+> [!TIP]
+> **Quick start (Windows 11 host):** one command stands up the whole
+> `C:\PDC-Demo` checkout — this app, the Policy Generator, Catalog Insights
+> and a training vertical.
+>
+> ```powershell
+> iex "& { $(irm https://raw.githubusercontent.com/jporeilly/PDC-Scenarios/main/install-pdc-demo.ps1) } CSCU"
+> ```
+>
+> Full options — lab VM, step by step, LLM — under [Install &amp; run](#install--run).
+
+<details>
+<summary><b>What's in this build</b> — backend, frontend and the drift guards</summary>
+
+<br>
+
+FastAPI backend with interactive API docs at **`/docs`**, and a
 **React 18 + Vite frontend** (`frontend/`, on the shared Policy Generator
 design kit) served from `frontend/dist` when built — the legacy Jinja shell
 remains as the fallback at `/` until then (the PDC-Demo installer builds the
@@ -13,12 +57,32 @@ VERSION, the changelog and this README drift apart. The sidebar
 **version pill** is clickable — it shows the running build's release notes
 and flags a pulled-but-not-restarted mismatch.
 
-A local-first web app that **scans your data sources, suggests a business
-glossary, lets a steward review and govern it, and exports import-ready JSONL**
-for **Pentaho Data Catalog → Business Glossary → Import** — so the glossary and
-its tags stay governed instead of drifting.
+</details>
 
+---
 
+## Overview
+
+<!-- screenshot slot — drop the file in docs/images/ and uncomment
+<p align="center">
+  <img alt="The Glossary Generator home page" src="docs/images/home.png" width="900">
+</p>
+-->
+
+The app maintains **one governed answer per concept** and hands it to PDC in
+four moves:
+
+| Step | Page | What you get |
+| --- | --- | --- |
+| ① | **[Connect](#walkthrough)** | A live scan of a database, an object store or a DDL file — or a harvest of what PDC already catalogs |
+| ② | **[Review](#walkthrough)** | One candidate term per meaningful column, with evidence, AI proposals and duplicate resolution |
+| ③ | **[Govern](#walkthrough)** | Stewardship from the real roster, ratings, and the approval gate |
+| ④ | **[Generate &amp; apply](#walkthrough)** | Import-ready JSONL, the Classification Registry, and a write-back onto PDC entities |
+
+<details>
+<summary><b>Scenarios</b> — the app is generic; each vertical ships as its own bundle</summary>
+
+<br>
 
 The app is **scenario-generic**; each training scenario ships as a separate,
 self-contained bundle — data kit, domain pack and courseware — served by one
@@ -39,6 +103,10 @@ and both app workshops. Additional scenarios plug into PDC-Scenarios as data
 folders — a `data_sources/<ID>/` with a `scenario.json` beside a
 `courseware/<ID>/` set — with no code changes anywhere.
 
+</details>
+
+---
+
 ## Why — the Registry
 
 In PDC the same three facts about a column — its business term, its tags, and
@@ -51,7 +119,9 @@ This app maintains **one governed answer per concept**: a controlled two-layer
 and a **Classification Registry** written at export time
 (`registries/registry.<glossary>.json`).
 
-![Two apps, one handoff — Glossary Generator writes the Registry, Policy Generator reads it](glossary_generator/diagrams/two-apps.png)
+<p align="center">
+  <img alt="Two apps, one handoff — Glossary Generator writes the Registry, Policy Generator reads it" src="glossary_generator/diagrams/two-apps.png" width="900">
+</p>
 
 The Registry is the **contract between two separate apps**, used in order —
 mirroring PDC's own split between the Business Glossary and Data
@@ -73,167 +143,293 @@ Identification:
    Generator's **Draft policies (AI)** button already turns those seeds into
    importable pattern/dictionary files.
 
-Because both apps draw from the same row, the glossary term, the tags a method
-stamps, and the sensitivity can no longer quietly diverge. The full rationale
-is in [GUIDE.md](docs/GUIDE.md) (Part A), and the other
+> [!NOTE]
+> Because both apps draw from the same row, the glossary term, the tags a
+> method stamps, and the sensitivity can no longer quietly diverge.
+
+The full rationale is in [GUIDE.md](docs/GUIDE.md) (Part A), and the other
 workshop figures are in [diagrams/](glossary_generator/diagrams/).
 
-## What it does
+---
+
+## Walkthrough
 
 One pass through the app, page by page — the sidebar stepper walks the same
-order:
+order. Expand a step for what it does and how it looks.
 
-- **Connect** — live database scan (PostgreSQL, SQL Server, MySQL/MariaDB,
-  Oracle), MinIO/S3 document stores, or a plain DDL file. Or skip direct access
-  entirely and **harvest from what PDC has already cataloged**. The schema
-  browser (tables, PK/FK relationships, write-back of missing keys) and the
-  MinIO/S3 object browser live on their own **Schema** and **Files**
-  sub-pages under Connect. Schema renders as **Cards or an ER diagram**
-  (toggle; ER by default when relationships exist) — table nodes with PK/FK
-  rows, FK→PK edges, layered auto-layout, pan/zoom/drag, and a **Fit that
-  really centres** (the canvas sizes itself to the diagram, dense layers
-  spread wider, and zoom is floored at 55% — a layer that would sink below
-  that wraps into side-by-side node-columns) — and its
-  diagram-a-DDL panel is a **drag-and-drop zone** (.sql/.ddl/.txt, paste
-  preserved). The sidebar footer's **PDC dot** lights as soon as any page
-  really talks to PDC — Get token, a harvest read, or a bulk-load run.
+<details>
+<summary><b>① Connect</b> — scan a database, an object store or a DDL file (or harvest from PDC)</summary>
 
+<br>
 
+Live database scan (PostgreSQL, SQL Server, MySQL/MariaDB,
+Oracle), MinIO/S3 document stores, or a plain DDL file. Or skip direct access
+entirely and **harvest from what PDC has already cataloged**. The schema
+browser (tables, PK/FK relationships, write-back of missing keys) and the
+MinIO/S3 object browser live on their own **Schema** and **Files**
+sub-pages under Connect. Schema renders as **Cards or an ER diagram**
+(toggle; ER by default when relationships exist) — table nodes with PK/FK
+rows, FK→PK edges, layered auto-layout, pan/zoom/drag, and a **Fit that
+really centres** (the canvas sizes itself to the diagram, dense layers
+spread wider, and zoom is floored at 55% — a layer that would sink below
+that wraps into side-by-side node-columns) — and its
+diagram-a-DDL panel is a **drag-and-drop zone** (.sql/.ddl/.txt, paste
+preserved). The sidebar footer's **PDC dot** lights as soon as any page
+really talks to PDC — Get token, a harvest read, or a bulk-load run.
 
-  
-- **Review** — one suggested term per business-meaningful column, with inferred
-  sensitivity, PII category, CDE flag, governed lower-case tags, and an
-  evidence-based confidence signal. The scan **learns value formats from the
-  data** (position signatures → anchored regexes like `^CSCU-\d{6}$`) and
-  keeps profiled reference lists as evidence on every row. Edit everything
-  inline; duplicate groups come with an evidence-grounded **Merge /
-  Disambiguate / Keep separate recommendation** (escalating to a live
-  data-value probe and an AI adjudicator on demand). A **"How to review —
-  the working order"** guide panel (open by default) is an interactive,
-  clickable flow: ① Prune → ② Resolve duplicates → ③ Approve pending
-  vocabulary (the box hops to the Dictionary, with a come-back note) →
-  ④ the AI agents as sequence chips (Enrich → Suggest · Categorize · Tags →
-  QA as the gate) → ⑤ Name the glossary → Govern (navigates); the
-  grid scrolls in its own pane with a sticky header and frozen Keep /
-  Category / Term columns, and **Definition and Purpose expand in place**
-  to a full-width editor row with the scan evidence right underneath.
+**Bulk load** registers many sources in PDC at once from a CSV, ingests each
+one's metadata, and can run the analysis pass straight after —
+**Data Profiling** over a database's tables, **Data Discovery** over an
+object store's files — so the setup is one stop with no step forgotten.
 
+<!-- screenshot slots — drop the files in docs/images/ and uncomment
+<p align="center">
+  <img alt="Connect — saved connections, bulk load and the live scan" src="docs/images/connect.png" width="900"><br>
+  <em>Connect — saved connections, bulk load and the live scan</em>
+</p>
+<p align="center">
+  <img alt="Schema — the ER diagram with PK/FK edges" src="docs/images/connect-schema.png" width="900"><br>
+  <em>Schema — the ER diagram with PK/FK edges</em>
+</p>
+<p align="center">
+  <img alt="Files — the MinIO/S3 object browser" src="docs/images/connect-files.png" width="900"><br>
+  <em>Files — the MinIO/S3 object browser</em>
+</p>
+-->
 
+</details>
 
-- **Govern** — steward/owner/custodian assignment driven by the
-  Keycloak-fetched roster: candidate pools are **constrained to each person's
-  actual roster roles**, expertise beats defaults only on a strict win, and
-  the business domain auto-derives from the company data. Plus ratings,
-  review dates, and a steward approval gate over the vocabulary with a full
-  audit trail.
+<details>
+<summary><b>② Review</b> — one term per column: prune, enrich, resolve duplicates</summary>
 
+<br>
 
-  
-- **Generate & apply** — export the kept terms as PDC-importable JSONL, then
-  resolve term ids (fuzzy + **in-place AI matching** for renamed or
-  outstanding terms — no round-trip through the PDC glossary UI) and **apply
-  term links, tags, sensitivity and descriptions back onto PDC entities**
-  over the public API v3: column links, table terms and sensitivity rollups,
-  folder rating/DQ/sensitivity rollups, a **terminal-aware Data Discovery
-  watcher** (it stops the moment the discovery worker finishes and prints a
-  per-file wrap-up — profiled ✓ / no-DQ-from-PDC / failed — instead of
-  hanging until its 10-minute budget), and a Trust Score rollup to finish.
-  DQ is honest: an **unprofiled column carries no quality score** — the
-  exports omit `qualityScore` and the apply tables show a muted **DQ —**
-  chip instead of a fabricated 100. The Generate card's JSONL and the
-  drafted-policies zip can also go straight to the lab with **⇪ Send to
-  lab (MinIO)** — an upload to bucket `pdc-exports` over a saved
-  **write-capable** MinIO/S3 connection (`POST /api/lab-export`).
+One suggested term per business-meaningful column, with inferred
+sensitivity, PII category, CDE flag, governed lower-case tags, and an
+evidence-based confidence signal. The scan **learns value formats from the
+data** (position signatures → anchored regexes like `^CSCU-\d{6}$`) and
+keeps profiled reference lists as evidence on every row. Edit everything
+inline; duplicate groups come with an evidence-grounded **Merge /
+Disambiguate / Keep separate recommendation** (escalating to a live
+data-value probe and an AI adjudicator on demand).
 
+A **"How to review — the working order"** guide panel (open by default) is an
+interactive, clickable flow: ① Prune → ② Name the glossary (autosave on — it
+syncs the Dictionary) → ③ the AI agents as sequence chips (Enrich →
+Suggest · Categorize · Tags → QA as the gate) → ④ Resolve duplicates on the
+final names → ⑤ Approve the pending vocabulary (the box hops to the
+Dictionary) → Govern (navigates). The grid scrolls in its own pane with a
+sticky header and frozen Keep / Category / Term columns, and **Definition and
+Purpose expand in place** to a full-width editor row with the scan evidence
+right underneath.
 
+<!-- screenshot slots — drop the files in docs/images/ and uncomment
+<p align="center">
+  <img alt="Review — the working-order guide" src="docs/images/review-guide.png" width="900"><br>
+  <em>The working order, as an interactive flow</em>
+</p>
+<p align="center">
+  <img alt="Review — the grid with inline AI proposal pills" src="docs/images/review-grid.png" width="900"><br>
+  <em>Agents propose; the steward accepts — inline, per cell</em>
+</p>
+<p align="center">
+  <img alt="Review — duplicate resolution" src="docs/images/review-duplicates.png" width="900"><br>
+  <em>Merge · Disambiguate · Keep separate, with the evidence behind the advice</em>
+</p>
+-->
 
-   
-- **Steward-safe governance** — mistakes are recoverable in-product: every
-  vocabulary decision is reversible per item (labelled **✓ Approve /
-  ✕ Retire / ⤵ To alias** actions on approved terms and tags), a retire is
-  **durable** (tombstoned through reseeds, offered for removal from the
-  pack at export), *Approve all* confirms its consequences, bulk
-  retire-empty is gated until the dictionary has grown from a scan, and an
-  **AI fold advisor** proposes alias folds across the governed vocabulary
-  (abbreviation-expansion twins → one-click or Fold-all). The Dictionary
-  page explains itself: a flywheel panel plus an **"Approve, Retire or
-  Alias"** explainer with worked examples, and **AI review of the pending
-  vocabulary** sits right in the pending-panel header. Facet-preview
-  counts are **honest** — distinct current terms per tag (rescans are
-  no-ops), and the preview notes that live facets appear in PDC only after
-  methods deploy and Data Identification runs. Everything lands in the
-  append-only audit trail.
+</details>
 
+<details>
+<summary><b>③ Govern</b> — stewardship, ratings and the approval gate</summary>
 
+<br>
 
-- **State that takes care of itself** — the app auto-resumes your last saved
-  glossary on start and **autosaves** the workspace every 30 seconds (and on
-  page close) once it exists; all state survives `git pull` untouched, and
-  **Settings → State snapshot** zips everything for machine moves and
-  restore points. The **full working cycle** — scan to committed pack — is
-  documented as a panel on the Home page.
-- **AI agents (optional, local)** — eleven guardrailed agents over a local
-  **Ollama** model: definition/purpose enrichment, evidence-grounded term/tag/
-  sensitivity suggestions, duplicate-group adjudication, definition QA (with a
-  deterministic linter that also works offline), category assignment, roster
-  expertise, business-domain suggestion, pending-vocabulary review (with
-  alias folding), term-id matching at resolve time, the governed-vocabulary
-  fold advisor, and **Draft policies (AI)** — detection seeds →
-  ready-to-import PDC pattern/dictionary rule files. Every agent proposes; the steward accepts. Grid-agent
-  results land as **inline click-to-accept pills** right on the affected
-  cells, batch by batch while the run streams — nothing touches a row until
-  you accept its pill (or **Accept all** / **Dismiss all** from the strip
-  above the grid); there is no proposal popup. The agents sit in a labelled
-  **"AI AGENTS — kept rows · propose → you accept"** group and run on
-  **kept rows only** — prune 141→95 and they process 95, with progress
-  reading "0/95 (kept rows)". Fully offline-safe: no
-  Ollama, no problem — heuristics remain.
-- **The pack flywheel** — packs start hand-authored but don't stay that way:
-  **Export domain pack** (Dictionary page) merges the reviewed scan state
-  back into the installed pack — table mappings, learned abbreviations, the
-  approved vocabulary, and `curated_seeds` carrying the induced value
-  patterns and reference lists, detection seeds specific to *your* data.
-  Additions fill gaps; where the scan **disagrees** with the pack, each
-  conflict is listed for the steward to decide (curated seeds default to the
-  fresher scan evidence; steward-retired entries default to removal). **Apply to this app** installs the refreshed pack
-  and reseeds the dictionary (approved items survive); commit it to the
-  scenario repo and every future install starts from evidence instead of
-  guesses. No pack yet? Run packless, scan + review once — the first export
-  *is* your base pack.
+Steward/owner/custodian assignment driven by the
+Keycloak-fetched roster: candidate pools are **constrained to each person's
+actual roster roles**, expertise beats defaults only on a strict win, and
+the business domain auto-derives from the company data. Plus ratings,
+review dates, and a steward approval gate over the vocabulary with a full
+audit trail.
 
-## Repository layout
+<!-- screenshot slot — drop the file in docs/images/ and uncomment
+<p align="center">
+  <img alt="Govern — stewardship assignment from the roster" src="docs/images/govern.png" width="900"><br>
+  <em>Govern — candidates constrained to each person's real PDC roles</em>
+</p>
+-->
 
-```text
-glossary_generator/     the app (scenario-generic)
-  api.py                FastAPI backend (Swagger UI at /docs); serves
-                        frontend/dist at "/" when built, else the legacy shell
-  static/, templates/   the legacy UI (Jinja shell + numbered plain scripts) —
-                        the fallback until the React build exists
-  pdc_api.py            shim → the shared pdc_client package (repo root)
-  llm.py, llm_detect.py local Ollama client + host/GPU detection
-  tests/                offline pytest suite — engine, endpoint, PDC v3 shape
-                        and docs-consistency checks; run after every pull
-frontend/               React 18 + Vite UI (shared Policy design kit) —
-                        npm run build → frontend/dist, served by api.py;
-                        the PDC-Demo installer builds it in deployments
-pdc_client/             shared PDC Public API client package (core, entities,
-                        terms, jobs, apply, bulkload) — stdlib-only, reusable
-                        by sibling apps (Policy Generator next)
-docs/                   all documentation (reference, guide, changelog, …)
-pdc-reset.sh            wipe + rebuild the PDC deployment on the VM, incl. the
-                        OpenSearch security-index auto-repair (see docs/PDC-VM-TROUBLESHOOTING.md)
+</details>
 
-(scenario data, domain packs, courseware, the shared lab and the
-install/reset-scenario scripts moved to the PDC-Scenarios repo)
-```
+<details>
+<summary><b>④ Generate &amp; apply</b> — export JSONL, resolve ids, write back to PDC</summary>
 
-## Install & run
+<br>
 
-**Requirements:** Python 3.9+ on Windows 11 or macOS (the usual hosts), or
-the Ubuntu 24.04 training VM. Everything runs locally; PDC and Ollama are
-reached over the network only when you use those features.
+Export the kept terms as PDC-importable JSONL, then
+resolve term ids (fuzzy + **in-place AI matching** for renamed or
+outstanding terms — no round-trip through the PDC glossary UI) and **apply
+term links, tags, sensitivity and descriptions back onto PDC entities**
+over the public API v3: column links, table terms and sensitivity rollups,
+folder rating/DQ/sensitivity rollups, a **terminal-aware Data Discovery
+watcher** (it stops the moment the discovery worker finishes and prints a
+per-file wrap-up — profiled ✓ / no-DQ-from-PDC / failed — instead of
+hanging until its 10-minute budget), and a Trust Score rollup to finish.
 
-### Windows 11 host (one command)
+DQ is honest: an **unprofiled column carries no quality score** — the
+exports omit `qualityScore` and the apply tables show a muted **DQ —**
+chip instead of a fabricated 100. The Generate card's JSONL and the
+drafted-policies zip can also go straight to the lab with **⇪ Send to
+lab (MinIO)** — an upload to bucket `pdc-exports` over a saved
+**write-capable** MinIO/S3 connection (`POST /api/lab-export`).
+
+<!-- screenshot slots — drop the files in docs/images/ and uncomment
+<p align="center">
+  <img alt="Apply — generate the JSONL and the Registry" src="docs/images/apply-generate.png" width="900"><br>
+  <em>Generate — the JSONL and the Classification Registry in one pass</em>
+</p>
+<p align="center">
+  <img alt="Apply — term-id resolution and the write-back run" src="docs/images/apply-resolve.png" width="900"><br>
+  <em>Resolve and apply — term links, tags and sensitivity back onto PDC entities</em>
+</p>
+-->
+
+</details>
+
+---
+
+## Beyond the walkthrough
+
+<details>
+<summary><b>Steward-safe governance</b> — every vocabulary decision is reversible</summary>
+
+<br>
+
+Mistakes are recoverable in-product: every
+vocabulary decision is reversible per item (labelled **✓ Approve /
+✕ Retire / ⤵ To alias** actions on approved terms and tags), a retire is
+**durable** (tombstoned through reseeds, offered for removal from the
+pack at export), *Approve all* confirms its consequences, bulk
+retire-empty is gated until the dictionary has grown from a scan, and an
+**AI fold advisor** proposes alias folds across the governed vocabulary
+(abbreviation-expansion twins → one-click or Fold-all).
+
+The Dictionary page explains itself: a flywheel panel plus an
+**"Approve, Retire or Alias"** explainer with worked examples, and
+**AI review of the pending vocabulary** sits right in the pending-panel
+header. Facet-preview counts are **honest** — distinct current terms per tag
+(rescans are no-ops), and the preview notes that live facets appear in PDC
+only after methods deploy and Data Identification runs. Everything lands in
+the append-only audit trail.
+
+<!-- screenshot slots — drop the files in docs/images/ and uncomment
+<p align="center">
+  <img alt="Dictionary — the pending steward review queue" src="docs/images/dictionary-pending.png" width="900"><br>
+  <em>Pending steward review — enriched by your Review pass before you judge it</em>
+</p>
+<p align="center">
+  <img alt="Dictionary — the governed vocabulary" src="docs/images/dictionary-governed.png" width="900"><br>
+  <em>The governed vocabulary: terms first, then the tag allow-list</em>
+</p>
+-->
+
+</details>
+
+<details>
+<summary><b>State that takes care of itself</b> — autosave, resume and snapshots</summary>
+
+<br>
+
+The app auto-resumes your last saved
+glossary on start and **autosaves** the workspace every 30 seconds (and on
+page close) once it exists; all state survives `git pull` untouched, and
+**Settings → State snapshot** zips everything for machine moves and
+restore points. The **full working cycle** — scan to committed pack — is
+documented as a panel on the Home page.
+
+<!-- screenshot slot — drop the file in docs/images/ and uncomment
+<p align="center">
+  <img alt="Settings — state snapshot and restore" src="docs/images/settings-snapshot.png" width="900">
+</p>
+-->
+
+</details>
+
+<details>
+<summary><b>AI agents (optional, local)</b> — eleven guardrailed agents over Ollama</summary>
+
+<br>
+
+Eleven guardrailed agents over a local
+**Ollama** model: definition/purpose enrichment, evidence-grounded term/tag/
+sensitivity suggestions, duplicate-group adjudication, definition QA (with a
+deterministic linter that also works offline), category assignment, roster
+expertise, business-domain suggestion, pending-vocabulary review (with
+alias folding), term-id matching at resolve time, the governed-vocabulary
+fold advisor, and **Draft policies (AI)** — detection seeds →
+ready-to-import PDC pattern/dictionary rule files.
+
+Every agent proposes; the steward accepts. Grid-agent
+results land as **inline click-to-accept pills** right on the affected
+cells, batch by batch while the run streams — nothing touches a row until
+you accept its pill (or **Accept all** / **Dismiss all** from the strip
+above the grid); there is no proposal popup. The agents sit in a labelled
+**"AI AGENTS — kept rows · propose → you accept"** group and run on
+**kept rows only** — prune 141→95 and they process 95, with progress
+reading "0/95 (kept rows)".
+
+> [!NOTE]
+> Fully offline-safe: no Ollama, no problem — the heuristics remain.
+
+<!-- screenshot slot — drop the file in docs/images/ and uncomment
+<p align="center">
+  <img alt="The AI agents toolbar and inline accept pills" src="docs/images/ai-agents.png" width="900">
+</p>
+-->
+
+</details>
+
+<details>
+<summary><b>The pack flywheel</b> — packs learn from every reviewed scan</summary>
+
+<br>
+
+Packs start hand-authored but don't stay that way:
+**Export domain pack** (Dictionary page) merges the reviewed scan state
+back into the installed pack — table mappings, learned abbreviations, the
+approved vocabulary, and `curated_seeds` carrying the induced value
+patterns and reference lists, detection seeds specific to *your* data.
+
+Additions fill gaps; where the scan **disagrees** with the pack, each
+conflict is listed for the steward to decide (curated seeds default to the
+fresher scan evidence; steward-retired entries default to removal).
+**Apply to this app** installs the refreshed pack
+and reseeds the dictionary (approved items survive); commit it to the
+scenario repo and every future install starts from evidence instead of
+guesses. No pack yet? Run packless, scan + review once — the first export
+*is* your base pack.
+
+<!-- screenshot slot — drop the file in docs/images/ and uncomment
+<p align="center">
+  <img alt="Export domain pack — the flywheel merge and its conflicts" src="docs/images/pack-export.png" width="900">
+</p>
+-->
+
+</details>
+
+---
+
+## Install &amp; run
+
+> [!IMPORTANT]
+> **Requirements:** Python 3.9+ on Windows 11 or macOS (the usual hosts), or
+> the Ubuntu 24.04 training VM. Everything runs locally; PDC and Ollama are
+> reached over the network only when you use those features.
+
+<details>
+<summary><b>Windows 11 host</b> — one command</summary>
+
+<br>
 
 The standard topology runs the apps on the **Windows host** (Ollama lives
 there) and the lab + PDC on the Ubuntu VM. **One bootstrap** (PDC-Scenarios
@@ -249,7 +445,12 @@ Re-run it bare to update everything (it remembers the vertical). After any
 update: restart the app, click the **version pill** (it flags a stale
 build), and run `pytest -q` from `glossary_generator/`.
 
-### Lab VM (one command)
+</details>
+
+<details>
+<summary><b>Lab VM</b> — one command</summary>
+
+<br>
 
 On the Ubuntu lab VM, the bash twin does the same into `~/PDC-Demo`, and one
 make entry loads the vertical's data sources:
@@ -260,6 +461,13 @@ cd ~/PDC-Demo/PDC-Scenarios && make scenario ID=CSCU   # lab up + data loaded
 ```
 
 This repo's own `install-pdc-demo.sh` updates just this checkout + the vertical.
+
+</details>
+
+<details>
+<summary><b>Step by step</b> — pick a scenario, stand up the lab, run the app</summary>
+
+<br>
 
 ### 1. Pick a scenario (PDC-Scenarios repo)
 
@@ -311,7 +519,12 @@ Then open **[http://127.0.0.1:5000](http://127.0.0.1:5000)** and follow the work
 *Connect → Review → Govern → Apply*. The scenario's workshop guide is in
 PDC-Scenarios' `courseware/<scenario>/`.
 
-### Optional: LLM enrichment
+</details>
+
+<details>
+<summary><b>Optional: LLM enrichment</b> — a local Ollama model</summary>
+
+<br>
 
 ```bash
 ollama pull llama3.2:3b      # or use the app's Pull model button
@@ -324,16 +537,58 @@ for why). Configuration beyond that: copy
 [`.env.example`](glossary_generator/.env.example) to `.env` — every setting is
 optional.
 
+</details>
+
+---
+
+## Repository layout
+
+<details>
+<summary><b>What lives where</b></summary>
+
+<br>
+
+```text
+glossary_generator/     the app (scenario-generic)
+  api.py                FastAPI backend (Swagger UI at /docs); serves
+                        frontend/dist at "/" when built, else the legacy shell
+  static/, templates/   the legacy UI (Jinja shell + numbered plain scripts) —
+                        the fallback until the React build exists
+  pdc_api.py            shim → the shared pdc_client package (repo root)
+  llm.py, llm_detect.py local Ollama client + host/GPU detection
+  tests/                offline pytest suite — engine, endpoint, PDC v3 shape
+                        and docs-consistency checks; run after every pull
+frontend/               React 18 + Vite UI (shared Policy design kit) —
+                        npm run build → frontend/dist, served by api.py;
+                        the PDC-Demo installer builds it in deployments
+pdc_client/             shared PDC Public API client package (core, entities,
+                        terms, jobs, apply, bulkload) — stdlib-only, reusable
+                        by sibling apps (Policy Generator next)
+docs/                   all documentation (reference, guide, changelog, …)
+docs/images/            README screenshots (the walkthrough slots above)
+pdc-reset.sh            wipe + rebuild the PDC deployment on the VM, incl. the
+                        OpenSearch security-index auto-repair (see docs/PDC-VM-TROUBLESHOOTING.md)
+
+(scenario data, domain packs, courseware, the shared lab and the
+install/reset-scenario scripts moved to the PDC-Scenarios repo)
+```
+
+</details>
+
+---
+
 ## Documentation
 
-| Document                                                   | What it covers                                                                                                |
-| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| [REFERENCE.md](docs/REFERENCE.md)                           | App reference: env vars, drivers, Ollama/GPU, API, repository manifest                                        |
-| [GUIDE.md](docs/GUIDE.md)                                   | THE manual: why (Registry) + install/setup + walkthrough + real-PDC operating notes                           |
-| [CHANGELOG.md](docs/CHANGELOG.md)                           | Release history                                                                                               |
-| [PDC-VM-TROUBLESHOOTING.md](docs/PDC-VM-TROUBLESHOOTING.md) | PDC platform errors on the lab VM (OpenSearch init, site-wide 404, certs, licensing)                          |
+| Document | What it covers |
+| --- | --- |
+| [REFERENCE.md](docs/REFERENCE.md) | App reference: env vars, drivers, Ollama/GPU, API, repository manifest |
+| [GUIDE.md](docs/GUIDE.md) | THE manual: why (Registry) + install/setup + walkthrough + real-PDC operating notes |
+| [CHANGELOG.md](docs/CHANGELOG.md) | Release history |
+| [PDC-VM-TROUBLESHOOTING.md](docs/PDC-VM-TROUBLESHOOTING.md) | PDC platform errors on the lab VM (OpenSearch init, site-wide 404, certs, licensing) |
 | [PDC-Scenarios](https://github.com/jporeilly/PDC-Scenarios) | Every vertical's data kit, domain pack and courseware — incl. the shared lab and lab-setup.docx (Parts A–I) |
 
-*All scenario data — Copper State Credit Union, Canyon Trail Outfitters,
-Lakeshore Health Partners and Cascade Precision Components — is fictional and
-generated for training.*
+<p align="center">
+  <sub><em>All scenario data — Copper State Credit Union, Canyon Trail Outfitters,
+  Lakeshore Health Partners and Cascade Precision Components — is fictional and
+  generated for training.</em></sub>
+</p>
