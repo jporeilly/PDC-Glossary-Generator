@@ -1185,21 +1185,30 @@ function ConnCard({ conn, onEdit, onChanged, onDiscoverDb, onDiscoverDocs, onNav
     }
   }
 
+  // An object store with no bucket is export-only (the lab MinIO target for
+  // Send to lab): there is nothing to read, so scanning it just 400s on
+  // "Invalid bucket name" — offer Test/Edit only.
+  const exportOnly = c.type === 'minio' && !(c.config || {}).bucket
+  const exportOnlyWhy = 'This connection has no bucket — it is an export target only. Add a bucket in Edit to scan it.'
+
   return (
     <div className="conn-card">
       <div className="conn-head">
         <b>{c.name}</b>
         <span className="badge neutral">{CONN_TYPE_LABEL[c.type] || c.type}</span>
+        {exportOnly && <span className="badge neutral" title={exportOnlyWhy}>export only</span>}
       </div>
       <div className="conn-det">{connDetail(c)}</div>
       <div className="acts">
-        <button className="primary connect-sm" disabled={busy} onClick={() => scan('replace')}
-                title="Reads the source and starts a fresh glossary from it (replaces the current candidate terms).">Scan</button>
-        <button className="ghost connect-sm" disabled={busy} onClick={() => scan('add')}
-                title="Scans this source and merges its terms into the existing glossary.">Add to glossary</button>
+        <button className="primary connect-sm" disabled={busy || exportOnly} onClick={() => scan('replace')}
+                title={exportOnly ? exportOnlyWhy
+                  : "Reads the source and starts a fresh glossary from it (replaces the current candidate terms)."}>Scan</button>
+        <button className="ghost connect-sm" disabled={busy || exportOnly} onClick={() => scan('add')}
+                title={exportOnly ? exportOnlyWhy
+                  : "Scans this source and merges its terms into the existing glossary."}>Add to glossary</button>
         {c.type !== 'ddl' && (
-          <button className="ghost connect-sm" disabled={busy} onClick={discover}
-                  title={c.type === 'minio'
+          <button className="ghost connect-sm" disabled={busy || exportOnly} onClick={discover}
+                  title={exportOnly ? exportOnlyWhy : c.type === 'minio'
                     ? 'Profile the bucket: file counts, sizes, types and folders.'
                     : 'Deeper profiling (distribution, uniqueness, patterns) so confidence and Data Quality are evidence-based.'}>Discover</button>
         )}
