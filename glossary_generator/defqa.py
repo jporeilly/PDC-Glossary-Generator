@@ -13,6 +13,16 @@ import re
 
 _VAGUE = re.compile(r"^\s*(data|information|details?|values?|fields?)\s+(about|for|of|related to)\b", re.I)
 _ECHO = re.compile(r"^\s*(the\s+)?%s\s*[.]?\s*$", re.I)
+# The SCAN's own fallback sentence — "<Term> associated with a <table> record",
+# "Reference linking this record to its related <x>", "Unique identifier for a
+# <x> record". It reads like prose, so none of the other rules catch it, but it
+# carries no business meaning: every column in a table gets the same shape. The
+# AI pass is told to replace these (REWRITE REQUIRED), so flagging them is what
+# gets them fixed rather than shipped.
+_TEMPLATED = re.compile(
+    r"^\s*(.+?\s+associated with (a|an|the)\s+.+?\s+record"
+    r"|reference linking this record to its related\b.*"
+    r"|unique identifier for (a|an|the)\s+.+?\s+record)\s*[.]?\s*$", re.I)
 
 
 def _tokens(s):
@@ -51,6 +61,8 @@ def lint_rows(rows):
                 out.append("echoes the term name only")
             if _VAGUE.match(d):
                 out.append("vague opener ('data about…') — say what it IS and why it matters")
+            if _TEMPLATED.match(d):
+                out.append("generic scan template — says nothing specific to this column")
         if i in dupes:
             out.append("identical definition shared by multiple different terms")
         if out:
