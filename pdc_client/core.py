@@ -64,6 +64,12 @@ def _req(method, url, token=None, body=None, headers=None, verify_tls=True,
     try:
         with urllib.request.urlopen(req, timeout=timeout, context=_ctx(verify_tls)) as r:
             raw = r.read().decode("utf-8")
+            # PDC sits behind oauth2-proxy: an absent/expired token on the
+            # INTERNAL endpoints (/api/*, no /public/) is answered with a 302 to
+            # Keycloak, not a 401 — urllib follows it and hands back the login
+            # HTML, which used to surface as a baffling JSON parse error.
+            if raw.lstrip()[:1] == "<" and "/protocol/openid-connect/auth" in raw:
+                raise TokenExpired("redirected to the Keycloak login — token missing or expired")
             return json.loads(raw) if raw.strip() else {}
     except urllib.error.HTTPError as e:
         detail = ""

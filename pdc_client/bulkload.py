@@ -177,6 +177,80 @@ def internal_scan_files(base_url, token, data_body, verify_tls=True, timeout=30)
     return {"job_id": jid, "raw": out}
 
 
+def source_entity_ids(base_url, token, resource_name=None, resource_id=None,
+                      kinds=("TABLE",), limit=500, verify_tls=True, timeout=30,
+                      version="v2"):
+    """Entity UUIDs belonging to a data source, for scoping the profiling job.
+       Profiling takes ENTITY uuids (POST /entities/filter, v3), not the
+       data-source create id — the same distinction ingest vs re-ingest has.
+       Entities carry `resourceId` (the data source's _id) rather than its name,
+       so a name is resolved to that id first."""
+    rid = resource_id
+    if not rid and resource_name:
+        ex = find_existing_data_source(base_url, token, resource_name, version,
+                                       verify_tls, timeout) or {}
+        rid = ex.get("_id") or ex.get("resourceId") or ex.get("id")
+    url = clean_base(base_url) + f"/api/public/v3/entities/filter?extended=false&size={int(limit)}"
+    out = _req("POST", url, token=token, body={"filters": {}},
+               verify_tls=verify_tls, timeout=timeout)
+    rows = out.get("data", out) if isinstance(out, dict) else out
+    if isinstance(rows, dict):
+        rows = rows.get("data", [])
+    want = {str(k).upper() for k in (kinds or ())}
+    ids = []
+    for r in rows if isinstance(rows, list) else []:
+        if not isinstance(r, dict):
+            continue
+        if want and str(r.get("type") or "").upper() not in want:
+            continue
+        if rid and str(r.get("resourceId") or "") != str(rid):
+            continue
+        eid = r.get("_id") or r.get("id")
+        if eid:
+            ids.append(eid)
+    return ids
+
+
+def profile_source(base_url, token, resource_name=None, version="v2", verify_tls=True,
+                   timeout=30, wait=False, poll_wait=3.0, max_wait=600, limit=500,
+                   resource_id=None, object_store=False):
+    """Run PDC's analysis job over a data source's entities. Both are PUBLIC,
+       supported jobs (worker DATA_PROFILE), unlike the object-store file scan:
+
+         structured (JDBC)      -> data-profiling, scoped to TABLE entities
+                                   ("Data Profiling": distributions, uniqueness,
+                                   patterns — the evidence DQ and identification use)
+         unstructured (files)   -> data-discovery, scoped to FOLDER/FILE entities
+                                   ("Data Discovery": what's inside the documents)
+
+       POST /jobs/execute/<job> {"scope":[<entity uuid>…], "configs":{}}.
+       Returns {job_id, entities, ok, status, error, activity}."""
+    job = "data-discovery" if object_store else "data-profiling"
+    kinds = ("FOLDER", "FILE") if object_store else ("TABLE",)
+    ids = source_entity_ids(base_url, token, resource_name, resource_id, kinds=kinds,
+                            verify_tls=verify_tls, timeout=timeout, limit=limit,
+                            version=version)
+    if not ids:
+        return {"job_id": None, "entities": 0, "ok": False, "activity": job,
+                "error": ("no scanned files found to discover — run the object store's "
+                          "Scan Files in PDC first"
+                          if object_store else
+                          "no ingested tables found to profile — run the metadata ingest first")}
+    jr = run_job(base_url, token, job, {"scope": ids, "configs": {}},
+                 version, verify_tls, timeout)
+    rec = {"job_id": jr["job_id"], "entities": len(ids), "ok": bool(jr["job_id"]),
+           "activity": job, "error": None}
+    if wait and jr["job_id"]:
+        w = wait_job(base_url, token, jr["job_id"], version, verify_tls, timeout,
+                     poll_wait=poll_wait, max_wait=max_wait)
+        rec["ok"] = bool(w.get("ok"))
+        rec["status"] = w.get("status")
+        if not w.get("ok"):
+            rec["error"] = ("profiling job ended %s" % w.get("status")) + (
+                " — %s" % w["error"] if w.get("error") else "")
+    return rec
+
+
 def delete_data_source(base_url, token, ds_id, version="v2", verify_tls=True, timeout=30):
     """DELETE /data-sources/{id}. Used to recreate a source whose stored config is
        wrong (e.g. an object store created before the AWS_S3 fix, so it carries no
@@ -286,7 +360,7 @@ def find_existing_data_source(base_url, token, resource_name, version="v2",
 def bulk_load_one(base_url, token, row, version="v2", verify_tls=True, timeout=30,
                   do_test=False, do_ingest=True, wait=True,
                   poll_wait=3.0, max_wait=300, skip_existing=True, replace_existing=False,
-                  internal_scan=False):
+                  internal_scan=False, do_profile=False):
     """Process a single row: create the data source, then trigger the metadata
        re-ingest job scoped to the new record and (optionally) poll it to a
        terminal state. Never raises for a row-level failure — returns a result
@@ -296,7 +370,7 @@ def bulk_load_one(base_url, token, row, version="v2", verify_tls=True, timeout=3
        no confirmed public test-connection job, and the app validates connectivity
        locally (Test connection buttons) before bulk load."""
     rec = {"resourceName": (row.get("resourceName") or row.get("name") or ""),
-           "create": "SKIP", "ingest": "SKIP", "job": "SKIP",
+           "create": "SKIP", "ingest": "SKIP", "job": "SKIP", "profile": "SKIP",
            "resourceId": None, "jobId": None, "error": None}
     create_ok = ingest_ok = False
     try:
@@ -405,6 +479,36 @@ def bulk_load_one(base_url, token, row, version="v2", verify_tls=True, timeout=3
                     rec["error"] = ("ingest job ended %s" % w.get("status")) + (" — %s" % detail if detail else "")
                     if w.get("timeout"):
                         rec["error"] += " (still running when polling stopped — check the Workers page)"
+
+        # Profiling runs AFTER the ingest: it is scoped to the entities the
+        # ingest created, so it needs that job to have finished (wait=True) —
+        # otherwise there are no tables to profile yet.
+        # object stores skip the ingest (no public file-scan trigger), so gate on
+        # a good create instead: Data Discovery still runs over whatever files a
+        # previous Scan Files put in the catalog.
+        if do_profile and create_ok and rec["job"] in ("OK", "SENT", "SKIP"):
+            try:
+                pr = profile_source(base_url, token, rec["resourceName"], version,
+                                    verify_tls, timeout, wait=wait,
+                                    poll_wait=poll_wait, max_wait=max_wait,
+                                    resource_id=rec["resourceId"],
+                                    object_store=_is_object_store)
+                if pr.get("job_id"):
+                    rec["profileJobId"] = pr["job_id"]
+                    rec["profile"] = "OK" if pr.get("ok") else "FAIL"
+                    label = "discovering" if _is_object_store else "profiling"
+                    rec["note"] = ((rec.get("note") + " · ") if rec.get("note") else "") + \
+                        "%s %d entit%s" % (label, pr["entities"], "y" if pr["entities"] == 1 else "ies")
+                else:
+                    rec["profile"] = "FAIL"
+                if pr.get("error") and not rec["error"]:
+                    rec["error"] = str(pr["error"])[:200]
+            except TokenExpired:
+                raise
+            except Exception as e:
+                rec["profile"] = "FAIL"
+                if not rec["error"]:
+                    rec["error"] = "profiling failed: " + str(e)[:200]
 
     except TokenExpired:
         raise

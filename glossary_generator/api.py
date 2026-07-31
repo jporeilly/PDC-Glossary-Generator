@@ -2334,6 +2334,7 @@ def _bulk_load_events(body):
     wait = bool(opts.get("wait", True))
     replace_existing = bool(opts.get("replace_existing", False))
     internal_scan = bool(opts.get("internal_scan", False))
+    do_profile = bool(opts.get("profile", False))
     dry_run = bool(body.get("dry_run", False))
 
     rows = body.get("rows")
@@ -2387,7 +2388,8 @@ def _bulk_load_events(body):
                                         verify_tls=verify, do_test=do_test,
                                         do_ingest=do_ingest, wait=wait,
                                         replace_existing=replace_existing,
-                                        internal_scan=internal_scan)
+                                        internal_scan=internal_scan,
+                                        do_profile=do_profile)
         except pdc_api.TokenExpired:
             if reauth:
                 try:
@@ -2396,7 +2398,8 @@ def _bulk_load_events(body):
                                                 verify_tls=verify, do_test=do_test,
                                                 do_ingest=do_ingest, wait=wait,
                                                 replace_existing=replace_existing,
-                                                internal_scan=internal_scan)
+                                                internal_scan=internal_scan,
+                                        do_profile=do_profile)
                 except Exception as e:
                     rec = {"resourceName": name, "create": "FAIL",
                            "error": "re-auth/retry failed: %s" % str(e)[:240]}

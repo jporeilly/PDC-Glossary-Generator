@@ -318,7 +318,7 @@ const BL_BADGE = {
 
 function BulkLoadCard({ pdc, onConnectionsChanged }) {
   const [csv, setCsv] = useState('')
-  const [opts, setOpts] = useState({ ingest: true, replace: false, internal: false })
+  const [opts, setOpts] = useState({ ingest: true, replace: false, internal: false, profile: false })
   const [msg, setMsg] = useState('')
   const [running, setRunning] = useState(false)
   const [progress, setProgress] = useState(null)   // {done, total}
@@ -384,7 +384,8 @@ function BulkLoadCard({ pdc, onConnectionsChanged }) {
     setMsg(dry ? 'Building payloads…' : 'Loading… creating, testing and ingesting each source.')
     const payload = {
       ...pdcAuthBody(pdc), csv, dry_run: !!dry,
-      options: { ingest: opts.ingest, wait: true, replace_existing: opts.replace, internal_scan: opts.internal },
+      options: { ingest: opts.ingest, wait: true, replace_existing: opts.replace, internal_scan: opts.internal,
+                 profile: opts.profile },
     }
     try {
       const result = await runJob('bulk-load', payload, (job) => {
@@ -458,6 +459,9 @@ function BulkLoadCard({ pdc, onConnectionsChanged }) {
         <label className="check" title="If a source already exists in PDC, delete and recreate it so corrected CSV values take effect.">
           <input type="checkbox" checked={opts.replace}
                  onChange={(e) => setOpts({ ...opts, replace: e.target.checked })} /> recreate if exists</label>
+        <label className="check" title="After the ingest, run PDC's analysis job per source type — Data Profiling over a database's tables (distributions, uniqueness, patterns), Data Discovery over an object store's files. Public API (worker DATA_PROFILE); adds a few minutes per source. A file source needs its Scan Files run first, or there is nothing to discover.">
+          <input type="checkbox" checked={opts.profile}
+                 onChange={(e) => setOpts({ ...opts, profile: e.target.checked })} /> profile / discover</label>
         <label className="check" title="EXPERIMENTAL: scan object stores via PDC's internal /api/start-job endpoint — not part of the public API.">
           <input type="checkbox" checked={opts.internal}
                  onChange={(e) => setOpts({ ...opts, internal: e.target.checked })} /> scan object stores (internal API ⚠)</label>
@@ -476,7 +480,7 @@ function BulkLoadCard({ pdc, onConnectionsChanged }) {
       {table && rowIdx.length > 0 && (
         <div className="table-scroll" style={{ marginTop: '.8rem' }}>
           <table>
-            <thead><tr><th>Resource</th><th>create</th><th>ingest</th><th>job</th><th>note</th></tr></thead>
+            <thead><tr><th>Resource</th><th>create</th><th>ingest</th><th>job</th><th>profile</th><th>note</th></tr></thead>
             <tbody>
               {rowIdx.map((i) => {
                 const r = table.rows[i]
@@ -484,8 +488,8 @@ function BulkLoadCard({ pdc, onConnectionsChanged }) {
                   <tr key={i}>
                     <td>{r.resourceName || ''}</td>
                     {r.working
-                      ? <td colSpan={3} className="notes">working…</td>
-                      : ['create', 'ingest', 'job'].map((k) => (
+                      ? <td colSpan={4} className="notes">working…</td>
+                      : ['create', 'ingest', 'job', 'profile'].map((k) => (
                           <td key={k}>{r[k]
                             ? <span className={`badge ${BL_BADGE[r[k]] || 'neutral'}`}>{r[k]}</span>
                             : <span className="notes">—</span>}</td>
