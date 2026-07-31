@@ -1348,6 +1348,48 @@ def ai_suggest(body: dict = Body(default={})):
     return {"rows": rows, "updated": counts, "used_llm": used_llm,
             "stats": _stats(rows), "llm": llm.status(model)}
 
+@app.post("/api/ai-pass")
+def api_ai_pass(body: dict = Body(default={})):
+    """ONE combined agent pass: definition, purpose, name, category and governed
+       tags for each kept row in a single model call per row. Replaces running
+       Enrich + AI suggest + AI categorize separately — three passes over the same
+       rows that overlapped on name / category / tags, so the last one won. Same
+       guardrails: tags governed-only, category fills a blank only, the name is a
+       Suggested_Name chip, and sensitivity / PII stay deterministic from the scan."""
+    body = body or {}
+    rows = [r for r in (body.get("rows") or []) if isinstance(r, dict)]
+    only_low = bool(body.get("only_low_confidence", False))
+    model = body.get("model") or None
+    compute = body.get("compute") or None
+    try:
+        allow = sorted(tagdict.governed_tags())
+    except Exception:
+        allow = []
+    cats = sorted({r.get("Category") for r in rows if r.get("Category")})
+    # DETERMINISTIC first, and free: re-derive the governed tags from the
+    # dictionary (what the old "Suggest tags" button did on its own). Doing it
+    # here means the model sees the governed tags as context and can only add to
+    # them — one less button, no extra model time.
+    try:
+        suggester.retag_rows(rows)
+    except Exception:
+        pass
+    rows, counts, used_llm = llm.ai_pass_rows(
+        rows, allow_tags=allow, categories=cats,
+        only_low_confidence=only_low, model=model, compute=compute)
+    # same deterministic PII re-assertion the evidence agent applies: the scan
+    # classifier is authoritative, so no agent (or import) can leave a bad value
+    pii_fixed = 0
+    for r in rows:
+        g = suggester.guard_pii_row(r)
+        if g != (r.get("PII_Category") or "").strip():
+            r["PII_Category"] = g
+            pii_fixed += 1
+    if pii_fixed:
+        counts["pii"] = pii_fixed
+    return {"rows": rows, "updated": counts, "used_llm": used_llm,
+            "stats": _stats(rows), "llm": llm.status(model)}
+
 @app.post("/api/suggest-expertise")
 def suggest_expertise_route(body: dict = Body(default={})):
     """LLM-generate `expertise` keywords for each roster member (these drive

@@ -173,14 +173,12 @@ const CHUNK = 6
 // explanation is right there when you're deciding whether to accept. Keyed by
 // the agent's proposal label (matches the toolbar button text).
 const AGENT_DESC = [
+  { label: 'AI pass (all fields)',
+    desc: 'ONE model call per row for everything the LLM can decide — Definition, Purpose, a clearer name, governed tags, and a category only when the current one is blank. This is Enrich + AI suggest + AI categorize in a single pass: those three overlapped on name / category / tags, so running them separately cost three passes over the same rows and the last one silently overwrote the others. Same guardrails throughout — tags governed-only, an existing category untouched, the name a suggestion chip, sensitivity and PII deterministic from the scan. Use the individual agents below only to re-run one field.' },
   { label: 'Enrich with LLM',
     desc: 'Rewrites each term’s Definition and Purpose with the local model, filling in blank or thin descriptions.' },
   { label: 'AI suggest (evidence)',
     desc: 'Reads each row’s scan evidence — value signature, induced regex and sample values — and proposes a clearer name, governed tags, and a category only when the current one is blank. Guardrailed so the LLM can’t drift governed fields: tags stay governed-only, an existing category is never overwritten, and sensitivity and PII stay deterministic from the scan (PII is re-asserted from the scan classifier, correcting any value the scanner wouldn’t assign).' },
-  { label: 'AI categorize',
-    desc: 'Files terms that have no category into your existing category list; answers that aren’t a known category are discarded, and rows that already have one are left alone.' },
-  { label: 'Suggest tags',
-    desc: 'Re-derives controlled tags for every term from the governed Dictionary vocabulary — deterministic: no LLM and no rescan.' },
   { label: 'AI QA definitions', gate: true,
     desc: 'A deterministic linter flags circular, vague, echoed or duplicated definitions; when Ollama is up, the AI judge also proposes rewrites.' },
 ]
@@ -624,11 +622,13 @@ export default function ReviewPage({ onNavigate }) {
     let offline = false
     let failed = 0
     let proposed = 0
+    let timedOut = 0
     for (let s = 0; s < total && !cancelRef.current; s += chunk) {
       const idx = targets.slice(s, s + chunk)
       let add = null
       try {
         const d = await call(idx.map((i) => working[i]))
+        timedOut += (d.updated && d.updated.timed_out) || 0
         if (d.llm && d.llm.online === false) {
           offline = true
           if (offlineBreak) break
@@ -675,7 +675,8 @@ export default function ReviewPage({ onNavigate }) {
       setAgent((a) => (a ? { ...a, done: Math.min(s + chunk, total), proposed } : a))
     }
     setAgent(null)
-    return { baseRows, working, targets, offline, failed, proposed, stopped: cancelRef.current }
+    return { baseRows, working, targets, offline, failed, proposed, timedOut,
+             stopped: cancelRef.current }
   }
 
   /* ---------- inline proposal pills: accept / dismiss ---------- */
@@ -752,8 +753,27 @@ export default function ReviewPage({ onNavigate }) {
       run.stopped ? 'stopped early — batches already returned kept their pills' : '',
       run.failed ? `${run.failed} row(s) failed` : '',
     ].filter(Boolean).join(' · ')
-    if (!run.proposed) setMsg(`${label}: ${none}${note ? ` (${note})` : ''}.`)
+    const timedOut = run.timedOut || 0
+    if (timedOut && !run.proposed)
+      setMsg(`${label}: the model did not answer within its time budget on ${timedOut} row(s) — `
+        + 'raise the LLM timeout on Settings, or pick a smaller model. Nothing was proposed.')
+    else if (!run.proposed) setMsg(`${label}: ${none}${note ? ` (${note})` : ''}.`)
     else setMsg(`${label}: proposals on ${run.proposed} of ${run.targets.length} kept rows — click the pills to accept, or Accept all above the grid.${note ? ` (${note})` : ''}`)
+  }
+
+  // The default agent: one call per row covering every LLM-decidable field.
+  async function runAiPass() {
+    const run = await runChunks('AI pass — definitions, purposes, names, categories, tags',
+      (rs) => apiPost('/api/ai-pass', { rows: rs, model: settings?.model || null, compute: settings?.compute }), {
+        propose: {
+          label: 'AI pass (all fields)',
+          watch: ['Definition', 'Purpose', 'Suggested_Name', 'Suggested_Tags', 'Category', 'PII_Category'],
+          carry: ['LLM_Definition', 'LLM_Purpose', 'LLM_Enriched', 'LLM_Name', 'AI_Suggested', 'Suggested_Reason'],
+        },
+      })
+    if (!run) return
+    if (run.offline) { setMsg('LLM offline — start Ollama and pull a model on the Settings page, then try again.'); return }
+    runDone(run, 'AI pass (all fields)', 'no changes proposed')
   }
 
   async function runEnrich() {
@@ -782,27 +802,7 @@ export default function ReviewPage({ onNavigate }) {
     runDone(run, 'AI suggest (evidence)', 'no changes proposed')
   }
 
-  async function runCategorize() {
-    const known = cats
-    const run = await runChunks('AI categorizing', (rs) => apiPost('/api/ai-categorize', { rows: rs, categories: known, only_blank: true }), {
-      propose: { label: 'AI categorize', watch: ['Category'] },
-    })
-    if (!run) return
-    if (run.offline) { setMsg('Ollama offline — categorization needs the local model.'); return }
-    runDone(run, 'AI categorize', 'every kept row already has a category the model agrees with')
-  }
 
-  async function runRetag() {
-    const run = await runChunks('Deriving governed tags', (rs) => apiPost('/api/retag', { rows: rs }), {
-      chunk: Math.max(rowsRef.current.length, 1),
-      propose: {
-        label: 'Suggest tags',
-        watch: ['Suggested_Tags'],
-      },
-    })
-    if (!run) return
-    runDone(run, 'Suggest tags', 'the governed vocabulary suggests no tag changes')
-  }
 
   // AI QA definitions: linter always runs server-side; the AI judge adds
   // suggestions when Ollama is up. Flags are stamped onto the rows (so the
@@ -948,6 +948,10 @@ export default function ReviewPage({ onNavigate }) {
           <span className="rv-agents" role="group" aria-label="AI agents — they run on kept rows only; they propose, you accept per pill"
                 title="Each agent processes KEPT rows only — untick Keep to exclude a row. Results land as click-to-accept pills right on the grid, batch by batch while the run goes; nothing touches a row until you accept its pill (or Accept all).">
             <span className="rv-agentslbl">AI AGENTS<small>kept rows · propose → you accept</small></span>
+            <button className="primary sm" disabled={aiDisabled} onClick={runAiPass}
+                    title="One model call per row for every field the LLM can decide — definition, purpose, a clearer name, governed tags and a blank category. Replaces running Enrich + AI suggest + AI categorize separately (three passes over the same rows, each overwriting the last). Proposals only — accept per pill.">
+              AI pass (all fields)
+            </button>
             <button className="ghost sm" disabled={aiDisabled} onClick={runEnrich}
                     title="Rewrite definitions & purposes with the local LLM. Proposals only — pills land on each row as batches return; click a pill to accept it.">
               Enrich with LLM
@@ -955,14 +959,6 @@ export default function ReviewPage({ onNavigate }) {
             <button className="ghost sm" disabled={aiDisabled} onClick={runAiSuggest}
                     title="Evidence-grounded pass: the local model reads each row's scan evidence (profiled value signature, induced regex, reference values) and proposes names, governed tags and tightened sensitivity.">
               AI suggest (evidence)
-            </button>
-            <button className="ghost sm" disabled={aiDisabled} onClick={runCategorize}
-                    title="AI category assignment: files uncategorized terms into the known categories; off-list answers are discarded.">
-              AI categorize
-            </button>
-            <button className="ghost sm" disabled={aiDisabled} onClick={runRetag}
-                    title="Re-derive meaningful, controlled tags for every term from the governed dictionary — deterministic, no rescan.">
-              Suggest tags
             </button>
             <button className="ghost sm" disabled={aiDisabled} onClick={runQa}
                     title="Definition quality check, run last as the gate: the deterministic linter (circular, vague, echoed, duplicated) always runs; the local AI judge adds rewrites when Ollama is up. Flags and proposals only.">
@@ -1291,16 +1287,12 @@ function ReviewGuide({ onNavigate }) {
             <rect x={4} y={88} width={568} height={62} rx="10" />
             <text className="rv-wfglbl" x={14} y={101}>③ AI AGENTS — KEPT ROWS · PROPOSE → YOU APPLY</text>
           </g>
-          <RvNode chip role="button" className="rv-wfnode rv-wfchip" x={14} y={108} w={92} h={32}
-                  title="1 · Enrich" onActivate={flashAgents}
-                  aria="Run Enrich with LLM first — highlights the AI agents toolbar" />
-          <path className="rv-wfarrow" d="M106 124 H118" markerEnd="url(#rv-wfhead)" />
-          <RvNode chip role="button" className="rv-wfnode rv-wfchip" x={122} y={108} w={252} h={32}
-                  title="2 · Suggest · Categorize · Tags" onActivate={flashAgents}
-                  aria="Then AI suggest, AI categorize and Suggest tags — highlights the AI agents toolbar" />
-          <path className="rv-wfarrow" d="M374 124 H386" markerEnd="url(#rv-wfhead)" />
-          <RvNode chip role="button" className="rv-wfnode rv-wfchip" x={390} y={108} w={170} h={32}
-                  title="3 · QA — the gate" onActivate={flashAgents}
+          <RvNode chip role="button" className="rv-wfnode rv-wfchip" x={14} y={108} w={230} h={32}
+                  title="1 · AI pass (all fields)" onActivate={flashAgents}
+                  aria="Run the combined AI pass — definition, purpose, name, tags and a blank category in one call per row" />
+          <path className="rv-wfarrow" d="M244 124 H256" markerEnd="url(#rv-wfhead)" />
+          <RvNode chip role="button" className="rv-wfnode rv-wfchip" x={260} y={108} w={170} h={32}
+                  title="2 · QA — the gate" onActivate={flashAgents}
                   aria="AI QA definitions runs as the quality gate — highlights the AI agents toolbar" />
 
           {/* wrap connector into row 3 */}
@@ -1320,7 +1312,7 @@ function ReviewGuide({ onNavigate }) {
       <ol className="workcycle">
         <li><b>Prune.</b> Every scanned column is a candidate — untick <b>Keep</b> on noise (or use <b>Keep High+Med conf</b>) rather than hunting for gaps; table-level terms always stay. <b>Structural keys arrive already pruned</b> (the <b>KEY</b> badge): a surrogate PK / FK reference-id isn&apos;t a business term — its PK/FK relationship still travels to the Registry&apos;s physical model, and ticking Keep restores it.</li>
         <li><b>Name the glossary</b> (top right of the grid) — autosave keeps your review <b>and</b> streams every accepted improvement into the Dictionary&apos;s <i>pending</i> vocabulary, so the two never drift. The flow is one-way: Review edits refresh pending entries; nothing in the Dictionary is approved without you.</li>
-        <li><b>Run the AI agents in sequence.</b> <b>Enrich with LLM</b> first (definitions &amp; purposes), then <b>AI suggest</b> / <b>AI categorize</b> / <b>Suggest tags</b>, and <b>AI QA definitions</b> as the quality gate. Agents never edit the grid: as each batch returns, click-to-accept pills light up on the affected cells — accept them one by one, or <b>Accept all</b> from the strip above the grid. The grid's <b>LLM</b> pills appear only after a proposal is accepted. (<b>Suggest tags</b> proposes from the <i>approved</i> allow-list — tags you approve on the Dictionary enrich the next scan&apos;s run: the flywheel.)</li>
+        <li><b>Run the AI pass, then QA.</b> <b>AI pass (all fields)</b> is one model call per row covering definition, purpose, a clearer name, governed tags and a blank category — it replaced three separate passes that overlapped on those fields and overwrote each other. <b>AI QA definitions</b> follows as the quality gate. (<b>Enrich</b> and <b>AI suggest</b> remain for re-running one field on its own.) Agents never edit the grid: as each batch returns, click-to-accept pills light up on the affected cells — accept them one by one, or <b>Accept all</b> from the strip above the grid. The grid's <b>LLM</b> pills appear only after a proposal is accepted. (<b>Suggest tags</b> proposes from the <i>approved</i> allow-list — tags you approve on the Dictionary enrich the next scan&apos;s run: the flywheel.)</li>
         <li><b>Resolve duplicates — with final names and real definitions in hand.</b> The agents run first on purpose: <b>AI suggest</b>/<b>QA</b> finalize names, dissolving false duplicates before you judge them (a rename <i>is</i> disambiguation), and enriched definitions make the remaining same-name calls easy. Same-named <i>kept</i> terms get a header bar: <b>Merge</b> into one term linked to all its columns, <b>Disambiguate</b> into unique names, or keep separate — <b>AI advise</b> and <b>Find similar</b> recommend, you decide. Auto-pruned keys sit outside duplicate resolution. If a merge changed definitions, a quick <b>QA</b> re-run keeps the gate honest.</li>
         <li><b>Approve the pending vocabulary — once, at the end.</b> When you&apos;re happy with the review, hop to the <b>Dictionary</b> (click the box above): its pending terms and tags already carry your accepted definitions and corrected names (a fixed name folds the scan&apos;s raw misread in as an alias, so rescans don&apos;t re-propose it). Approve or retire, then <b>Set stewardship →</b> on the Govern page.</li>
       </ol>

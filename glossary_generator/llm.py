@@ -159,9 +159,29 @@ def _complete(prompt, model=None, num_gpu=None):
         return None
 
 
-def _complete_json(prompt, model=None, num_gpu=None):
+# Floor for the combined AI pass's per-row budget (seconds) — override with
+# GLOSSARY_AI_PASS_TIMEOUT.
+AI_PASS_TIMEOUT = _clampint(os.environ.get("GLOSSARY_AI_PASS_TIMEOUT"), 180, 30, 1800)
+
+# Last-run call failures, so an agent can distinguish "model said nothing" from
+# "the model never answered" (timeout) — reset by reset_call_failures().
+_CALL_FAILURES = {"timeout": 0, "other": 0}
+
+def _note_call_failure(exc):
+    kind = "timeout" if "timed out" in str(exc).lower() or isinstance(exc, socket.timeout) else "other"
+    _CALL_FAILURES[kind] = _CALL_FAILURES.get(kind, 0) + 1
+
+def reset_call_failures():
+    _CALL_FAILURES.update({"timeout": 0, "other": 0})
+
+def call_failures():
+    return dict(_CALL_FAILURES)
+
+def _complete_json(prompt, model=None, num_gpu=None, timeout=None):
     """Single completion in JSON mode. Returns a parsed dict, or None on any
-       failure. Used to get definition + purpose from ONE round trip per row."""
+       failure. Used to get definition + purpose from ONE round trip per row.
+       `timeout` overrides the configured budget for calls with a bigger prompt
+       (the combined AI pass) that legitimately take longer on a large model."""
     model = model or MODEL
     if not llm_providers.is_local():
         # Hosted models honour a JSON response format but may still wrap the
@@ -175,10 +195,16 @@ def _complete_json(prompt, model=None, num_gpu=None):
     try:
         out = _post(OLLAMA_URL + "/api/generate",
                     {"model": model, "system": SYSTEM, "prompt": prompt,
-                     "stream": False, "format": "json", "options": options})
+                     "stream": False, "format": "json", "options": options},
+                    timeout=timeout)
         raw = (out.get("response") or "").strip()
         return json.loads(raw) if raw else None
-    except Exception:
+    except Exception as e:
+        # a TIMEOUT here is indistinguishable from "the model had nothing to
+        # say" once it becomes None — and on a big local model a long prompt
+        # blows the default budget every time, so every agent silently reported
+        # "no changes proposed". Record it so the caller can say so.
+        _note_call_failure(e)
         return None
 
 
@@ -713,6 +739,158 @@ def suggest_terms_rows(rows, allow_tags=None, categories=None, only_low_confiden
                 base = r.get("Suggested_Reason") or ""
                 if "AI(evidence)" not in base:
                     r["Suggested_Reason"] = (base + " · " if base else "") + "AI(evidence): " + why[:180]
+    return rows, counts, True
+
+
+# ------------------------------------------------------------ combined AI pass
+
+def _ai_pass_one(row, allow_tags, categories, model=None, num_gpu=None):
+    """ONE call per row for every LLM-decidable field: name, definition, purpose,
+       category and governed tags. Replaces running Enrich + AI suggest +
+       AI categorize as three separate passes over the same rows — they overlapped
+       on name / category / tags, so the later pass simply overwrote the earlier
+       one's proposal. Prompt keeps the evidence grounding of _suggest_one AND the
+       writing instructions of enrich_one."""
+    ev = []
+    if row.get("Source_Column"):
+        ev.append("physical column(s): %s" % row["Source_Column"])
+    if row.get("Value_Signature"):
+        ev.append("profiled position signature: %s" % row["Value_Signature"])
+    if row.get("Value_Pattern"):
+        ev.append("induced value regex: %s" % row["Value_Pattern"])
+    enum_vals = (row.get("Enum_Values") or "").strip()
+    if enum_vals:
+        ev.append("profiled reference values: %s" % enum_vals[:200])
+    if row.get("PII_Category"):
+        ev.append("PII category: %s" % row["PII_Category"])
+    if row.get("Suggested_Reason"):
+        ev.append("scan reasoning: %s" % row["Suggested_Reason"][:160])
+    prompt = (
+        "You curate a governed business glossary%s. For ONE database column, return "
+        "every field below in a single JSON object.\n"
+        "Current: term \"%s\", category \"%s\", tags: %s.\n"
+        "Current definition draft: %s\n"
+        "Current purpose draft: %s\n"
+        "Evidence from scanning the actual data:\n- %s\n\n"
+        "Categories (choose one): %s\n"
+        "Governed tag allow-list (use ONLY these): %s\n\n"
+        "Return JSON with keys:\n"
+        "  \"name\": a clearer business term ONLY if the current one is cryptic or "
+        "abbreviated (cust_acct_no -> Customer Account Number); if it already reads "
+        "well, repeat it UNCHANGED.\n"
+        "  \"definition\": one sentence (max 25 words), precise, business-facing, what it is.\n"
+        "  \"purpose\": one sentence (max 25 words), why it matters or how the business "
+        "uses it — not a restatement of the definition.\n"
+        "  \"category\": one from the list (only useful when the current category is blank).\n"
+        "  \"tags\": array, ONLY from the allow-list, the most relevant 2-5.\n"
+        "  \"rationale\": one short sentence grounded in the evidence.\n"
+        "Do NOT return sensitivity or PII — those are deterministic from the scan."
+    ) % (
+        (" at " + COMPANY) if COMPANY else "",
+        row.get("Term", ""), row.get("Category", ""),
+        row.get("Suggested_Tags", "") or "(none)",
+        (row.get("Definition") or "")[:220], (row.get("Purpose") or "")[:220],
+        "\n- ".join(ev) if ev else "(name only - no profile evidence)",
+        ", ".join(categories or []) or "(keep current)",
+        ", ".join(allow_tags or []) or "(none)",
+    )
+    # A combined prompt does the work of three agents, so it legitimately runs
+    # longer than a single-field call: give it at least 180s on top of whatever
+    # the user configured, or a 12B local model times out on EVERY row and the
+    # pass silently reports "no changes proposed".
+    return _complete_json(prompt, model=model, num_gpu=num_gpu,
+                          timeout=max(TIMEOUT, AI_PASS_TIMEOUT))
+
+
+def ai_pass_rows(rows, allow_tags=None, categories=None, only_low_confidence=False,
+                 model=None, compute=None, workers=None):
+    """One combined agent pass: definition, purpose, name, category and tags for
+       each kept row in a SINGLE model call per row, under the same guardrails the
+       separate agents apply — tags governed-only, category fills a blank only,
+       the name is a Suggested_Name chip and never overwrites Term, sensitivity
+       and PII are never touched by the model. Returns (rows, counts, used_llm)."""
+    rows = [r for r in rows if isinstance(r, dict)]
+    counts = {"definitions": 0, "purposes": 0, "names": 0, "tags": 0, "category": 0}
+    if not status(model)["online"]:
+        return rows, counts, False
+    reset_call_failures()
+    num_gpu = 0 if compute == "cpu" else (99 if compute == "gpu" else None)
+    if workers is None:
+        workers = WORKERS
+    workers = max(1, min(workers, 16))
+    allow = [t for t in (allow_tags or [])]
+    allow_set = {str(t).strip().lower() for t in allow}
+    cats = [c for c in (categories or [])]
+    targets = [r for r in rows
+               if not (only_low_confidence and r.get("Confidence") == "High")]
+    try:
+        _warm(model)
+    except Exception:
+        pass
+
+    def _do(r):
+        try:
+            return r, _ai_pass_one(r, allow, cats, model=model, num_gpu=num_gpu)
+        except Exception:
+            return r, None
+
+    if workers == 1 or len(targets) <= 1:
+        results = [_do(r) for r in targets]
+    else:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as ex:
+            results = list(ex.map(_do, targets))
+
+    for r, out in results:
+        if not isinstance(out, dict):
+            continue
+        changed = False
+        d = _clean_sentence(out.get("definition"), "Definition:")
+        if d and d != r.get("Definition"):
+            r["Definition"] = d
+            r["LLM_Definition"] = "Yes"
+            counts["definitions"] += 1
+            changed = True
+        p = _clean_sentence(out.get("purpose"), "Purpose:")
+        if p and p != r.get("Purpose"):
+            r["Purpose"] = p
+            r["LLM_Purpose"] = "Yes"
+            counts["purposes"] += 1
+            changed = True
+        term = _clean_name(str(out.get("name") or ""), r.get("Term", ""))
+        if term and term != r.get("Term") and term != r.get("Suggested_Name"):
+            r["Suggested_Name"] = term
+            r["LLM_Name"] = "Yes"
+            counts["names"] += 1
+            changed = True
+        cat = str(out.get("category") or "").strip()
+        if cat and cats and cat in cats and not (r.get("Category") or "").strip():
+            r["Category"] = cat
+            counts["category"] += 1
+            changed = True
+        proposed = out.get("tags") or []
+        if isinstance(proposed, list):
+            cur = [t for t in (r.get("Suggested_Tags") or "").split(";") if t]
+            cur_l = {t.strip().lower() for t in cur}
+            added = [str(t).strip().lower() for t in proposed
+                     if str(t).strip() and str(t).strip().lower() in allow_set
+                     and str(t).strip().lower() not in cur_l]
+            if added:
+                r["Suggested_Tags"] = ";".join(cur + added)
+                counts["tags"] += 1
+                changed = True
+        if changed:
+            r["AI_Suggested"] = "Yes"
+            r["LLM_Enriched"] = "Yes"
+            why = str(out.get("rationale") or "").strip()
+            if not _mostly_english(why):
+                why = ""
+            if why:
+                base = r.get("Suggested_Reason") or ""
+                if "AI(pass)" not in base:
+                    r["Suggested_Reason"] = (base + " · " if base else "") + "AI(pass): " + why[:180]
+    fails = call_failures()
+    if fails.get("timeout"):
+        counts["timed_out"] = fails["timeout"]
     return rows, counts, True
 
 

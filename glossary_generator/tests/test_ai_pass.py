@@ -1,0 +1,89 @@
+"""The combined AI pass: one call per row for every LLM-decidable field, under
+the same guardrails the separate agents apply."""
+import llm
+from conftest import make_row
+
+
+class _FakeLLM:
+    """Stand in for the model so the guardrails are tested, not Ollama."""
+    def __init__(self, reply):
+        self.reply = reply
+        self.calls = 0
+
+    def __call__(self, prompt, model=None, num_gpu=None, **kw):
+        self.calls += 1
+        return self.reply
+
+
+def _run(monkeypatch, reply, rows, allow=("customer", "identifier"), cats=("Customer",)):
+    fake = _FakeLLM(reply)
+    monkeypatch.setattr(llm, "_complete_json", fake)
+    monkeypatch.setattr(llm, "status", lambda m=None: {"online": True})
+    monkeypatch.setattr(llm, "_warm", lambda m=None: None)
+    out, counts, used = llm.ai_pass_rows(rows, allow_tags=list(allow),
+                                         categories=list(cats), workers=1)
+    return out, counts, used, fake
+
+
+class TestAiPass:
+    def test_one_call_per_row_fills_every_field(self, monkeypatch):
+        rows = [make_row("Cust Acct No", "public.customers.cust_acct_no",
+                         Definition="", Purpose="", Category="", Suggested_Tags="")]
+        reply = {"name": "Customer Account Number",
+                 "definition": "The number identifying a customer's billing account.",
+                 "purpose": "Links every bill and payment to one customer.",
+                 "category": "Customer", "tags": ["customer", "identifier"],
+                 "rationale": "column holds a formatted account number"}
+        out, counts, used, fake = _run(monkeypatch, reply, rows)
+        assert used and fake.calls == 1, "one model call covers all fields"
+        r = out[0]
+        assert r["Definition"].startswith("The number identifying")
+        assert r["Purpose"].startswith("Links every bill")
+        assert r["Suggested_Name"] == "Customer Account Number"
+        assert r["Term"] == "Cust Acct No", "the name is a proposal, never an overwrite"
+        assert r["Category"] == "Customer"
+        assert set(r["Suggested_Tags"].split(";")) == {"customer", "identifier"}
+        assert counts == {"definitions": 1, "purposes": 1, "names": 1,
+                          "tags": 1, "category": 1}
+
+    def test_ungoverned_tags_are_dropped(self, monkeypatch):
+        rows = [make_row("Email", "public.customers.email", Suggested_Tags="")]
+        out, _, _, _ = _run(monkeypatch, {"tags": ["customer", "make-believe"]}, rows)
+        assert out[0]["Suggested_Tags"] == "customer"
+
+    def test_existing_category_is_never_overwritten(self, monkeypatch):
+        rows = [make_row("Email", "public.customers.email", Category="Governance")]
+        out, counts, _, _ = _run(monkeypatch, {"category": "Customer"}, rows,
+                                 cats=("Customer", "Governance"))
+        assert out[0]["Category"] == "Governance"
+        assert counts["category"] == 0
+
+    def test_model_cannot_touch_sensitivity_or_pii(self, monkeypatch):
+        rows = [make_row("Email", "public.customers.email",
+                         Sensitivity="LOW", PII_Category="")]
+        reply = {"sensitivity": "HIGH", "PII_Category": "CONTACT_INFO",
+                 "pii": "CONTACT_INFO", "definition": "A contact address."}
+        out, _, _, _ = _run(monkeypatch, reply, rows)
+        assert out[0]["Sensitivity"] == "LOW", "sensitivity stays deterministic"
+        assert out[0]["PII_Category"] == "", "PII comes from the scan, not the model"
+
+    def test_offline_is_a_no_op(self, monkeypatch):
+        monkeypatch.setattr(llm, "status", lambda m=None: {"online": False})
+        rows = [make_row("Email", "public.customers.email")]
+        out, counts, used = llm.ai_pass_rows(rows, allow_tags=[], categories=[])
+        assert used is False and out == rows
+        assert all(v == 0 for v in counts.values())
+
+
+class TestAiPassEndpoint:
+    def test_route_returns_rows_and_counts(self, client, monkeypatch):
+        monkeypatch.setattr(llm, "status", lambda m=None: {"online": True})
+        monkeypatch.setattr(llm, "_warm", lambda m=None: None)
+        monkeypatch.setattr(llm, "_complete_json",
+                            lambda *a, **k: {"definition": "A customer's email address."})
+        r = client.post("/api/ai-pass", json={
+            "rows": [make_row("Email", "public.customers.email", Definition="")]})
+        assert r.status_code == 200
+        body = r.json()
+        assert body["rows"][0]["Definition"] == "A customer's email address."
+        assert body["updated"]["definitions"] == 1
