@@ -461,7 +461,15 @@ def bulk_load_one(base_url, token, row, version="v2", verify_tls=True, timeout=3
                                 rec["error"] = "internal scan: " + str(w["error"])[:200]
                 except Exception as e:
                     rec["ingest"] = "FAIL"
-                    rec["error"] = "internal /api/start-job failed: " + str(e)[:200]
+                    msg = str(e)[:200]
+                    # PDC's proxy routes the INTERNAL api by hostname: reached on a
+                    # bare IP it 401s even with a valid token, while the public API
+                    # answers fine — so only the file scan fails, confusingly.
+                    host = urllib.parse.urlparse(clean_base(base_url)).hostname or ""
+                    if "401" in msg and re.match(r"^\d{1,3}(\.\d{1,3}){3}$", host):
+                        msg += (" — PDC routes its internal API by hostname; use the vhost URL "
+                                "(e.g. https://pentaho.io) as the PDC base URL, not the IP %s." % host)
+                    rec["error"] = "internal /api/start-job failed: " + msg
             else:
                 # Public API doesn't expose the object-store file-scan trigger; create the
                 # source correctly and leave the scan to PDC's Scan Files (or the toggle).
