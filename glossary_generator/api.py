@@ -1374,6 +1374,14 @@ def api_ai_pass(body: dict = Body(default={})):
         suggester.retag_rows(rows)
     except Exception:
         pass
+    # Lint BEFORE the model runs, so a generic/circular draft reaches the prompt
+    # as "REWRITE REQUIRED" and comes back replaced. A flag the steward can't act
+    # on is noise — this turns it into the model's instruction, for free.
+    try:
+        for i, issues in defqa.lint_rows(rows).items():
+            rows[i]["QA_Issues"] = ";".join(issues)
+    except Exception:
+        pass
     rows, counts, used_llm = llm.ai_pass_rows(
         rows, allow_tags=allow, categories=cats,
         only_low_confidence=only_low, model=model, compute=compute)
@@ -1391,6 +1399,8 @@ def api_ai_pass(body: dict = Body(default={})):
     # too-short, copy-paste duplicates) costs no model time, so the QA chip lands
     # with the pass instead of needing a second sweep over every row. The LLM
     # judge that used to follow it is gone — a whole extra pass for little gain.
+    # Re-lint AFTER the rewrite: what is still flagged is what the model could
+    # not improve from the available evidence — a real signal, not repeat noise.
     for r in rows:
         r.pop("QA_Issues", None)
         r.pop("QA_Suggestion", None)

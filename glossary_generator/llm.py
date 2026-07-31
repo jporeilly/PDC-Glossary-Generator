@@ -765,6 +765,12 @@ def _ai_pass_one(row, allow_tags, categories, model=None, num_gpu=None):
         ev.append("PII category: %s" % row["PII_Category"])
     if row.get("Suggested_Reason"):
         ev.append("scan reasoning: %s" % row["Suggested_Reason"][:160])
+    if row.get("QA_Issues"):
+        ev.append("the current definition was flagged as: %s"
+                  % str(row["QA_Issues"]).replace(";", ", "))
+    if row.get("QA_Issues"):
+        ev.append("the current definition was flagged as: %s"
+                  % str(row["QA_Issues"]).replace(";", ", "))
     prompt = (
         "You curate a governed business glossary%s. For ONE database column, return "
         "every field below in a single JSON object.\n"
@@ -829,7 +835,9 @@ def _ai_pass_batch(rows, allow_tags, categories, model=None, num_gpu=None):
             f'Source: {r.get("Source_Column","")} | Tags: {r.get("Suggested_Tags","") or "(none)"} | '
             f'Draft definition: {(r.get("Definition") or "")[:120]} | '
             f'Draft purpose: {(r.get("Purpose") or "")[:120]}'
-            + (f' | Evidence: {"; ".join(ev)}' if ev else ""))
+            + (f' | Evidence: {"; ".join(ev)}' if ev else "")
+            + (f' | REWRITE REQUIRED - flagged: {(r.get("QA_Issues") or "").replace(";", ", ")}'
+               if r.get("QA_Issues") else ""))
     prompt = (
         "You curate a governed business glossary%s. For EACH numbered column below "
         "return every field, grounded in the evidence given.\n"

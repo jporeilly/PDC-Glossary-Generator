@@ -86,6 +86,26 @@ class TestAiPass:
         assert fake.calls == 3, "1 batch attempt + 1 call per row"
         assert all(r["Definition"] == "A contact value." for r in out)
 
+    def test_linter_flag_reaches_the_prompt_as_a_rewrite_order(self, monkeypatch):
+        """A QA flag must become the model's instruction — a flag the steward
+           can't act on is noise (and the judge that used to rewrite is gone)."""
+        seen = {}
+
+        def capture(prompt, **kw):
+            seen["prompt"] = prompt
+            return {"items": [{"n": 1, "definition": "A specific, useful sentence."}]}
+
+        monkeypatch.setattr(llm, "_complete_json", capture)
+        monkeypatch.setattr(llm, "status", lambda m=None: {"online": True})
+        monkeypatch.setattr(llm, "_warm", lambda m=None: None)
+        rows = [make_row("Severity", "public.account_alerts.severity",
+                         Definition="Severity associated with a account alert record.",
+                         QA_Issues="generic;echoes the term")]
+        out, _, _ = llm.ai_pass_rows(rows, allow_tags=[], categories=[], workers=1)
+        assert "REWRITE REQUIRED" in seen["prompt"]
+        assert "generic, echoes the term" in seen["prompt"]
+        assert out[0]["Definition"] == "A specific, useful sentence."
+
     def test_offline_is_a_no_op(self, monkeypatch):
         monkeypatch.setattr(llm, "status", lambda m=None: {"online": False})
         rows = [make_row("Email", "public.customers.email")]
