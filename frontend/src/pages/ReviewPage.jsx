@@ -174,13 +174,11 @@ const CHUNK = 6
 // the agent's proposal label (matches the toolbar button text).
 const AGENT_DESC = [
   { label: 'AI pass (all fields)',
-    desc: 'ONE model call per row for everything the LLM can decide — Definition, Purpose, a clearer name, governed tags, and a category only when the current one is blank. This is Enrich + AI suggest + AI categorize in a single pass: those three overlapped on name / category / tags, so running them separately cost three passes over the same rows and the last one silently overwrote the others. Same guardrails throughout — tags governed-only, an existing category untouched, the name a suggestion chip, sensitivity and PII deterministic from the scan. Use the individual agents below only to re-run one field.' },
+    desc: 'ONE model call per BATCH of rows for everything the LLM can decide — Definition, Purpose, a clearer name, governed tags, and a category only when the current one is blank. This is Enrich + AI suggest + AI categorize in a single pass: those three overlapped on name / category / tags, so running them separately cost three passes over the same rows and the last one silently overwrote the others. Same guardrails throughout — tags governed-only, an existing category untouched, the name a suggestion chip, sensitivity and PII deterministic from the scan. It also runs the deterministic work for free: governed tags are re-derived from the Dictionary before the model sees them, and the definition linter stamps the QA ⚠ chip — no extra pass for either. Use the individual agents below only to re-run one field.' },
   { label: 'Enrich with LLM',
     desc: 'Rewrites each term’s Definition and Purpose with the local model, filling in blank or thin descriptions.' },
   { label: 'AI suggest (evidence)',
     desc: 'Reads each row’s scan evidence — value signature, induced regex and sample values — and proposes a clearer name, governed tags, and a category only when the current one is blank. Guardrailed so the LLM can’t drift governed fields: tags stay governed-only, an existing category is never overwritten, and sensitivity and PII stay deterministic from the scan (PII is re-asserted from the scan classifier, correcting any value the scanner wouldn’t assign).' },
-  { label: 'AI QA definitions', gate: true,
-    desc: 'A deterministic linter flags circular, vague, echoed or duplicated definitions; when Ollama is up, the AI judge also proposes rewrites.' },
 ]
 const AGENT_META = Object.fromEntries(AGENT_DESC.map((a) => [a.label, a]))
 
@@ -768,7 +766,8 @@ export default function ReviewPage({ onNavigate }) {
         propose: {
           label: 'AI pass (all fields)',
           watch: ['Definition', 'Purpose', 'Suggested_Name', 'Suggested_Tags', 'Category', 'PII_Category'],
-          carry: ['LLM_Definition', 'LLM_Purpose', 'LLM_Enriched', 'LLM_Name', 'AI_Suggested', 'Suggested_Reason'],
+          carry: ['LLM_Definition', 'LLM_Purpose', 'LLM_Enriched', 'LLM_Name', 'AI_Suggested',
+                  'Suggested_Reason', 'QA_Issues'],
         },
       })
     if (!run) return
@@ -804,40 +803,6 @@ export default function ReviewPage({ onNavigate }) {
 
 
 
-  // AI QA definitions: linter always runs server-side; the AI judge adds
-  // suggestions when Ollama is up. Flags are stamped onto the rows (so the
-  // grid shows the QA chip) but definition rewrites stay click-to-accept pills.
-  async function runQa() {
-    const run = await runChunks('QA-checking definitions',
-      (rs) => apiPost('/api/qa-definitions', { rows: rs, ai: true }), {
-        offlineBreak: false,
-        propose: {
-          label: 'AI QA definitions',
-          build: (r, w) => {
-            const hasSugg = !!w.QA_Suggestion && w.QA_Suggestion !== (r.Definition || '')
-            if (!hasSugg) return null
-            return {
-              issues: w.QA_Issues || '',
-              display: [{ field: 'Definition', from: r.Definition || '', to: w.QA_Suggestion }],
-              patch: { Definition: w.QA_Suggestion, QA_Issues: '' },
-            }
-          },
-        },
-      })
-    if (!run) return
-    const { working } = run
-    setRows(rowsRef.current.map((r, i) => {
-      const w = working[i]
-      const nx = { ...r }
-      delete nx.QA_Issues
-      delete nx.QA_Suggestion
-      if (w && w.QA_Issues) nx.QA_Issues = w.QA_Issues
-      return nx
-    }))
-    const flagged = run.targets.reduce((n, i) => n + (working[i] && working[i].QA_Issues ? 1 : 0), 0)
-    const note = run.offline ? 'linter only — Ollama offline' : 'linter + AI judge'
-    setMsg(`Definition QA: ${flagged} of ${run.targets.length} kept definitions flagged (${note})${run.proposed ? ` — ${run.proposed} rewrite pill(s) to accept` : ''}.`)
-  }
 
   /* ---------- open / enhance / save ---------- */
 
@@ -959,10 +924,6 @@ export default function ReviewPage({ onNavigate }) {
             <button className="ghost sm" disabled={aiDisabled} onClick={runAiSuggest}
                     title="Evidence-grounded pass: the local model reads each row's scan evidence (profiled value signature, induced regex, reference values) and proposes names, governed tags and tightened sensitivity.">
               AI suggest (evidence)
-            </button>
-            <button className="ghost sm" disabled={aiDisabled} onClick={runQa}
-                    title="Definition quality check, run last as the gate: the deterministic linter (circular, vague, echoed, duplicated) always runs; the local AI judge adds rewrites when Ollama is up. Flags and proposals only.">
-              AI QA definitions
             </button>
             {anySuggestedNames && (
               <button className="ghost sm" disabled={locked} onClick={useAllNames}
@@ -1285,15 +1246,12 @@ function ReviewGuide({ onNavigate }) {
               definitions make the remaining same-name calls easy */}
           <g className="rv-wfgroup">
             <rect x={4} y={88} width={568} height={62} rx="10" />
-            <text className="rv-wfglbl" x={14} y={101}>③ AI AGENTS — KEPT ROWS · PROPOSE → YOU APPLY</text>
+            <text className="rv-wfglbl" x={14} y={101}>③ AI PASS — KEPT ROWS · ONE CALL PER BATCH · PROPOSE → YOU APPLY</text>
           </g>
           <RvNode chip role="button" className="rv-wfnode rv-wfchip" x={14} y={108} w={230} h={32}
                   title="1 · AI pass (all fields)" onActivate={flashAgents}
                   aria="Run the combined AI pass — definition, purpose, name, tags and a blank category in one call per row" />
-          <path className="rv-wfarrow" d="M244 124 H256" markerEnd="url(#rv-wfhead)" />
-          <RvNode chip role="button" className="rv-wfnode rv-wfchip" x={260} y={108} w={170} h={32}
-                  title="2 · QA — the gate" onActivate={flashAgents}
-                  aria="AI QA definitions runs as the quality gate — highlights the AI agents toolbar" />
+
 
           {/* wrap connector into row 3 */}
           <path className="rv-wfarrow" d="M60 150 V162" markerEnd="url(#rv-wfhead)" />
@@ -1312,7 +1270,7 @@ function ReviewGuide({ onNavigate }) {
       <ol className="workcycle">
         <li><b>Prune.</b> Every scanned column is a candidate — untick <b>Keep</b> on noise (or use <b>Keep High+Med conf</b>) rather than hunting for gaps; table-level terms always stay. <b>Structural keys arrive already pruned</b> (the <b>KEY</b> badge): a surrogate PK / FK reference-id isn&apos;t a business term — its PK/FK relationship still travels to the Registry&apos;s physical model, and ticking Keep restores it.</li>
         <li><b>Name the glossary</b> (top right of the grid) — autosave keeps your review <b>and</b> streams every accepted improvement into the Dictionary&apos;s <i>pending</i> vocabulary, so the two never drift. The flow is one-way: Review edits refresh pending entries; nothing in the Dictionary is approved without you.</li>
-        <li><b>Run the AI pass, then QA.</b> <b>AI pass (all fields)</b> is one model call per row covering definition, purpose, a clearer name, governed tags and a blank category — it replaced three separate passes that overlapped on those fields and overwrote each other. <b>AI QA definitions</b> follows as the quality gate. (<b>Enrich</b> and <b>AI suggest</b> remain for re-running one field on its own.) Agents never edit the grid: as each batch returns, click-to-accept pills light up on the affected cells — accept them one by one, or <b>Accept all</b> from the strip above the grid. The grid's <b>LLM</b> pills appear only after a proposal is accepted. (<b>Suggest tags</b> proposes from the <i>approved</i> allow-list — tags you approve on the Dictionary enrich the next scan&apos;s run: the flywheel.)</li>
+        <li><b>Run the AI pass.</b> <b>AI pass (all fields)</b> covers definition, purpose, a clearer name, governed tags and a blank category in <b>one model call per batch of rows</b> — it replaced three passes that overlapped on those fields and overwrote each other, and it folds in the free deterministic work (governed tags re-derived from the Dictionary, the definition linter's QA ⚠ chip). (<b>Enrich</b> and <b>AI suggest</b> remain for re-running one field on its own.) Agents never edit the grid: as each batch returns, click-to-accept pills light up on the affected cells — accept them one by one, or <b>Accept all</b> from the strip above the grid. The grid's <b>LLM</b> pills appear only after a proposal is accepted. (<b>Suggest tags</b> proposes from the <i>approved</i> allow-list — tags you approve on the Dictionary enrich the next scan&apos;s run: the flywheel.)</li>
         <li><b>Resolve duplicates — with final names and real definitions in hand.</b> The agents run first on purpose: <b>AI suggest</b>/<b>QA</b> finalize names, dissolving false duplicates before you judge them (a rename <i>is</i> disambiguation), and enriched definitions make the remaining same-name calls easy. Same-named <i>kept</i> terms get a header bar: <b>Merge</b> into one term linked to all its columns, <b>Disambiguate</b> into unique names, or keep separate — <b>AI advise</b> and <b>Find similar</b> recommend, you decide. Auto-pruned keys sit outside duplicate resolution. If a merge changed definitions, a quick <b>QA</b> re-run keeps the gate honest.</li>
         <li><b>Approve the pending vocabulary — once, at the end.</b> When you&apos;re happy with the review, hop to the <b>Dictionary</b> (click the box above): its pending terms and tags already carry your accepted definitions and corrected names (a fixed name folds the scan&apos;s raw misread in as an alias, so rescans don&apos;t re-propose it). Approve or retire, then <b>Set stewardship →</b> on the Govern page.</li>
       </ol>

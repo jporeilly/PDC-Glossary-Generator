@@ -1387,6 +1387,21 @@ def api_ai_pass(body: dict = Body(default={})):
             pii_fixed += 1
     if pii_fixed:
         counts["pii"] = pii_fixed
+    # DETERMINISTIC definition QA, folded in: the linter (circular, echo, vague,
+    # too-short, copy-paste duplicates) costs no model time, so the QA chip lands
+    # with the pass instead of needing a second sweep over every row. The LLM
+    # judge that used to follow it is gone — a whole extra pass for little gain.
+    for r in rows:
+        r.pop("QA_Issues", None)
+        r.pop("QA_Suggestion", None)
+    try:
+        lint = defqa.lint_rows(rows)
+        for i, issues in lint.items():
+            rows[i]["QA_Issues"] = ";".join(issues)
+        if lint:
+            counts["qa_flagged"] = len(lint)
+    except Exception:
+        pass
     return {"rows": rows, "updated": counts, "used_llm": used_llm,
             "stats": _stats(rows), "llm": llm.status(model)}
 

@@ -802,8 +802,79 @@ def _ai_pass_one(row, allow_tags, categories, model=None, num_gpu=None):
                           timeout=max(TIMEOUT, AI_PASS_TIMEOUT))
 
 
+def _ai_pass_batch(rows, allow_tags, categories, model=None, num_gpu=None):
+    """SEVERAL rows in ONE call — the same trick enrich_batch uses, applied to the
+       combined pass: Ollama pays the prompt/scheduling overhead once per batch
+       instead of once per row, which is the difference between ~120 calls and
+       ~20 for a typical scan. Returns a list of reply dicts aligned to `rows`
+       (None where the model gave nothing). Falls back to per-row calls if the
+       batch reply is missing or unusable, so one bad JSON never drops a chunk."""
+    rows = list(rows)
+    if not rows:
+        return []
+    lines = []
+    for i, r in enumerate(rows, 1):
+        ev = []
+        if r.get("Value_Signature"):
+            ev.append("signature %s" % r["Value_Signature"])
+        if r.get("Value_Pattern"):
+            ev.append("regex %s" % r["Value_Pattern"])
+        enum_vals = (r.get("Enum_Values") or "").strip()
+        if enum_vals:
+            ev.append("values %s" % enum_vals[:90])
+        if r.get("PII_Category"):
+            ev.append("PII %s" % r["PII_Category"])
+        lines.append(
+            f'{i}. Term: {r.get("Term","")} | Category: {r.get("Category","") or "(blank)"} | '
+            f'Source: {r.get("Source_Column","")} | Tags: {r.get("Suggested_Tags","") or "(none)"} | '
+            f'Draft definition: {(r.get("Definition") or "")[:120]} | '
+            f'Draft purpose: {(r.get("Purpose") or "")[:120]}'
+            + (f' | Evidence: {"; ".join(ev)}' if ev else ""))
+    prompt = (
+        "You curate a governed business glossary%s. For EACH numbered column below "
+        "return every field, grounded in the evidence given.\n"
+        "Categories (choose one): %s\n"
+        "Governed tag allow-list (use ONLY these): %s\n\n"
+        "Return ONLY a JSON object of the form {\"items\":[{\"n\":1,\"name\":\"...\","
+        "\"definition\":\"...\",\"purpose\":\"...\",\"category\":\"...\",\"tags\":[\"...\"],"
+        "\"rationale\":\"...\"}, ...]} with one entry per column, keeping the numbering.\n"
+        "  name: a clearer business term ONLY if the current one is cryptic or abbreviated "
+        "(cust_acct_no -> Customer Account Number); otherwise repeat it UNCHANGED.\n"
+        "  definition: one sentence, max 25 words, business-facing, what it is.\n"
+        "  purpose: one sentence, max 25 words, why the business keeps it.\n"
+        "  category: one from the list (only useful where the current category is blank).\n"
+        "  tags: 2-5, ONLY from the allow-list.\n"
+        "Do NOT return sensitivity or PII — those are deterministic from the scan.\n\n"
+    ) % (
+        (" at " + COMPANY) if COMPANY else "",
+        ", ".join(categories or []) or "(keep current)",
+        ", ".join(allow_tags or []) or "(none)",
+    ) + "\n".join(lines)
+    # the budget scales with the batch: one call now does N rows of work
+    obj = _complete_json(prompt, model=model, num_gpu=num_gpu,
+                         timeout=max(TIMEOUT, AI_PASS_TIMEOUT) * max(1, len(rows) // 2))
+    items = obj.get("items") if isinstance(obj, dict) else None
+    if isinstance(items, list) and items:
+        by_n = {}
+        for pos, it in enumerate(items, 1):
+            if not isinstance(it, dict):
+                continue
+            n = it.get("n")
+            try:
+                n = int(n)
+            except (TypeError, ValueError):
+                n = pos
+            by_n[n] = it
+        out = [by_n.get(i) for i in range(1, len(rows) + 1)]
+        if any(isinstance(o, dict) for o in out):
+            return out
+    # fallback: one call per row so a bad batch reply still enriches the chunk
+    return [_ai_pass_one(r, allow_tags, categories, model=model, num_gpu=num_gpu)
+            for r in rows]
+
+
 def ai_pass_rows(rows, allow_tags=None, categories=None, only_low_confidence=False,
-                 model=None, compute=None, workers=None):
+                 model=None, compute=None, workers=None, batch_size=None):
     """One combined agent pass: definition, purpose, name, category and tags for
        each kept row in a SINGLE model call per row, under the same guardrails the
        separate agents apply — tags governed-only, category fills a blank only,
@@ -828,17 +899,26 @@ def ai_pass_rows(rows, allow_tags=None, categories=None, only_low_confidence=Fal
     except Exception:
         pass
 
-    def _do(r):
-        try:
-            return r, _ai_pass_one(r, allow, cats, model=model, num_gpu=num_gpu)
-        except Exception:
-            return r, None
+    # group into batches — ONE call covers `batch_size` rows (env LLM_BATCH),
+    # and the batches themselves run concurrently, so a 120-row scan costs
+    # ~20 calls instead of 120
+    if batch_size is None:
+        batch_size = BATCH
+    batch_size = max(1, min(int(batch_size), 20))
+    batches = [targets[i:i + batch_size] for i in range(0, len(targets), batch_size)]
 
-    if workers == 1 or len(targets) <= 1:
-        results = [_do(r) for r in targets]
+    def _do(batch):
+        try:
+            return batch, _ai_pass_batch(batch, allow, cats, model=model, num_gpu=num_gpu)
+        except Exception:
+            return batch, [None] * len(batch)
+
+    if workers == 1 or len(batches) <= 1:
+        done = [_do(b) for b in batches]
     else:
         with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as ex:
-            results = list(ex.map(_do, targets))
+            done = list(ex.map(_do, batches))
+    results = [(r, out) for batch, outs in done for r, out in zip(batch, outs)]
 
     for r, out in results:
         if not isinstance(out, dict):

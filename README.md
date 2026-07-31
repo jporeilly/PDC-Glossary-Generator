@@ -350,12 +350,14 @@ documented as a panel on the Home page.
 <br>
 
 Guardrailed agents over a local **Ollama** model, led by
-**AI pass (all fields)** — ONE model call per row covering definition, purpose,
-a clearer name, governed tags and a blank category. It replaced three separate
-passes (Enrich, AI suggest, AI categorize) that overlapped on those fields, so
-each run cost three sweeps over the same rows and the last one silently
-overwrote the others; the deterministic governed-tag derivation runs inside it
-for free. The rest: duplicate-group adjudication, definition QA (with a
+**AI pass (all fields)** — ONE model call per **batch of rows**, covering
+definition, purpose, a clearer name, governed tags and a blank category. It
+replaced four separate passes (Enrich, AI suggest, AI categorize, QA) that
+swept every row on their own and overlapped on those fields, so the last one
+silently overwrote the others. Measured on a real scan: 6 rows in a single
+call where the old path spent ~36s *per row*. The deterministic work rides
+along for free — governed tags re-derived from the Dictionary before the model
+sees them, and the definition linter's QA flag. The rest: duplicate-group adjudication, definition QA (with a
 deterministic linter that also works offline), category assignment, roster
 expertise, business-domain suggestion, pending-vocabulary review (with
 alias folding), term-id matching at resolve time, the governed-vocabulary

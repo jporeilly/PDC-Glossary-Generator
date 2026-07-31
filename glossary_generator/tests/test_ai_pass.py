@@ -26,16 +26,28 @@ def _run(monkeypatch, reply, rows, allow=("customer", "identifier"), cats=("Cust
 
 
 class TestAiPass:
-    def test_one_call_per_row_fills_every_field(self, monkeypatch):
+    """A flat (non-items) reply exercises the per-row fallback — deliberate:
+       one malformed batch answer must never drop a chunk."""
+
+    def test_one_call_covers_a_whole_batch(self, monkeypatch):
+        """The point of the pass: N rows x every field in ONE call."""
         rows = [make_row("Cust Acct No", "public.customers.cust_acct_no",
+                         Definition="", Purpose="", Category="", Suggested_Tags=""),
+                make_row("Email", "public.customers.email",
                          Definition="", Purpose="", Category="", Suggested_Tags="")]
-        reply = {"name": "Customer Account Number",
-                 "definition": "The number identifying a customer's billing account.",
-                 "purpose": "Links every bill and payment to one customer.",
-                 "category": "Customer", "tags": ["customer", "identifier"],
-                 "rationale": "column holds a formatted account number"}
+        reply = {"items": [
+            {"n": 1, "name": "Customer Account Number",
+             "definition": "The number identifying a customer's billing account.",
+             "purpose": "Links every bill and payment to one customer.",
+             "category": "Customer", "tags": ["customer", "identifier"],
+             "rationale": "column holds a formatted account number"},
+            {"n": 2, "name": "Email", "definition": "A customer's contact address.",
+             "purpose": "Reaches the customer about their account.",
+             "category": "Customer", "tags": ["customer"]},
+        ]}
         out, counts, used, fake = _run(monkeypatch, reply, rows)
-        assert used and fake.calls == 1, "one model call covers all fields"
+        assert used and fake.calls == 1, "one call, two rows, every field"
+        assert out[1]["Definition"].startswith("A customer's contact address")
         r = out[0]
         assert r["Definition"].startswith("The number identifying")
         assert r["Purpose"].startswith("Links every bill")
@@ -43,8 +55,8 @@ class TestAiPass:
         assert r["Term"] == "Cust Acct No", "the name is a proposal, never an overwrite"
         assert r["Category"] == "Customer"
         assert set(r["Suggested_Tags"].split(";")) == {"customer", "identifier"}
-        assert counts == {"definitions": 1, "purposes": 1, "names": 1,
-                          "tags": 1, "category": 1}
+        assert counts == {"definitions": 2, "purposes": 2, "names": 1,
+                          "tags": 2, "category": 2}, "name repeats unchanged for row 2"
 
     def test_ungoverned_tags_are_dropped(self, monkeypatch):
         rows = [make_row("Email", "public.customers.email", Suggested_Tags="")]
@@ -66,6 +78,13 @@ class TestAiPass:
         out, _, _, _ = _run(monkeypatch, reply, rows)
         assert out[0]["Sensitivity"] == "LOW", "sensitivity stays deterministic"
         assert out[0]["PII_Category"] == "", "PII comes from the scan, not the model"
+
+    def test_bad_batch_reply_falls_back_to_per_row(self, monkeypatch):
+        rows = [make_row("Email", "public.customers.email", Definition=""),
+                make_row("Phone", "public.customers.phone", Definition="")]
+        out, _, _, fake = _run(monkeypatch, {"definition": "A contact value."}, rows)
+        assert fake.calls == 3, "1 batch attempt + 1 call per row"
+        assert all(r["Definition"] == "A contact value." for r in out)
 
     def test_offline_is_a_no_op(self, monkeypatch):
         monkeypatch.setattr(llm, "status", lambda m=None: {"online": False})
