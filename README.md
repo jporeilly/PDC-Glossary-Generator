@@ -63,11 +63,9 @@ and flags a pulled-but-not-restarted mismatch.
 
 ## Overview
 
-<!-- screenshot slot — drop the file in docs/images/ and uncomment
 <p align="center">
   <img alt="The Glossary Generator home page" src="docs/images/home.png" width="900">
 </p>
--->
 
 The app maintains **one governed answer per concept** and hands it to PDC in
 four moves:
