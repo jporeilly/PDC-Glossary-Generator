@@ -501,6 +501,28 @@ what **PDC has already cataloged**. The **Harvest from PDC** card on Connections
    `attributes.businessTerms[]`) is flagged with an **"in PDC"** badge so you don't
    overwrite existing work.
 
+> **Harvest REPLACES an empty grid and MERGES into a loaded one — so the order
+> matters.** With no glossary open, a harvest starts a fresh *unnamed* workspace
+> (which is why it can't damage a saved glossary: nothing autosaves until you name
+> it). With a glossary already loaded, the same button merges into it — new terms
+> append, and a term you already have absorbs the harvested source and evidence.
+>
+> To add harvested terms to an existing glossary: **load the glossary first
+> (Home → the saved row), then Harvest.** Harvest first and you'll be looking at
+> the harvest alone, with your glossary still safely on disk but not in the grid.
+>
+> Note this is *not* what **Add to glossary** on a Connect row does. That runs the
+> app's **own scan** of that source and merges the result; Harvest reads **PDC's
+> catalog**. On an object store the two return different things — Add to glossary
+> gives you one term per file, while Harvest (after PDC's Data Discovery has
+> profiled the files) gives you a term per *column inside* them.
+>
+> Rows key on **Category + Term**, so the same concept filed under two categories
+> appends rather than merges — e.g. a `Turbidity Ntu` already in *Water Quality*
+> and a harvested one categorised *Water System* become two rows. The duplicate
+> resolver on Review flags these; fixing the category mapping in the domain pack
+> prevents them.
+
 This is the most PDC-native path: the catalog is the source of truth and the
 generator reads from it. Endpoints live in the shared `pdc_client/` package
 (`list_data_sources`, `harvest_from_catalog`) and `api.py`
