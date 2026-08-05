@@ -14,6 +14,19 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.15.1] — 2026-08-05
+
+### Fixed — a flagged row was told to rewrite twice
+- `_ai_pass_one` built its evidence list with the `QA_Issues` block pasted twice,
+  so a flagged row's *"the current definition was flagged as: …"* line appeared
+  two times in one prompt. Only the per-row fallback path was affected — the one
+  the pass drops to when a batch reply is malformed — and the batch prompt that
+  normally carries the *REWRITE REQUIRED* order was always correct. No output
+  changed; the duplicate just spent budget and read as misplaced emphasis.
+- The existing linter test only covered the batch prompt, which is how this got
+  through. A regression test now drives the per-row fallback and asserts the flag
+  is stated exactly once — verified to fail against the pre-fix module. 94 tests.
+
 ## [1.15.0] — 2026-08-05
 
 ### Changed — one combined **AI pass** replaces three overlapping agents

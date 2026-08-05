@@ -768,9 +768,6 @@ def _ai_pass_one(row, allow_tags, categories, model=None, num_gpu=None):
     if row.get("QA_Issues"):
         ev.append("the current definition was flagged as: %s"
                   % str(row["QA_Issues"]).replace(";", ", "))
-    if row.get("QA_Issues"):
-        ev.append("the current definition was flagged as: %s"
-                  % str(row["QA_Issues"]).replace(";", ", "))
     prompt = (
         "You curate a governed business glossary%s. For ONE database column, return "
         "every field below in a single JSON object.\n"

@@ -106,6 +106,27 @@ class TestAiPass:
         assert "generic, echoes the term" in seen["prompt"]
         assert out[0]["Definition"] == "A specific, useful sentence."
 
+    def test_per_row_fallback_states_the_flag_once(self, monkeypatch):
+        """The fallback built its evidence list with the QA_Issues block pasted
+           twice, so a flagged row was told the same thing two times in one
+           prompt. Harmless, but it wastes the budget and reads as emphasis."""
+        seen = []
+
+        def capture(prompt, **kw):
+            seen.append(prompt)
+            return {"definition": "A specific, useful sentence."}   # flat = fallback
+
+        monkeypatch.setattr(llm, "_complete_json", capture)
+        monkeypatch.setattr(llm, "status", lambda m=None: {"online": True})
+        monkeypatch.setattr(llm, "_warm", lambda m=None: None)
+        rows = [make_row("Severity", "public.account_alerts.severity",
+                         Definition="Severity associated with a account alert record.",
+                         QA_Issues="generic;echoes the term")]
+        llm.ai_pass_rows(rows, allow_tags=[], categories=[], workers=1)
+        per_row = seen[-1]
+        assert per_row.count("the current definition was flagged as:") == 1
+        assert "generic, echoes the term" in per_row
+
     def test_offline_is_a_no_op(self, monkeypatch):
         monkeypatch.setattr(llm, "status", lambda m=None: {"online": False})
         rows = [make_row("Email", "public.customers.email")]
