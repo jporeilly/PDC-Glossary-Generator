@@ -118,6 +118,30 @@ def _col_tails(cols):
 _REGEX_SHAPE = re.compile(r"\\[dwsDWSbB]|\[[^\]]*\]|\{[\d,]*\}|[\^$()?*+|.\\]|\d")
 
 
+def _is_coded_vocabulary(values):
+    """True when a profiled value set looks like a CODE LIST rather than numbers.
+
+    A code list — {OPEN, CLOSED, PENDING}, {AZ, CA, NV} — is a controlled domain:
+    two columns drawing from it really are the same concept. A numeric set is
+    not. {0, 1, 2, 3} appears wherever small counts do, so overlap between two
+    numeric columns says only that both hold small numbers, and merging on it
+    collapses opposites (paid vs outstanding bills) into one term.
+
+    A single shared code is thin evidence too, so require at least two."""
+    vals = [str(v).strip() for v in (values or []) if str(v).strip()]
+    if len(vals) < 2:
+        return False
+    # numeric if every value parses as a number (ints, decimals, signed)
+    numericish = 0
+    for v in vals:
+        try:
+            float(v.replace(",", ""))
+            numericish += 1
+        except ValueError:
+            pass
+    return numericish < len(vals)
+
+
 def _is_distinctive_format(pat):
     """True when an induced regex is specific enough to imply shared identity.
 
@@ -148,11 +172,27 @@ def compare_evidence(row_a, row_b):
     if (ea["refs"] & _col_tails(eb["cols"])) or (eb["refs"] & _col_tails(ea["cols"])):
         return "same", "a foreign key links the columns — one references the other, the same concept by construction"
     if ea["enums"] and eb["enums"]:
-        j = _jaccard(ea["enums"], eb["enums"])
-        if j >= 0.5:
-            return "same", f"profiled value sets overlap ({int(round(j * 100))}%)"
-        if j == 0:
-            return "different", "profiled value sets are disjoint — same word, different code lists"
+        # Overlapping value sets identify a concept only for a CODED VOCABULARY.
+        # Two columns drawing from {OPEN, CLOSED, PENDING} really are the same
+        # domain; two numeric columns drawing from {0,1,2,3} are not — they are
+        # both just small integers. On the AWC glossary this rule scored
+        # "Paid Bills ← Outstanding Bills" at 100% overlap and 0.85 "strong",
+        # when those are opposite states of a bill whose counts happen to fall in
+        # the same range. Same failure as format identity, one rule up: a
+        # property of the DATA TYPE read as identity of the concept.
+        if _is_coded_vocabulary(ea["enums"]) and _is_coded_vocabulary(eb["enums"]):
+            j = _jaccard(ea["enums"], eb["enums"])
+            if j >= 0.5:
+                return "same", f"profiled value sets overlap ({int(round(j * 100))}%)"
+            if j == 0:
+                return "different", "profiled value sets are disjoint — same word, different code lists"
+        else:
+            j = _jaccard(ea["enums"], eb["enums"])
+            if j >= 0.5:
+                return None, ("their profiled values overlap, but both are plain numbers — "
+                              "a shared range is not a shared concept, so compare the definitions")
+            # disjoint NUMERIC ranges still say little; fall through to the
+            # format/signature checks rather than claiming a verdict
     if ea["pat"] and eb["pat"]:
         if ea["pat"] == eb["pat"]:
             # Format identity is only evidence of SHARED IDENTITY when the format

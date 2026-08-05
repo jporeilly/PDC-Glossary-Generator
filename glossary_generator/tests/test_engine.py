@@ -453,12 +453,12 @@ class TestQualityFromPdcStats:
 
 
 class TestFormatIdentityIsNotConceptIdentity:
-    """`identical induced value format` was scored as 'same concept' for ANY
-       matching regex. On a real glossary that ranked lead_ppb ← turbidity_ntu
-       and tier1_rate ← tier2_rate at 0.85 'strong' — above the one genuinely
-       correct merge in the same run — because ^0\.\d{2}$ merely means "a small
-       decimal". Merging those would put a regulated contaminant's limits on the
-       wrong term."""
+    r"""`identical induced value format` was scored as 'same concept' for ANY
+        matching regex. On a real glossary that ranked lead_ppb ← turbidity_ntu
+        and tier1_rate ← tier2_rate at 0.85 'strong' — above the one genuinely
+        correct merge in the same run — because ^0\.\d{2}$ merely means "a small
+        decimal". Merging those would put a regulated contaminant's limits on the
+        wrong term."""
 
     def _rows(self, pat):
         return ({"Term": "A", "Value_Pattern": pat, "Source_Column": "s.t.a"},
@@ -493,3 +493,43 @@ class TestFormatIdentityIsNotConceptIdentity:
            it to the steward; a false 'same' would merge unrelated concepts."""
         import similarity
         assert similarity._is_distinctive_format(r"^[A-Z]{2}\d{4}$") is False
+
+
+class TestValueOverlapIsNotConceptIdentity:
+    """Overlapping value sets identify a concept only for a CODED VOCABULARY.
+       {OPEN, CLOSED, PENDING} is a controlled domain; {0,1,2,3} is just small
+       integers. On the AWC glossary the old rule scored
+       'Paid Bills <- Outstanding Bills' at 100% overlap / 0.85 strong — opposite
+       states of a bill whose counts happen to share a range."""
+
+    def _row(self, name, enums):
+        return {"Term": name, "Enum_Values": ";".join(enums),
+                "Source_Column": f"s.t.{name}"}
+
+    def test_numeric_overlap_no_longer_claims_one_concept(self):
+        import similarity
+        v, why = similarity.compare_evidence(self._row("paid", ["1", "2", "3"]),
+                                             self._row("outstanding", ["1", "2", "3"]))
+        assert v is None
+        assert "plain numbers" in why
+
+    def test_a_code_list_still_decides(self):
+        import similarity
+        v, why = similarity.compare_evidence(self._row("a", ["OPEN", "CLOSED"]),
+                                             self._row("b", ["OPEN", "CLOSED"]))
+        assert v == "same" and "overlap" in why
+
+    def test_disjoint_code_lists_still_say_different(self):
+        import similarity
+        v, why = similarity.compare_evidence(self._row("a", ["OPEN", "CLOSED"]),
+                                             self._row("b", ["CURRENT", "DEFAULT"]))
+        assert v == "different" and "code lists" in why
+
+    def test_a_single_value_is_too_thin_to_be_a_vocabulary(self):
+        import similarity
+        assert similarity._is_coded_vocabulary({"ACTIVE"}) is False
+
+    def test_decimals_and_counts_are_not_vocabularies(self):
+        import similarity
+        assert similarity._is_coded_vocabulary({"1.5", "2.25"}) is False
+        assert similarity._is_coded_vocabulary({"12", "45", "78"}) is False

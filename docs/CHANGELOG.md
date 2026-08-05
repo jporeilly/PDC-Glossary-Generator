@@ -14,6 +14,31 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.24.0] — 2026-08-05
+
+### Fixed — overlapping values are not one concept unless they are a code list
+- The companion to 1.23.0, one rule up. Value-set overlap was read as identity
+  for **any** profiled values, so **`Paid Bills ← Outstanding Bills`** scored
+  *"profiled value sets overlap (100%)"* at `0.85 · strong` — opposite states of
+  a bill, whose counts both draw from `{0, 1}`.
+- Overlap identifies a concept for a **coded vocabulary** — two columns drawing
+  from `{OPEN, CLOSED, PENDING}` really are the same domain — and says nothing
+  for numbers, where a shared range just means both hold small integers.
+- `_is_coded_vocabulary()` gates it: a set qualifies only when at least one value
+  is non-numeric, and only with two or more values (a single shared code is thin).
+  Numeric overlap now returns **no verdict** with *"a shared range is not a shared
+  concept, so compare the definitions"*, and disjoint numeric sets fall through to
+  the format checks rather than claiming *different*.
+- Verified on the AWC glossary (157 terms): pairs in the **strong** band went from
+  many to **zero**. Lead/copper/turbidity and the bills pairs left the list
+  entirely; the Tier rate pairs remain on genuine name similarity, honestly
+  labelled *(no evidence claim)*.
+
+### Fixed
+- A test docstring containing `^0\.\d{2}$` in a non-raw string raised a
+  `SyntaxWarning: invalid escape sequence` — harmless today, an error in a future
+  Python. The suite is warning-free again.
+
 ## [1.23.0] — 2026-08-05
 
 ### Fixed — an identical value format is not an identical concept
