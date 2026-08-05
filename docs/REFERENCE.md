@@ -196,7 +196,8 @@ not where your local Docker Postgres/MinIO live.
    sensitivity, PII category, CDE flag, abbreviation, and tags.
 2. **Review** — edit any cell inline; untick **Keep** to drop a term. Confidence
    and the source column guide pruning. Nothing is auto-published.
-3. **Enrich with LLM** *(optional)* — proposes rewritten definitions via Ollama.
+3. **AI pass** *(optional)* — proposes rewritten definitions, purposes, names,
+   governed tags and blank categories via Ollama (or a hosted provider).
    Proposals land as inline click-to-accept pills on the grid (accept per cell,
    or Accept all / Dismiss all) — nothing is written until you accept, and the
    `LLM` provenance pill appears only after a proposal is accepted. Safe if
@@ -229,7 +230,8 @@ rather than reaching for the LLM. Edit `domain_pack.json` (loaded by default, be
 Pack `tag_rules` are company-layer and pre-approved (governed). Then **apply**:
 
 1. **Dictionary** page → **Reseed** (reloads the vocabulary from the pack).
-2. **Glossary** grid → **Suggest tags** (re-derives tags for the current rows).
+2. **Glossary** grid → **AI pass** (re-derives tags for the current rows before
+   the model runs — the deterministic half costs no model time).
 
 The app ships **generic** — install a scenario pack to get one: unzip
 PDC-Scenarios' `data_sources/CSCU/cscu-domain-pack.zip` (Copper State Credit Union — cards/PCI, ACH,
@@ -338,8 +340,7 @@ nudge per run.
 | `GET  /api/drivers`         | per-engine Python driver install status            |
 | `POST /api/test-connection` | verify a DB connection (no scan)                   |
 | `POST /api/scan`            | harvest + suggest -> rows + stats                  |
-| `POST /api/enrich`          | LLM definition pass (fallback-safe)                |
-| `POST /api/ai-suggest`      | evidence-grounded AI term/tag/sensitivity pass     |
+| `POST /api/ai-pass`         | the one row-level agent — definition, purpose, name, governed tags and a blank category, one call per batch. Send a single row for the grid's per-row **AI review** |
 | `POST /api/recommend-resolutions` | advise Merge / Disambiguate / Keep separate per duplicate group (evidence -> live value probe -> AI adjudicator) |
 | `POST /api/qa-definitions`  | lint + AI-judge definitions (stamps QA_Issues / QA_Suggestion) |
 | `POST /api/ai-categorize`   | AI files uncategorized terms into known categories |

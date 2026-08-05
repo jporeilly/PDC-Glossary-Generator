@@ -14,6 +14,43 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.16.0] — 2026-08-05
+
+### Changed — one agent, and a per-row **AI review** instead of two leftover buttons
+- **Enrich with LLM** and **AI suggest (evidence)** are gone from the toolbar.
+  1.15.0 folded them into the AI pass but kept both around "to re-run a single
+  field", which never justified two buttons: the pass proposes *per-field pills*,
+  so re-running one field was always a matter of accepting one pill.
+- What was actually missing was **scope**, not agents. An expanded row now has
+  **AI review** — the same `/api/ai-pass` call, prompt, evidence and guardrails,
+  targeted at that one row, for when a single term came back weak and a full
+  sweep isn't worth the minutes. A per-row click runs whether or not **Keep** is
+  ticked: the kept-rows rule exists to stop a *sweep* spending model time on
+  pruned noise, not to veto an explicit click.
+- The real cost of the leftovers was **three prompts restating the same
+  guardrails** — tags governed-only, never set sensitivity or PII, fill category
+  only when blank. Changing one meant changing three or letting them drift.
+  `_ai_pass_one` is now the only row-level agent prompt in the codebase.
+
+### Removed
+- `enrich_definition`, `enrich_purpose`, `enrich_one`, `enrich_batch`,
+  `enrich_rows`, `_suggest_one` and `suggest_terms_rows` from `llm.py` (~330
+  lines), plus the `POST /api/enrich` and `POST /api/ai-suggest` routes. Both
+  were subsets of the combined pass: Enrich saw no scan evidence at all — just
+  the term, source column, current draft and category — and AI suggest never
+  touched Definition or Purpose, while its category rule already fired on blanks
+  only. Neither could contribute anything the pass hadn't already produced.
+
+### Fixed — the batched pass never saw the scan's reasoning
+- `Suggested_Reason` is evidence the retired AI-suggest agent leaned on, and
+  `_ai_pass_one` sent it — but `_ai_pass_batch`, the path that actually runs,
+  did not. Absorbing that agent without its evidence would have quietly lost
+  something, so the batch prompt now carries it too.
+- It is filtered on the way in. `ai_pass_rows` appends its own answer to
+  `Suggested_Reason` as `AI(pass): …`, so sending the field raw would hand a
+  second run its previous reply back as though the scan had observed it — the
+  model arguing with itself. New `_scan_reason()` keeps only the scan's half.
+
 ## [1.15.1] — 2026-08-05
 
 ### Fixed — a flagged row was told to rewrite twice

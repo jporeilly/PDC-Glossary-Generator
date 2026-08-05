@@ -373,7 +373,7 @@ inputs are final). The Workshop and its supplement cover this in full.
 | `400` on **Apply** | Usually an unexpected field on a term; the app whitelists term keys, so confirm you're on a current build. |
 | `v2` jobs endpoint missing | Trust Score / Data Discovery live on `v3` — switch the version segment. |
 | Suggestions use the wrong vocabulary | Check `GLOSSARY_DOMAIN_PACK` is set and the path is correct (`/config` will show it). |
-| `500` on **enrich** — `AttributeError: 'NoneType' object has no attribute 'get'` (`llm.py` → `enrich_rows`) | A null/blank row reached the enricher — usually a table-level term arriving as an empty slot. Fixed in **1.5.6** (rows are guarded in `enrich_rows` and filtered at the `enrich()` boundary); upgrade, or apply the guard from `CHANGELOG.md`. |
+| `500` on **enrich** — `AttributeError: 'NoneType' object has no attribute 'get'` | A null/blank row reached the enricher — usually a table-level term arriving as an empty slot. Fixed in **1.5.6**, and moot since **1.16.0**: `/api/enrich` is gone and `/api/ai-pass` guards its rows the same way. |
 | A table term disappears after **Keep High+Med conf** | Pre-1.5.6 behaviour. Table terms are now kept by default and exempt from the confidence cull — upgrade to 1.5.6. |
 
 ---
@@ -558,8 +558,8 @@ there, and row tags draw from the governed allow-list) → ④ the **AI agents
 as sequence chips** (Enrich → Suggest · Categorize · Tags → QA as the gate;
 clicking a chip highlights the AI toolbar) → ⑤ Name the glossary → Govern
 (navigates). The ordered list underneath matches, including when to flip to
-the Dictionary (after prune/merge, before the tag agents — approved tags
-feed Suggest tags) and back.
+the Dictionary (after prune/merge, before the AI pass — approved tags are
+what the pass re-derives from) and back.
 
 - **Columns**: Keep · Category · Term · Definition · **Purpose** · Sensitivity
   (colour-coded: HIGH red, MEDIUM orange, LOW teal) · CDE · Tags · Confidence · Source.
@@ -573,8 +573,10 @@ feed Suggest tags) and back.
 - **Open glossary for review…** — load an existing export straight into the grid.
 - **Enhance from glossary…** — overlay an export's real definitions/purpose/tags/
   sensitivity onto matched terms (and add any the scan missed).
-- **Enrich with LLM** — rewrite definitions with the local model. The AI
-  agents (Enrich / AI suggest / AI QA / AI categorize / Suggest tags) sit in
+- **AI pass (all fields)** — the one agent: definition, purpose, a clearer
+  name, governed tags and a blank category, in a single model call per batch
+  of rows. (**AI review**, on an expanded row, runs the same pass for that row
+  alone.) It sits in
   a labelled **"AI AGENTS — kept rows · propose → you accept"** group and
   run on **kept rows only** — prune 141→95 and they process 95 ("0/95
   (kept rows)"). Results land as **inline click-to-accept pills** on the
@@ -611,11 +613,11 @@ scenario abbreviations (e.g. mbr→Member, apr→APR). Anything not in the map f
 through to plain Title Case, so a truly opaque name (`x1`, `col_007`) still yields a
 weak name you can edit. Expansions are only suggestions — every Term cell is editable.
 
-**LLM-suggested rename.** When you **Enrich with LLM**, the model also proposes a
+**LLM-suggested rename.** The **AI pass** also proposes a
 clearer Term name for columns it judges cryptic (and repeats the name unchanged when
 it already reads well). It is shown as a clickable **&#8594; chip** next to the Term —
 clicking it adopts the name; it is **never** written over your Term silently. The
-enrich summary reports how many names were suggested. The model only rewrites the
+run summary reports how many names were suggested. The model only rewrites the
 *definition* and *purpose* automatically; the *name* always waits for your click.
 
 **CDE (Critical Data Element)** is auto-inferred from keys, sensitivity, financial/
@@ -838,8 +840,9 @@ The order matters because each step feeds the next:
 
 1. **Scan or resume.** Connect & scan, or let the app auto-resume the last
    saved glossary.
-2. **Review the grid.** The AI agents assist (Enrich, AI suggest (evidence),
-   AI QA, AI categorize — fills only blank/generic categories); the duplicate
+2. **Review the grid.** The **AI pass** assists — definition, purpose, name,
+   governed tags and a blank category in one call per batch, with **AI review**
+   on a row for a single-row re-run; the duplicate
    advisor recommends Merge / Disambiguate / Keep separate. Rename divergent
    names to their canonical term — aliases fold them automatically on future
    scans.
@@ -852,8 +855,9 @@ The order matters because each step feeds the next:
    the labelled **✓ Approve / ✕ Retire / ⤵ To alias** actions; a retire is
    **durable** (tombstoned through reseeds, offered for pack removal at
    export).
-4. **Suggest tags** (grid) after any vocabulary change — re-derives row tags
-   from the governed allow-list and refreshes the facet preview. The counts
+4. **Re-run the AI pass** (grid) after any vocabulary change — it re-derives row
+   tags from the governed allow-list before the model sees them, and refreshes
+   the facet preview. The counts
    are **honest**: identity-keyed — distinct current terms per tag, distinct
    source columns per term — so rescans are no-ops and never inflate them.
    The preview is **pre-deployment**: live facets appear in PDC only after

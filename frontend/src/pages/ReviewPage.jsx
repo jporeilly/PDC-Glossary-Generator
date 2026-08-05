@@ -174,11 +174,9 @@ const CHUNK = 6
 // the agent's proposal label (matches the toolbar button text).
 const AGENT_DESC = [
   { label: 'AI pass (all fields)',
-    desc: 'ONE model call per BATCH of rows for everything the LLM can decide — Definition, Purpose, a clearer name, governed tags, and a category only when the current one is blank. This is Enrich + AI suggest + AI categorize in a single pass: those three overlapped on name / category / tags, so running them separately cost three passes over the same rows and the last one silently overwrote the others. Same guardrails throughout — tags governed-only, an existing category untouched, the name a suggestion chip, sensitivity and PII deterministic from the scan. It also runs the deterministic work for free: governed tags are re-derived from the Dictionary before the model sees them, and the definition linter stamps the QA ⚠ chip — no extra pass for either. Use the individual agents below only to re-run one field.' },
-  { label: 'Enrich with LLM',
-    desc: 'Rewrites each term’s Definition and Purpose with the local model, filling in blank or thin descriptions.' },
-  { label: 'AI suggest (evidence)',
-    desc: 'Reads each row’s scan evidence — value signature, induced regex and sample values — and proposes a clearer name, governed tags, and a category only when the current one is blank. Guardrailed so the LLM can’t drift governed fields: tags stay governed-only, an existing category is never overwritten, and sensitivity and PII stay deterministic from the scan (PII is re-asserted from the scan classifier, correcting any value the scanner wouldn’t assign).' },
+    desc: 'ONE model call per BATCH of rows for everything the LLM can decide — Definition, Purpose, a clearer name, governed tags, and a category only when the current one is blank. It is the only agent: Enrich, AI suggest and AI categorize were separate passes over the same rows that overlapped on name / category / tags, so the last one silently overwrote the others — and each restated the guardrails in its own words, so they drifted apart. Same guardrails throughout — tags governed-only, an existing category untouched, the name a suggestion chip, sensitivity and PII deterministic from the scan. It also runs the deterministic work for free: governed tags are re-derived from the Dictionary before the model sees them, and the definition linter stamps the QA ⚠ chip — no extra pass for either. To redo a single row, use AI review on the row itself; to redo a single field, accept only that row’s pill.' },
+  { label: 'AI review (this row)',
+    desc: 'The same pass, scoped to one row — for when a single term came back weak and you don’t want to spend a full sweep on it. Identical prompt, evidence and guardrails; the proposals land as pills on that row alone.' },
 ]
 const AGENT_META = Object.fromEntries(AGENT_DESC.map((a) => [a.label, a]))
 
@@ -584,13 +582,22 @@ export default function ReviewPage({ onNavigate }) {
   // the inline proposal state — so the click-to-accept pills light up in the
   // grid batch by batch while the run is still going. The grid itself never
   // mutates: pills/Accept-all are the only way a proposal lands.
-  async function runChunks(label, call, { offlineBreak = true, chunk = CHUNK, propose = null } = {}) {
+  async function runChunks(label, call, { offlineBreak = true, chunk = CHUNK, propose = null,
+                                          only = null } = {}) {
     const baseRows = rowsRef.current
     const targets = []
-    baseRows.forEach((r, i) => { if (r && truthy(r.Keep)) targets.push(i) })
+    if (only) {
+      // a per-row action names its row outright: the steward clicked THAT row,
+      // so it runs whether or not Keep is ticked (the kept-rows rule exists to
+      // stop a sweep spending model time on pruned noise, not to veto a click)
+      only.forEach((i) => { if (baseRows[i]) targets.push(i) })
+    } else {
+      baseRows.forEach((r, i) => { if (r && truthy(r.Keep)) targets.push(i) })
+    }
     const total = targets.length
     if (!total) {
-      setMsg('No kept rows — the AI agents only process rows with Keep ticked.')
+      setMsg(only ? 'That row is no longer in the grid.'
+                  : 'No kept rows — the AI pass only processes rows with Keep ticked.')
       return null
     }
     const working = baseRows.map((r) => ({ ...r }))
@@ -784,30 +791,28 @@ export default function ReviewPage({ onNavigate }) {
     runDone(run, 'AI pass (all fields)', 'no changes proposed')
   }
 
-  async function runEnrich() {
-    const run = await runChunks('Enriching definitions & purposes', (rs) => apiPost('/api/enrich', { rows: rs }), {
-      propose: {
-        label: 'Enrich with LLM',
-        watch: ['Definition', 'Purpose', 'Suggested_Name'],
-        carry: ['LLM_Definition', 'LLM_Purpose', 'LLM_Enriched', 'LLM_Name'],
-      },
-    })
+  // The same pass, scoped to ONE row — this replaced the Enrich and AI suggest
+  // buttons. Both survived only to re-run a field on a row you didn't like, and
+  // both were subsets of this endpoint's prompt, so they were two more places to
+  // restate the guardrails and two more chances for them to drift. Same call,
+  // same evidence, same guards; only the target set is different.
+  async function runAiPassRow(index) {
+    const term = (rowsRef.current[index] || {}).Term || 'this row'
+    const run = await runChunks(`AI review — ${term}`,
+      (rs) => apiPost('/api/ai-pass', { rows: rs }), {
+        only: [index],
+        propose: {
+          label: 'AI review (this row)',
+          watch: ['Definition', 'Purpose', 'Suggested_Name', 'Suggested_Tags', 'Category', 'PII_Category'],
+          carry: ['LLM_Definition', 'LLM_Purpose', 'LLM_Enriched', 'LLM_Name', 'AI_Suggested',
+                  'Suggested_Reason', 'QA_Issues'],
+        },
+      })
     if (!run) return
     if (run.offline) { setMsg('LLM offline — start Ollama and pull a model on the Settings page, then try again.'); return }
-    runDone(run, 'Enrich with LLM', 'no changes proposed')
-  }
-
-  async function runAiSuggest() {
-    const run = await runChunks('AI suggesting from scan evidence', (rs) => apiPost('/api/ai-suggest', { rows: rs }), {
-      propose: {
-        label: 'AI suggest (evidence)',
-        watch: ['Suggested_Name', 'Suggested_Tags', 'Sensitivity', 'Category', 'PII_Category'],
-        carry: ['LLM_Enriched'],
-      },
-    })
-    if (!run) return
-    if (run.offline) { setMsg('LLM offline — start Ollama and pull a model on the Settings page, then try again.'); return }
-    runDone(run, 'AI suggest (evidence)', 'no changes proposed')
+    setMsg(run.proposed
+      ? `AI review: proposals on “${term}” — click the pills to accept.`
+      : `AI review: the model had nothing to improve on “${term}”.`)
   }
 
 
@@ -925,14 +930,6 @@ export default function ReviewPage({ onNavigate }) {
             <button className="primary sm" disabled={aiDisabled} onClick={runAiPass}
                     title="One model call per row for every field the LLM can decide — definition, purpose, a clearer name, governed tags and a blank category. Replaces running Enrich + AI suggest + AI categorize separately (three passes over the same rows, each overwriting the last). Proposals only — accept per pill.">
               AI pass (all fields)
-            </button>
-            <button className="ghost sm" disabled={aiDisabled} onClick={runEnrich}
-                    title="Rewrite definitions & purposes with the local LLM. Proposals only — pills land on each row as batches return; click a pill to accept it.">
-              Enrich with LLM
-            </button>
-            <button className="ghost sm" disabled={aiDisabled} onClick={runAiSuggest}
-                    title="Evidence-grounded pass: the local model reads each row's scan evidence (profiled value signature, induced regex, reference values) and proposes names, governed tags and tightened sensitivity.">
-              AI suggest (evidence)
             </button>
             {anySuggestedNames && (
               <button className="ghost sm" disabled={locked} onClick={useAllNames}
@@ -1157,7 +1154,8 @@ export default function ReviewPage({ onNavigate }) {
                         {expanded === i && rows[i] && (
                           <ExpandedRow row={rows[i]} index={i} onField={onField}
                                        prop={proposals ? proposals.items[i] : undefined} onAcceptProp={acceptProp}
-                                       onEvidence={setEvidence} onClose={() => setExpanded(null)} />
+                                       onEvidence={setEvidence} onClose={() => setExpanded(null)}
+                                       onAiReview={runAiPassRow} aiBusy={aiDisabled} />
                         )}
                       </Fragment>
                     ))}
@@ -1498,7 +1496,8 @@ const GridRow = memo(function GridRow({ row: r, index, pos, expanded, prop, onAc
    collapse to one-line previews and this row expands in place (no modal) with
    full-width textareas and the scan-evidence bits underneath. */
 
-function ExpandedRow({ row: r, index, prop, onAcceptProp, onField, onEvidence, onClose }) {
+function ExpandedRow({ row: r, index, prop, onAcceptProp, onField, onEvidence, onClose,
+                       onAiReview, aiBusy }) {
   const srcs = splitList(r.Source_Column)
   const enums = splitList(r.Enum_Values)
   // pending AI proposal for a prose field → the old value stays in the
@@ -1573,6 +1572,10 @@ function ExpandedRow({ row: r, index, prop, onAcceptProp, onField, onEvidence, o
               </span>
             </span>
             <span className="rv-grow" />
+            <button className="primary sm" disabled={aiBusy} onClick={() => onAiReview(index)}
+                    title="Run the AI pass on this row alone — same prompt, same evidence, same guardrails as the full sweep. Proposals land as pills on this row; nothing changes until you accept one.">
+              {aiBusy ? 'AI running…' : 'AI review'}
+            </button>
             <button className="ghost sm" onClick={() => onEvidence(index)}
                     title="All sources and the full scan evidence behind this term">Full evidence…</button>
             <button className="ghost sm" onClick={onClose} title="Collapse this editor (Esc)">Close ▴</button>

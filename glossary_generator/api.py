@@ -1298,56 +1298,6 @@ def scan(body: dict = Body(default={})):
     return {"rows": rows, "stats": _stats(rows), "scanned": scanned,
             "check": suggester.scan_check(rows, scanned, pk_cols, fk_cols)}
 
-@app.post("/api/enrich")
-def enrich(body: dict = Body(default={})):
-    """LLM-enrich the definitions/purposes of the supplied rows via local Ollama."""
-    body = body or {}
-    rows = [r for r in (body.get("rows") or []) if isinstance(r, dict)]  # 1.5.6: guard null rows
-    only_low = bool(body.get("only_low_confidence", False))
-    model = body.get("model") or None
-    compute = body.get("compute") or None
-    rows, counts = llm.enrich_rows(rows, only_low_confidence=only_low, model=model, compute=compute)
-    return {"rows": rows, "enriched": counts,
-            "definitions": counts["definitions"], "purposes": counts["purposes"],
-            "names": counts.get("names", 0),
-            "stats": _stats(rows), "llm": llm.status(model)}
-
-@app.post("/api/ai-suggest")
-def ai_suggest(body: dict = Body(default={})):
-    """Evidence-grounded AI pass over review rows: the local model proposes term /
-       category / governed tags / sensitivity from the SCAN EVIDENCE (profiled value
-       signatures, induced regexes, reference values), applied under guardrails —
-       tags governed-only, sensitivity tighten-only, term as a suggestion chip."""
-    body = body or {}
-    rows = [r for r in (body.get("rows") or []) if isinstance(r, dict)]
-    only_low = bool(body.get("only_low_confidence", False))
-    model = body.get("model") or None
-    compute = body.get("compute") or None
-    try:
-        allow = sorted(tagdict.governed_tags())
-    except Exception:
-        allow = []
-    cats = sorted({r.get("Category") for r in rows if r.get("Category")})
-    rows, counts, used_llm = llm.suggest_terms_rows(
-        rows, allow_tags=allow, categories=cats,
-        only_low_confidence=only_low, model=model, compute=compute)
-    # Guard-rail: PII_Category is authoritative from the SCAN, never a free guess.
-    # Re-assert the scan classifier for un-profiled columns so a bad value (an
-    # import, a legacy scan, or any agent) can't survive — e.g. an ssn mislabeled
-    # PERSONAL_NAME becomes GOVERNMENT_ID, an id column's spurious ADDRESS_INFO is
-    # cleared. Surfaces as a proposal pill (PII_Category is a watched field), so
-    # the steward still applies it. Runs deterministically, LLM or not.
-    pii_fixed = 0
-    for r in rows:
-        g = suggester.guard_pii_row(r)
-        if g != (r.get("PII_Category") or "").strip():
-            r["PII_Category"] = g
-            pii_fixed += 1
-    if pii_fixed:
-        counts["pii"] = pii_fixed
-    return {"rows": rows, "updated": counts, "used_llm": used_llm,
-            "stats": _stats(rows), "llm": llm.status(model)}
-
 @app.post("/api/ai-pass")
 def api_ai_pass(body: dict = Body(default={})):
     """ONE combined agent pass: definition, purpose, name, category and governed

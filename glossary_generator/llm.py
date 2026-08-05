@@ -252,203 +252,6 @@ def _clean_name(text, current):
         return None
     return t
 
-def enrich_definition(row, model=None, num_gpu=None):
-    """Ask the model for a cleaner one-sentence definition for one term.
-       Returns improved text, or None to keep the heuristic definition."""
-    prompt = (
-        f"Write a one-sentence (max 25 words) business definition for this database "
-        f"column, for {COMPANY}'s business glossary.\n"
-        f"Term: {row['Term']}\n"
-        f"Source column: {row['Source_Column']}\n"
-        f"Current draft: {row['Definition']}\n"
-        f"Category: {row['Category']}\n"
-        f"Respond with ONLY the definition sentence - no preamble, no quotes."
-    )
-    text = _complete(prompt, model=model, num_gpu=num_gpu)
-    if not text:
-        return None
-    text = text.splitlines()[0].strip().strip('"').strip()
-    for p in ("Definition:", "definition:"):
-        if text.startswith(p):
-            text = text[len(p):].strip()
-    if 8 <= len(text) <= 300:
-        return text
-    return None
-
-def enrich_purpose(row, model=None, num_gpu=None):
-    """Ask the model for a cleaner one-sentence business Purpose (why it matters /
-       how it's used). Returns improved text, or None to keep the heuristic."""
-    prompt = (
-        f"Write a one-sentence (max 25 words) business PURPOSE for this glossary "
-        f"term — why it matters or how {COMPANY} uses it. "
-        f"Not a definition; focus on use, decisions, or compliance.\n"
-        f"Term: {row['Term']}\n"
-        f"Definition: {row.get('Definition','')}\n"
-        f"Category: {row['Category']}\n"
-        f"Current draft purpose: {row.get('Purpose','')}\n"
-        f"Respond with ONLY the purpose sentence - no preamble, no quotes."
-    )
-    text = _complete(prompt, model=model, num_gpu=num_gpu)
-    if not text:
-        return None
-    text = text.splitlines()[0].strip().strip('"').strip()
-    for p in ("Purpose:", "purpose:"):
-        if text.startswith(p):
-            text = text[len(p):].strip()
-    if 8 <= len(text) <= 300:
-        return text
-    return None
-
-def enrich_one(row, model=None, num_gpu=None):
-    """One combined call per row: ask for a name suggestion, definition and purpose in a
-       single JSON response, halving the round trips vs. separate calls.
-       Returns (name_or_None, definition_or_None, purpose_or_None). Never raises.
-       Falls back to the two-call path if JSON mode misbehaves."""
-    prompt = (
-        f"For this {COMPANY} business glossary term, return THREE fields:\n"
-        f"  - \"name\": a clearer business term name ONLY if the source column is cryptic "
-        f"or abbreviated (e.g. \"cust_acct_no\" -> \"Customer Account Number\"). If the "
-        f"current Term already reads well, repeat it UNCHANGED.\n"
-        f"  - \"definition\": one sentence (max 25 words), precise, business-facing, what it is.\n"
-        f"  - \"purpose\": one sentence (max 25 words), why it matters or how the organization "
-        f"uses it — not a restatement of the definition.\n"
-        f"Term: {row.get('Term','')}\n"
-        f"Source column: {row.get('Source_Column','')}\n"
-        f"Category: {row.get('Category','')}\n"
-        f"Current definition draft: {row.get('Definition','')}\n"
-        f"Current purpose draft: {row.get('Purpose','')}\n"
-        f"Respond with ONLY a JSON object: "
-        f"{{\"name\": \"...\", \"definition\": \"...\", \"purpose\": \"...\"}}"
-    )
-    obj = _complete_json(prompt, model=model, num_gpu=num_gpu)
-    if isinstance(obj, dict) and (obj.get("definition") or obj.get("purpose") or obj.get("name")):
-        n = _clean_name(obj.get("name"), row.get("Term", ""))
-        d = _clean_sentence(obj.get("definition"), "Definition:")
-        p = _clean_sentence(obj.get("purpose"), "Purpose:")
-        return n, d, p
-    # fallback: two plain calls (older path) so a JSON hiccup doesn't lose enrichment
-    return None, enrich_definition(row, model=model, num_gpu=num_gpu), \
-           enrich_purpose(row, model=model, num_gpu=num_gpu)
-
-
-def enrich_batch(rows, model=None, num_gpu=None):
-    """Enrich SEVERAL rows in ONE model call: ask for a JSON object with an `items`
-       array (one {definition, purpose} per term, in order). This is the main speed
-       win — Ollama pays the system-prompt / scheduling overhead once for the whole
-       batch instead of once per term. Returns a list of (def_or_None, pur_or_None)
-       aligned to `rows`. Falls back to per-row enrich_one if the batch reply is
-       missing or misaligned, so one bad JSON never drops the whole chunk."""
-    rows = list(rows)
-    if not rows:
-        return []
-    lines = []
-    for i, r in enumerate(rows, 1):
-        lines.append(
-            f'{i}. Term: {r.get("Term","")} | Category: {r.get("Category","")} | '
-            f'Source: {r.get("Source_Column","")} | Draft definition: {r.get("Definition","")} | '
-            f'Draft purpose: {r.get("Purpose","")}')
-    prompt = (
-        f"For EACH numbered {COMPANY} business glossary term below, return a "
-        "\"name\" (a clearer business term name ONLY if the Source column is cryptic or "
-        "abbreviated, e.g. \"cust_acct_no\" -> \"Customer Account Number\"; if the current "
-        "Term already reads well, repeat it UNCHANGED), a one-sentence (max 25 words) "
-        "\"definition\" (precise, business-facing, what it is) and a one-sentence (max 25 "
-        "words) \"purpose\" (why it matters or how the organization uses it — not a restatement "
-        "of the definition).\n"
-        "Return ONLY a JSON object of the form "
-        "{\"items\":[{\"n\":1,\"name\":\"...\",\"definition\":\"...\",\"purpose\":\"...\"}, ...]} with one "
-        "entry per term, keeping the same numbering.\n\n" + "\n".join(lines))
-    obj = _complete_json(prompt, model=model, num_gpu=num_gpu)
-    items = obj.get("items") if isinstance(obj, dict) else None
-    if isinstance(items, list) and items:
-        # index the reply by its 1-based "n" (fall back to position) so a reordered
-        # or partial array still lands on the right row
-        by_n = {}
-        for pos, it in enumerate(items, 1):
-            if not isinstance(it, dict):
-                continue
-            n = it.get("n")
-            try:
-                n = int(n)
-            except (TypeError, ValueError):
-                n = pos
-            by_n[n] = it
-        out, ok = [], 0
-        for i, r in enumerate(rows, 1):
-            it = by_n.get(i) or {}
-            nm = _clean_name(it.get("name"), r.get("Term", ""))
-            d = _clean_sentence(it.get("definition"), "Definition:")
-            p = _clean_sentence(it.get("purpose"), "Purpose:")
-            if d or p or nm:
-                ok += 1
-            out.append((nm, d, p))
-        if ok:                      # got at least some usable entries → trust the batch
-            return out
-    # fallback: enrich each row on its own so the chunk still gets enriched
-    return [enrich_one(r, model=model, num_gpu=num_gpu) for r in rows]
-
-
-def enrich_rows(rows, only_low_confidence=False, model=None, compute=None, workers=None,
-                batch_size=None):
-    """Enrich a batch — definition and purpose. Terms are grouped into batches of
-       `batch_size` (env LLM_BATCH, default 6), each batch enriched in a SINGLE model
-       call, and the batches themselves run concurrently across a small thread pool.
-       Returns (rows, counts). Safe if Ollama is offline; never raises out of here."""
-    rows = [r for r in rows if isinstance(r, dict)]   # drop null/malformed rows (1.5.6)
-    if not status(model)["online"]:
-        return rows, {"definitions": 0, "purposes": 0, "names": 0}
-    num_gpu = 0 if compute == "cpu" else (99 if compute == "gpu" else None)
-    if workers is None:
-        workers = WORKERS
-    workers = max(1, min(workers, 16))
-    if batch_size is None:
-        batch_size = BATCH
-    batch_size = max(1, min(batch_size, 20))
-
-    targets = [r for r in rows
-               if not (only_low_confidence and r.get("Confidence") == "High")]
-    nd = npu = nn = 0
-
-    batches = [targets[i:i + batch_size] for i in range(0, len(targets), batch_size)]
-
-    def _do(batch):
-        try:
-            return batch, enrich_batch(batch, model=model, num_gpu=num_gpu)
-        except Exception:
-            return batch, [(None, None, None)] * len(batch)
-
-    if workers == 1 or len(batches) <= 1:
-        results = [_do(b) for b in batches]
-    else:
-        with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as ex:
-            results = list(ex.map(_do, batches))
-
-    for batch, triples in results:
-        for r, (new_name, new_def, new_pur) in zip(batch, triples):
-            if new_name and new_name != r.get("Term"):
-                r["Suggested_Name"] = new_name   # surfaced in review; Term is NOT overwritten
-                r["LLM_Name"] = "Yes"
-                r["LLM_Enriched"] = "Yes"
-                nn += 1
-            elif r.get("LLM_Name") is None:
-                r["LLM_Name"] = "No"
-            if new_def and new_def != r.get("Definition"):
-                r["Definition"] = new_def
-                r["LLM_Enriched"] = "Yes"      # kept for the summary badge + back-compat
-                r["LLM_Definition"] = "Yes"    # this field specifically was LLM-written
-                nd += 1
-            elif r.get("LLM_Definition") is None:
-                r["LLM_Definition"] = "No"     # processed but unchanged -> not LLM-written
-            if new_pur and new_pur != r.get("Purpose"):
-                r["Purpose"] = new_pur
-                r["LLM_Enriched"] = "Yes"
-                r["LLM_Purpose"] = "Yes"
-                npu += 1
-            elif r.get("LLM_Purpose") is None:
-                r["LLM_Purpose"] = "No"
-    return rows, {"definitions": nd, "purposes": npu, "names": nn}
-
-
 # --------------------------------------------------------------- expertise
 # Words that say nothing about a person's *domain* — stripped from the offline
 # fallback so it doesn't emit "owns", "terms", "optional", etc. as keywords.
@@ -610,147 +413,31 @@ def pull_stream(model=None):
         yield {"phase": "error", "status": f"pull failed: {e}", "percent": 0}
 
 
-# ------------------------------------------------------------ AI evidence pass
-def _suggest_one(row, allow_tags, categories, model=None, num_gpu=None):
-    """One evidence-grounded classification call. Returns the parsed proposal
-       dict or None. The prompt is grounded in SCAN EVIDENCE (profiled value
-       signature / induced regex / reference values), not just the name."""
-    ev = []
-    if row.get("Source_Column"):
-        ev.append("physical column(s): %s" % row["Source_Column"])
-    if row.get("Definition"):
-        ev.append("current definition: %s" % row["Definition"][:220])
-    if row.get("Value_Signature"):
-        ev.append("profiled position signature: %s" % row["Value_Signature"])
-    if row.get("Value_Pattern"):
-        ev.append("induced value regex: %s" % row["Value_Pattern"])
-    enum_vals = (row.get("Enum_Values") or "").strip()
-    if enum_vals:
-        ev.append("profiled reference values: %s" % enum_vals[:200])
-    if row.get("PII_Category"):
-        ev.append("PII category: %s" % row["PII_Category"])
-    if row.get("Suggested_Reason"):
-        ev.append("scan reasoning: %s" % row["Suggested_Reason"][:160])
-    prompt = (
-        "You classify a database column into a governed business glossary%s.\n"
-        "Current suggestion: term \"%s\" in category \"%s\", sensitivity %s, tags: %s.\n"
-        "Evidence from scanning the actual data:\n- %s\n\n"
-        "Categories (choose one): %s\n"
-        "Governed tag allow-list (use ONLY these): %s\n\n"
-        "Return JSON with keys: term (concise singular business name), category "
-        "(one from the list, ONLY useful when the current category is blank), "
-        "tags (array, only from the allow-list, the most relevant 2-5), rationale "
-        "(one short sentence grounded in the evidence). Do NOT return sensitivity "
-        "or PII — those are set deterministically from the scan."
-    ) % (
-        (" at " + COMPANY) if COMPANY else "",
-        row.get("Term", ""), row.get("Category", ""), row.get("Sensitivity", "LOW"),
-        row.get("Suggested_Tags", "") or "(none)",
-        "\n- ".join(ev) if ev else "(name only - no profile evidence)",
-        ", ".join(categories or []) or "(keep current)",
-        ", ".join(allow_tags or []) or "(none)",
-    )
-    return _complete_json(prompt, model=model, num_gpu=num_gpu)
-
-def suggest_terms_rows(rows, allow_tags=None, categories=None, only_low_confidence=False,
-                       model=None, compute=None, workers=None):
-    """AI agent pass over review rows. For each row the model proposes term /
-       category / tags / sensitivity FROM THE SCAN EVIDENCE, and the code applies
-       it under governance guardrails: tags are filtered to the governed
-       allow-list, sensitivity can only tighten, the term is surfaced as
-       Suggested_Name (never overwriting the steward's Term), and the rationale
-       lands in Suggested_Reason. Returns (rows, counts, used_llm)."""
-    rows = [r for r in rows if isinstance(r, dict)]
-    counts = {"names": 0, "tags": 0, "sensitivity": 0, "category": 0}
-    if not status(model)["online"]:
-        return rows, counts, False
-    num_gpu = 0 if compute == "cpu" else (99 if compute == "gpu" else None)
-    if workers is None:
-        workers = WORKERS
-    workers = max(1, min(workers, 16))
-    allow = [t for t in (allow_tags or [])]
-    allow_set = {str(t).strip().lower() for t in allow}
-    cats = [c for c in (categories or [])]
-    targets = [r for r in rows
-               if not (only_low_confidence and r.get("Confidence") == "High")]
-
-    # warm the model first: a cold load can outlive LLM_TIMEOUT and would make
-    # the first batch fail silently (calls return None until the model is resident)
-    try:
-        _warm(model)
-    except Exception:
-        pass
-
-    def _do(r):
-        try:
-            return r, _suggest_one(r, allow, cats, model=model, num_gpu=num_gpu)
-        except Exception:
-            return r, None
-
-    if workers == 1 or len(targets) <= 1:
-        results = [_do(r) for r in targets]
-    else:
-        with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as ex:
-            results = list(ex.map(_do, targets))
-
-    for r, out in results:
-        if not isinstance(out, dict):
-            continue
-        changed = False
-        # term: propose, never overwrite (same contract as enrich's name pass)
-        term = _clean_name(str(out.get("term") or ""), r.get("Term", ""))
-        if term and term != r.get("Term") and term != r.get("Suggested_Name"):
-            r["Suggested_Name"] = term
-            r["LLM_Name"] = "Yes"
-            counts["names"] += 1
-            changed = True
-        # category: accept a known category, but only to FILL A BLANK — never
-        # overwrite a category the scan or steward already set (matches AI
-        # categorize's only-blank rule; keeps the LLM from drifting governance).
-        cat = str(out.get("category") or "").strip()
-        if cat and cats and cat in cats and not (r.get("Category") or "").strip():
-            r["Category"] = cat
-            counts["category"] += 1
-            changed = True
-        # tags: union, governed-only
-        proposed = out.get("tags") or []
-        if isinstance(proposed, list):
-            cur = [t for t in (r.get("Suggested_Tags") or "").split(";") if t]
-            cur_l = {t.strip().lower() for t in cur}
-            # append in standardised lower-case (the governed vocabulary's form)
-            added = [str(t).strip().lower() for t in proposed
-                     if str(t).strip() and str(t).strip().lower() in allow_set
-                     and str(t).strip().lower() not in cur_l]
-            if added:
-                r["Suggested_Tags"] = ";".join(cur + added)
-                counts["tags"] += 1
-                changed = True
-        # sensitivity: NOT set by the AI. It's deterministic — the scan
-        # classifier + value profiling set it, the governed-tag sensitivity
-        # floors raise it, and only a steward lifts it by hand. The LLM must not
-        # drift a governed field, so its sensitivity opinion is ignored.
-        if changed:
-            r["AI_Suggested"] = "Yes"
-            r["LLM_Enriched"] = "Yes"
-            why = str(out.get("rationale") or "").strip()
-            if not _mostly_english(why):
-                why = ""
-            if why:
-                base = r.get("Suggested_Reason") or ""
-                if "AI(evidence)" not in base:
-                    r["Suggested_Reason"] = (base + " · " if base else "") + "AI(evidence): " + why[:180]
-    return rows, counts, True
-
-
 # ------------------------------------------------------------ combined AI pass
+
+def _scan_reason(row):
+    """The SCAN's own reasoning for a row, with any agent-appended rationale
+       stripped. `ai_pass_rows` writes its answer back into Suggested_Reason as
+       "AI(pass): …", so feeding the field in raw would hand the model its own
+       previous reply as if it were evidence from the data — a second run would
+       be arguing with itself. Only the part the scan wrote is evidence."""
+    base = str(row.get("Suggested_Reason") or "")
+    for marker in ("AI(pass):", "AI(evidence):"):
+        i = base.find(marker)
+        if i != -1:
+            base = base[:i]
+    return base.strip().strip("·").strip()
+
 
 def _ai_pass_one(row, allow_tags, categories, model=None, num_gpu=None):
     """ONE call per row for every LLM-decidable field: name, definition, purpose,
-       category and governed tags. Replaces running Enrich + AI suggest +
-       AI categorize as three separate passes over the same rows — they overlapped
-       on name / category / tags, so the later pass simply overwrote the earlier
-       one's proposal. Prompt keeps the evidence grounding of _suggest_one AND the
-       writing instructions of enrich_one."""
+       category and governed tags. This is the ONLY row-level agent prompt left —
+       Enrich, AI suggest and AI categorize were three separate passes over the
+       same rows that overlapped on name / category / tags (the later pass simply
+       overwrote the earlier one's proposal), and each restated the guardrails in
+       its own wording, so a change to one had to be made three times or they
+       drifted. This prompt carries the evidence grounding the evidence pass had
+       and the writing instructions the enricher had."""
     ev = []
     if row.get("Source_Column"):
         ev.append("physical column(s): %s" % row["Source_Column"])
@@ -763,8 +450,9 @@ def _ai_pass_one(row, allow_tags, categories, model=None, num_gpu=None):
         ev.append("profiled reference values: %s" % enum_vals[:200])
     if row.get("PII_Category"):
         ev.append("PII category: %s" % row["PII_Category"])
-    if row.get("Suggested_Reason"):
-        ev.append("scan reasoning: %s" % row["Suggested_Reason"][:160])
+    reason = _scan_reason(row)
+    if reason:
+        ev.append("scan reasoning: %s" % reason[:160])
     if row.get("QA_Issues"):
         ev.append("the current definition was flagged as: %s"
                   % str(row["QA_Issues"]).replace(";", ", "))
@@ -806,8 +494,7 @@ def _ai_pass_one(row, allow_tags, categories, model=None, num_gpu=None):
 
 
 def _ai_pass_batch(rows, allow_tags, categories, model=None, num_gpu=None):
-    """SEVERAL rows in ONE call — the same trick enrich_batch uses, applied to the
-       combined pass: Ollama pays the prompt/scheduling overhead once per batch
+    """SEVERAL rows in ONE call: Ollama pays the prompt/scheduling overhead once per batch
        instead of once per row, which is the difference between ~120 calls and
        ~20 for a typical scan. Returns a list of reply dicts aligned to `rows`
        (None where the model gave nothing). Falls back to per-row calls if the
@@ -827,6 +514,13 @@ def _ai_pass_batch(rows, allow_tags, categories, model=None, num_gpu=None):
             ev.append("values %s" % enum_vals[:90])
         if r.get("PII_Category"):
             ev.append("PII %s" % r["PII_Category"])
+        # why the scan proposed this term/tags in the first place. The batched
+        # prompt went without it while the per-row path had it, so the evidence
+        # the retired AI-suggest agent leaned on was exactly what the pass that
+        # replaced it never saw on the path it actually runs.
+        reason = _scan_reason(r)
+        if reason:
+            ev.append("scan reasoning %s" % reason[:120])
         lines.append(
             f'{i}. Term: {r.get("Term","")} | Category: {r.get("Category","") or "(blank)"} | '
             f'Source: {r.get("Source_Column","")} | Tags: {r.get("Suggested_Tags","") or "(none)"} | '

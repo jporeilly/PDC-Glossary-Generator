@@ -127,6 +127,46 @@ class TestAiPass:
         assert per_row.count("the current definition was flagged as:") == 1
         assert "generic, echoes the term" in per_row
 
+    def test_scan_reasoning_reaches_the_batch_prompt(self, monkeypatch):
+        """The retired evidence agent leaned on Suggested_Reason; the batched
+           pass that replaced it did not send it, so absorbing that agent meant
+           absorbing its evidence too."""
+        seen = []
+
+        def capture(prompt, **kw):
+            seen.append(prompt)
+            return {"items": [{"n": 1, "definition": "A specific, useful sentence."}]}
+
+        monkeypatch.setattr(llm, "_complete_json", capture)
+        monkeypatch.setattr(llm, "status", lambda m=None: {"online": True})
+        monkeypatch.setattr(llm, "_warm", lambda m=None: None)
+        rows = [make_row("Account Number", "public.customers.account_number",
+                         Suggested_Reason="matches the AWC-<city>-<n> account format")]
+        llm.ai_pass_rows(rows, allow_tags=[], categories=[], workers=1)
+        assert "scan reasoning" in seen[0]
+        assert "AWC-<city>-<n> account format" in seen[0]
+
+    def test_the_pass_is_not_fed_its_own_previous_rationale(self, monkeypatch):
+        """ai_pass_rows appends 'AI(pass): …' to Suggested_Reason, so sending
+           that field raw would hand a second run its own last answer as if the
+           scan had observed it. Only the scan's half is evidence."""
+        seen = []
+
+        def capture(prompt, **kw):
+            seen.append(prompt)
+            return {"items": [{"n": 1, "definition": "A specific, useful sentence."}]}
+
+        monkeypatch.setattr(llm, "_complete_json", capture)
+        monkeypatch.setattr(llm, "status", lambda m=None: {"online": True})
+        monkeypatch.setattr(llm, "_warm", lambda m=None: None)
+        rows = [make_row("Account Number", "public.customers.account_number",
+                         Suggested_Reason="formatted account code · AI(pass): "
+                                          "the column holds billing identifiers")]
+        llm.ai_pass_rows(rows, allow_tags=[], categories=[], workers=1)
+        assert "formatted account code" in seen[0]
+        assert "AI(pass)" not in seen[0]
+        assert "holds billing identifiers" not in seen[0]
+
     def test_offline_is_a_no_op(self, monkeypatch):
         monkeypatch.setattr(llm, "status", lambda m=None: {"online": False})
         rows = [make_row("Email", "public.customers.email")]

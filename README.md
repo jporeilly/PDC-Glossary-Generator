@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  <img alt="Version 1.15.1" src="https://img.shields.io/badge/version-1.15.1-0F766E">
+  <img alt="Version 1.16.0" src="https://img.shields.io/badge/version-1.16.0-0F766E">
   <img alt="Pentaho Data Catalog 11.0.0" src="https://img.shields.io/badge/Pentaho%20Data%20Catalog-11.0.0-1f6feb">
   <img alt="Public API v3" src="https://img.shields.io/badge/public%20API-v3-1f6feb">
   <img alt="Python 3.9+" src="https://img.shields.io/badge/python-3.9%2B-3776AB">
@@ -27,7 +27,7 @@
 
 ---
 
-**Version:** 1.15.1 · validated against Pentaho Data Catalog 11.0.0 (public API v3).
+**Version:** 1.16.0 · validated against Pentaho Data Catalog 11.0.0 (public API v3).
 
 > [!TIP]
 > **Quick start (Windows 11 host):** one command stands up the whole
@@ -204,8 +204,8 @@ data-value probe and an AI adjudicator on demand).
 
 A **"How to review — the working order"** guide panel (open by default) is an
 interactive, clickable flow: ① Prune → ② Name the glossary (autosave on — it
-syncs the Dictionary) → ③ the AI agents as sequence chips (Enrich →
-Suggest · Categorize · Tags → QA as the gate) → ④ Resolve duplicates on the
+syncs the Dictionary) → ③ the AI pass (one call per batch of kept rows;
+**AI review** on a row for a single-row re-run) → ④ Resolve duplicates on the
 final names → ⑤ Approve the pending vocabulary (the box hops to the
 Dictionary) → Govern (navigates). The grid scrolls in its own pane with a
 sticky header and frozen Keep / Category / Term columns, and **Definition and
@@ -357,7 +357,9 @@ swept every row on their own and overlapped on those fields, so the last one
 silently overwrote the others. Measured on a real scan: 6 rows in a single
 call where the old path spent ~36s *per row*. The deterministic work rides
 along for free — governed tags re-derived from the Dictionary before the model
-sees them, and the definition linter's QA flag. The rest: duplicate-group adjudication, definition QA (with a
+sees them, and the definition linter's QA flag. It is the **only** row-level
+agent: **AI review**, on an expanded row, is the same call scoped to that row,
+so there is no second prompt restating the guardrails. The rest: duplicate-group adjudication, definition QA (with a
 deterministic linter that also works offline), category assignment, roster
 expertise, business-domain suggestion, pending-vocabulary review (with
 alias folding), term-id matching at resolve time, the governed-vocabulary

@@ -41,7 +41,7 @@ pack, **reseed** so the changes take effect:
 1. App → **Dictionary** page → **Reseed** (or delete `tag_dictionary.json` and restart).
 2. On the **Glossary** grid → **Suggest tags** to re-derive tags for the current rows.
 
-Tags are governed vocabulary, **not** LLM output — so *Enrich with LLM* won't change them;
+Tags are governed vocabulary, **not** free LLM output — the *AI pass* may only add tags already on the governed allow-list;
 the domain pack is how you enrich the tag set.
 
 ## The pack generator — packs evolve from scan results (1.8.17)
