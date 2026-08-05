@@ -104,7 +104,14 @@ python -m uvicorn api:app --port 5000                    # http://127.0.0.1:5000
 ```
 
 Override host/port: `./run.sh --host 0.0.0.0 --port 5050` (or `PORT=5050
-HOST=0.0.0.0 ./run.sh`). `run.sh` does venv + install + run in one step. On Windows use `run.ps1` (or the `run.bat` wrapper) instead. PostgreSQL, DDL and MinIO/S3 scanning work out of the
+HOST=0.0.0.0 ./run.sh`). `run.sh` does venv + install + run in one step. On Windows use `run.ps1` (or the `run.bat` wrapper) instead.
+
+> **Working on the backend?** Append `--reload` — `watchfiles` (in
+> `requirements.txt`) is what enables it. Without it uvicorn keeps serving the
+> code it started with, so an edit to `api.py` or `similarity.py` does nothing
+> until you bounce the process by hand — and a stale server looks exactly like a
+> fix that didn't work.
+ PostgreSQL, DDL and MinIO/S3 scanning work out of the
 box; other DB engines are opt-in (see **Settings → Drivers**). LLM enrichment is
 optional and needs a local **Ollama** (`ollama serve`).
 

@@ -15,3 +15,7 @@ openai>=1.40            # OpenAI *and* Azure OpenAI / Foundry (same SDK)
 google-genai>=0.3       # Google Gemini
 mammoth>=1.6            # render .docx documents to HTML in the file viewer (optional)
 # python-docx>=1.1      # fallback .docx renderer if mammoth isn't installed
+# Development only — uvicorn's --reload needs a file watcher. Without it an edit
+# to api.py or similarity.py has no effect until the server is bounced by hand,
+# which reads as "the fix didn't work" rather than "the server is stale".
+watchfiles>=0.21        # enables: uvicorn api:app --reload

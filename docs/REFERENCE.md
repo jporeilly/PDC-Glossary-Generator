@@ -77,6 +77,16 @@ pip install -r requirements.txt
 python -m uvicorn api:app --port 5000   # http://127.0.0.1:5000
 ```
 
+Developing on the backend? Add `--reload` (the `watchfiles` dependency enables
+it) so an edit to `api.py`, `similarity.py` or `llm.py` takes effect in place:
+
+```bash
+python -m uvicorn api:app --port 5000 --reload
+```
+
+Without it the process keeps serving the code it started with, and a backend fix
+reads as *"that didn't work"* when the server is simply stale.
+
 Open the URL, point **DDL path** at a schema file (or pick **Database** and fill
 the connection form), then **Scan & suggest**.
 
