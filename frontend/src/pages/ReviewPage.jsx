@@ -1161,7 +1161,8 @@ export default function ReviewPage({ onNavigate }) {
                 const rec = idxs.length > 1 ? reco[k] : null
                 return (
                   <Fragment key={`${k}:${idxs[0]}`}>
-                    {cluster && <ClusterHead name={k} count={idxs.length} action={act} rec={rec} locked={locked} onSet={onGroupSet} />}
+                    {cluster && <ClusterHead name={k} count={idxs.length} action={act} rec={rec}
+                                             decided={!!grp[k]} locked={locked} onSet={onGroupSet} />}
                     {idxs.map((i) => (
                       <Fragment key={i}>
                         <GridRow row={rows[i]} index={i} pos={posOf.get(i)} expanded={expanded === i}
@@ -1612,10 +1613,19 @@ const hasEvidence = (r) => !!(r.Value_Pattern || r.Value_Signature || r.Enum_Val
 
 /* ---------- duplicate cluster header (Merge / Disambiguate / Keep separate) ---------- */
 
-function ClusterHead({ name, count, action, rec, locked, onSet }) {
+// `decided` separates "the steward chose Keep separate" from "nobody has chosen
+// anything yet" — both are action === 'separate', because that is the neutral
+// state a Merge/Disambiguate reverts to. Without the distinction an untouched
+// group renders Keep separate as SELECTED, which reads as a decision the app
+// made: the one outcome that ships two terms under one name, highlighted as if
+// it were the advice. Until a steward picks, nothing is selected and the
+// recommendation is the only thing lit.
+function ClusterHead({ name, count, action, rec, locked, decided, onSet }) {
   const seg = (v, label) => (
     <button key={v} disabled={locked}
-            className={(action === v ? 'on' : '') + (rec && rec.action === v && action === 'separate' ? ' rec' : '')}
+            className={(decided && action === v ? 'on' : '')
+                       + (!decided && rec && rec.action === v ? ' rec' : '')}
+            aria-pressed={decided && action === v}
             onClick={() => onSet(name, v)}>
       {label}
     </button>
