@@ -1,0 +1,1353 @@
+{
+  "domain": "water_utility",
+  "table_category": {
+    "customers": "Customer",
+    "water_systems": "Water System",
+    "tiered_rates": "Billing & Rates",
+    "monthly_usage": "Usage",
+    "water_quality_reports": "Water Quality",
+    "account_alerts": "Governance",
+    "customer_billing_summary": "Billing & Rates",
+    "system_usage_conservation": "Usage",
+    "system_water_quality_status": "Water Quality"
+  },
+  "table_terms": {
+    "customers": "Customer Record",
+    "water_systems": "Water System Record",
+    "tiered_rates": "Rate Plan Record",
+    "monthly_usage": "Monthly Usage Record",
+    "water_quality_reports": "Water Quality Record",
+    "account_alerts": "Account Alert Record",
+    "customer_billing_summary": "Customer Billing Summary Record",
+    "system_usage_conservation": "System Usage Conservation Record",
+    "system_water_quality_status": "System Water Quality Statu Record"
+  },
+  "cat_keywords": [
+    [
+      "water_quality",
+      "Water Quality"
+    ],
+    [
+      "quality",
+      "Water Quality"
+    ],
+    [
+      "system",
+      "Water System"
+    ],
+    [
+      "tiered",
+      "Billing & Rates"
+    ],
+    [
+      "water",
+      "Water System"
+    ],
+    [
+      "monthly",
+      "Usage"
+    ],
+    [
+      "asset",
+      "Water System"
+    ],
+    [
+      "pipe",
+      "Water System"
+    ],
+    [
+      "network",
+      "Water System"
+    ],
+    [
+      "pressure",
+      "Water System"
+    ],
+    [
+      "scada",
+      "Water System"
+    ],
+    [
+      "inspection",
+      "Water Quality"
+    ],
+    [
+      "email",
+      "Records & Documents"
+    ],
+    [
+      "letter",
+      "Records & Documents"
+    ]
+  ],
+  "abbreviations": {
+    "ws": "Water System",
+    "wtr": "Water",
+    "usg": "Usage",
+    "cons": "Consumption",
+    "mtr": "Meter",
+    "rdg": "Reading",
+    "gal": "Gallons",
+    "avg": "Average"
+  },
+  "category_definitions": {
+    "Water System": "Describes water-system assets for operations and reporting.",
+    "Water Quality": "Tracks water-quality measurements for EPA compliance and monitoring."
+  },
+  "category_tags": {
+    "Records & Documents": [
+      "document",
+      "records"
+    ],
+    "Water System": [
+      "water-system",
+      "operational"
+    ],
+    "Water Quality": [
+      "water-quality"
+    ],
+    "Billing & Rates": [
+      "billing"
+    ],
+    "Usage": [
+      "usage"
+    ],
+    "Customer": [
+      "customer"
+    ],
+    "Governance": [
+      "governance"
+    ]
+  },
+  "tag_rules": [
+    {
+      "pattern": "\\bph\\b|turbidity|chlorine|\\blead\\b|contaminant|water.?quality|violation|\\bepa\\b|hardness|nitrate",
+      "tags": [
+        "water-quality",
+        "compliance"
+      ]
+    },
+    {
+      "pattern": "pipe|pump|valve|reservoir|tank|gallons|\\bflow\\b|cubic",
+      "tags": [
+        "water-system",
+        "asset",
+        "operational"
+      ]
+    },
+    {
+      "pattern": "\\bgis\\b|geospatial|spatial|geographic|\\bmap(s|ping)?\\b|parcel|easement|right.?of.?way",
+      "tags": [
+        "gis",
+        "spatial",
+        "asset"
+      ]
+    },
+    {
+      "pattern": "scada|telemetry|supervisory|\\brtu\\b|\\bplc\\b|sensor|remote.?monitor",
+      "tags": [
+        "scada",
+        "operational",
+        "telemetry"
+      ]
+    },
+    {
+      "pattern": "inspect|survey|field.?report|site.?visit",
+      "tags": [
+        "inspection",
+        "field-ops"
+      ]
+    },
+    {
+      "pattern": "correspond|\\bletter\\b|notice|\\bmemo\\b|inquiry|communication|email",
+      "tags": [
+        "correspondence",
+        "records"
+      ]
+    },
+    {
+      "pattern": "hydrolog|watershed|groundwater|aquifer|\\bwell\\b|reservoir|source.?water",
+      "tags": [
+        "hydrology",
+        "water-quality"
+      ]
+    },
+    {
+      "pattern": "maintenance|work.?order|repair|service.?request|\\bmain.?break|leak",
+      "tags": [
+        "maintenance",
+        "operational"
+      ]
+    },
+    {
+      "pattern": "outage|\\bincident\\b|emergency|spill|overflow",
+      "tags": [
+        "incident",
+        "operational"
+      ]
+    },
+    {
+      "pattern": "permit|licen[cs]e|certificat",
+      "tags": [
+        "permit",
+        "compliance"
+      ]
+    },
+    {
+      "pattern": "\\bland\\b|property|acquisition|zoning",
+      "tags": [
+        "land",
+        "asset"
+      ]
+    },
+    {
+      "pattern": "\\bplan(s|ning)?\\b|design|drawing|schematic|as.?built|engineering",
+      "tags": [
+        "engineering",
+        "asset"
+      ]
+    }
+  ],
+  "extra_tags": [
+    "correspondence",
+    "engineering",
+    "field-ops",
+    "gis",
+    "hydrology",
+    "incident",
+    "inspection",
+    "land",
+    "maintenance",
+    "permit",
+    "records",
+    "scada",
+    "spatial",
+    "telemetry",
+    "water-quality",
+    "water-system"
+  ],
+  "terms": {
+    "Account Status": {
+      "aliases": [],
+      "sensitivity": "LOW",
+      "tags": [
+        "operational",
+        "identifier",
+        "customer"
+      ]
+    },
+    "Active Customers": {
+      "aliases": [],
+      "sensitivity": "LOW",
+      "tags": [
+        "usage",
+        "metering"
+      ]
+    },
+    "Alert Date": {
+      "aliases": [],
+      "sensitivity": "LOW",
+      "tags": [
+        "operational",
+        "temporal",
+        "governance"
+      ]
+    },
+    "Alert ID": {
+      "aliases": [],
+      "sensitivity": "LOW",
+      "tags": [
+        "operational",
+        "governance",
+        "cde",
+        "identifier"
+      ]
+    },
+    "Alert Type": {
+      "aliases": [],
+      "sensitivity": "LOW",
+      "tags": [
+        "operational",
+        "governance"
+      ]
+    },
+    "Amount Paid": {
+      "aliases": [],
+      "sensitivity": "MEDIUM",
+      "tags": [
+        "financial",
+        "sensitive",
+        "billing",
+        "usage"
+      ]
+    },
+    "Average Customer Usage": {
+      "aliases": [],
+      "sensitivity": "LOW",
+      "tags": [
+        "usage",
+        "metering"
+      ]
+    },
+    "Average Monthly Usage": {
+      "aliases": [],
+      "sensitivity": "MEDIUM",
+      "tags": [
+        "billing",
+        "financial",
+        "rate",
+        "usage"
+      ]
+    },
+    "Bacteria Present": {
+      "aliases": [],
+      "sensitivity": "LOW",
+      "tags": [
+        "water-quality",
+        "compliance"
+      ]
+    },
+    "Base Charge": {
+      "aliases": [],
+      "sensitivity": "MEDIUM",
+      "tags": [
+        "financial",
+        "sensitive",
+        "billing",
+        "usage"
+      ]
+    },
+    "Billing Address": {
+      "aliases": [],
+      "sensitivity": "HIGH",
+      "tags": [
+        "pii",
+        "location",
+        "privacy",
+        "billing"
+      ]
+    },
+    "Billing City": {
+      "aliases": [],
+      "sensitivity": "HIGH",
+      "tags": [
+        "pii",
+        "location",
+        "privacy",
+        "billing"
+      ]
+    },
+    "Billing Month": {
+      "aliases": [],
+      "sensitivity": "MEDIUM",
+      "tags": [
+        "billing",
+        "financial",
+        "usage",
+        "metering"
+      ]
+    },
+    "Billing Name": {
+      "aliases": [],
+      "sensitivity": "HIGH",
+      "tags": [
+        "pii",
+        "personal-data",
+        "direct-identifier",
+        "privacy"
+      ]
+    },
+    "Billing ZIP": {
+      "aliases": [],
+      "sensitivity": "HIGH",
+      "tags": [
+        "pii",
+        "location",
+        "privacy",
+        "billing"
+      ]
+    },
+    "Bills Generated": {
+      "aliases": [],
+      "sensitivity": "MEDIUM",
+      "tags": [
+        "billing",
+        "financial",
+        "rate"
+      ]
+    },
+    "Bucket Root": {
+      "aliases": [],
+      "sensitivity": "LOW",
+      "tags": [
+        "document",
+        "records"
+      ]
+    },
+    "Capacity": {
+      "aliases": [],
+      "sensitivity": "LOW",
+      "tags": [
+        "asset",
+        "operational",
+        "water-system"
+      ]
+    },
+    "Chlorine Residual": {
+      "aliases": [],
+      "sensitivity": "LOW",
+      "tags": [
+        "water-quality",
+        "compliance"
+      ]
+    },
+    "Compliance": {
+      "aliases": [],
+      "sensitivity": "HIGH",
+      "tags": [
+        "document",
+        "compliance",
+        "records",
+        "maskable"
+      ]
+    },
+    "Compliance Status": {
+      "aliases": [],
+      "sensitivity": "LOW",
+      "tags": [
+        "water-quality",
+        "compliance",
+        "operational",
+        "cde"
+      ]
+    },
+    "Conservation Focus": {
+      "aliases": [],
+      "sensitivity": "LOW",
+      "tags": [
+        "asset",
+        "operational",
+        "water-system"
+      ]
+    },
+    "Contaminant Level": {
+      "aliases": [],
+      "sensitivity": "LOW",
+      "tags": [
+        "water-quality",
+        "compliance",
+        "cde"
+      ]
+    },
+    "Copper Ppm": {
+      "aliases": [],
+      "sensitivity": "LOW",
+      "tags": [
+        "water-quality",
+        "compliance"
+      ]
+    },
+    "Correspondence": {
+      "aliases": [],
+      "sensitivity": "LOW",
+      "tags": [
+        "document",
+        "correspondence",
+        "records"
+      ]
+    },
+    "County": {
+      "aliases": [],
+      "sensitivity": "HIGH",
+      "tags": [
+        "pii",
+        "location",
+        "privacy",
+        "asset"
+      ]
+    },
+    "Customer Type": {
+      "aliases": [],
+      "sensitivity": "MEDIUM",
+      "tags": [
+        "billing",
+        "financial",
+        "rate"
+      ]
+    },
+    "Description": {
+      "aliases": [],
+      "sensitivity": "LOW",
+      "tags": [
+        "governance"
+      ]
+    },
+    "Due Date": {
+      "aliases": [],
+      "sensitivity": "MEDIUM",
+      "tags": [
+        "financial",
+        "sensitive",
+        "billing",
+        "usage"
+      ]
+    },
+    "Effective Date": {
+      "aliases": [],
+      "sensitivity": "MEDIUM",
+      "tags": [
+        "billing",
+        "financial",
+        "rate",
+        "temporal"
+      ]
+    },
+    "Gis": {
+      "aliases": [],
+      "sensitivity": "LOW",
+      "tags": [
+        "document",
+        "gis",
+        "spatial",
+        "asset"
+      ]
+    },
+    "Hardness Ppm": {
+      "aliases": [],
+      "sensitivity": "LOW",
+      "tags": [
+        "water-quality",
+        "compliance"
+      ]
+    },
+    "Inspections": {
+      "aliases": [],
+      "sensitivity": "MEDIUM",
+      "tags": [
+        "document",
+        "inspection",
+        "field-ops",
+        "records"
+      ]
+    },
+    "Last Compliance Check": {
+      "aliases": [],
+      "sensitivity": "LOW",
+      "tags": [
+        "compliance",
+        "asset",
+        "operational",
+        "water-system"
+      ]
+    },
+    "Lead Ppb": {
+      "aliases": [],
+      "sensitivity": "LOW",
+      "tags": [
+        "water-quality",
+        "compliance",
+        "cde"
+      ]
+    },
+    "Meter ID": {
+      "aliases": [],
+      "sensitivity": "LOW",
+      "tags": [
+        "usage",
+        "metering",
+        "identifier",
+        "cde"
+      ]
+    },
+    "Notes": {
+      "aliases": [],
+      "sensitivity": "LOW",
+      "tags": [
+        "water-quality",
+        "compliance"
+      ]
+    },
+    "Number Of Customers": {
+      "aliases": [],
+      "sensitivity": "LOW",
+      "tags": [
+        "asset",
+        "operational",
+        "water-system"
+      ]
+    },
+    "Opted Out Marketing": {
+      "aliases": [],
+      "sensitivity": "LOW",
+      "tags": [
+        "customer"
+      ]
+    },
+    "Outstanding Bills": {
+      "aliases": [],
+      "sensitivity": "MEDIUM",
+      "tags": [
+        "billing",
+        "financial",
+        "rate"
+      ]
+    },
+    "Paid Bills": {
+      "aliases": [],
+      "sensitivity": "MEDIUM",
+      "tags": [
+        "financial",
+        "sensitive",
+        "billing",
+        "rate"
+      ]
+    },
+    "Payment Collection Rate": {
+      "aliases": [],
+      "sensitivity": "MEDIUM",
+      "tags": [
+        "billing",
+        "financial",
+        "rate",
+        "usage"
+      ]
+    },
+    "Payment Date": {
+      "aliases": [],
+      "sensitivity": "MEDIUM",
+      "tags": [
+        "billing",
+        "financial",
+        "usage",
+        "metering"
+      ]
+    },
+    "Payment Status": {
+      "aliases": [],
+      "sensitivity": "MEDIUM",
+      "tags": [
+        "billing",
+        "financial",
+        "rate",
+        "operational"
+      ]
+    },
+    "Peak Usage": {
+      "aliases": [],
+      "sensitivity": "MEDIUM",
+      "tags": [
+        "billing",
+        "financial",
+        "rate",
+        "usage"
+      ]
+    },
+    "pH Level": {
+      "aliases": [
+        "Phone Level"
+      ],
+      "sensitivity": "LOW",
+      "tags": [
+        "water-quality",
+        "compliance"
+      ]
+    },
+    "Population Served": {
+      "aliases": [],
+      "sensitivity": "MEDIUM",
+      "tags": [
+        "asset",
+        "operational",
+        "location",
+        "water-system"
+      ]
+    },
+    "Primary Source": {
+      "aliases": [],
+      "sensitivity": "LOW",
+      "tags": [
+        "hydrology",
+        "water-quality",
+        "asset",
+        "operational"
+      ]
+    },
+    "Quality Rating": {
+      "aliases": [],
+      "sensitivity": "LOW",
+      "tags": [
+        "water-quality",
+        "compliance"
+      ]
+    },
+    "Rate ID": {
+      "aliases": [],
+      "sensitivity": "MEDIUM",
+      "tags": [
+        "billing",
+        "financial",
+        "rate",
+        "cde"
+      ]
+    },
+    "Rate Period": {
+      "aliases": [],
+      "sensitivity": "MEDIUM",
+      "tags": [
+        "billing",
+        "financial",
+        "rate",
+        "temporal"
+      ]
+    },
+    "Recommended Action": {
+      "aliases": [],
+      "sensitivity": "LOW",
+      "tags": [
+        "governance"
+      ]
+    },
+    "Report ID": {
+      "aliases": [],
+      "sensitivity": "LOW",
+      "tags": [
+        "water-quality",
+        "compliance",
+        "cde",
+        "identifier"
+      ]
+    },
+    "Report Month": {
+      "aliases": [],
+      "sensitivity": "LOW",
+      "tags": [
+        "water-quality",
+        "compliance",
+        "temporal"
+      ]
+    },
+    "Resolved Date": {
+      "aliases": [],
+      "sensitivity": "LOW",
+      "tags": [
+        "operational",
+        "temporal",
+        "governance"
+      ]
+    },
+    "Scada": {
+      "aliases": [],
+      "sensitivity": "LOW",
+      "tags": [
+        "document",
+        "scada",
+        "operational",
+        "telemetry"
+      ]
+    },
+    "Service Area System": {
+      "aliases": [],
+      "sensitivity": "LOW",
+      "tags": [
+        "asset",
+        "operational",
+        "customer"
+      ]
+    },
+    "Service Cities": {
+      "aliases": [],
+      "sensitivity": "LOW",
+      "tags": [
+        "water-quality",
+        "compliance"
+      ]
+    },
+    "Service City": {
+      "aliases": [],
+      "sensitivity": "HIGH",
+      "tags": [
+        "pii",
+        "location",
+        "privacy",
+        "billing"
+      ]
+    },
+    "Service County": {
+      "aliases": [],
+      "sensitivity": "HIGH",
+      "tags": [
+        "pii",
+        "location",
+        "privacy",
+        "customer"
+      ]
+    },
+    "Service Start Date": {
+      "aliases": [],
+      "sensitivity": "LOW",
+      "tags": [
+        "temporal",
+        "customer"
+      ]
+    },
+    "Service ZIP": {
+      "aliases": [],
+      "sensitivity": "HIGH",
+      "tags": [
+        "pii",
+        "location",
+        "privacy",
+        "customer"
+      ]
+    },
+    "Severity": {
+      "aliases": [],
+      "sensitivity": "LOW",
+      "tags": [
+        "operational",
+        "governance"
+      ]
+    },
+    "Source Type": {
+      "aliases": [],
+      "sensitivity": "LOW",
+      "tags": [
+        "asset",
+        "operational",
+        "water-system"
+      ]
+    },
+    "Status": {
+      "aliases": [],
+      "sensitivity": "MEDIUM",
+      "tags": [
+        "operational",
+        "governance"
+      ]
+    },
+    "System Alert Level": {
+      "aliases": [],
+      "sensitivity": "LOW",
+      "tags": [
+        "water-quality",
+        "compliance",
+        "operational",
+        "asset"
+      ]
+    },
+    "System ID": {
+      "aliases": [],
+      "sensitivity": "MEDIUM",
+      "tags": [
+        "asset",
+        "operational",
+        "identifier",
+        "governance"
+      ]
+    },
+    "System Name": {
+      "aliases": [],
+      "sensitivity": "MEDIUM",
+      "tags": [
+        "billing",
+        "financial",
+        "rate",
+        "asset"
+      ]
+    },
+    "System Status": {
+      "aliases": [],
+      "sensitivity": "LOW",
+      "tags": [
+        "operational",
+        "asset",
+        "water-system"
+      ]
+    },
+    "System Type": {
+      "aliases": [],
+      "sensitivity": "LOW",
+      "tags": [
+        "asset",
+        "operational",
+        "water-system"
+      ]
+    },
+    "Tax Amount": {
+      "aliases": [],
+      "sensitivity": "MEDIUM",
+      "tags": [
+        "financial",
+        "sensitive",
+        "billing",
+        "tax"
+      ]
+    },
+    "Tier 1 Charge": {
+      "aliases": [],
+      "sensitivity": "MEDIUM",
+      "tags": [
+        "financial",
+        "sensitive",
+        "billing",
+        "rate"
+      ]
+    },
+    "Tier 2 Charge": {
+      "aliases": [],
+      "sensitivity": "MEDIUM",
+      "tags": [
+        "financial",
+        "sensitive",
+        "billing",
+        "rate"
+      ]
+    },
+    "Tier 3 Charge": {
+      "aliases": [],
+      "sensitivity": "MEDIUM",
+      "tags": [
+        "financial",
+        "sensitive",
+        "billing",
+        "rate"
+      ]
+    },
+    "Tier 4 Charge": {
+      "aliases": [],
+      "sensitivity": "MEDIUM",
+      "tags": [
+        "financial",
+        "sensitive",
+        "billing",
+        "rate"
+      ]
+    },
+    "Tier Rate": {
+      "aliases": [],
+      "sensitivity": "MEDIUM",
+      "tags": [
+        "billing",
+        "financial",
+        "rate"
+      ]
+    },
+    "Tier1 From Gallons": {
+      "aliases": [],
+      "sensitivity": "MEDIUM",
+      "tags": [
+        "water-system",
+        "asset",
+        "operational",
+        "billing"
+      ]
+    },
+    "Tier1 Rate Per 1000gal": {
+      "aliases": [],
+      "sensitivity": "MEDIUM",
+      "tags": [
+        "billing",
+        "financial",
+        "rate"
+      ]
+    },
+    "Tier1 To Gallons": {
+      "aliases": [],
+      "sensitivity": "HIGH",
+      "tags": [
+        "pii",
+        "location",
+        "privacy",
+        "water-system"
+      ]
+    },
+    "Tier2 From Gallons": {
+      "aliases": [],
+      "sensitivity": "HIGH",
+      "tags": [
+        "pii",
+        "location",
+        "privacy",
+        "water-system"
+      ]
+    },
+    "Tier2 Rate Per 1000gal": {
+      "aliases": [],
+      "sensitivity": "MEDIUM",
+      "tags": [
+        "billing",
+        "financial",
+        "rate"
+      ]
+    },
+    "Tier2 To Gallons": {
+      "aliases": [],
+      "sensitivity": "HIGH",
+      "tags": [
+        "pii",
+        "location",
+        "privacy",
+        "water-system"
+      ]
+    },
+    "Tier3 From Gallons": {
+      "aliases": [],
+      "sensitivity": "HIGH",
+      "tags": [
+        "pii",
+        "location",
+        "privacy",
+        "water-system"
+      ]
+    },
+    "Tier3 Rate Per 1000gal": {
+      "aliases": [],
+      "sensitivity": "MEDIUM",
+      "tags": [
+        "billing",
+        "financial",
+        "rate"
+      ]
+    },
+    "Tier3 To Gallons": {
+      "aliases": [],
+      "sensitivity": "MEDIUM",
+      "tags": [
+        "water-system",
+        "asset",
+        "operational",
+        "billing"
+      ]
+    },
+    "Tier4 From Gallons": {
+      "aliases": [],
+      "sensitivity": "MEDIUM",
+      "tags": [
+        "water-system",
+        "asset",
+        "operational",
+        "billing"
+      ]
+    },
+    "Tier4 Rate Per 1000gal": {
+      "aliases": [],
+      "sensitivity": "MEDIUM",
+      "tags": [
+        "billing",
+        "financial",
+        "rate"
+      ]
+    },
+    "Tier4 To Gallons": {
+      "aliases": [],
+      "sensitivity": "MEDIUM",
+      "tags": [
+        "water-system",
+        "asset",
+        "operational",
+        "billing"
+      ]
+    },
+    "Total Annual Usage Acre Feet": {
+      "aliases": [],
+      "sensitivity": "MEDIUM",
+      "tags": [
+        "billing",
+        "financial",
+        "usage",
+        "metering"
+      ]
+    },
+    "Total Before Tax": {
+      "aliases": [],
+      "sensitivity": "MEDIUM",
+      "tags": [
+        "financial",
+        "sensitive",
+        "tax",
+        "usage"
+      ]
+    },
+    "Total Dissolved Solids Ppm": {
+      "aliases": [],
+      "sensitivity": "LOW",
+      "tags": [
+        "water-quality",
+        "compliance"
+      ]
+    },
+    "Total Due": {
+      "aliases": [],
+      "sensitivity": "MEDIUM",
+      "tags": [
+        "financial",
+        "sensitive",
+        "billing",
+        "usage"
+      ]
+    },
+    "Total Outstanding": {
+      "aliases": [],
+      "sensitivity": "MEDIUM",
+      "tags": [
+        "billing",
+        "financial",
+        "rate"
+      ]
+    },
+    "Total Revenue May2026": {
+      "aliases": [],
+      "sensitivity": "MEDIUM",
+      "tags": [
+        "billing",
+        "financial",
+        "usage",
+        "metering"
+      ]
+    },
+    "Total System Usage 1000gal": {
+      "aliases": [],
+      "sensitivity": "LOW",
+      "tags": [
+        "usage",
+        "metering",
+        "asset",
+        "operational"
+      ]
+    },
+    "Turbidity Ntu": {
+      "aliases": [],
+      "sensitivity": "LOW",
+      "tags": [
+        "water-quality",
+        "compliance",
+        "cde"
+      ]
+    },
+    "Unpaid Accounts": {
+      "aliases": [],
+      "sensitivity": "MEDIUM",
+      "tags": [
+        "financial",
+        "sensitive",
+        "usage",
+        "metering"
+      ]
+    },
+    "Usage Gallons": {
+      "aliases": [],
+      "sensitivity": "LOW",
+      "tags": [
+        "water-system",
+        "asset",
+        "operational",
+        "usage"
+      ]
+    },
+    "Usage ID": {
+      "aliases": [],
+      "sensitivity": "LOW",
+      "tags": [
+        "usage",
+        "metering",
+        "cde",
+        "identifier"
+      ]
+    },
+    "Usage Tier 1 Gallons": {
+      "aliases": [],
+      "sensitivity": "LOW",
+      "tags": [
+        "water-system",
+        "asset",
+        "operational",
+        "billing"
+      ]
+    },
+    "Usage Tier 2 Gallons": {
+      "aliases": [],
+      "sensitivity": "LOW",
+      "tags": [
+        "water-system",
+        "asset",
+        "operational",
+        "billing"
+      ]
+    },
+    "Usage Tier 3 Gallons": {
+      "aliases": [],
+      "sensitivity": "LOW",
+      "tags": [
+        "water-system",
+        "asset",
+        "operational",
+        "billing"
+      ]
+    },
+    "Usage Tier 4 Gallons": {
+      "aliases": [],
+      "sensitivity": "LOW",
+      "tags": [
+        "water-system",
+        "asset",
+        "operational",
+        "billing"
+      ]
+    },
+    "Wastewater Charge": {
+      "aliases": [],
+      "sensitivity": "MEDIUM",
+      "tags": [
+        "financial",
+        "sensitive",
+        "billing",
+        "usage"
+      ]
+    }
+  },
+  "curated_seeds": {
+    "Customer Type": {
+      "type": "dictionary",
+      "values": [
+        "Agriculture",
+        "Commercial",
+        "Residential"
+      ]
+    },
+    "Paid Bills": {
+      "type": "dictionary",
+      "values": [
+        "0",
+        "1"
+      ]
+    },
+    "Outstanding Bills": {
+      "type": "dictionary",
+      "values": [
+        "0",
+        "1"
+      ]
+    },
+    "Payment Status (Customer Billing Summary)": {
+      "type": "dictionary",
+      "values": [
+        "At Risk",
+        "Good Standing"
+      ]
+    },
+    "Payment Status (Monthly Usage)": {
+      "type": "dictionary",
+      "values": [
+        "Overdue",
+        "Paid",
+        "Unpaid"
+      ]
+    },
+    "Service County": {
+      "type": "dictionary",
+      "values": [
+        "Cochise",
+        "Coconino",
+        "Pinal"
+      ]
+    },
+    "Account Status": {
+      "type": "dictionary",
+      "values": [
+        "Active",
+        "Suspended"
+      ]
+    },
+    "Opted Out Marketing": {
+      "type": "dictionary",
+      "values": [
+        "False",
+        "True"
+      ]
+    },
+    "Usage Tier 4 Gallons": {
+      "type": "dictionary",
+      "values": [
+        "0",
+        "120000",
+        "35000",
+        "65000"
+      ]
+    },
+    "Base Charge": {
+      "type": "dictionary",
+      "values": [
+        "30.00",
+        "35.50",
+        "42.00",
+        "50.00",
+        "65.00"
+      ]
+    },
+    "Tier 4 Charge": {
+      "type": "dictionary",
+      "values": [
+        "0.00",
+        "367.50",
+        "715.00",
+        "960.00"
+      ]
+    },
+    "Wastewater Charge": {
+      "type": "dictionary",
+      "values": [
+        "0.00",
+        "12.00",
+        "15.00",
+        "18.00",
+        "25.00"
+      ]
+    },
+    "Meter ID": {
+      "type": "pattern",
+      "regex": "^MTR\\-\\d{6}$",
+      "signature": "AAA-nnnnnn"
+    },
+    "Turbidity Ntu": {
+      "type": "pattern",
+      "regex": "^0\\.\\d{2}$",
+      "signature": "n.nn"
+    },
+    "Lead Ppb": {
+      "type": "pattern",
+      "regex": "^0\\.\\d{2}$",
+      "signature": "n.nn"
+    },
+    "Tier1 Rate Per 1000gal": {
+      "type": "pattern",
+      "regex": "^\\d\\.\\d{4}$",
+      "signature": "n.nnnn"
+    },
+    "Tier2 Rate Per 1000gal": {
+      "type": "pattern",
+      "regex": "^\\d\\.\\d{4}$",
+      "signature": "n.nnnn"
+    },
+    "Tier3 Rate Per 1000gal": {
+      "type": "pattern",
+      "regex": "^\\d\\.\\d{4}$",
+      "signature": "n.nnnn"
+    },
+    "Tier Rate": {
+      "type": "pattern",
+      "regex": "^\\d\\.\\d{4}$",
+      "signature": "n.nnnn"
+    },
+    "Chlorine Residual": {
+      "type": "pattern",
+      "regex": "^\\d\\.\\d{2}$",
+      "signature": "n.nn"
+    },
+    "Copper Ppm": {
+      "type": "pattern",
+      "regex": "^0\\.\\d{2}$",
+      "signature": "n.nn"
+    }
+  },
+  "note": " [refreshed from scan results by the pack generator - review the additions, then commit] [2026-08-05: document-side keywords added (asset, pipe, network, pressure, scada, inspection); unreachable duplicates removed - cat_keywords is FIRST-MATCH, and a word already claimed by a builtin or an earlier rule can never fire]"
+}

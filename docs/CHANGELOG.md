@@ -14,6 +14,44 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.20.0] — 2026-08-05
+
+### Added — `packinit`, a scaffolder for a new company's domain pack
+- A pack is read by **three** engines from one file — `suggester` (categories,
+  naming), `tagdict` (governed tags, seed terms), the Registry (references) — so
+  writing one from scratch means getting a shape you cannot guess. The practical
+  result is that a new scenario starts with **no pack**, and the model ends up
+  carrying classification that deterministic rules should be doing.
+- `python packinit.py --domain <slug> --company "<name>" --categories "A,B,C"`
+  writes the skeleton. It is deliberately **thin**: it seeds only what a category
+  list can justify — one `cat_keyword` per category (the distinctive last word),
+  slugified `category_tags`, pre-approved `extra_tags`, placeholder
+  `category_definitions`.
+- `table_category`, `table_terms`, `tag_rules` and `terms` are left **empty on
+  purpose**. Inventing table names for an estate nobody has scanned produces
+  rules that never match and read as though they were curated; those keys are
+  filled from evidence by *Export domain pack* (`packgen.build_pack`).
+- It refuses to emit a rule that **cannot fire** — a keyword already claimed by a
+  builtin (`customer`, `usage`, `document`…) or by an earlier category — and says
+  why, rather than leaving dead weight that reads as configured behaviour. A
+  category whose every word is too generic to route on (*Records & Documents*) is
+  reported too, instead of being silently dropped.
+- Never overwrites an existing pack without `--force`: a pack is hand-curated and
+  slow to rebuild.
+
+### Changed — the water_utility pack learned the document estate
+- Added `asset`, `pipe`, `network`, `pressure`, `scada` → **Water System**;
+  `inspection` → **Water Quality**; `email`, `letter` → **Records & Documents**.
+  Every document file in the AWC estate now categorises deterministically —
+  previously only `epa_compliance_*.pdf` and `all_systems_*.json` did.
+- `correspondence` would have been the intuitive keyword and would **never have
+  fired**: `categorize()` matches the *file* name, and those files are
+  `email_*` / `letter_*`. The folder name never reaches it.
+- Removed six rules that could never fire: `account`, `customer`, `customers`
+  (claimed by builtins first) and the duplicate `system`, `system`, `water`
+  (claimed by an earlier pack rule). `cat_keywords` is **first-match**, so these
+  were dead weight. Verified no database table changed category.
+
 ## [1.19.0] — 2026-08-05
 
 ### Added — auto-prune rules for columns harvested from documents
