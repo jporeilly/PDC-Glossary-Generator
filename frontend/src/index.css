@@ -170,6 +170,10 @@ code, .mono { font-family: Consolas, "Cascadia Mono", monospace; font-size: .84e
 .badge {
   display: inline-flex; align-items: center; gap: .3rem;
   padding: .1rem .6rem; border-radius: 99px; font-size: .78rem; font-weight: 650;
+  /* A pill must not wrap. Labels like "applied ✓" are a single text node, so in
+     a narrow column (the Apply results Status cell) the line broke at the space
+     and stacked the tick under the word, squashing the pill into two lines. */
+  white-space: nowrap;
 }
 .badge.good { color: var(--status-good); background: rgba(12, 163, 12, 0.14); }
 .badge.warning { color: var(--status-warning); background: rgba(250, 178, 25, 0.13); }
