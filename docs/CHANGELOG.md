@@ -14,6 +14,42 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.18.0] — 2026-08-05
+
+### Added — Data Quality derived from PDC's own profiling
+- `quality_from_pdc_stats()` scores a column from **PDC's** measurements rather
+  than the app's sampling: `density → completeness`, `uniqueness → uniqueness`
+  (counted only where uniqueness is expected, so a low-cardinality enum is not
+  punished for repeating). Validity is not exposed in PDC's stats, so it is left
+  unmeasured and `quality_score_column` renormalises over what remains.
+- **Why it matters.** The app can only score what it can read. A PDF or DOCX has
+  no rows to sample and never gets an app-side score; a large file is only partly
+  read. PDC profiles server-side, so where it has measured something its numbers
+  are better evidence — and for those formats, the only evidence there will be.
+- `POST /api/pdc-profiling` now returns `derived_quality` per column plus a
+  count, and the app-vs-PDC compare shows **PDC DQ** per row and says how many
+  columns a score could be derived for.
+- It returns **None** where PDC profiled nothing usable — never a manufactured 0
+  or 100, the same rule `quality_score_column` already followed. An unprofiled
+  column with an invented score is worse than an honest blank.
+
+### Fixed — *Add to glossary* kept the quality evidence and dropped the score
+- `foldSources` merged `Source_Quality_Dims` on a colliding row but never merged
+  `Suggested_Quality`, so re-scanning an object store with content profiling on
+  reported *"5 existing term(s) gained this source's columns & evidence"* and
+  left every Data Quality blank. The measurements arrived; the number derived
+  from them did not, and Apply had nothing to write — which is why documents
+  showed `qualityScore —` in PDC however often the scan was re-run.
+- Highest wins, matching `Suggested_Rating` beside it, and only when non-zero: an
+  unprofilable row must stay *without* a score rather than acquire a 0, which
+  would assert measured-and-terrible about a file nobody can measure.
+- Verified end to end on the AWC documents: the scan reports `dq_scored 6`, the
+  merge persists Correspondence 86 / Gis 100 / Scada 100 (pdf and docx correctly
+  none), the payload went from 97 to **103** links carrying a DQ score, and the
+  apply rolled DQ 100 / 100 / 86 onto the three folder entities — which also
+  moved all five folders from `file-level` to **`applied`** for the first time,
+  and took the table/folder rating count from 9 to **14**.
+
 ## [1.17.1] — 2026-08-05
 
 ### Fixed — Data Discovery profiled one file per folder and reported success

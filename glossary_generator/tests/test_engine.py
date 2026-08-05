@@ -416,3 +416,37 @@ class TestDuplicateNamesMustBecomeDistinctTerms:
             "different concepts sharing a name must be renamed, whatever their categories"
         assert rec["band"] == "high"
         assert "resolve" in rec["reason"].lower()
+
+
+class TestQualityFromPdcStats:
+    """Where PDC has profiled a column server-side, its measurements are better
+       evidence than the app's own partial sampling — and for formats the app
+       cannot read at all, they are the ONLY evidence."""
+
+    def test_derives_a_score_from_pdc_density(self):
+        import suggester
+        # a fully populated column PDC profiled: density 100%
+        assert suggester.quality_from_pdc_stats({"density": 100}) == 100
+
+    def test_accepts_percentages_or_fractions(self):
+        import suggester
+        assert (suggester.quality_from_pdc_stats({"density": 75})
+                == suggester.quality_from_pdc_stats({"density": 0.75}))
+
+    def test_uniqueness_counts_only_where_expected(self):
+        """A low-cardinality enum must not be marked poor quality for repeating."""
+        import suggester
+        stats = {"density": 100, "uniqueness": 10}
+        assert suggester.quality_from_pdc_stats(stats, expect_unique=False) == 100
+        assert suggester.quality_from_pdc_stats(stats, expect_unique=True) < 100
+
+    def test_unprofiled_returns_none_not_zero(self):
+        """The same rule the column scorer follows: no measurement, no score."""
+        import suggester
+        assert suggester.quality_from_pdc_stats({}) is None
+        assert suggester.quality_from_pdc_stats({"cardinality": 8}) is None
+        assert suggester.quality_from_pdc_stats(None) is None
+
+    def test_reads_pdc_alias_spellings(self):
+        import suggester
+        assert suggester.quality_from_pdc_stats({"nonNullDensity": 100}) == 100

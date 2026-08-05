@@ -2721,8 +2721,22 @@ def pdc_profiling(body: dict = Body(default={})):
                                                    verify_tls=verify, sample_limit=sample_limit)
     except Exception as e:
         return _err(str(e), 502)
+    # Derive a Data Quality score from PDC's OWN measurements, per column.
+    # The app scores from its own sampling, which it cannot always do: a PDF or
+    # DOCX has no rows to sample, and a large file is only partly read. Where
+    # PDC has profiled server-side its numbers are the better evidence — and for
+    # those formats, the only evidence. None where PDC profiled nothing usable,
+    # never a manufactured 0 or 100.
+    derived = 0
+    for key, p in (profiles or {}).items():
+        if not isinstance(p, dict):
+            continue
+        q = suggester.quality_from_pdc_stats(p.get("stats") or {})
+        p["derived_quality"] = q
+        if q is not None:
+            derived += 1
     return {"profiles": profiles, "count": len(profiles),
-            "requested": len(columns)}
+            "requested": len(columns), "derived_quality": derived}
 
 _PDC_DB_ENGINES = {"POSTGRES": "postgresql", "POSTGRESQL": "postgresql",
                    "MYSQL": "mysql", "MARIADB": "mysql",

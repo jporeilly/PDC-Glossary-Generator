@@ -1161,6 +1161,55 @@ def quality_score_column(completeness=None, uniqueness=None, validity=None,
     return int(round(score * 100))
 
 
+def _pdc_stat(stats, *names):
+    """First present, numeric value among `names` in a PDC profilingInfo.stats
+       block. PDC has spelled these differently across versions, and the compare
+       view already probes several aliases per figure."""
+    for n in names:
+        v = (stats or {}).get(n)
+        if v is None:
+            continue
+        try:
+            return float(v)
+        except (TypeError, ValueError):
+            continue
+    return None
+
+
+def quality_from_pdc_stats(stats, expect_unique=False):
+    """Derive a 0-100 Data Quality score from PDC's OWN profiling of a column.
+
+    The app normally scores from its own sampling, but it cannot read every
+    format — a PDF or DOCX has no rows to sample, and a huge file is only
+    partially read. PDC profiles server-side and stores real measurements, so
+    where it has profiled, its numbers are better evidence than ours.
+
+    Mapping (PDC reports percentages, this scorer takes 0..1):
+      completeness  <- density        (share of non-null, non-blank values)
+      uniqueness    <- uniqueness     (only counted where uniqueness is expected)
+      validity      <- not exposed by PDC's stats; left unmeasured, and
+                       quality_score_column renormalises over what remains.
+
+    Returns None when PDC profiled nothing usable — never a 0 and never a 100,
+    for the same reason the column scorer refuses to: an unprofiled column with
+    a manufactured score is worse than an honest blank.
+    """
+    density = _pdc_stat(stats, "density", "completeness", "nonNullDensity")
+    uniq = _pdc_stat(stats, "uniqueness", "uniquenessRatio")
+    if density is None and uniq is None:
+        return None
+    # PDC reports these as percentages (density 100 = fully populated); the
+    # scorer wants 0..1. Tolerate a source that already normalised.
+    def _frac(v):
+        if v is None:
+            return None
+        return v / 100.0 if v > 1.0 else v
+    return quality_score_column(completeness=_frac(density),
+                                uniqueness=_frac(uniq),
+                                validity=None,
+                                expect_unique=expect_unique)
+
+
 def rate_document(owner=None, ext=None, sensitivity=None, recent=False, has_term=True):
     """Suggest a 1-5 rating for a FILE/object entity. The column heuristic's
     structural signals (pk/fk/uniqueness/not-null) don't exist for files, so this

@@ -1505,7 +1505,18 @@ function CompareCard({ discovery, authBody }) {
     try {
       const d = await apiPost('/api/pdc-profiling', { columns: cols, ...authBody() })
       setProfiles(d.profiles || {})
-      setMsg(<>PDC returned profiling for <b>{d.count}</b> of {d.requested} columns.</>)
+      setMsg(
+        <>
+          PDC returned profiling for <b>{d.count}</b> of {d.requested} columns.
+          {/* PDC profiles server-side, so where it measured something its numbers
+              beat the app's own sampling — and for a pdf/docx, which the app
+              cannot read at all, they are the only measurements there will be. */}
+          {d.derived_quality
+            ? <> A Data Quality score is derivable from PDC's own measurements for{' '}
+                <b>{d.derived_quality}</b> of them — see <i>PDC DQ</i> below.</>
+            : null}
+        </>,
+      )
     } catch (e) {
       setMsg(`Compare failed: ${e.message}`)
     } finally {
@@ -1559,7 +1570,13 @@ function CompareCard({ discovery, authBody }) {
                       <td>{fmtPct(c.completeness)} <span className="notes">/ {pctOrRaw(pDens)}</span></td>
                       <td>{(c.distinct || 0).toLocaleString()} <span className="notes">/ {pCard == null ? '—' : pCard.toLocaleString()}</span></td>
                       <td>{fmtPct(c.uniqueness)} <span className="notes">/ {pctOrRaw(pUniq)}</span></td>
-                      <td className="notes">{pNull != null ? `nulls ${pNull}` : 'matched'}</td>
+                      <td className="notes">
+                        {/* derived server-side from PDC's own stats, so it exists
+                            even where the app could not sample the source */}
+                        {p?.derived_quality != null
+                          ? <>PDC DQ <b>{p.derived_quality}</b>{pNull != null ? ` · nulls ${pNull}` : ''}</>
+                          : (pNull != null ? `nulls ${pNull}` : 'matched')}
+                      </td>
                     </tr>
                   )
                 })}

@@ -377,3 +377,28 @@ class TestAdviseHonesty:
         assert body["ambiguous"] == 0
         assert body["used_llm"] is False
         assert called["n"] == 0, "nothing ambiguous -> the adjudicator must not run"
+
+
+class TestPdcDerivedQuality:
+    """PDC profiles server-side, so where it has measurements they beat the
+       app's own partial sampling — and for pdf/docx, which the app cannot read
+       at all, they are the only measurements that will ever exist."""
+
+    def test_profiling_response_carries_a_derived_score(self, client, monkeypatch):
+        import pdc_api
+        monkeypatch.setattr(
+            pdc_api, "pdc_profile_for_columns",
+            lambda *a, **k: {
+                "s.t.full_col":  {"id": "1", "stats": {"density": 100, "uniqueness": 100}},
+                "s.t.sparse_col": {"id": "2", "stats": {"density": 40}},
+                "s.t.unprofiled": {"id": "3", "stats": {}},
+            })
+        r = client.post("/api/pdc-profiling", json={
+            "base_url": "https://pdc.example.com", "token": "t",
+            "columns": [{"schema": "s", "table": "t", "column": "full_col"}]})
+        assert r.status_code == 200
+        p = r.json()["profiles"]
+        assert p["s.t.full_col"]["derived_quality"] == 100
+        assert p["s.t.sparse_col"]["derived_quality"] == 40
+        assert p["s.t.unprofiled"]["derived_quality"] is None, "no measurement, no score"
+        assert r.json()["derived_quality"] == 2, "counts only the scored ones"
