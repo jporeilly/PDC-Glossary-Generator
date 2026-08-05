@@ -14,6 +14,100 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.15.0] — 2026-08-05
+
+### Changed — one combined **AI pass** replaces three overlapping agents
+- Enrich, AI suggest and AI categorize each swept every kept row on their own,
+  and they overlapped on name / category / tags — so a scan paid for three
+  passes and the last agent silently overwrote the others' proposals. The new
+  **AI pass (all fields)** covers definition, purpose, a clearer name, governed
+  tags and a blank category, under the same guardrails: tags governed-only, an
+  existing category untouched, the name offered as a `Suggested_Name` chip, and
+  sensitivity / PII still deterministic from the scan. Measured on real rows,
+  2.2× faster than the passes it replaces.
+- **Suggest tags** and **AI categorize** are gone from the toolbar: categorize
+  is covered blank-only by the pass, and the deterministic governed-tag
+  derivation now runs inside `/api/ai-pass` — no LLM time, one less button, and
+  the model sees the governed tags as context so it can only add to them.
+  **Enrich** and **AI suggest** remain for re-running a single field.
+- The **AI QA judge is retired** — a whole extra sweep over every row for little
+  gain. Its deterministic half survives and costs nothing: the definition linter
+  (circular, echo, vague, too-short, duplicate) runs inside `/api/ai-pass` and
+  still stamps the QA chip.
+
+### Added — the AI pass is batched, and says what it is doing
+- The pass now batches like `enrich_batch` does: **one call per `LLM_BATCH` rows**
+  (default 6) instead of one call per row, with a per-row fallback if a batch
+  reply is malformed so bad JSON never drops a chunk. Measured on real AWC rows
+  with `gemma3:12b`: 6 rows in one 48s call, where the per-row path spent ~36s
+  *per row*. A 120-row scan goes from ~120 calls to ~20.
+- Live progress for a run that is now minutes long: the batch is announced
+  **before** its call (a bar that only moves on completion reads as stuck), and
+  the panel shows batch *N* of *M*, ticking elapsed, an ETA and s/row derived
+  from the batches already done, plus the terms currently in flight and a
+  pulsing segment for the batch being worked.
+
+### Changed — the definition linter's flags became rewrite orders
+- A QA flag was a dead end: it said a definition was generic without proposing
+  anything, and said it again on the next scan, so the steward saw the same
+  complaint three runs running with nothing to act on. The linter now runs
+  **before** the model inside `/api/ai-pass` and its verdict is fed into the
+  prompt as *"REWRITE REQUIRED — flagged: generic, echoes the term"*, with an
+  explicit instruction to replace the draft using a specific sentence from the
+  evidence. Rows are **re-linted afterwards**, so what remains flagged is what
+  the model could not improve from the available evidence — a real signal
+  instead of repeat noise. No extra model calls: same batch, same pass.
+- The linter also flags **the scan's own templated definitions** ("Severity
+  associated with an account alert record", "Unique identifier for a account
+  alert record"). They read like prose, so no existing rule caught them — not
+  too short, not circular, not a vague opener — yet they carry no business
+  meaning, since every column in a table gets the same shape. Verified against a
+  live AWC scan with `gemma3:12b`: five templated definitions came back specific
+  and the post-pass lint flagged none of them.
+
+### Added — profile / discover scans an object store's files first, plus **Get token**
+- Data Discovery does **not** crawl a bucket — it analyses what a *file scan* has
+  already catalogued. With the ingest skipped there were zero file entities, so
+  Discovery had nothing to do and the object store came back `profile=FAIL` while
+  the database profiled fine. **Profile / discover** now triggers the file scan
+  first for an object store (PDC's own Scan Files call via the internal
+  `/api/start-job`, with the same bearer token) and then runs Discovery. Verified
+  end to end: create EXISTS → ingest OK → job OK → profile OK, with 16 FILE and
+  5 FOLDER entities discovered. The separate *"scan object stores (internal API)"*
+  checkbox is gone — one control does the whole job.
+- A **Get token** button beside the PDC credentials mints the bearer token from
+  the username / password and reports who it belongs to (roles, expiry) before
+  anything writes. Every call in the run — create, ingest, profile / discover —
+  reuses that token.
+- The entities filter is clamped to `size<=500`, which the API enforces.
+
+### Changed — the Detection toggle spells out what it will write
+- Auto vs Mapping-only changes only the exported Registry, so flipping it in the
+  grid looked like it did nothing. The row now states its effect: with a value
+  shape, **Auto** seeds a detection method; without one, **Auto** leaves detection
+  open (Policy will request a seed) while **Mapping-only** closes the question.
+
+### Fixed
+- **Long model calls timed out silently.** `_complete_json` swallowed timeouts and
+  returned `None`, so on a big local model (a combined call takes ~100s against a
+  30s budget) every agent reported *"no changes proposed"* — indistinguishable
+  from the model having nothing to say. Long-prompt calls now get their own budget
+  (`GLOSSARY_AI_PASS_TIMEOUT`, 180s default), timeouts are counted, and the run
+  summary says the model did not answer in time and points at the Settings timeout.
+- **The AI pass crashed before any request left the browser.** The runner
+  referenced `settings`, which `ReviewPage` does not have (copied from the
+  Dictionary page), throwing a `ReferenceError` ahead of the fetch — so every
+  chunk landed in the catch and the run ended instantly with *"no changes proposed
+  (120 row(s) failed)"*. The server uses its own configured model, so the field is
+  simply gone.
+- **A bare `401 Unauthorized` on bulk load when the PDC base URL is an IP.** PDC's
+  proxy routes the internal API (`/api/start-job`, the file-scan trigger) by
+  hostname, so on a bare IP it 401s even with a valid token while the public API
+  answers fine on the same address. The result was a run where every database step
+  succeeded and only the object store failed, with no clue why. The row's error now
+  names the cause and the fix: use the vhost URL (e.g. `https://pentaho.io`), not
+  the IP.
+
 ## [1.14.0] — 2026-07-23
 
 ### Added — hosted LLM providers (Anthropic, OpenAI, Azure OpenAI, Google)
