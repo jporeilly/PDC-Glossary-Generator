@@ -63,6 +63,17 @@ function foldSources(base, nr) {
   const rating = Math.max(parseInt(base.Suggested_Rating || 0, 10) || 0,
                           parseInt(nr.Suggested_Rating || 0, 10) || 0)
   if (rating || base.Suggested_Rating != null) next.Suggested_Rating = rating
+  // Suggested_Quality was missing here, so a colliding row kept its
+  // Source_Quality_Dims (merged just above) and lost the score derived from
+  // them. Re-scanning an object store with content profiling ON therefore
+  // reported "5 existing term(s) gained this source's evidence" and left every
+  // Data Quality blank — the evidence arrived, the number did not, and the
+  // Apply step had nothing to write. Highest wins, matching the rating above.
+  // Only set when non-zero: an unprofilable row (pdf/docx) must stay WITHOUT a
+  // score rather than acquire a 0, which would assert measured-and-terrible.
+  const quality = Math.max(parseInt(base.Suggested_Quality || 0, 10) || 0,
+                           parseInt(nr.Suggested_Quality || 0, 10) || 0)
+  if (quality) next.Suggested_Quality = quality
   for (const f of ['Value_Signature', 'Value_Pattern', 'Enum_Values']) {
     if (!next[f] && nr[f]) next[f] = nr[f]
   }
