@@ -122,3 +122,82 @@ class TestDocumentLeafName:
         import suggester
         assert suggester.document_leaf_name("asset_id") == "asset_id"
         assert suggester.document_leaf_name("") == ""
+
+
+class TestDocumentTableTermNames:
+    """A document store's 'table' is a FILE, so its name carries two things a
+       term must not: the extension, and — on an exported snapshot — the period
+       it was cut for. Leaving the period in mints a NEW term per export, so the
+       glossary accretes one term per file per day and nothing ever merges."""
+
+    def test_extension_is_dropped(self):
+        import suggester
+        assert suggester.table_term_name("asset_inventory.csv") == "Asset Inventory Record"
+
+    def test_a_dated_snapshot_collapses_to_one_stable_term(self):
+        """Today's and tomorrow's export must be the SAME term."""
+        import suggester
+        a = suggester.table_term_name("pinal_valley_pressure_2026-05-14.json")
+        b = suggester.table_term_name("pinal_valley_pressure_2026-05-15.json")
+        assert a == b == "Pinal Valley Pressure Record"
+
+    def test_every_period_shape_an_export_uses(self):
+        import suggester
+        for name, want in (("epa_compliance_bisbee_2026Q1.pdf", "Epa Compliance Bisbee Record"),
+                           ("usage_202605.csv", "Usage Record"),
+                           ("report_2026_H2.xlsx", "Report Record")):
+            assert suggester.table_term_name(name) == want, name
+
+    def test_database_tables_are_untouched(self):
+        import suggester
+        assert suggester.table_term_name("customers") == "Customer Record"
+        assert suggester.table_term_name("water_systems") == "Water System Record"
+
+    def test_the_pack_still_wins_over_the_derived_name(self, monkeypatch):
+        """A curated table_terms entry must not be bypassed by the cleanup —
+           looked up both on the raw name and on the cleaned stem, so a pack can
+           key on either 'usage_2026.csv' or 'usage'."""
+        import suggester
+        monkeypatch.setitem(suggester.TABLE_TERMS, "tiered_rates", "Rate Plan Record")
+        monkeypatch.setitem(suggester.TABLE_TERMS, "usage", "Consumption Record")
+        assert suggester.table_term_name("tiered_rates") == "Rate Plan Record"
+        assert suggester.table_term_name("usage_202605.csv") == "Consumption Record"
+
+
+class TestDocumentColumnCategory:
+    """A file name is a poor proxy for what its columns are about: one SCADA
+       snapshot holds turbidity and chlorine (water quality) beside pump status
+       and reservoir level (water system). Whatever single keyword the FILE
+       matched would file the lot under it — which is how a harvested
+       'Turbidity Ntu' landed in Water System while the database's own sat in
+       Water Quality, leaving two rows that can never merge (Category + Term)."""
+
+    def _cats(self, monkeypatch, pairs):
+        import suggester
+        monkeypatch.setattr(suggester, "CAT_KEYWORDS",
+                            [("turbidity", "Water Quality"), ("chlorine", "Water Quality"),
+                             ("system", "Water System")])
+        return {c: suggester.categorize_column(c) for c in pairs}
+
+    def test_a_measure_names_its_own_category(self, monkeypatch):
+        got = self._cats(monkeypatch, ["turbidity_ntu", "chlorine_residual_ppm"])
+        assert got["turbidity_ntu"] == "Water Quality"
+        assert got["chlorine_residual_ppm"] == "Water Quality"
+
+    def test_an_unmatched_column_defers_to_the_file(self, monkeypatch):
+        """None means 'no opinion' — the caller keeps the file-level category."""
+        got = self._cats(monkeypatch, ["pump_status", "flow_gpm"])
+        assert got["pump_status"] is None and got["flow_gpm"] is None
+
+    def test_it_never_consults_table_category(self, monkeypatch):
+        """TABLE_CATEGORY is keyed on table names; matching a column against it
+           would categorise by accident."""
+        import suggester
+        monkeypatch.setattr(suggester, "CAT_KEYWORDS", [])
+        monkeypatch.setitem(suggester.TABLE_CATEGORY, "customers", "Customer")
+        assert suggester.categorize_column("customers") is None
+
+    def test_empty_input_is_safe(self):
+        import suggester
+        assert suggester.categorize_column("") is None
+        assert suggester.categorize_column(None) is None

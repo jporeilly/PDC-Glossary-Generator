@@ -740,12 +740,41 @@ def _singularize(word):
         return w[:-1]
     return w
 
+# A document store's "table" is a FILE, so its name carries two things a term
+# must not: the extension, and — on an exported snapshot — the date it was cut.
+#   pinal_valley_pressure_2026-05-14.json -> "Pinal Valley Pressure Record"
+# Leaving the date in mints a NEW term for every daily export, so the glossary
+# accretes one term per file per day and nothing ever merges: precisely the drift
+# the Registry exists to prevent. The date belongs to the extract, not the concept.
+_FILE_EXT = re.compile(r"\.(csv|tsv|psv|json|jsonl|xml|txt|parquet|avro|ya?ml|"
+                       r"pdf|docx?|xlsx?|pptx?)$", re.I)
+# A period stamp in any of the shapes an export uses: 2026-05-14, 202605,
+# 2026Q1, 2026_H2. All of them name WHEN the extract was cut, not what it is.
+_DATE_SUFFIX = re.compile(
+    r"[._-]?(?:19|20)\d{2}"
+    r"(?:[-_]?(?:Q[1-4]|H[12]|\d{2}(?:[-_]?\d{2})?))?$", re.I)
+
+
+def _strip_file_noise(name):
+    """Drop a file extension and any trailing date stamp, so the term names the
+       concept rather than one export of it."""
+    t = _FILE_EXT.sub("", str(name or "").strip())
+    prev = None
+    while prev != t:                      # e.g. "..._2026-05-14" then a stray "_"
+        prev = t
+        t = _DATE_SUFFIX.sub("", t).rstrip("._- ")
+    return t
+
+
 def table_term_name(table):
     """The table-level term for a physical table — the term linked to the TABLE
        entity so its Trust Score gets the 'term assigned' input. Uses the domain pack's
        names where known, else derives '<Singular Table> Record'."""
     t = (table or "").strip().lower()
     if t in TABLE_TERMS:
+        return TABLE_TERMS[t]
+    t = _strip_file_noise(t)
+    if t in TABLE_TERMS:                  # a pack name may be keyed on the clean stem
         return TABLE_TERMS[t]
     human = humanize(_singularize(t))
     return f"{human} Record" if human else "Record"
@@ -802,6 +831,29 @@ def categorize(tname):
         if kw in t:
             return cat
     return "Uncategorized"
+
+
+def categorize_column(cname):
+    """Category implied by a COLUMN's own name, or None.
+
+    For a database, the table is a good proxy for what its columns are about, so
+    categorize(table) is enough. A FILE is not: one SCADA snapshot carries
+    `turbidity_ntu` and `chlorine_residual_ppm` (water quality) alongside
+    `pump_status` and `reservoir_level_percent` (water system), and the file name
+    can only be right about one of them. Whatever single keyword the file matched
+    would file the lot under it — which is how a harvested `Turbidity Ntu` landed
+    in Water System while the database's own `Turbidity Ntu` sat in Water Quality,
+    leaving two rows that can never merge (rows key on Category + Term).
+
+    Deliberately consults CAT_KEYWORDS only, never TABLE_CATEGORY — that map is
+    keyed on table names and would match a column by accident."""
+    c = str(cname or "").lower()
+    if not c:
+        return None
+    for kw, cat in CAT_KEYWORDS:
+        if kw in c:
+            return cat
+    return None
 
 # ---------------------------------------------------------------------------
 # PII / sensitivity classification by COLUMN NAME.
@@ -1292,9 +1344,21 @@ def suggest(tables, schema=None):
     rows, seen, out = [], {}, []
     for tname, cols in tables.items():
         category = categorize(tname)
+        # A file name is a poor proxy for what its columns are about — one SCADA
+        # snapshot holds water-quality AND water-system measures — so for
+        # DOCUMENT-derived rows a column whose own name implies a category wins.
+        # Scoped to documents on purpose: in a database the table IS the subject,
+        # and letting a column override there would file `customer_id` in
+        # `water_systems` under Customer.
+        _is_document = bool(_FILE_EXT.search(tname or ""))
         for c in cols:
             if SKIP.match(c["column"]):
                 continue
+            row_category = category
+            if _is_document:
+                _by_col = categorize_column(document_leaf_name(c["column"]))
+                if _by_col:
+                    row_category = _by_col
             # A flattened document path names the file's shape, not the concept:
             # "systems.chlorine_residual_ppm" is the term "Chlorine Residual Ppm",
             # living under a JSON container that means nothing to a steward. Take
@@ -1334,14 +1398,14 @@ def suggest(tables, schema=None):
                 conf, reason = "Low", "Templated from column name"
             if _canon:
                 reason = f"{reason} · canonicalized from '{_orig_name}' (dictionary alias)"
-            all_tags = suggest_tags(category, sens, pii, "Yes" if cde else "No", is_key, tags, name=c["column"], term=name)
+            all_tags = suggest_tags(row_category, sens, pii, "Yes" if cde else "No", is_key, tags, name=c["column"], term=name)
             # lift sensitivity to the highest floor the tags / canonical term imply
             # (ordinal — the dictionary can only tighten a classification, never relax it)
             lifted = tagdict.lift_sensitivity(sens, all_tags, name)
             if lifted != sens:
                 sens = lifted
                 cde = is_cde(name, sens, pii, bool(c["pk"]))
-                all_tags = suggest_tags(category, sens, pii, "Yes" if cde else "No", is_key, tags, name=c["column"], term=name)
+                all_tags = suggest_tags(row_category, sens, pii, "Yes" if cde else "No", is_key, tags, name=c["column"], term=name)
             rating = rate_column(confidence=conf, has_comment=bool(c["comment"]),
                                  pk=c["pk"], fk=c["fk"], notnull=c["notnull"],
                                  uniqueness=prof.get("uniq"), sensitivity=sens,
@@ -1385,9 +1449,9 @@ def suggest(tables, schema=None):
                                            "term↔column link, not a business term"
                                            % ("PK" if c["pk"] else "FK reference"))
                                           if _structural else (_doc_prune or "")),
-                         "Category": category, "Term": name,
+                         "Category": row_category, "Term": name,
                          "Source_Column": src,
-                         "Definition": define(c), "Purpose": purpose(c, category, name, pii),
+                         "Definition": define(c), "Purpose": purpose(c, row_category, name, pii),
                          "Sensitivity": sens,
                          "PII_Category": pii or "", "Critical_Data_Element": "Yes" if cde else "No",
                          "Abbreviation": _abbrev(name), "Suggested_Tags": ";".join(all_tags),

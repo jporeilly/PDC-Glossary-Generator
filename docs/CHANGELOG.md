@@ -14,6 +14,31 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.22.0] — 2026-08-05
+
+### Fixed — one file, one category: a mixed document filed its columns wrongly
+- `categorize()` takes the **table** name, which for a document store is the
+  **file** name. That is fine for a database (the table *is* the subject) and
+  wrong for a file: one SCADA snapshot carries `turbidity_ntu` and
+  `chlorine_residual_ppm` (water quality) beside `pump_status` and
+  `reservoir_level_percent` (water system). Whatever single keyword the file
+  matched filed the lot under it.
+- The visible symptom was a duplicate that could never merge: a harvested
+  **Turbidity Ntu** landed in *Water System* while the database's own sat in
+  *Water Quality*, and rows key on **Category + Term**, so they appended instead.
+- `categorize_column()` now lets a column's own name decide, and `suggest()`
+  applies it **for document-derived rows only** — in a database, letting a column
+  override would file `customer_id` in `water_systems` under Customer. A column
+  with no opinion falls back to the file's category, so operational measures keep
+  it. The row's category also now drives its governed tags and purpose text,
+  which previously followed the file.
+- The water_utility pack gained the measures that decide their own category:
+  `turbidity`, `chlorine`, `coliform`, `ph_level`, `lead_ppb`, `contaminant`
+  → **Water Quality**.
+- Verified on a simulated harvest of one file: turbidity and chlorine residual to
+  Water Quality, pump status and reservoir level to Water System, the table term
+  to Water System — three categories from one file.
+
 ## [1.21.0] — 2026-08-05
 
 ### Fixed — the document prune rule was eating the payload

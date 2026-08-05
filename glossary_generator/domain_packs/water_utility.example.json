@@ -78,6 +78,30 @@
     [
       "letter",
       "Records & Documents"
+    ],
+    [
+      "turbidity",
+      "Water Quality"
+    ],
+    [
+      "chlorine",
+      "Water Quality"
+    ],
+    [
+      "coliform",
+      "Water Quality"
+    ],
+    [
+      "ph_level",
+      "Water Quality"
+    ],
+    [
+      "lead_ppb",
+      "Water Quality"
+    ],
+    [
+      "contaminant",
+      "Water Quality"
     ]
   ],
   "abbreviations": {
