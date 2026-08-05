@@ -69,16 +69,14 @@ class TestKeyPrune:
 
 
 class TestDocumentPathPrune:
-    """PDC's Data Discovery flattens a nested file into dotted paths, so every
-       JSON in a document store emits a batch of candidates like
-       'export_metadata.units.flow' — file structure, not business concepts.
-       Same handling as a surrogate key: pruned by default, reason on the row,
-       restorable with one tick of Keep."""
+    """PDC's Data Discovery flattens a nested file into dotted paths. The line to
+       draw is ENVELOPE (describes the file) vs PAYLOAD (the data in it) — not
+       "is it nested", which caught regulated water-quality measures in the first
+       version of this rule."""
 
-    def test_envelope_paths_are_pruned_with_a_specific_reason(self):
+    def test_envelope_paths_are_pruned(self):
         import suggester
-        r = suggester.document_path_prune("export_metadata.units.flow")
-        assert r and "envelope" in r
+        assert "envelope" in suggester.document_path_prune("export_metadata.units.flow")
         assert suggester.document_path_prune("metadata.source")
 
     def test_control_fields_are_pruned(self):
@@ -86,15 +84,41 @@ class TestDocumentPathPrune:
         for name in ("_id", "$schema", "@timestamp"):
             assert suggester.document_path_prune(name), name
 
-    def test_nested_paths_are_pruned_and_say_the_leaf_is_the_concept(self):
+    def test_bookkeeping_fields_are_pruned(self):
+        """Fields about the extract rather than the data, wherever they sit."""
         import suggester
-        r = suggester.document_path_prune("readings.pump_status")
-        assert r and "leaf" in r
+        for name in ("readings.timestamp", "readings.sensor_id", "rows.record_id",
+                     "readings.source", "batch.checksum"):
+            assert suggester.document_path_prune(name), name
+
+    def test_payload_measures_are_KEPT(self):
+        """The regression that mattered: chlorine residual and turbidity are
+           regulated drinking-water measures — precisely what a utility governs.
+           Nesting is a fact about the file format, not a reason to drop them."""
+        import suggester
+        for name in ("systems.chlorine_residual_ppm", "systems.turbidity_ntu",
+                     "readings.flow_gpm", "readings.pressure_psi",
+                     "readings.reservoir_level_percent", "systems.population_served",
+                     "readings.pump_status", "readings.alarm"):
+            assert suggester.document_path_prune(name) is None, name
 
     def test_a_plain_business_column_is_kept(self):
-        """The rules must not fire on ordinary columns — a database column name
-           has no path separator, so they cannot reach one."""
         import suggester
-        for name in ("asset_id", "street_name", "condition_rating",
-                     "capacity_units", "latitude", "install_year"):
+        for name in ("asset_id", "street_name", "condition_rating", "latitude"):
             assert suggester.document_path_prune(name) is None, name
+
+
+class TestDocumentLeafName:
+    """The JSON container ('systems', 'readings') names the file's shape, not the
+       concept, so the term should be the leaf — which also lets the same concept
+       arriving from a database column merge with it."""
+
+    def test_leaf_is_taken_from_a_path(self):
+        import suggester
+        assert suggester.document_leaf_name("systems.chlorine_residual_ppm") == "chlorine_residual_ppm"
+        assert suggester.document_leaf_name("a.b.c") == "c"
+
+    def test_plain_names_pass_through(self):
+        import suggester
+        assert suggester.document_leaf_name("asset_id") == "asset_id"
+        assert suggester.document_leaf_name("") == ""

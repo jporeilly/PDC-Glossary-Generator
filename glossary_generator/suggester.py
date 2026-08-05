@@ -1163,21 +1163,44 @@ def quality_score_column(completeness=None, uniqueness=None, validity=None,
 
 # Auto-prune rules for columns harvested from DOCUMENTS. PDC's Data Discovery
 # flattens a nested file into dotted paths, so a JSON like
-#   {"export_metadata": {"units": {"flow": "gpm"}}, "readings": [{"pump_status": ...}]}
-# arrives as columns "export_metadata.units.flow" and "readings.pump_status".
-# Those are file STRUCTURE, not business concepts: a unit-of-measure declaration
-# in a header is not a glossary term, and every JSON in a document store emits a
-# fresh batch of them. Same treatment as a surrogate key — pruned by default with
-# the reason shown, and one tick of Keep restores it. First match wins, so the
-# specific rules are listed before the general one.
+#   {"export_metadata": {"units": {"flow": "gpm"}}, "readings": [{"chlorine_residual_ppm": …}]}
+# arrives as columns "export_metadata.units.flow" and "readings.chlorine_residual_ppm".
+#
+# The distinction that matters is ENVELOPE vs PAYLOAD:
+#   envelope — describes the FILE (units declarations, export date, source,
+#              snapshot type, interval, sensor/record ids, timestamps). Never a
+#              business term, and every JSON in a store emits a fresh batch.
+#   payload  — the DATA in the file. "readings.chlorine_residual_ppm" and
+#              "systems.turbidity_ntu" are regulated drinking-water measures:
+#              exactly what a utility's glossary exists to govern.
+#
+# An earlier version pruned EVERY dotted path, which caught the envelope and then
+# swept the payload up with it — 28 of 54 harvested rows pruned, including
+# chlorine residual and turbidity. Nesting is a fact about the file format, not
+# evidence that a value is uninteresting. So the rules now name the envelope
+# explicitly and leave anything else kept, with the LEAF as the term name.
+# First match wins.
 _DOC_PRUNE_RULES = (
     (re.compile(r"^(export[_.]?)?meta(data)?[._]", re.I),
      "document envelope — file metadata (units, export info), not a business concept"),
     (re.compile(r"^(_|\$|@)"),
      "document control field — a reserved/system key, not a business concept"),
-    (re.compile(r"\."),
-     "nested document path — the business concept, if any, is the leaf; tick Keep to restore"),
+    # envelope fields that appear at the top of a reading/record block rather than
+    # under a metadata parent — bookkeeping about the extract, not measures
+    (re.compile(r"\.(timestamp|ingested_?at|extracted_?at|export_?date|"
+                r"record_?id|row_?id|sensor_?id|file_?name|source|checksum)$", re.I),
+     "document bookkeeping field — describes the extract, not the data in it"),
 )
+
+
+def document_leaf_name(column):
+    """The business-meaningful tail of a flattened document path.
+
+    'systems.chlorine_residual_ppm' -> 'chlorine_residual_ppm'. The parent is the
+    JSON container ('systems', 'readings'), which names the file's shape rather
+    than the concept, so the leaf is what the term should be called."""
+    name = str(column or "")
+    return name.rsplit(".", 1)[-1] if "." in name else name
 
 
 def document_path_prune(column):
@@ -1272,7 +1295,12 @@ def suggest(tables, schema=None):
         for c in cols:
             if SKIP.match(c["column"]):
                 continue
-            name = humanize(c["column"])
+            # A flattened document path names the file's shape, not the concept:
+            # "systems.chlorine_residual_ppm" is the term "Chlorine Residual Ppm",
+            # living under a JSON container that means nothing to a steward. Take
+            # the leaf so it reads as a business term and merges with the same
+            # concept arriving from a database column.
+            name = humanize(document_leaf_name(c["column"]))
             # canonicalize divergent names to one governed term (e.g. "Cust ID" ->
             # "Customer ID"), so instances across tables collapse and merge cleanly.
             _canon = tagdict.canonical_name(name)

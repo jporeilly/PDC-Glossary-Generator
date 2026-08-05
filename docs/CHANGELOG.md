@@ -14,6 +14,40 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.21.0] — 2026-08-05
+
+### Fixed — the document prune rule was eating the payload
+- 1.19.0 pruned **every** dotted path on the reasoning that the concept lives at
+  the leaf. On a real SCADA harvest that pruned 28 of 54 rows — including
+  `systems.chlorine_residual_ppm` and `systems.turbidity_ntu`, which are
+  **regulated drinking-water measures**: exactly what a utility's glossary exists
+  to govern. Nesting is a fact about the file format, not evidence that a value
+  is uninteresting.
+- The line that actually matters is **envelope vs payload**. The envelope
+  describes the *file* (units declarations, export date, source, snapshot type,
+  interval, sensor/record ids, timestamps); the payload is the *data in it*. The
+  rules now name the envelope explicitly — including bookkeeping fields wherever
+  they sit — and keep everything else. Same harvest: **37 kept, 10 pruned**.
+
+### Changed — a flattened path takes its leaf as the term name
+- `systems.chlorine_residual_ppm` is the term **Chlorine Residual Ppm**, sitting
+  under a JSON container that means nothing to a steward. `document_leaf_name()`
+  takes the leaf, so the term reads as a business concept — and the same concept
+  arriving from a database column now merges with it instead of sitting alongside
+  as a near-duplicate.
+- A useful second-order effect: `export_metadata.units.flow` becomes **Flow** and
+  prunes as bookkeeping, while `readings.flow_gpm` becomes **Flow Gpm** and is
+  kept. The unit declaration and the measure stop colliding.
+
+### Fixed — the PDC token died on every page change
+- Connect's sign-in was plain `useState`, so navigating away unmounted the card
+  and threw the token out — a page change meant signing in again (four times in
+  one debugging session). It now uses the session UI cache: an in-memory Map for
+  the tab's lifetime, never written to disk, which is what *"never persisted"*
+  already promised.
+- The **password** deliberately stays in component state and dies with the form —
+  it is needed once to mint the token and should not outlive that.
+
 ## [1.20.0] — 2026-08-05
 
 ### Added — `packinit`, a scaffolder for a new company's domain pack

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { apiGet, apiPost, apiDelete, runJob } from './../api.js'
-import { getWorkspace, setRows, setDiscovery, setPdcSession, useWorkspace } from './../state.js'
+import { getWorkspace, setRows, setDiscovery, setPdcSession, useWorkspace, usePersistentState } from './../state.js'
 import './connect.css'
 
 // Connect page — the React port of the old UI's Connections page: the PDC
@@ -183,7 +183,17 @@ export default function ConnectPage({ onNavigate }) {
   const [connsError, setConnsError] = useState(null)
   // One PDC sign-in shared by the bulk loader, harvest and the glossary check
   // (the old UI duplicated these fields per card; the token is never persisted).
-  const [pdc, setPdc] = useState({ base: '', user: '', pass: '', token: '', ver: 'v2', verify: false })
+  //
+  // Everything EXCEPT the password survives navigation. This was plain useState,
+  // so leaving Connect unmounted the card and threw the token away — a page
+  // change meant signing in again, four times in one debugging session. The
+  // token lives in the session UI cache: an in-memory Map for the tab's
+  // lifetime, never written to disk, which is exactly what "never persisted"
+  // promises. The PASSWORD deliberately stays in component state so it dies with
+  // the form — it is needed once to mint the token and should not outlive that.
+  const [pdc, setPdc] = usePersistentState('connect.pdc',
+    { base: '', user: '', token: '', ver: 'v2', verify: false })
+  const [pdcPass, setPdcPass] = useState('')
   const [editing, setEditing] = useState(null)      // connection being edited in the form
   const [profile, setProfile] = useState(null)      // {name, data} from /api/discover
   const [docs, setDocs] = useState(null)            // {connId, name, data} from /api/discover-docs
@@ -233,8 +243,8 @@ export default function ConnectPage({ onNavigate }) {
         </p>
       </div>
 
-      <BulkLoadCard pdc={setPdcProxy(pdc, setPdc)} onConnectionsChanged={setConns} />
-      <HarvestCard pdc={setPdcProxy(pdc, setPdc)} onConnectionsChanged={refreshConns}
+      <BulkLoadCard pdc={setPdcProxy(pdc, setPdc, pdcPass, setPdcPass)} onConnectionsChanged={setConns} />
+      <HarvestCard pdc={setPdcProxy(pdc, setPdc, pdcPass, setPdcPass)} onConnectionsChanged={refreshConns}
                    onNavigate={onNavigate} glossaryName={ws.glossaryName} />
 
       <div ref={formRef}>
@@ -259,8 +269,23 @@ export default function ConnectPage({ onNavigate }) {
 }
 
 // Bundle the auth state + setter so the two PDC cards share one sign-in.
-function setPdcProxy(pdc, setPdc) {
-  return { ...pdc, set: (patch) => setPdc((p) => ({ ...p, ...patch })) }
+// `pass` is threaded in separately: it lives in component state (dies on
+// unmount) while the rest survives navigation, so callers can keep using
+// pdc.pass / pdc.set({pass}) without knowing the difference.
+function setPdcProxy(pdc, setPdc, pass, setPass) {
+  return {
+    ...pdc,
+    pass,
+    set: (patch) => {
+      if ('pass' in patch) {
+        setPass(patch.pass)
+        const { pass: _drop, ...rest } = patch
+        if (Object.keys(rest).length) setPdc((p) => ({ ...p, ...rest }))
+        return
+      }
+      setPdc((p) => ({ ...p, ...patch }))
+    },
+  }
 }
 
 // The request body every /api/pdc/* endpoint expects.
