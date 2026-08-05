@@ -532,11 +532,15 @@ export default function ReviewPage({ onNavigate }) {
       const m = {}
       ;(d.groups || []).forEach((g) => { m[g.name] = g })
       setReco(m)
+      // `used_llm: false` means the model was not NEEDED as often as it means the
+      // model was not AVAILABLE — say which, rather than blaming a healthy Ollama
+      // for a run the data already settled.
+      const probedTxt = d.probed ? `Live-probed ${d.probed} group${d.probed !== 1 ? 's' : ''}` : 'No group needed a live probe'
       setMsg(d.used_llm
-        ? `AI adjudicated the ambiguous duplicate groups${d.probed ? ` (live-probed ${d.probed} group${d.probed !== 1 ? 's' : ''})` : ''}.`
-        : d.probed
-          ? `Live-probed ${d.probed} group(s); Ollama offline so evidence decides.`
-          : 'Evidence-only recommendations (Ollama offline, no ambiguous groups probed).')
+        ? `AI adjudicated ${d.ambiguous} still-ambiguous group${d.ambiguous !== 1 ? 's' : ''}${d.probed ? ` (live-probed ${d.probed})` : ''}.`
+        : d.ambiguous
+          ? `${probedTxt}; ${d.ambiguous} still ambiguous but the model did not answer — evidence decides. Check the LLM on Settings.`
+          : `${probedTxt} — the data settled every one, so no model call was needed.`)
     } catch (e) { setError(e.message) }
     setAdvising(false)
   }

@@ -1761,6 +1761,7 @@ def api_recommend_resolutions(body: dict = Body(default={})):
 
     # AI adjudicator for whatever is STILL ambiguous
     used_llm = False
+    still_ambiguous = 0
     if body.get("ai"):
         fields = ("Term", "Category", "Definition", "Source_Column", "Value_Signature",
                   "Value_Pattern", "Enum_Values", "PII_Category")
@@ -1768,6 +1769,11 @@ def api_recommend_resolutions(body: dict = Body(default={})):
                       "members": [{f: m.get(f, "") for f in fields}
                                   for m in groups[r["name"]]]}
                      for r in out if r["band"] != "high" or not r["action"]]
+        # Reported so the caller can tell "the model was not NEEDED" from "the
+        # model was not AVAILABLE" — used_llm is False for both, and blaming a
+        # healthy Ollama for a run the data already settled is a lie the UI has
+        # no way to catch.
+        still_ambiguous = len(ambiguous)
         if ambiguous:
             verdicts, used_llm = llm.adjudicate_groups(
                 ambiguous, model=body.get("model"), compute=body.get("compute"))
@@ -1777,7 +1783,8 @@ def api_recommend_resolutions(body: dict = Body(default={})):
                     r.update(action=v["action"], reason=v["reason"],
                              band="review", source="ai")
     out.sort(key=lambda x: (x["band"] != "high", -x["count"]))
-    return {"groups": out, "probed": probed, "used_llm": used_llm}
+    return {"groups": out, "probed": probed, "used_llm": used_llm,
+            "ambiguous": still_ambiguous}
 
 @app.post("/api/draft-policies")
 def api_draft_policies(body: dict = Body(default={})):

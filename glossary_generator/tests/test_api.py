@@ -350,3 +350,30 @@ class TestSpaCachePolicy:
         assert "immutable" in a.headers.get("cache-control", ""), \
             "content-hashed assets should be cached hard — the name changes when they do"
         assert re.search(r"-[A-Za-z0-9_-]{6,}\.js$", js[0]), "bundle should be content-hashed"
+
+
+class TestAdviseHonesty:
+    """`used_llm: false` means the model wasn't NEEDED as often as it means the
+       model wasn't AVAILABLE. The response has to distinguish them or the UI
+       blames a healthy Ollama for a run the evidence already settled."""
+
+    def test_reports_zero_ambiguous_when_evidence_settles_everything(self, client, monkeypatch):
+        import llm
+        called = {"n": 0}
+
+        def _never(*a, **k):
+            called["n"] += 1
+            return {}, True
+        monkeypatch.setattr(llm, "adjudicate_groups", _never)
+        # two same-named terms whose profiled value sets are disjoint -> decided
+        rows = [_row("Status", "db.accounts.status", Enum_Values="OPEN;CLOSED",
+                     Category="Account", Keep="Yes"),
+                _row("Status", "db.loans.status", Enum_Values="CURRENT;DEFAULT",
+                     Category="Lending", Keep="Yes")]
+        r = client.post("/api/recommend-resolutions", json={"rows": rows, "ai": True})
+        assert r.status_code == 200
+        body = r.json()
+        assert "ambiguous" in body, "the caller cannot tell the two cases apart without this"
+        assert body["ambiguous"] == 0
+        assert body["used_llm"] is False
+        assert called["n"] == 0, "nothing ambiguous -> the adjudicator must not run"

@@ -208,8 +208,12 @@ class TestSimilarity:
         assert r["action"] == "merge" and r["band"] == "high"
         r = similarity.recommend_resolution([a, c])  # same category, disjoint enums
         assert r["action"] == "split" and r["band"] == "high"
+        # Was 'separate' — on the reasoning that differing categories let PDC hold
+        # two same-named terms. PDC can; Resolve cannot, because it matches purely
+        # by name and takes the first hit. Different concepts sharing a name must
+        # be renamed whatever their categories, so this is 'split' now.
         r = similarity.recommend_resolution([a, dict(c, Category="Operations")])
-        assert r["action"] == "separate" and r["band"] == "high"
+        assert r["action"] == "split" and r["band"] == "high"
 
 
 class TestDefQA:
@@ -379,3 +383,36 @@ class TestDataQualityScore:
         by = {l["column_name"]: l for l in links}
         assert by["mbr_no"]["quality"] is None, "unprofiled -> no score, not 100"
         assert by["full_nm"]["quality"] == 90, "measured completeness scores as before"
+
+
+class TestDuplicateNamesMustBecomeDistinctTerms:
+    """A duplicate group is keyed ON the shared name. If the evidence says the
+       members are different concepts, the only safe action is to RENAME them:
+       pdc_client.terms.resolve_terms matches by name and takes the first hit,
+       so two terms called "Status" resolve to whichever PDC returns first and
+       one group's columns get silently mis-linked. A differing category does
+       not rescue it — PDC can store both, but Resolve still cannot tell them
+       apart."""
+
+    def _rows(self, cat_a, cat_b):
+        from conftest import make_row
+        return [make_row("Status", "db.accounts.status", Category=cat_a,
+                         Enum_Values="OPEN;CLOSED", Keep="Yes"),
+                make_row("Status", "db.loans.status", Category=cat_b,
+                         Enum_Values="CURRENT;DEFAULT", Keep="Yes")]
+
+    def test_same_category_disambiguates(self):
+        import similarity
+        rec = similarity.recommend_resolution(self._rows("Account", "Account"))
+        assert rec["action"] == "split"
+
+    def test_differing_category_also_disambiguates(self):
+        """The regression: this used to recommend 'separate' because PDC can
+           hold two same-named terms in different categories — which is true,
+           and irrelevant, because Resolve never looks at the category."""
+        import similarity
+        rec = similarity.recommend_resolution(self._rows("Governance", "Billing & Rates"))
+        assert rec["action"] == "split", \
+            "different concepts sharing a name must be renamed, whatever their categories"
+        assert rec["band"] == "high"
+        assert "resolve" in rec["reason"].lower()

@@ -199,11 +199,20 @@ def recommend_resolution(members, probes=None):
                 "reason": "mixed evidence — some columns match shapes, others don't: "
                           + diffs[0] + ". Disambiguate the outlier, then merge the rest"}
     if diffs:
-        if len(cats) <= 1:
-            return {"action": "split", "band": "high",
-                    "reason": diffs[0] + " — and they share a category, where duplicate names collide on import"}
-        return {"action": "separate", "band": "high",
-                "reason": diffs[0] + " — categories differ, so PDC can hold both as distinct terms"}
+        # Different concepts under ONE name -> always rename, never "keep separate".
+        # A duplicate group is keyed on the shared name, so keeping both leaves two
+        # terms called the same thing — and resolve_terms() matches purely by name
+        # and takes the FIRST hit (pdc_client/terms.py), so both groups' columns
+        # would be stamped with whichever term id PDC happened to return first.
+        # A differing category does not save it: PDC can store both, but nothing
+        # downstream here can tell them apart. Renaming is what makes them
+        # resolvable, which is the whole point of Disambiguate.
+        why = diffs[0] + " — they are different concepts, so the shared name has to go: "
+        why += ("two terms with one name resolve by name to whichever PDC returns first, "
+                "silently mis-linking one group's columns")
+        if len(cats) > 1:
+            why += " (differing categories keep them distinct in PDC, but not at Resolve)"
+        return {"action": "split", "band": "high", "reason": why}
     if sames:
         return {"action": "merge", "band": "high", "reason": sames[0]}
     piis = {(m.get("PII_Category") or "").strip() for m in members} - {""}
