@@ -14,6 +14,23 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.16.1] — 2026-08-05
+
+### Fixed — a QA flag survived the rewrite that cleared it
+- Accepting an AI-proposed definition left the old **QA ⚠** chip pinned under it,
+  so a definition the model had just rewritten into something specific still read
+  *"generic scan template — says nothing specific to this column"*. Once saved,
+  the stale flag persisted into `glossaries.json`.
+- The server was right: `/api/ai-pass` re-lints after the model and drops
+  `QA_Issues` from every row that is no longer flagged. The bug was on the wire —
+  the grid merges each returned row over its working copy with a spread
+  (`{...working, ...returned}`), and a **removed key is invisible to a spread**.
+  The old value survived, diffed as unchanged, and so never reached a pill; the
+  `QA_Issues` carry on Definition had nothing to carry. The cleared flag is now
+  sent as an explicit empty value, which a merge can actually apply.
+- Verified against the saved Arizona Water glossary on the row that had it stuck:
+  flag present → **AI review** → accept the Definition pill → flag gone.
+
 ## [1.16.0] — 2026-08-05
 
 ### Changed — one agent, and a per-row **AI review** instead of two leftover buttons

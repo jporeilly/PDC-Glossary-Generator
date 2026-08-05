@@ -1351,9 +1351,14 @@ def api_ai_pass(body: dict = Body(default={})):
     # judge that used to follow it is gone — a whole extra pass for little gain.
     # Re-lint AFTER the rewrite: what is still flagged is what the model could
     # not improve from the available evidence — a real signal, not repeat noise.
+    # Clear to "" rather than deleting the key. The UI merges each returned row
+    # over its working copy with a spread, so a REMOVED key is invisible: the
+    # stale flag would survive, diff as unchanged, and never reach a pill —
+    # leaving "generic scan template" pinned under a definition the model had
+    # just rewritten into something specific. An explicit empty value clears.
     for r in rows:
-        r.pop("QA_Issues", None)
-        r.pop("QA_Suggestion", None)
+        r["QA_Issues"] = ""
+        r["QA_Suggestion"] = ""
     try:
         lint = defqa.lint_rows(rows)
         for i, issues in lint.items():

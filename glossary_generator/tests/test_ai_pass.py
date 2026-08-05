@@ -176,6 +176,25 @@ class TestAiPass:
 
 
 class TestAiPassEndpoint:
+    def test_a_cleared_qa_flag_comes_back_as_empty_not_missing(self, client, monkeypatch):
+        """The UI merges each returned row over its working copy with a spread,
+           so a DELETED key is invisible — the stale flag would survive under a
+           definition the model had just rewritten. The cleared flag has to be
+           sent as an explicit empty value."""
+        monkeypatch.setattr(llm, "status", lambda m=None: {"online": True})
+        monkeypatch.setattr(llm, "_warm", lambda m=None: None)
+        monkeypatch.setattr(llm, "_complete_json", lambda *a, **k: {
+            "definition": "The full name of the member legally responsible for the account."})
+        r = client.post("/api/ai-pass", json={"rows": [make_row(
+            "Member Name", "cscu_core.members.member_name",
+            Definition="Member Name associated with a member record.",
+            QA_Issues="generic scan template - says nothing specific to this column")]})
+        assert r.status_code == 200
+        row = r.json()["rows"][0]
+        assert "QA_Issues" in row, "the key must be PRESENT so a spread-merge clears it"
+        assert row["QA_Issues"] == "", "rewritten to something specific -> no longer flagged"
+
+
     def test_route_returns_rows_and_counts(self, client, monkeypatch):
         monkeypatch.setattr(llm, "status", lambda m=None: {"online": True})
         monkeypatch.setattr(llm, "_warm", lambda m=None: None)
