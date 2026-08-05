@@ -144,7 +144,17 @@ def resolve_document_scope(base_url, token, api_json, version="v2",
             seen.add(i)
             uniq_ids.append(i)
             uniq_labels.append(lab)
-    return uniq_ids, uniq_labels
+    # The fallback matters and used to be invisible. Scoping a FOLDER makes PDC
+    # cascade to every file inside it; scoping individual FILES profiles exactly
+    # those and nothing else — and a Data-Elements payload carries one
+    # representative file per folder, so a silent fallback profiles 1 file per
+    # folder and leaves the rest untouched. The job still returns SUCCESS, so
+    # there is nothing in PDC to notice either. Report it so the caller can say so.
+    fell_back = len(fallback_files)
+    stats = {"folders": len(uniq_ids) - fell_back if fell_back <= len(uniq_ids) else 0,
+             "files": min(fell_back, len(uniq_ids)),
+             "cascaded": fell_back == 0}
+    return uniq_ids, uniq_labels, stats
 
 
 # Default Data-Discovery config tuned for the documents this app governs:

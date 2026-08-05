@@ -2579,7 +2579,7 @@ def trigger_profiling(body: dict = Body(default={})):
                     "action profiles MinIO/S3 files, not database columns", 400)
     try:
         token, _ = _pdc_token_and_reauth(body, base, version, verify)
-        scope_ids, labels = pdc_api.resolve_document_scope(
+        scope_ids, labels, scope_stats = pdc_api.resolve_document_scope(
             base, token, docs, version=version, verify_tls=verify)
         if not scope_ids:
             return _err("could not resolve any document folders/files in "
@@ -2600,6 +2600,19 @@ def trigger_profiling(body: dict = Body(default={})):
         return _err(str(e), 502)
     res.pop("raw", None)
     res["scope"] = labels
+    res["scope_stats"] = scope_stats
+    # Scoping a folder cascades to its files; scoping files does not. A payload
+    # carries one representative file per folder, so a fallback profiles exactly
+    # those and leaves every sibling untouched — while the job still reports
+    # SUCCESS. Say so rather than letting "5 target(s)" imply full coverage.
+    if not scope_stats.get("cascaded"):
+        others = max(0, len(docs) - len(scope_ids))
+        res["scope_warning"] = (
+            "Could not resolve the document FOLDERS in PDC, so %d individual file(s) "
+            "were profiled instead. Folder scope cascades to every file inside it; "
+            "file scope does not — any other files in those folders were NOT profiled."
+            % scope_stats.get("files", len(scope_ids))
+            + (" Confirm the object store's folders are catalogued." if others else ""))
     job_id = res.get("job_id") or res.get("id") or ""
     status = res.get("status") or res.get("state") or ("completed" if res.get("done") else "submitted")
     res["check"] = {

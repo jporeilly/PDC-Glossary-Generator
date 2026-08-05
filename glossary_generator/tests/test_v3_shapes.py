@@ -133,3 +133,26 @@ class TestJobShapes:
     def test_v3_goes_straight_to_bulk(self):
         src = inspect.getsource(pdc_api._execute_job)
         assert 'in ("v3", "3")' in src and "jobs/execute/bulk" in src
+
+
+class TestObjectStoreFolderTypes:
+    """PDC types an object store's folders FOLDER (a live scan reports
+       "16 FILE + 5 FOLDER entities"). If the entity-filter type lists omit it,
+       PDC filters every folder out server-side and Data Discovery silently
+       falls back to scoping individual FILES — which does NOT cascade, so one
+       representative file per folder is profiled and its siblings are not,
+       while the job still returns SUCCESS."""
+
+    def test_folder_is_resolvable_as_a_container(self):
+        from pdc_client import entities as ent
+        assert "FOLDER" in ent._TBL_TYPES, \
+            "resolve_table_entity cannot find an object-store folder without it"
+        assert "FOLDER" in ent._FILE_TYPES
+
+    def test_the_package_agrees_on_the_type_name(self):
+        """bulkload and _is_container already used FOLDER; these lists drifted."""
+        from pdc_client import bulkload, entities as ent
+        import inspect
+        assert "FOLDER" in inspect.getsource(bulkload)
+        for t in ("DIRECTORY", "FOLDER"):
+            assert t in ent._TBL_TYPES and t in ent._FILE_TYPES

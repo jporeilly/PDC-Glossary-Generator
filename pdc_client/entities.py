@@ -57,10 +57,19 @@ def _attrs_of(ent):
 # typed DIRECTORY, so both lists must include them or document entities never
 # resolve and their metadata never gets written.
 _COL_TYPES = ["COLUMN", "FIELD", "OBJECT", "FILE", "RESOURCE"]
-_TBL_TYPES = ["TABLE", "RESOURCE", "OBJECT", "FILE", "DATASET", "DIRECTORY"]
+# FOLDER, not just DIRECTORY: an object store's folders come back from PDC typed
+# FOLDER (a live scan reports "16 FILE + 5 FOLDER entities"), and the rest of this
+# package already knows it — bulkload uses ("FOLDER", "FILE") and _is_container
+# tests ("DIRECTORY", "FOLDER"). Only these two lists missed it, which filtered
+# every object-store folder out server-side: resolve_table_entity found nothing,
+# so Data Discovery silently fell back to scoping individual FILES. Folder scope
+# cascades to every file inside it; file scope does not — so one representative
+# file per folder got profiled and its siblings never did, with the job still
+# reporting SUCCESS.
+_TBL_TYPES = ["TABLE", "RESOURCE", "OBJECT", "FILE", "DATASET", "DIRECTORY", "FOLDER"]
 
 
-_FILE_TYPES = ["FILE", "OBJECT", "RESOURCE", "DIRECTORY"]
+_FILE_TYPES = ["FILE", "OBJECT", "RESOURCE", "DIRECTORY", "FOLDER"]
 
 
 # ===========================================================================

@@ -1127,10 +1127,16 @@ function ApplyResults({ d }) {
                     {r.current_features && (
                       <div className="notes">
                         in PDC now:{' '}
-                        {['rating', 'qualityScore', 'sensitivity'].map((k) => {
+                        {/* qualityScore is the MANUAL metric an external writer sets —
+                            this app's own score. PDC's Discovery-COMPUTED Data Quality
+                            is a different metric and never lands here, so an unlabelled
+                            "—" reads as "PDC has no quality" when it means "we never
+                            wrote one". That misreading cost a whole debugging detour. */}
+                        {[['rating', 'rating'], ['qualityScore', 'qualityScore (app-set)'],
+                          ['sensitivity', 'sensitivity']].map(([k, label]) => {
                           const v = r.current_features[k]
                           const shown = v === null || v === undefined || v === '' ? '—' : String(v)
-                          return <span key={k} style={{ marginRight: '.7rem' }}>{k} <b>{shown}</b></span>
+                          return <span key={k} style={{ marginRight: '.7rem' }}>{label} <b>{shown}</b></span>
                         })}
                       </div>
                     )}
@@ -1285,6 +1291,9 @@ function ProfilingCard({ de, authBody }) {
           Started Data Discovery on <b>{d.submitted}</b> target(s){sc ? ` (${sc})` : ''}
           {d.job_id ? <> · job <code>{String(d.job_id).slice(0, 8)}…</code></> : null}
           {d.activity ? ` · ${d.activity}` : ''}
+          {/* a file-level fallback still returns SUCCESS, so nothing else in PDC
+              or here would ever tell you the siblings went unprofiled */}
+          {d.scope_warning ? <div className="notes warn">⚠ {d.scope_warning}</div> : null}
         </>,
       )
       setCheck(d.check)

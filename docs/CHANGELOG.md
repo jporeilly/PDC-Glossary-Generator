@@ -14,6 +14,39 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.17.1] — 2026-08-05
+
+### Fixed — Data Discovery profiled one file per folder and reported success
+- `_TBL_TYPES` listed `DIRECTORY` but **not `FOLDER`**, and PDC types an object
+  store's folders **FOLDER** — a live scan reports *"16 FILE + 5 FOLDER entities
+  discovered"*. The rest of the package already knew: `bulkload` uses
+  `("FOLDER", "FILE")` and the container test reads `("DIRECTORY", "FOLDER")`.
+  Only the entity-filter type lists had drifted.
+- The consequence was well hidden. PDC filtered every folder out **server-side**,
+  so `resolve_table_entity` returned `None` — indistinguishable from "that folder
+  isn't catalogued". `resolve_document_scope` then did what it was designed to do
+  and fell back to individual FILE ids "so nothing is silently dropped". But a
+  Data-Elements payload carries **one representative file per folder**, and file
+  scope does **not** cascade while folder scope does. So Discovery profiled 5
+  files, skipped the other 11, and returned **SUCCESS** — nothing in the job, the
+  Workers page or the app said otherwise.
+- Verified against a live PDC: the job's scope labels went from
+  `awc-documents.compliance.epa_…pdf` (dotted — the file fallback) to
+  `awc-documents/compliance` (slashed — the folder), with no fallback warning.
+
+### Fixed — the fallback is no longer silent
+- `resolve_document_scope` returns scope stats, and a run that could not resolve
+  its folders now says so: *"Folder scope cascades to every file inside it; file
+  scope does not — any other files in those folders were NOT profiled."* The
+  fallback is still the right behaviour; passing it off as full coverage was not.
+
+### Fixed — `qualityScore` in the preview read-back was mislabelled
+- It is the **MANUAL** metric an external writer sets — this app's own score.
+  PDC's Discovery-*computed* Data Quality is a different metric and never lands
+  there, so an unlabelled `—` on a document row read as *"PDC has no quality"*
+  when it meant *"we never wrote one"* — and briefly had a working Discovery run
+  diagnosed as a failure. Now labelled `qualityScore (app-set)`.
+
 ## [1.17.0] — 2026-08-05
 
 ### Changed — same-named terms are always disambiguated, never "kept separate"
