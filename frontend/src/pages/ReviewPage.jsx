@@ -507,8 +507,19 @@ export default function ReviewPage({ onNavigate }) {
     return () => { stale = true; clearTimeout(t) }
   }, [dupFp])
 
-  // Full pass (the AI advise button): + live data-value probe + AI adjudication.
+  // Groups the deterministic pass could not settle — the ones wearing the `check`
+  // badge. Both escalation rungs on the server key off exactly this (band !==
+  // 'high'), so it is also the true scope of the AI advise button: everything
+  // else was already decided from profiled evidence and is never re-judged.
+  const checkGroups = Object.values(reco).filter((r) => r && r.band !== 'high').length
+
+  // Full pass (the AI advise button): + live data-value probe + AI adjudication,
+  // both scoped server-side to the `check` groups above.
   async function aiAdvise() {
+    if (!checkGroups) {
+      setMsg('Nothing to escalate — every duplicate group was settled from profiled evidence.')
+      return
+    }
     setAdvising(true)
     setError(null)
     try {
@@ -1086,9 +1097,11 @@ export default function ReviewPage({ onNavigate }) {
                     title="Make every term name unique by appending its source table, so name-based Resolve can't mis-link. Click again to revert.">
               Auto-disambiguate
             </button>
-            <button className="ghost sm" disabled={advising || noRows} onClick={aiAdvise}
-                    title="Escalate the duplicate-group advice: probe LIVE data values for ambiguous groups (when a database connection exists) and let the local AI agent adjudicate what's left. Hints only.">
-              {advising ? 'Advising…' : 'AI advise'}
+            <button className="ghost sm" disabled={advising || noRows || !checkGroups} onClick={aiAdvise}
+                    title={!checkGroups
+                      ? 'Nothing to escalate — every duplicate group was already settled from profiled evidence. This button only ever acts on groups badged “check”.'
+                      : `Escalate only the ${checkGroups} group${checkGroups !== 1 ? 's' : ''} badged “check” — the ones with no profiled value sets to compare. Probes LIVE data values over your database connection, then lets the AI agent adjudicate what is left. Groups already decided on evidence are never re-judged. Hints only.`}>
+              {advising ? 'Advising…' : `AI advise${checkGroups ? ` (${checkGroups})` : ''}`}
             </button>
             <button className="ghost sm" disabled={noRows} onClick={() => (sim ? setSim(null) : findSimilar())}
                     title="Score the shown terms pairwise and suggest same-concept names to merge (e.g. Phone / Customer Phone / Cust Phone No).">
