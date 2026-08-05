@@ -325,3 +325,28 @@ class TestDiscoveryProgress:
         d = r.json()
         assert d["done"] is True and d["profiled"] == 2
         assert d["job"] is None and d["worker_done"] is False
+
+
+class TestSpaCachePolicy:
+    """index.html points at the hashed bundle, so it must revalidate — otherwise
+       the browser's heuristic caching keeps loading the previous release's JS
+       and the app appears not to have upgraded."""
+
+    def test_index_revalidates_and_assets_are_immutable(self, client):
+        r = client.get("/")
+        if r.status_code == 404:
+            import pytest
+            pytest.skip("frontend/dist not built in this checkout")
+        assert r.headers.get("cache-control") == "no-cache", \
+            "index.html must revalidate or an upgrade is invisible until a hard reload"
+
+        import os, re
+        dist = os.path.join(os.path.dirname(os.path.dirname(
+            os.path.dirname(os.path.abspath(__file__)))), "frontend", "dist", "assets")
+        js = [f for f in os.listdir(dist) if f.endswith(".js")]
+        assert js, "no built bundle to check"
+        a = client.get(f"/assets/{js[0]}")
+        assert a.status_code == 200
+        assert "immutable" in a.headers.get("cache-control", ""), \
+            "content-hashed assets should be cached hard — the name changes when they do"
+        assert re.search(r"-[A-Za-z0-9_-]{6,}\.js$", js[0]), "bundle should be content-hashed"

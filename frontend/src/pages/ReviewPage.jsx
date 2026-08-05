@@ -1292,16 +1292,21 @@ function ReviewGuide({ onNavigate }) {
           {/* wrap connector into row 2 */}
           <path className="rv-wfarrow" d="M320 58 V72 H60 V82" markerEnd="url(#rv-wfhead)" />
 
-          {/* row 2: the agents run BEFORE duplicate resolution — Suggest/QA
-              finalize names (dissolving false duplicates), and enriched
-              definitions make the remaining same-name calls easy */}
+          {/* row 2: the pass runs BEFORE duplicate resolution — it finalizes
+              names (dissolving false duplicates), and real definitions make the
+              remaining same-name calls easy. Two scopes, one agent: the sweep
+              over every kept row, and the same call aimed at a single row. */}
           <g className="rv-wfgroup">
             <rect x={4} y={88} width={568} height={62} rx="10" />
             <text className="rv-wfglbl" x={14} y={101}>③ AI PASS — KEPT ROWS · ONE CALL PER BATCH · PROPOSE → YOU APPLY</text>
           </g>
           <RvNode chip role="button" className="rv-wfnode rv-wfchip" x={14} y={108} w={230} h={32}
                   title="1 · AI pass (all fields)" onActivate={flashAgents}
-                  aria="Run the combined AI pass — definition, purpose, name, tags and a blank category in one call per row" />
+                  aria="Run the combined AI pass — definition, purpose, name, tags and a blank category in one call per batch of kept rows" />
+          <text className="rv-wfglbl" x={252} y={129}>or</text>
+          <RvNode chip x={274} y={108} w={286} h={32}
+                  title="AI review (this row)" sub="same pass · expand a row"
+                  aria="AI review — the same pass scoped to one row, from that row's expanded editor" />
 
 
           {/* wrap connector into row 3 */}

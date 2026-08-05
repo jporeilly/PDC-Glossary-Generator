@@ -268,7 +268,12 @@ def index(request: Request):
     (frontend/dist, built by the installer), else the legacy Jinja shell."""
     dist_index = os.path.join(os.path.dirname(HERE), "frontend", "dist", "index.html")
     if os.path.isfile(dist_index):
-        return FileResponse(dist_index)
+        # MUST revalidate. This file names the content-hashed bundle, so a stale
+        # copy loads the previous release's JS — the app upgrades on disk and the
+        # user still sees the old UI with no clue why. The Jinja shell below has
+        # always had its `v` cache-buster; the React path went without one.
+        # `no-cache` means "revalidate", not "don't store", so 304s still apply.
+        return FileResponse(dist_index, headers={"Cache-Control": "no-cache"})
     # v busts browser caches for /static/*.css|js on every release — a stale
     # cached script against new endpoints is the VM's classic failure mode
     return templates.TemplateResponse(request, "index.html", {"v": APP_VERSION})
@@ -3179,11 +3184,39 @@ def api_job_pull_model(body: dict = Body(default={})):
 #  UI is the Jinja shell at "/" + /static; when the React build lands
 #  (frontend/dist), it takes over "/" automatically.
 # --------------------------------------------------------------------------- #
+class _UiStatic(StaticFiles):
+    """Serve the SPA with the only cache policy that survives an upgrade.
+
+    Vite content-hashes every bundle, so `/assets/index-<hash>.js` can be cached
+    forever — a new build simply has a new name. But `index.html` is the file
+    that POINTS at the current hash, and StaticFiles sends it with no
+    Cache-Control at all. With no policy the browser falls back to *heuristic*
+    caching and keeps serving yesterday's index, which loads yesterday's bundle:
+    the app upgrades on disk and the user still sees the old UI, with no clue
+    why, until they know to hard-reload. That is a support call after every
+    release.
+
+    `no-cache` does not mean "do not cache" — it means "revalidate before use",
+    so the ETag / 304 path is unaffected and the file is re-sent only when it
+    actually changed.
+    """
+    async def get_response(self, path, scope):
+        resp = await super().get_response(path, scope)
+        # StaticFiles normpath()s the request path, so on Windows this arrives as
+        # "assets\index-<hash>.js" — normalise before matching or the immutable
+        # policy silently never applies on the platform the app ships on.
+        if path.replace("\\", "/").startswith("assets/"):
+            resp.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+        else:
+            resp.headers["Cache-Control"] = "no-cache"
+        return resp
+
+
 app.mount("/static", StaticFiles(directory=os.path.join(HERE, "static")), name="static")
 
 _UI_DIST = os.path.join(os.path.dirname(HERE), "frontend", "dist")
 if os.path.isdir(_UI_DIST):
-    app.mount("/", StaticFiles(directory=_UI_DIST, html=True), name="ui")
+    app.mount("/", _UiStatic(directory=_UI_DIST, html=True), name="ui")
 
 if __name__ == "__main__":
     import uvicorn
