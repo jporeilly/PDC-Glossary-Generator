@@ -14,6 +14,58 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.17.0] — 2026-08-05
+
+### Changed — same-named terms are always disambiguated, never "kept separate"
+- The duplicate advisor recommended **Keep separate** whenever the members'
+  categories differed, on the reasoning that PDC can hold two same-named terms in
+  different categories. PDC can. **Resolve cannot**: `resolve_terms` matches
+  purely by name and breaks on the *first* hit, so two terms called "Status"
+  resolve to whichever PDC returns first and one group's columns get stamped with
+  the other group's term id — silently.
+- The app already knew this. The generator's own preflight warns *"name-based
+  Resolve can't tell them apart, so a column may link to the wrong one"* — so the
+  advisor was recommending the state the export step flags as a hazard. A
+  duplicate group is keyed **on the shared name**, so different concepts there
+  always need renaming: the category branch is gone and both paths recommend
+  **Disambiguate**.
+- **Keep separate** stays as a control — it is the neutral state a Merge or
+  Disambiguate reverts to — but it is no longer offered as advice for a group
+  that would ship a name collision.
+
+### Fixed — an undecided duplicate group looked like a decision
+- `action === 'separate'` meant both *"the steward chose Keep separate"* and
+  *"nobody has chosen anything"*, so an untouched group rendered Keep separate
+  with the **selected** style: the app appearing to have picked the one outcome
+  that ships two terms under one name, highlighted as if it were the advice,
+  directly beside advice saying otherwise. Until a steward picks, nothing is
+  selected and the recommendation is the only button lit (`aria-pressed` follows).
+
+### Fixed — the UI kept serving the previous release's JavaScript
+- `GET /` returned the React `index.html` as a bare `FileResponse` with **no
+  `Cache-Control`**, so browsers applied *heuristic* caching to the one file that
+  names the content-hashed bundle. The app upgraded on disk and the user kept
+  loading the old JS, with no clue why, until someone told them to hard-reload.
+  The Jinja shell always had its `v` cache-buster; the React path never got one.
+- `index.html` now sends `Cache-Control: no-cache` — *"revalidate before use"*,
+  not *"don't store"*, so the ETag/304 path is untouched. `/assets/*` is
+  content-hashed by Vite and goes the other way: `max-age=31536000, immutable`.
+  (That branch needed a Windows fix — `StaticFiles` `normpath`s the request path,
+  so it arrives as `assets\index-<hash>.js` and a `startswith("assets/")` test
+  never matched on the platform the app ships on.)
+
+### Fixed — "AI advise" blamed Ollama for runs it was never asked to do
+- `used_llm: false` covers both *the model was unavailable* and *the model was
+  never needed*, and the message assumed the first — reporting *"Ollama offline
+  so evidence decides"* on a run where Ollama was demonstrably up and the live
+  probe had settled all eight groups on data. The endpoint now returns
+  `ambiguous`, and the UI distinguishes *"the data settled every one, so no model
+  call was needed"* from *"the model did not answer"*.
+- The button also shows the scope it always had: the server escalates only groups
+  the deterministic pass could not settle (`band != "high"` — the same predicate
+  behind the **check** badge), so it now reads **AI advise (N)** against N check
+  badges and disables itself at zero instead of costing a pointless round trip.
+
 ## [1.16.1] — 2026-08-05
 
 ### Fixed — a QA flag survived the rewrite that cleared it
