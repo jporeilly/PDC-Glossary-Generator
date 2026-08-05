@@ -14,6 +14,29 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.23.0] — 2026-08-05
+
+### Fixed — an identical value format is not an identical concept
+- `compare_evidence` treated **any** matching induced regex as proof of one
+  concept. On a real glossary that ranked **`Lead Ppb ← Turbidity Ntu`** and
+  **`Copper Ppm ← Turbidity Ntu`** at `0.85 · strong`, because all three match
+  `^0\.\d{2}$` — which means nothing more than *"a small decimal"*. Same for
+  `Tier1 Rate ← Tier2 Rate` on `^\d\.\d{4}$`: deliberately different rates that
+  share a numeric shape.
+- Merging those would have been a serious glossary error — putting one regulated
+  contaminant's limits on another's term.
+- The giveaway was the ranking: in that same run the one **genuinely correct**
+  merge, `Chlorine Residual ← Chlorine Residual Ppm`, scored **0.84 · review** —
+  *below* the wrong ones — because name identity was outranked by format identity.
+- Format identity now counts only when the format is **distinctive**: something a
+  system minted on purpose (`^AWC-[A-Z]{2}-\d{6}$`, `^CSCU-\d{6}$`) rather than a
+  bare number. A generic shape returns **no verdict** with *"that shape is too
+  generic to identify a concept — compare the definitions"*, so the pair falls
+  through to name/token scoring and the steward decides.
+- The bias is deliberate: a letter **class** (`^[A-Z]{2}\d{4}$`) is a shape, not a
+  minted marker, so it is treated as generic. A false negative asks a question; a
+  false positive merges unrelated concepts.
+
 ## [1.22.0] — 2026-08-05
 
 ### Fixed — one file, one category: a mixed document filed its columns wrongly

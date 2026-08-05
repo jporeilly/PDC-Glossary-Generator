@@ -111,6 +111,34 @@ def _col_tails(cols):
     return out
 
 
+# Everything a regex uses to describe SHAPE rather than content: escapes
+# (\d \w \s), character classes ([A-Z]), quantifiers/anchors/groups, and the
+# digits inside {2,6}. Whatever survives is literal text the data actually
+# carries — a minted prefix like "AWC-" or "CSCU-".
+_REGEX_SHAPE = re.compile(r"\\[dwsDWSbB]|\[[^\]]*\]|\{[\d,]*\}|[\^$()?*+|.\\]|\d")
+
+
+def _is_distinctive_format(pat):
+    """True when an induced regex is specific enough to imply shared identity.
+
+    A format identifies a CONCEPT only when something minted it on purpose. A
+    coded key — ^AWC-[A-Z]{2}-\\d{6}$ — is issued by one system for one purpose,
+    so two columns carrying it are almost certainly the same thing. A bare number
+    is not: ^0\\.\\d{2}$ just means "a small decimal", which lead_ppb, copper_ppm
+    and turbidity_ntu all match. That is a property of the DATA TYPE, not of the
+    concept, and treating it as identity merges distinct regulated contaminants.
+
+    So: strip everything that describes shape, and require literal text to remain.
+    """
+    p = str(pat or "").strip()
+    if not p:
+        return False
+    literals = _REGEX_SHAPE.sub("", p)
+    # keep letters/dashes that the data really contains; two chars is enough to
+    # be a deliberate marker ("AWC-", "CS") and short enough not to miss one
+    return len(re.sub(r"[^A-Za-z0-9-]", "", literals)) >= 2
+
+
 def compare_evidence(row_a, row_b):
     """Verdict from profiled evidence: ('same' | 'different' | None, reason).
     Ordered strongest-first: an FK between the columns makes them the same concept
@@ -127,7 +155,19 @@ def compare_evidence(row_a, row_b):
             return "different", "profiled value sets are disjoint — same word, different code lists"
     if ea["pat"] and eb["pat"]:
         if ea["pat"] == eb["pat"]:
-            return "same", f"identical induced value format {ea['pat']}"
+            # Format identity is only evidence of SHARED IDENTITY when the format
+            # is distinctive. A coded key like ^AWC-[A-Z]{2}-\d{6}$ is minted by
+            # one system for one purpose, so two columns carrying it are almost
+            # certainly the same concept. A bare number is not: ^0\.\d{2}$ is
+            # "a small decimal", which lead_ppb, copper_ppm and turbidity_ntu all
+            # match — three DISTINCT regulated contaminants that this rule scored
+            # 0.85 "strong · same concept", above the one genuinely correct merge
+            # in the same run. Merging them would put a contaminant's limits on
+            # the wrong term.
+            if _is_distinctive_format(ea["pat"]):
+                return "same", f"identical induced value format {ea['pat']}"
+            return None, (f"both match {ea['pat']}, but that shape is too generic to "
+                          "identify a concept — compare the definitions")
         return "different", f"different value formats ({ea['pat']} vs {eb['pat']})"
     if ea["sig"] and eb["sig"]:
         if ea["sig"] == eb["sig"]:

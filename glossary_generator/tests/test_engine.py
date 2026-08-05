@@ -450,3 +450,46 @@ class TestQualityFromPdcStats:
     def test_reads_pdc_alias_spellings(self):
         import suggester
         assert suggester.quality_from_pdc_stats({"nonNullDensity": 100}) == 100
+
+
+class TestFormatIdentityIsNotConceptIdentity:
+    """`identical induced value format` was scored as 'same concept' for ANY
+       matching regex. On a real glossary that ranked lead_ppb ← turbidity_ntu
+       and tier1_rate ← tier2_rate at 0.85 'strong' — above the one genuinely
+       correct merge in the same run — because ^0\.\d{2}$ merely means "a small
+       decimal". Merging those would put a regulated contaminant's limits on the
+       wrong term."""
+
+    def _rows(self, pat):
+        return ({"Term": "A", "Value_Pattern": pat, "Source_Column": "s.t.a"},
+                {"Term": "B", "Value_Pattern": pat, "Source_Column": "s.t.b"})
+
+    def test_a_bare_number_is_no_longer_evidence_of_one_concept(self):
+        import similarity
+        for pat in (r"^0\.\d{2}$", r"^\d\.\d{4}$", r"^\d{6}$", r"^\d+$"):
+            a, b = self._rows(pat)
+            verdict, why = similarity.compare_evidence(a, b)
+            assert verdict is None, (pat, verdict)
+            assert "too generic" in why
+
+    def test_a_minted_code_still_is(self):
+        """A prefixed key is issued by one system for one purpose."""
+        import similarity
+        for pat in (r"^AWC-[A-Z]{2}-\d{6}$", r"^CSCU-\d{6}$"):
+            a, b = self._rows(pat)
+            verdict, why = similarity.compare_evidence(a, b)
+            assert verdict == "same", (pat, verdict)
+            assert "identical induced value format" in why
+
+    def test_differing_formats_still_say_different(self):
+        import similarity
+        a = {"Term": "A", "Value_Pattern": r"^\d{6}$", "Source_Column": "s.t.a"}
+        b = {"Term": "B", "Value_Pattern": r"^AWC-\d{6}$", "Source_Column": "s.t.b"}
+        verdict, _ = similarity.compare_evidence(a, b)
+        assert verdict == "different"
+
+    def test_the_bias_is_toward_asking_the_steward(self):
+        """A letter CLASS is a shape, not a minted marker. Returning None sends
+           it to the steward; a false 'same' would merge unrelated concepts."""
+        import similarity
+        assert similarity._is_distinctive_format(r"^[A-Z]{2}\d{4}$") is False
