@@ -14,6 +14,22 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.19.0] — 2026-08-05
+
+### Added — auto-prune rules for columns harvested from documents
+- PDC's Data Discovery flattens a nested file into dotted paths, so a JSON like
+  `{"export_metadata":{"units":{"flow":"gpm"}},"readings":[{"pump_status":…}]}`
+  harvests as candidate terms named `export_metadata.units.flow` and
+  `readings.pump_status`. Those are file **structure**, not business concepts —
+  a unit-of-measure declaration in a header is not a glossary term, and every
+  JSON in a document store emits a fresh batch of them.
+- `document_path_prune()` gives them the same treatment a surrogate key already
+  gets: **pruned by default with the reason on the row, restorable by ticking
+  Keep**. Three rules, first match wins, most specific first — document envelope
+  (`export_metadata.*`, `meta.*`), control fields (`_x`, `$schema`, `@ts`), then
+  any remaining nested path, whose reason says the concept is the leaf.
+- The rules cannot fire on a database column, which has no path separator.
+
 ## [1.18.0] — 2026-08-05
 
 ### Added — Data Quality derived from PDC's own profiling

@@ -1161,6 +1161,37 @@ def quality_score_column(completeness=None, uniqueness=None, validity=None,
     return int(round(score * 100))
 
 
+# Auto-prune rules for columns harvested from DOCUMENTS. PDC's Data Discovery
+# flattens a nested file into dotted paths, so a JSON like
+#   {"export_metadata": {"units": {"flow": "gpm"}}, "readings": [{"pump_status": ...}]}
+# arrives as columns "export_metadata.units.flow" and "readings.pump_status".
+# Those are file STRUCTURE, not business concepts: a unit-of-measure declaration
+# in a header is not a glossary term, and every JSON in a document store emits a
+# fresh batch of them. Same treatment as a surrogate key — pruned by default with
+# the reason shown, and one tick of Keep restores it. First match wins, so the
+# specific rules are listed before the general one.
+_DOC_PRUNE_RULES = (
+    (re.compile(r"^(export[_.]?)?meta(data)?[._]", re.I),
+     "document envelope — file metadata (units, export info), not a business concept"),
+    (re.compile(r"^(_|\$|@)"),
+     "document control field — a reserved/system key, not a business concept"),
+    (re.compile(r"\."),
+     "nested document path — the business concept, if any, is the leaf; tick Keep to restore"),
+)
+
+
+def document_path_prune(column):
+    """Why this document-derived column should start un-kept, or None to keep it.
+
+    Only meaningful for columns harvested from a file: a database column name
+    does not contain a path separator, so these rules cannot fire on one."""
+    name = str(column or "")
+    for rx, reason in _DOC_PRUNE_RULES:
+        if rx.search(name):
+            return reason
+    return None
+
+
 def _pdc_stat(stats, *names):
     """First present, numeric value among `names` in a PDC profilingInfo.stats
        block. PDC has spelled these differently across versions, and the compare
@@ -1316,11 +1347,16 @@ def suggest(tables, schema=None):
                                     "DEMOGRAPHIC", "ADDRESS_INFO")
             _structural = bool((c["pk"] or c["fk"]) and _surrogate
                                and not _identity_pii and not _has_shape)
-            rows.append({"Keep": ("N" if _structural else "Y"),
+            # A column harvested from a document arrives as a flattened path when
+            # Discovery walked a nested file. Those are structure, not concepts —
+            # prune them the same way, with the reason on the row.
+            _doc_prune = None if _structural else document_path_prune(c["column"])
+            _pruned = bool(_structural or _doc_prune)
+            rows.append({"Keep": ("N" if _pruned else "Y"),
                          "Prune_Reason": (("structural key — surrogate %s, tagged via the "
                                            "term↔column link, not a business term"
                                            % ("PK" if c["pk"] else "FK reference"))
-                                          if _structural else ""),
+                                          if _structural else (_doc_prune or "")),
                          "Category": category, "Term": name,
                          "Source_Column": src,
                          "Definition": define(c), "Purpose": purpose(c, category, name, pii),
