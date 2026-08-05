@@ -268,6 +268,21 @@ def apply_to_pdc(base_url, token, api_json, version="v2", verify_tls=True,
             row["body"] = body
             row["current_terms"] = [t.get("name") for t in (current.get("businessTerms") or [])]
             row["merged_terms"] = [t.get("name") for t in merged.get("businessTerms", [])]
+            # What PDC ACTUALLY holds right now, not just what we intend to send.
+            # The dry-run already reads the entity to merge against it, so keeping
+            # the features costs nothing — and without them a preview cannot answer
+            # "did the last apply's rating/DQ stick?". PDC rejects a bad PATCH
+            # wholesale, so a field that vanishes silently (accepted body, value
+            # absent afterwards) is invisible unless the read-back is shown.
+            cur_feats = (current.get("features") or {})
+            row["current_features"] = {
+                "rating": ((cur_feats.get("rating") or {}).get("value")
+                           if isinstance(cur_feats.get("rating"), dict) else cur_feats.get("rating")),
+                "qualityScore": cur_feats.get("qualityScore"),
+                "sensitivity": cur_feats.get("sensitivity"),
+                "isCriticalDataElement": cur_feats.get("isCriticalDataElement"),
+                "isLineageVerified": cur_feats.get("isLineageVerified"),
+            }
 
             # remember this column's suggested rating so we can roll it up to the table
             is_obj = (rec.get("type") or "").upper() in ("OBJECT", "FILE", "RESOURCE", "DIRECTORY")

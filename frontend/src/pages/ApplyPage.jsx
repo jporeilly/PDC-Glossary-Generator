@@ -1119,6 +1119,21 @@ function ApplyResults({ d }) {
                       ? <>{cur.length ? `${cur.join(', ')} → ` : ''}<b>{mer.join(', ')}</b>
                           <RateChip v={feat.rating?.value} /> <DqChip v={feat.qualityScore} /></>
                       : '—'}
+                    {/* What PDC holds NOW, beside what we are about to send. A
+                        preview that only shows the outgoing body cannot tell you
+                        whether the LAST apply's value actually stuck — and PDC
+                        accepts a PATCH wholesale, so a silently-ignored field
+                        looks identical to a successful write. */}
+                    {r.current_features && (
+                      <div className="notes">
+                        in PDC now:{' '}
+                        {['rating', 'qualityScore', 'sensitivity'].map((k) => {
+                          const v = r.current_features[k]
+                          const shown = v === null || v === undefined || v === '' ? '—' : String(v)
+                          return <span key={k} style={{ marginRight: '.7rem' }}>{k} <b>{shown}</b></span>
+                        })}
+                      </div>
+                    )}
                     {r.body && (
                       <details>
                         <summary>view PATCH body</summary>
