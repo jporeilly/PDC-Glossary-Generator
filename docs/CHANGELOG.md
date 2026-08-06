@@ -14,6 +14,45 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.27.0] - 2026-08-06
+
+### Added - `check-environment.ps1`
+
+A post-install check for whoever is preparing a workshop machine, in the shape
+Pentaho Content Manager already uses: one `[STATE] name  detail` line per check,
+with a fix command attached, plus `-Json` for provisioning logs.
+
+**It reports rather than blocks.** Only WebView2 and a usable Python are `FAIL`,
+because without them the window does not open. Ollama absent is a `WARN` - the
+app also drives Anthropic, OpenAI/Azure and Gemini - and PDC unreachable is a
+`WARN`, because the vhost is normally configured after install and scan, review
+and govern all work without it. Treating optional things as hard failures teaches
+people to ignore the output, which costs more than the check is worth.
+
+Checks: WebView2, the vendored runtime *and whether it can import its own
+packages*, the state directory (probed by writing, matching `paths.py`), free
+disk, Ollama, hosted-provider keys (presence only - never printed), the PDC URL
+shape and PDC reachability.
+
+Three cases it is deliberately careful about:
+
+- **Ollama up with no model pulled.** The app connects and then every generate
+  call fails, which reads as "the AI is broken" rather than "nothing is
+  installed". Reported distinctly, with `ollama pull llama3.2:3b`.
+- **A bare IP for PDC**, flagged before the probe even runs: PDC routes by vhost
+  and answers `401` on *every* path, which looks like bad credentials and sends
+  people to reset passwords that were never wrong. Confirmed against the live
+  instance while testing - `https://192.168.1.200` returns exactly that 401.
+- **A self-signed certificate is not unreachability.** The first version
+  reported the lab's cert as "PDC unreachable", which would send someone to
+  check DNS and firewalls for a server answering HTTP 200. It now retries with
+  validation off purely to tell the two apart, and names the certificate.
+
+### Fixed
+
+`tauri.conf.json` is version-stamped in step with `VERSION`; the first installer
+built out as `1.25.0` because the bump landed after the build began.
+
 ## [1.26.0] - 2026-08-06
 
 ### Added - `desktop/`, a Windows installer for the app

@@ -14,6 +14,7 @@ desktop/
   dist/index.html          splash: polls the backend, then navigates to it
   scripts/fetch-python.ps1 vendors a self-contained Python + the requirements
   scripts/stage-app.ps1    copies the app + built SPA into vendor/app
+  scripts/check-environment.ps1  post-install check: what is missing, and the fix
   src-tauri/src/main.rs    window, paths, the two invoke commands
   src-tauri/src/server.rs  free port, spawn uvicorn, job object
 ```
@@ -65,7 +66,33 @@ would carry provider API keys.
 - **Icons are placeholders** (`src-tauri/icons/`) — generated, not designed.
 - **No components page.** PCM's `nsis/installer.nsi` has Full/Minimal/Custom
   with `/NoOllama`-style switches; this build installs everything.
-- **No environment check.** Ollama and a reachable PDC are the two things worth
-  reporting on after install, as warnings rather than hard failures — the app
-  works against hosted LLM providers, and the PDC vhost is usually configured
-  afterwards.
+
+## Checking a machine
+
+```powershell
+npm run check                       # or: scripts\check-environment.ps1 -Json
+```
+
+Run it after installing. It **reports rather than blocks**: only WebView2 and a
+usable Python are `FAIL`, because without them the window does not open. Ollama
+absent is a `WARN` (the app also drives Anthropic, OpenAI/Azure and Gemini), and
+PDC unreachable is a `WARN` (the vhost is normally configured later, and scan,
+review and govern all work without it). Treating those as hard failures would
+teach people to ignore the output.
+
+Two results worth knowing when you read it:
+
+- **"up, but NO model pulled"** — Ollama answering with an empty model list is
+  the trap. The app connects, then every generate call fails, which reads as
+  "the AI is broken" rather than "nothing is installed".
+- **A bare IP for PDC** — flagged before the probe runs, because PDC routes by
+  vhost and answers `401` on *every* path. That looks like bad credentials and
+  sends people to reset passwords that were never wrong.
+
+A self-signed certificate is reported as exactly that, not as unreachable — the
+check retries with validation off purely to tell "the server is not there" from
+"the server is there and its cert is untrusted", which are different problems
+with different fixes.
+
+`-Json` emits machine-readable results and nothing else on stdout, for
+provisioning logs. Exit code is non-zero only when something genuinely blocks.
