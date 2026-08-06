@@ -14,6 +14,35 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.32.12] - 2026-08-06
+
+### Fixed - an existing Ollama setup is now left alone
+
+The install pulled a 19 GB model onto a machine that already had thirteen. The
+check for "is this model present" worked; the missing judgement was that a
+machine with ANY model is one somebody has already set up, and replacing their
+choice with a better-fitting one is presumptuous - on a workshop laptop it is a
+very long download nobody asked for.
+
+It now reports the recommendation and stops:
+
+    [ok] 13 model(s) already installed - leaving them alone
+    this hardware would suit qwen2.5:32b; pull it with:  ollama pull qwen2.5:32b
+
+`-Model` still forces a specific pull, so this is a default rather than a
+refusal. A machine with no models at all still gets one.
+
+### Fixed - the pull flooded the install log, in mojibake
+
+`SetDetailsPrint none` did not suppress it: `nsExec::ExecToLog` writes to the
+details list directly. So `ollama pull` emptied its progress bars into the log -
+thousands of lines, and garbled, because those bars are UTF-8 block characters
+and NSIS rendered them as CP-1252.
+
+All three provisioning calls use `nsExec::Exec` now, which runs the same command
+and captures nothing. The exit code still comes back, which is all the checklist
+needs.
+
 ## [1.32.11] - 2026-08-06
 
 ### Changed - the install log stops listing every file

@@ -850,10 +850,8 @@ Section "Seed this company (glossary categories)" SecSeed
     DetailPrint "Seed: no company name given - skipped. Run provisioning\seed-company.ps1 later."
   ${Else}
     DetailPrint "Seeding $R7..."
-    SetDetailsPrint none
-    nsExec::ExecToLog 'powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$INSTDIR\provisioning\seed-company.ps1" -Company "$R7" -Categories "$R6" -PdcUrl "$SeedPdcUrl"'
+    nsExec::Exec 'powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$INSTDIR\provisioning\seed-company.ps1" -Company "$R7" -Categories "$R6" -PdcUrl "$SeedPdcUrl"'
     Pop $0
-    SetDetailsPrint both
     ${If} $0 = 0
       DetailPrint "  [ok] company seeded"
     ${Else}
@@ -868,10 +866,8 @@ Section "Ollama AI runtime (local model)" SecOllama
   ; Gemini from its Settings page, so a machine without Ollama is a
   ; configuration choice rather than a broken install.
   DetailPrint "Ollama: installing if missing, then pulling one model (several GB)..."
-  SetDetailsPrint none
-  nsExec::ExecToLog 'powershell -NoProfile -ExecutionPolicy Bypass -File "$INSTDIR\provisioning\install-ollama.ps1"'
+  nsExec::Exec 'powershell -NoProfile -ExecutionPolicy Bypass -File "$INSTDIR\provisioning\install-ollama.ps1"'
   Pop $0
-  SetDetailsPrint both
   ${If} $0 = 0
     DetailPrint "  [ok] local model ready"
   ${Else}
@@ -885,10 +881,8 @@ Section "Check this machine" SecCheck
   ; Never fails the install: it is a report, and a red line in the log is
   ; more use than a rolled-back installation.
   DetailPrint "Checking this machine..."
-  SetDetailsPrint none
-  nsExec::ExecToLog 'powershell -NoProfile -ExecutionPolicy Bypass -File "$INSTDIR\provisioning\check-environment.ps1" -NoPrompt'
+  nsExec::Exec 'powershell -NoProfile -ExecutionPolicy Bypass -File "$INSTDIR\provisioning\check-environment.ps1" -NoPrompt'
   Pop $0
-  SetDetailsPrint both
   ${If} $0 = 0
     DetailPrint "  [ok] environment checks passed"
   ${Else}

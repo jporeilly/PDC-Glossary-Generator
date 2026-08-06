@@ -146,6 +146,18 @@ if ($have -contains $Model) {
     exit 0
 }
 
+# A machine that ALREADY has models is a machine someone has set up. Pulling
+# another several-GB model over their setup because ours is a slightly better
+# fit is presumptuous, and on a workshop laptop it is a long download nobody
+# asked for. Report the recommendation and leave it to them.
+#
+# -Model forces a specific pull, so this is a default rather than a refusal.
+if ($have.Count -gt 0 -and -not $PSBoundParameters.ContainsKey("Model")) {
+    Ok ("" + $have.Count + " model(s) already installed - leaving them alone")
+    Say ("this hardware would suit $Model; pull it with:  ollama pull $Model")
+    exit 0
+}
+
 Say "pulling $Model (several GB - this is the long part)"
 & $ollama.Source pull $Model
 if ($LASTEXITCODE -ne 0) {
