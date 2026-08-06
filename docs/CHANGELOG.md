@@ -14,6 +14,46 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.33.0] - 2026-08-06
+
+### Added - the splash answers the first question a new install raises
+
+A chip strip under the log: company, category count, whether Ollama is up, the
+configured PDC, and the state directory. First launch after an install is
+exactly when "did the seed actually work?" gets asked, and the answer otherwise
+lives behind the `/config` endpoint.
+
+An unseeded install says so outright - the engine ships no categories, so a scan
+would return everything `Uncategorized`, and finding that out after the scan is
+the wrong order.
+
+`env_report` is a native Rust command: a file read and a 400ms TCP probe.
+Shelling out to `check-environment.ps1` on every launch would add seconds to
+startup for two answers that do not need a PowerShell process.
+`check-environment.ps1` remains the thorough, operator-facing version.
+
+### Changed - the swirl is a status indicator
+
+It spins fastest while there is most left to do and settles as the checks
+complete, rather than turning at a constant rate regardless.
+
+### Fixed - "collecting..." could be the last word
+
+The error panel calls `diagnostics`, and if the shell itself is wedged that call
+never settles - so the panel whose entire job is explaining a failure became a
+second, more confusing failure. It now gives up after five seconds and says the
+shell is wedged rather than slow.
+
+### Changed - uninstall no longer offers to delete your work by default
+
+The "delete app data" box is now **unticked**, the opposite of Pentaho Content
+Manager, where it starts ticked so a re-install restarts a course. Here that data
+is the user's work: saved glossaries, the governed dictionary, connections, and
+the domain pack grown from their own scans. None of it is recoverable from the
+installer, and a glossary can represent days of steward review. Someone
+uninstalling to fix a problem would have lost all of it to a checkbox they did
+not read.
+
 ## [1.32.0] - 2026-08-06
 
 ### Fixed - the packaged app could not start at all

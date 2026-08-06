@@ -455,12 +455,18 @@ Function un.ConfirmShow ; Add add a `Delete app data` check box
   Pop $DeleteAppDataCheckbox
   SendMessage $HWNDPARENT ${WM_GETFONT} 0 0 $1
   SendMessage $DeleteAppDataCheckbox ${WM_SETFONT} $1 1
-  ; Default CHECKED: a fresh install after an uninstall must start the
-  ; course from the beginning (progress lives in $APPDATA, the webview's
-  ; localStorage under $LOCALAPPDATA). Learners can untick to keep
-  ; progress. Updates and additive course installs never reach this
-  ; (guarded by $UpdateMode above), so multi-course setups are safe.
-  SendMessage $DeleteAppDataCheckbox ${BM_SETCHECK} ${BST_CHECKED} 0
+  ; Default UNCHECKED - deliberately the opposite of Pentaho Content Manager,
+  ; where this box starts ticked because a re-install should restart a course
+  ; from the beginning.
+  ;
+  ; Here the app data is the user's WORK: saved glossaries, the governed
+  ; dictionary, connections, the domain pack grown from their own scans. None of
+  ; it is recoverable from the installer, and a glossary can represent days of
+  ; steward review. Someone uninstalling to fix a problem, or upgrading by
+  ; removing first, would lose all of it to a checkbox they did not read.
+  ;
+  ; Ticking it is still offered, because a genuine clean start needs it.
+  SendMessage $DeleteAppDataCheckbox ${BM_SETCHECK} ${BST_UNCHECKED} 0
 FunctionEnd
 !define MUI_PAGE_CUSTOMFUNCTION_LEAVE un.ConfirmLeave
 Function un.ConfirmLeave

@@ -120,6 +120,47 @@ fn server_log() -> Vec<String> {
     last_server_output()
 }
 
+/// What this install actually is: seeded or not, and what it can reach.
+///
+/// Native rather than shelling out to check-environment.ps1: spawning
+/// PowerShell on every launch would add seconds to startup and needs care not to
+/// block the window, for two answers that are a file read and a TCP connect.
+/// The .ps1 stays the thorough, operator-facing version.
+#[tauri::command]
+fn env_report(handle: tauri::AppHandle) -> serde_json::Value {
+    let state = state_dir(&handle);
+
+    let read_json = |name: &str| -> Option<serde_json::Value> {
+        std::fs::read_to_string(state.join(name))
+            .ok()
+            .and_then(|t| serde_json::from_str(&t).ok())
+    };
+
+    let company = read_json("settings.json")
+        .and_then(|v| v.get("company").and_then(|c| c.as_str().map(String::from)));
+    let pack = read_json("domain_pack.json");
+    let categories = pack
+        .as_ref()
+        .and_then(|p| p.get("cat_keywords").and_then(|k| k.as_array().map(|a| a.len())))
+        .unwrap_or(0);
+
+    // The PDC the user last connected to - the Connections page writes it. No
+    // request is made here; reachability is the environment check's job, and a
+    // slow or absent server must never delay the window opening.
+    let pdc = read_json("settings.json")
+        .and_then(|v| v.get("pdc_base").and_then(|c| c.as_str().map(String::from)))
+        .filter(|s| !s.is_empty());
+
+    serde_json::json!({
+        "state_dir": state.to_string_lossy(),
+        "company": company,
+        "seeded": pack.is_some(),
+        "categories": categories,
+        "pdc": pdc,
+        "ollama": server::port_open("127.0.0.1", 11434),
+    })
+}
+
 /// Surfaced on the splash when startup fails, so a dead backend reads as an
 /// error message rather than a permanently blank window.
 #[tauri::command]
@@ -152,7 +193,7 @@ fn main() {
         .manage(AppState {
             server: shared.clone(),
         })
-        .invoke_handler(tauri::generate_handler![server_url, server_log, diagnostics])
+        .invoke_handler(tauri::generate_handler![server_url, server_log, env_report, diagnostics])
         .setup(move |app| {
             let handle = app.handle().clone();
             let resource_dir = strip_verbatim(&handle.path().resource_dir().unwrap_or_default());

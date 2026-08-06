@@ -67,6 +67,22 @@ fn drain<R: std::io::Read + Send + 'static>(stream: R, tag: &'static str) {
     });
 }
 
+/// Is something listening there? Used to spot Ollama without shelling out.
+///
+/// A short timeout on purpose: this runs while the window is opening, and a
+/// firewalled host that blackholes the SYN must not hold the splash up.
+pub fn port_open(host: &str, port: u16) -> bool {
+    use std::net::{SocketAddr, TcpStream, ToSocketAddrs};
+    use std::time::Duration;
+    let Ok(mut addrs) = (host, port).to_socket_addrs() else {
+        return false;
+    };
+    let Some(addr): Option<SocketAddr> = addrs.next() else {
+        return false;
+    };
+    TcpStream::connect_timeout(&addr, Duration::from_millis(400)).is_ok()
+}
+
 /// Ask the OS for a free port by binding to :0, then release it.
 ///
 /// There is an unavoidable race between releasing and uvicorn binding. It is

@@ -90,7 +90,26 @@
   .console .err { color: #ff9d96; }
   .console .muted { color: #4f5d6c; }
 
-  .foot { margin-top: .8rem; font-size: .8rem; color: #5c6874; text-align: right; }
+  /* Who this install is for, and what it can see. First launch after an install
+     is exactly when "did the seed work?" gets asked, and the answer otherwise
+     lives behind the /config endpoint. */
+  .ident { margin-top: .85rem; display: flex; flex-wrap: wrap; gap: .45rem; align-items: center; }
+  .chip {
+    font-size: .74rem; letter-spacing: .01em; padding: .2rem .55rem;
+    border-radius: 999px; border: 1px solid rgba(255,255,255,.13);
+    color: #9aa7b4; background: rgba(255,255,255,.035);
+  }
+  .chip.on   { border-color: rgba(46,160,67,.45); color: #7ee29a; }
+  .chip.off  { border-color: rgba(210,153,34,.40); color: #d9a640; }
+  .chip.name { border-color: rgba(204,0,0,.45); color: #ff8a8a; }
+  .chip.path { font-family: Consolas, monospace; font-size: .70rem; color: #6f7d8c; }
+
+  .setup {
+    margin-top: .7rem; font-size: .84rem; color: #d9a640;
+    border-left: 2px solid rgba(210,153,34,.5); padding-left: .6rem; display: none;
+  }
+
+  .foot { margin-top: .55rem; font-size: .8rem; color: #5c6874; text-align: right; }
 
   .error { display: none; }
   .error h2 { font-size: 1rem; color: #ff7b72; margin: 0 0 .5rem; }
@@ -118,6 +137,8 @@
   <div id="live">
     <ul class="checks" id="checks"></ul>
     <div class="console" id="console"><div class="muted">waiting for the backend...</div></div>
+    <div class="setup" id="setup"></div>
+    <div class="ident" id="ident"></div>
     <div class="foot" id="foot"></div>
   </div>
 
@@ -184,6 +205,13 @@
   function advanceTo(index) {
     if (index <= reached) { return; }
     reached = index;
+    // The mark is a status indicator, not decoration: it spins fastest while
+    // there is most left to do and settles as the checks complete.
+    var swirl = document.querySelector('.swirl');
+    if (swirl) {
+      var left = Math.max(0, STEPS.length - index) / STEPS.length;
+      swirl.style.animationDuration = '2.2s, ' + (3 + left * 13).toFixed(1) + 's';
+    }
     for (var i = 0; i < STEPS.length; i++) {
       if (i < index) { if (stateOf(STEPS[i].id) !== 'failed') setState(STEPS[i].id, 'done'); }
       else if (i === index) { if (stateOf(STEPS[i].id) !== 'failed') setState(STEPS[i].id, 'active'); }
@@ -258,16 +286,63 @@
     footEl.textContent = 'preview mode';
   }
 
+  function chip(text, cls) {
+    var el = document.createElement('span');
+    el.className = 'chip' + (cls ? ' ' + cls : '');
+    el.textContent = text;
+    document.getElementById('ident').appendChild(el);
+  }
+
+  function showIdentity() {
+    invoke('env_report').then(function (r) {
+      var ident = document.getElementById('ident');
+      ident.innerHTML = '';
+
+      if (r.company) { chip(r.company, 'name'); }
+      chip(r.seeded ? r.categories + ' categories' : 'no domain pack',
+           r.seeded ? 'on' : 'off');
+      chip(r.ollama ? 'Ollama up' : 'no local model', r.ollama ? 'on' : 'off');
+      if (r.pdc) { chip(r.pdc, ''); }
+      chip(r.state_dir, 'path');
+
+      // An unseeded install classifies NOTHING - the engine ships no categories
+      // - so say that here rather than letting someone scan first and wonder why
+      // every row came back Uncategorized.
+      if (!r.seeded) {
+        var s = document.getElementById('setup');
+        s.textContent = 'No domain pack yet, so a scan will not categorise anything. ' +
+                        'Run provisioning\seed-company.ps1, or use Draft pack after your first review.';
+        s.style.display = 'block';
+      }
+    }).catch(function () { /* preview, or an older shell: just omit the strip */ });
+  }
+
   function fail() {
     document.getElementById('live').style.display = 'none';
     document.getElementById('error').style.display = 'block';
+
+    // "collecting..." must never be the last word. If the shell itself is wedged
+    // this call never settles, and the panel that exists to explain a failure
+    // becomes a second, more confusing failure.
+    var settled = false;
+    setTimeout(function () {
+      if (settled) { return; }
+      document.getElementById('log').textContent =
+        'The shell did not answer within 5 seconds - it is wedged, not merely slow.';
+      document.getElementById('diag').textContent =
+        'Close the window and relaunch. If it recurs, run provisioning\check-environment.ps1.';
+    }, 5000);
+
     invoke('diagnostics').then(function (d) {
+      settled = true;
       var log = d.server_log || [];
       delete d.server_log;
       document.getElementById('log').textContent =
         log.length ? log.join('\n') : 'nothing - the backend produced no output at all.';
       document.getElementById('diag').textContent = JSON.stringify(d, null, 2);
     }).catch(function (e) {
+      settled = true;
+      document.getElementById('log').textContent = 'The shell could not be reached.';
       document.getElementById('diag').textContent = String(e);
     });
   }
@@ -316,7 +391,7 @@
     }).catch(function () { setTimeout(poll, 400); });
   }
 
-  if (HAS_TAURI) { poll(); } else { previewMode(); }
+  if (HAS_TAURI) { showIdentity(); poll(); } else { previewMode(); }
 </script>
 </body>
 </html>
