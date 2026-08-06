@@ -14,7 +14,7 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
-## [1.33.0] - 2026-08-06
+## [1.32.1] - 2026-08-06
 
 ### Added - the splash answers the first question a new install raises
 
