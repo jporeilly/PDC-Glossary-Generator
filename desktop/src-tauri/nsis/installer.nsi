@@ -383,11 +383,12 @@ InstType "Minimal (app only)"
 ; the answers here means the script is always invoked non-interactively, with
 ; everything it needs on the command line.
 Var SeedCompany
+; Not on the page - set only by /Categories= and /PdcUrl= for unattended
+; installs. seed-company.ps1 accepts both; the page just does not ask,
+; because each has a sensible default and an obvious home in the app.
 Var SeedCategories
 Var SeedPdcUrl
 Var SeedCompanyBox
-Var SeedCategoriesBox
-Var SeedPdcBox
 Page custom PageSeedDetails PageSeedDetailsLeave
 
 ; The page functions live below the sections, next to ApplyComponentFlags:
@@ -694,6 +695,12 @@ Section "-Install"
   ; "what is installed" quietly different.
   RMDir /r "$INSTDIR\python"
 
+  ; Status line only for the extraction: the progress text at the top keeps
+  ; moving, but 12,000 "Extract: ..." lines stay out of the log, which exists to
+  ; show what the install DID, not every file it wrote.
+  SetDetailsPrint textonly
+  DetailPrint "Installing application files..."
+
   ; Copy main executable
   File "${MAINBINARYSRCPATH}"
 
@@ -709,6 +716,9 @@ Section "-Install"
   {{#each binaries}}
     File /a "/oname={{this}}" "{{no-escape @key}}"
   {{/each}}
+
+  SetDetailsPrint both
+  DetailPrint "  [ok] application files installed"
 
   ; Create file associations
   {{#each file_associations as |association| ~}}
@@ -906,7 +916,7 @@ Function PageSeedDetails
     Abort
   ${EndIf}
 
-  !insertmacro MUI_HEADER_TEXT "Company details"     "The glossary engine ships with no categories of its own. These seed the starting domain pack."
+  !insertmacro MUI_HEADER_TEXT "Company details" "The glossary engine ships with no categories of its own. This seeds the starting domain pack."
 
   nsDialogs::Create 1018
   Pop $0
@@ -919,17 +929,10 @@ Function PageSeedDetails
   ${NSD_CreateText} 0 26u 100% 13u "$SeedCompany"
   Pop $SeedCompanyBox
 
-  ${NSD_CreateLabel} 0 48u 100% 32u "Glossary categories, comma separated - the top-level buckets terms are filed under. Leave blank for a general-purpose starting set; a scan and review will grow the pack from your own data either way."
+  ${NSD_CreateLabel} 0 48u 100% 24u "Glossary categories and the catalog server are not asked for here: the categories have a sensible starting set and grow from your first scan, and the server is set on the app's Connections page."
   Pop $1
-  ${NSD_CreateText} 0 82u 100% 13u "$SeedCategories"
-  Pop $SeedCategoriesBox
 
-  ${NSD_CreateLabel} 0 102u 100% 18u "Pentaho Data Catalog server, if you have one - any server, there is no default. Optional; it can be set on the Connections page later, and credentials are never stored here."
-  Pop $1
-  ${NSD_CreateText} 0 122u 100% 13u "$SeedPdcUrl"
-  Pop $SeedPdcBox
-
-  ${NSD_CreateLabel} 0 140u 100% 12u "Skip all of this by unticking 'Seed this company' on the previous page."
+  ${NSD_CreateLabel} 0 78u 100% 12u "Skip this by unticking 'Seed this company' on the previous page."
   Pop $1
 
   nsDialogs::Show
@@ -937,8 +940,6 @@ FunctionEnd
 
 Function PageSeedDetailsLeave
   ${NSD_GetText} $SeedCompanyBox $SeedCompany
-  ${NSD_GetText} $SeedCategoriesBox $SeedCategories
-  ${NSD_GetText} $SeedPdcBox $SeedPdcUrl
   ; An empty company name is the one thing the seed cannot work around, so treat
   ; it as "not now" rather than running the script to no purpose.
   ${If} $SeedCompany == ""

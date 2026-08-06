@@ -14,6 +14,30 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.32.11] - 2026-08-06
+
+### Changed - the install log stops listing every file
+
+The details pane was printing one `Extract: ...` line per file - about 12,000 of
+them - which buried the checklist it was meant to be. `SetDetailsPrint textonly`
+around the extraction keeps the STATUS line at the top moving, so unpacking a
+48 MB payload still looks alive, while nothing goes into the log below it. Not
+`none`: freezing both would make a long extract look like a hang, which is the
+problem this set out to avoid.
+
+The whole install now reads as six lines.
+
+### Changed - the installer asks for one thing, not three
+
+Categories and the PDC server are off the Company details page. Neither earned
+its place: the categories have a sensible starting set and grow from the first
+scan anyway, and the server belongs on the app's Connections page, where it can
+be changed without reinstalling. Three fields for one real question made the
+page look like it wanted more than it did.
+
+Both remain as `/Categories=` and `/PdcUrl=` for unattended installs -
+`seed-company.ps1` still accepts them. The page simply stops asking.
+
 ## [1.32.10] - 2026-08-06
 
 ### Changed - the installer shows a checklist, not a transcript
