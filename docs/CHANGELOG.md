@@ -14,6 +14,35 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.32.15] - 2026-08-06
+
+### Fixed - "Ollama has no model pulled" on a machine with fourteen
+
+The hand-rolled HTTP client did not understand `Transfer-Encoding: chunked`,
+which is how Ollama answers `/api/tags`. It handed the raw body - hex length
+prefixes and all - to the JSON parser, which failed, so `first_model()` returned
+`None` and **Suggest fixes** refused to run for want of a model.
+
+That is the cost of the forty-line client, and it is still the right trade
+against a TLS-carrying HTTP crate for one localhost endpoint - but chunked
+encoding is not exotic and should have been handled from the start. It decodes
+now, keeping a truncated body rather than discarding a nearly complete answer
+when a read times out.
+
+### Added - the failure panel says what KIND of failure it is
+
+The last real failure was indistinguishable from success in the raw data: the
+log was full of `GET /api/version 200 OK` while the window could not read a
+single response. A panel that dumps JSON invites the wrong diagnosis.
+
+It now leads with a classification drawn from evidence the shell already has:
+
+- a traceback in the log -> "The backend stopped with an error"
+- `address already in use` -> "The port was already taken"
+- **200s in the log but never connected** -> "The server started, but the window
+  could not reach it", and says explicitly that this is not a broken install
+- no output at all -> "The backend produced no output at all"
+
 ## [1.32.14] - 2026-08-06
 
 ### Fixed - the splash never opened the app, against a server that was ready

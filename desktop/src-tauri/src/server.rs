@@ -341,7 +341,40 @@ pub mod ollama {
         let _ = stream.read_to_end(&mut raw);
         let text = String::from_utf8_lossy(&raw).into_owned();
         let idx = text.find("\r\n\r\n")?;
-        Some(text[idx + 4..].to_string())
+        let (head, rest) = text.split_at(idx);
+        let body = &rest[4..];
+
+        // Ollama answers /api/tags with Transfer-Encoding: chunked. Passing that
+        // body straight to a JSON parser fails on the hex length prefixes, and the
+        // caller then reports "no model pulled" on a machine with fourteen.
+        if head.to_ascii_lowercase().contains("transfer-encoding: chunked") {
+            return Some(dechunk(body));
+        }
+        Some(body.to_string())
+    }
+
+    /// Reassemble a chunked body: <hex length> CRLF <data> CRLF, ending at 0.
+    fn dechunk(body: &str) -> String {
+        let mut out = String::new();
+        let mut rest = body;
+        loop {
+            let Some(nl) = rest.find("\r\n") else { break };
+            let size = usize::from_str_radix(rest[..nl].trim(), 16).unwrap_or(0);
+            if size == 0 {
+                break;
+            }
+            let start = nl + 2;
+            let end = start + size;
+            if end > rest.len() {
+                // Truncated by a read timeout. Keep what arrived rather than
+                // discarding a nearly complete answer.
+                out.push_str(&rest[start..]);
+                break;
+            }
+            out.push_str(&rest[start..end]);
+            rest = &rest[(end + 2).min(rest.len())..];
+        }
+        out
     }
 
     /// First installed model, or None when Ollama is up but empty - which is a
