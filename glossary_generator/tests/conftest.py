@@ -52,7 +52,7 @@ def fresh_dict():
     """A clean tag dictionary: wipe the persisted file + in-memory caches, and
     remove any pack a previous test wrote, so every test starts from the
     built-in defaults."""
-    import tagdict
+    from engine import tagdict
     for var in ("GLOSSARY_TAG_DICTIONARY", "GLOSSARY_DOMAIN_PACK"):
         try:
             os.unlink(os.environ[var])

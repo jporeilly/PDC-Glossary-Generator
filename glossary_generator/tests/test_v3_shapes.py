@@ -9,8 +9,8 @@ package (via the pdc_api shim) after any change to the client / suggester
 builders."""
 import inspect
 
-import pdc_api
-import suggester
+from sources import pdc_api
+from engine import suggester
 
 # --------------------------------------------------------------------------- #
 #  The v3 contract, embedded (source: PDC Public API v3 OpenAPI, PDC 11.0.0)

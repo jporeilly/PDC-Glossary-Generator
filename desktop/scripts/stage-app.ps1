@@ -70,12 +70,14 @@ $excludeDirs = @(".venv", "__pycache__", ".pytest_cache", "registries", "tests",
                  # belong.
                  "diagrams")
 
-# Developer tools, not part of the app. Neither is imported by anything - that
-# was checked, not assumed, and it matters: seed_sample.py LOOKS like a dev
-# script by its name and is imported by api.py, so dropping it would break the
-# packaged app on a customer machine and nowhere else. The import assertion at
-# the end of this script exists because of exactly that trap.
-$excludeFiles += @("cli_suggester.py", "build_roster.py")
+# Developer tools, not part of the app. Since 1.33.0 they live in cli/, so the
+# whole directory goes rather than a list of filenames that would drift.
+#
+# Nothing imports them - checked, not assumed, and it matters: seed_sample.py
+# LOOKS like a dev script by its name and IS imported by api.py, so dropping it
+# would break the packaged app on a customer machine and nowhere else. The
+# import assertion at the end of this script exists because of that trap.
+$excludeDirs  += @("cli")
 
 # robocopy: /MIR-free mirror of a clean tree, /XD and /XF do the excluding.
 # Exit codes 0-7 are success (8+ is a real failure) - a quirk worth pinning,

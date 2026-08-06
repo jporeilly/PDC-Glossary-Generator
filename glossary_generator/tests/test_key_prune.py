@@ -1,6 +1,6 @@
 """Structural-key pruning vs profiling evidence: tiny demo tables must not
 turn surrogate ids into kept 'enum' business terms."""
-import suggester
+from engine import suggester
 
 
 class TestEnumNeedsRepetition:
@@ -75,18 +75,18 @@ class TestDocumentPathPrune:
        version of this rule."""
 
     def test_envelope_paths_are_pruned(self):
-        import suggester
+        from engine import suggester
         assert "envelope" in suggester.document_path_prune("export_metadata.units.flow")
         assert suggester.document_path_prune("metadata.source")
 
     def test_control_fields_are_pruned(self):
-        import suggester
+        from engine import suggester
         for name in ("_id", "$schema", "@timestamp"):
             assert suggester.document_path_prune(name), name
 
     def test_bookkeeping_fields_are_pruned(self):
         """Fields about the extract rather than the data, wherever they sit."""
-        import suggester
+        from engine import suggester
         for name in ("readings.timestamp", "readings.sensor_id", "rows.record_id",
                      "readings.source", "batch.checksum"):
             assert suggester.document_path_prune(name), name
@@ -95,7 +95,7 @@ class TestDocumentPathPrune:
         """The regression that mattered: chlorine residual and turbidity are
            regulated drinking-water measures — precisely what a utility governs.
            Nesting is a fact about the file format, not a reason to drop them."""
-        import suggester
+        from engine import suggester
         for name in ("systems.chlorine_residual_ppm", "systems.turbidity_ntu",
                      "readings.flow_gpm", "readings.pressure_psi",
                      "readings.reservoir_level_percent", "systems.population_served",
@@ -103,7 +103,7 @@ class TestDocumentPathPrune:
             assert suggester.document_path_prune(name) is None, name
 
     def test_a_plain_business_column_is_kept(self):
-        import suggester
+        from engine import suggester
         for name in ("asset_id", "street_name", "condition_rating", "latitude"):
             assert suggester.document_path_prune(name) is None, name
 
@@ -114,12 +114,12 @@ class TestDocumentLeafName:
        arriving from a database column merge with it."""
 
     def test_leaf_is_taken_from_a_path(self):
-        import suggester
+        from engine import suggester
         assert suggester.document_leaf_name("systems.chlorine_residual_ppm") == "chlorine_residual_ppm"
         assert suggester.document_leaf_name("a.b.c") == "c"
 
     def test_plain_names_pass_through(self):
-        import suggester
+        from engine import suggester
         assert suggester.document_leaf_name("asset_id") == "asset_id"
         assert suggester.document_leaf_name("") == ""
 
@@ -131,25 +131,25 @@ class TestDocumentTableTermNames:
        glossary accretes one term per file per day and nothing ever merges."""
 
     def test_extension_is_dropped(self):
-        import suggester
+        from engine import suggester
         assert suggester.table_term_name("asset_inventory.csv") == "Asset Inventory Record"
 
     def test_a_dated_snapshot_collapses_to_one_stable_term(self):
         """Today's and tomorrow's export must be the SAME term."""
-        import suggester
+        from engine import suggester
         a = suggester.table_term_name("pinal_valley_pressure_2026-05-14.json")
         b = suggester.table_term_name("pinal_valley_pressure_2026-05-15.json")
         assert a == b == "Pinal Valley Pressure Record"
 
     def test_every_period_shape_an_export_uses(self):
-        import suggester
+        from engine import suggester
         for name, want in (("epa_compliance_bisbee_2026Q1.pdf", "Epa Compliance Bisbee Record"),
                            ("usage_202605.csv", "Usage Record"),
                            ("report_2026_H2.xlsx", "Report Record")):
             assert suggester.table_term_name(name) == want, name
 
     def test_database_tables_are_untouched(self):
-        import suggester
+        from engine import suggester
         assert suggester.table_term_name("customers") == "Customer Record"
         assert suggester.table_term_name("water_systems") == "Water System Record"
 
@@ -157,7 +157,7 @@ class TestDocumentTableTermNames:
         """A curated table_terms entry must not be bypassed by the cleanup —
            looked up both on the raw name and on the cleaned stem, so a pack can
            key on either 'usage_2026.csv' or 'usage'."""
-        import suggester
+        from engine import suggester
         monkeypatch.setitem(suggester.TABLE_TERMS, "tiered_rates", "Rate Plan Record")
         monkeypatch.setitem(suggester.TABLE_TERMS, "usage", "Consumption Record")
         assert suggester.table_term_name("tiered_rates") == "Rate Plan Record"
@@ -173,7 +173,7 @@ class TestDocumentColumnCategory:
        Water Quality, leaving two rows that can never merge (Category + Term)."""
 
     def _cats(self, monkeypatch, pairs):
-        import suggester
+        from engine import suggester
         monkeypatch.setattr(suggester, "CAT_KEYWORDS",
                             [("turbidity", "Water Quality"), ("chlorine", "Water Quality"),
                              ("system", "Water System")])
@@ -192,12 +192,12 @@ class TestDocumentColumnCategory:
     def test_it_never_consults_table_category(self, monkeypatch):
         """TABLE_CATEGORY is keyed on table names; matching a column against it
            would categorise by accident."""
-        import suggester
+        from engine import suggester
         monkeypatch.setattr(suggester, "CAT_KEYWORDS", [])
         monkeypatch.setitem(suggester.TABLE_CATEGORY, "customers", "Customer")
         assert suggester.categorize_column("customers") is None
 
     def test_empty_input_is_safe(self):
-        import suggester
+        from engine import suggester
         assert suggester.categorize_column("") is None
         assert suggester.categorize_column(None) is None

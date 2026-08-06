@@ -30,7 +30,13 @@ import os
 import sys
 import tempfile
 
-APP_DIR = os.path.dirname(os.path.abspath(__file__))
+# The APP root - where api.py lives - not this package's directory.
+#
+# paths.py moved into core/ when the modules were grouped, and a plain
+# dirname(__file__) silently started resolving every asset into core/: VERSION,
+# templates/, domain_pack.json. Nothing raised; the app simply could not find
+# its own files. Anchored on the parent so it survives the module moving again.
+APP_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 _STATE_DIR = None
 _STATE_SOURCE = None      # why we chose it - surfaced by /api/config

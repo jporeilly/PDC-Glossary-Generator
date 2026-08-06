@@ -14,6 +14,60 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.33.0] - 2026-08-06
+
+### Changed - the modules are grouped into packages
+
+`glossary_generator/` was 18 flat modules. Now:
+
+    core/     paths, audit
+    engine/   suggester, similarity, tagdict, packgen, packinit, defqa, policy_draft
+    ai/       llm, llm_providers, llm_detect
+    sources/  dbconn, seed_sample, pdc_api
+    cli/      cli_suggester, build_roster
+
+`api.py` stays at the root - `boot.py` imports it by name - and `registry/` was
+already a package. Filenames are unchanged: the source viewer, the docs and this
+changelog all refer to them by name, and renaming as well as moving would have
+invalidated every one of those at once.
+
+Two things the move broke, both caught by the suite rather than by an installer:
+
+- `paths.APP_DIR` was `dirname(__file__)`, so once `paths.py` lived in `core/`
+  every asset resolved into `core/` - `VERSION`, `templates/`,
+  `domain_pack.json`. Nothing raised; the app simply stopped finding its own
+  files. It is anchored on the parent now, so it survives the module moving
+  again.
+- Two deferred `import pdc_api, io, csv` statements inside functions, which the
+  import rewrite's line pattern did not match.
+
+The "Under the hood" viewer now serves **relative paths** rather than bare
+filenames, so it follows the layout instead of describing it separately, and a
+test asserts every whitelisted entry resolves. `cli/*` is deliberately absent -
+the installer does not ship it, so serving it would 404 on a real install.
+
+### Changed - the generic tag dictionary is governance vocabulary, not an industry
+
+It shipped `Meter Reading` as a governed term, `metering` / `usage` / `rate` /
+`billing` / `revenue` / `asset` tags, and rules like
+`usage|consumption|meter|reading` - the water-utility scenario leaking into the
+engine, exactly as `"Billing & Rates"` did in `CAT_KEYWORDS` before 1.29. On a
+fresh install a credit union was offered "Metering" as governed vocabulary that
+nobody had chosen.
+
+The line drawn: the generic layer keeps vocabulary about **data governance** -
+regulatory categories, sensitivity, identifiers, structure - and gives up
+vocabulary about a **business domain**. 26 tags to 20, 10 terms to 9, 11 rules
+to 8. `pii`, `personal-data`, `maskable`, `cde`, `temporal` and `compliance` all
+stay, and a test now fails if industry vocabulary returns.
+
+`Service Address` became `Address`, keeping both spellings as aliases so a
+utility pack still resolves to the canonical term.
+
+### Tests
+
+182.
+
 ## [1.32.18] - 2026-08-06
 
 ### Fixed - the seed was skipped on every install

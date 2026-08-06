@@ -11,7 +11,7 @@ deployment it would come from the authenticated identity. Persisted to audit_log
 from __future__ import annotations
 import os, json, threading, datetime
 
-import paths
+from core import paths
 
 HERE = paths.APP_DIR
 AUDIT_FILE = paths.state_path("audit_log.json", "GLOSSARY_AUDIT_LOG")

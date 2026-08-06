@@ -19,7 +19,7 @@ Saved to tag_dictionary.json (override with $GLOSSARY_TAG_DICTIONARY).
 from __future__ import annotations
 import os, re, json, threading
 
-import paths
+from core import paths
 
 HERE = paths.APP_DIR
 DICT_FILE = paths.state_path("tag_dictionary.json", "GLOSSARY_TAG_DICTIONARY")
@@ -104,6 +104,14 @@ def _normalize_doc(d):
     return d
 
 # --- GENERIC baseline: tags (with common sensitivity floor) ----------------- #
+# GENERIC = governance vocabulary, not industry vocabulary.
+#
+# billing / rate / revenue / usage / metering / asset were removed in
+# 1.33: they are the water-utility scenario leaking into the engine, the
+# same fault the category keywords had before 1.29. A credit union has no
+# use for "Metering", and offering it as governed vocabulary implies
+# somebody chose it. A domain pack supplies whatever a company actually
+# needs; extra_tags puts it straight into the allow-list.
 _SEED_TAGS = {
     "pii":              {"label": "PII", "sensitivity_floor": "HIGH"},
     "personal-data":    {"label": "Personal data", "sensitivity_floor": "HIGH"},
@@ -114,14 +122,8 @@ _SEED_TAGS = {
     "financial":        {"label": "Financial", "sensitivity_floor": "MEDIUM"},
     "sensitive":        {"label": "Sensitive", "sensitivity_floor": "MEDIUM"},
     "tax":              {"label": "Tax"},
-    "billing":          {"label": "Billing"},
-    "rate":             {"label": "Rate / tariff"},
-    "revenue":          {"label": "Revenue"},
-    "usage":            {"label": "Usage"},
-    "metering":         {"label": "Metering"},
     "compliance":       {"label": "Regulatory compliance"},
     "operational":      {"label": "Operational"},
-    "asset":            {"label": "Asset"},
     "temporal":         {"label": "Temporal"},
     "governance":       {"label": "Governance"},
     "customer":         {"label": "Customer"},
@@ -147,12 +149,13 @@ _SEED_TERMS = {
                         "sensitivity": "MEDIUM", "tags": ["pii", "contact", "privacy"]},
     "Phone":           {"aliases": ["Phone Number", "Telephone"],
                         "sensitivity": "MEDIUM", "tags": ["pii", "contact", "privacy"]},
-    "Service Address": {"aliases": ["Mailing Address"],
+    # "Service Address" is a utility's word for it; the aliases keep a pack
+    # that uses one resolving to this canonical term.
+    "Address":         {"aliases": ["Mailing Address", "Service Address"],
                         "sensitivity": "MEDIUM", "tags": ["pii", "location", "privacy"]},
     "SSN":             {"aliases": ["Social Security Number"],
                         "sensitivity": "HIGH",   "tags": ["pii", "direct-identifier", "sensitive"]},
-    "Amount":          {"aliases": [], "sensitivity": "MEDIUM", "tags": ["financial", "billing"]},
-    "Meter Reading":   {"aliases": ["Usage Reading"], "sensitivity": "LOW", "tags": ["usage", "metering"]},
+    "Amount":          {"aliases": [], "sensitivity": "MEDIUM", "tags": ["financial"]},
     "Date":            {"aliases": ["Timestamp"], "sensitivity": "LOW", "tags": ["temporal"]},
 }
 
@@ -173,19 +176,19 @@ def document_category():
     return (_domain_pack().get("document_category")
             or _DOCUMENT_CATEGORY_FALLBACK)
 
+# Rules follow the same line as the tags above: a pattern is generic only if
+# it means the same thing in any estate. The rate/tier, usage/metering and
+# asset/equipment rules went with their tags in 1.33.
 _SEED_RULES = [
     (r"amount|charge|\bbill|cost|price|\bfee|payment|invoice|balance|\bdue\b|\bpaid|revenue|outstanding",
-                                                     ["billing", "financial"]),
+                                                     ["financial"]),
     (r"\btax\b",                                     ["financial", "tax"]),
-    (r"rate|tier|\bplan\b|pric",                     ["billing", "rate"]),
-    (r"usage|consumption|\bmeter|reading|volume", ["usage", "metering"]),
     (r"violation|compliance|regulat|audit", ["compliance"]),
     (r"alert|status|\bflag\b|\bstate\b|\bevent\b|severity|resolved", ["operational"]),
     (r"\bdate\b|time|timestamp|\bmonth\b|\byear\b|period|billing_cycle", ["temporal"]),
-    (r"system|asset|infrastructure|equipment", ["asset", "operational"]),
     (r"email|phone|mobile|contact", ["contact", "privacy"]),
     (r"address|street|\bcity\b|\bzip\b|postal|county|geo|lat|long|coordinate|location", ["location"]),
-    (r"account|customer.?id|system.?id|meter.?id|premise", ["identifier"]),
+    (r"account|customer.?id|system.?id", ["identifier"]),
 ]
 
 

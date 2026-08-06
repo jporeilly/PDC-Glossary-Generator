@@ -152,7 +152,7 @@ def _topo(tables):
 
 
 def seed(cfg, rows=200, only_empty=True, schema=None):
-    import dbconn
+    from sources import dbconn
     schema = schema or cfg.get("schema") or "public"
     conn = dbconn._connect(cfg)
     inserted = []

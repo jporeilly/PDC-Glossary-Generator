@@ -11,7 +11,7 @@ import sys
 
 import pytest
 
-import paths
+from core import paths
 
 
 @pytest.fixture
@@ -153,7 +153,7 @@ def test_app_modules_agree_on_the_state_dir():
     """api, audit and tagdict must resolve through the SAME module. Three copies
        of the rule is how the State snapshot ended up ignoring the registry
        override it documented."""
-    import audit
-    import tagdict
+    from core import audit
+    from engine import tagdict
     for mod in (audit, tagdict):
         assert mod.paths is paths

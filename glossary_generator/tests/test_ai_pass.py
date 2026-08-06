@@ -1,6 +1,6 @@
 """The combined AI pass: one call per row for every LLM-decidable field, under
 the same guardrails the separate agents apply."""
-import llm
+from ai import llm
 from conftest import make_row
 
 

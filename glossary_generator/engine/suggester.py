@@ -9,8 +9,8 @@ Stages, all pure functions so both the CLI and the web app reuse them:
 A "row" is the steward-facing review record (also what the UI edits).
 """
 import os, re, json, uuid
-import paths
-import tagdict
+from core import paths
+from engine import tagdict
 
 DOMAIN = "General"
 GEN_TS = "2026-06-18T12:00:00.000Z"
@@ -152,7 +152,7 @@ def harvest_live(cfg, schema=None):
        Reads columns + keys + comments from information_schema (pg/mysql/mssql)
        or the ALL_* dictionary views (oracle — schema/owner defaults to the
        connecting user, uppercased)."""
-    import dbconn
+    from sources import dbconn
     eng = cfg.get("engine", "postgresql")
     schema = schema or cfg.get("schema") or ("public" if eng == "postgresql" else None)
     conn = dbconn._connect(cfg)
@@ -340,7 +340,7 @@ def sample_distinct_values(cfg, sources, limit=200):
        because it compares the actual populations). Returns {source: [values]};
        sources that fail to read are simply absent. Postgres/MySQL/MSSQL via
        dbconn (Oracle uses FETCH FIRST)."""
-    import dbconn
+    from sources import dbconn
     eng = cfg.get("engine", "postgresql")
     conn = dbconn._connect(cfg)
     out = {}
@@ -382,7 +382,7 @@ def apply_keys_live(cfg, schema, keymap, dry_run=True):
        them. Idempotent: existing keys are skipped. Each statement runs in its own
        sub-transaction so one failure (e.g. an orphan FK value) doesn't block the
        rest. Returns a per-statement report; dry_run just returns the planned SQL."""
-    import dbconn
+    from sources import dbconn
     eng = cfg.get("engine", "postgresql")
     schema = schema or cfg.get("schema") or "public"
     if eng != "postgresql":
@@ -583,7 +583,7 @@ def _profile_values(name, vals, sample_n):
 def profile_live(cfg, tables, schema=None, sample_size=80):
     """Sample rows per table and attach a `profile` dict to each column. Best-effort;
        columns/tables that can't be sampled are left name-based."""
-    import dbconn
+    from sources import dbconn
     eng = cfg.get("engine", "postgresql")
     schema = schema or cfg.get("schema") or "public"
     conn = dbconn._connect(cfg)
@@ -621,7 +621,7 @@ def discover(cfg, schema=None, sample_size=100):
     """Full data-discovery profile per table/column: row counts, completeness,
        distinct/uniqueness, sensitivity/PII/CDE, detected kind and example values.
        Mirrors the dimensions PDC's column profiling shows, for side-by-side comparison."""
-    import dbconn
+    from sources import dbconn
     schema = schema or cfg.get("schema") or "public"
     tables = harvest_live(cfg, schema)
     try:

@@ -66,7 +66,7 @@ class TestRefreshPending:
         assert m["status"] == "approved"
 
     def test_glossary_save_triggers_refresh(self, client):
-        import tagdict
+        from engine import tagdict
         tagdict.accrete([make_row("Alert Type", "public.account_alerts.alert_type",
                                   Definition="raw scan definition.")])
         r = client.post("/api/glossaries", json={

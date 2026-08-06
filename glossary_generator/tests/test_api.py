@@ -208,7 +208,7 @@ class TestJobs:
         assert any(e.get("event") == "row" for e in st["events"])
 
     def test_pull_model_job_with_stubbed_stream(self, client, monkeypatch):
-        import llm
+        from ai import llm
         def fake_pull(model=None):
             yield {"phase": "downloading", "status": "pulling", "completed": 50,
                    "total": 100, "percent": 50.0}
@@ -240,7 +240,7 @@ class TestLabExport:
                            json={"filename": "x.jsonl"}).status_code == 400
 
     def test_uploads_via_saved_connection(self, client, monkeypatch):
-        import suggester
+        from engine import suggester
         self._clear_conns()
         client.post("/api/connections",
                     json={"name": "LabMinio", "type": "minio",
@@ -271,7 +271,7 @@ class TestLabExport:
         assert d["connection"] == "LabMinio" and ":9001" in d["hint"]
 
     def test_several_connections_need_an_explicit_pick(self, client, monkeypatch):
-        import suggester
+        from engine import suggester
         self._clear_conns()
         for n in ("LabMinio", "OtherStore"):
             client.post("/api/connections",
@@ -297,7 +297,7 @@ class TestDiscoveryProgress:
 
     def test_worker_done_reported_even_when_not_all_profiled(self, client, monkeypatch):
         import api
-        import pdc_api
+        from sources import pdc_api
         monkeypatch.setattr(api, "_pdc_token_and_reauth", lambda *a, **k: ("tok", None))
         monkeypatch.setattr(pdc_api, "profiled_snapshot",
                             lambda *a, **k: {"id1": "2026-07-18T10:00:00", "id2": None})
@@ -315,7 +315,7 @@ class TestDiscoveryProgress:
 
     def test_without_job_id_the_old_contract_holds(self, client, monkeypatch):
         import api
-        import pdc_api
+        from sources import pdc_api
         monkeypatch.setattr(api, "_pdc_token_and_reauth", lambda *a, **k: ("tok", None))
         monkeypatch.setattr(pdc_api, "profiled_snapshot",
                             lambda *a, **k: {"id1": "t1", "id2": "t2"})
@@ -358,7 +358,7 @@ class TestAdviseHonesty:
        blames a healthy Ollama for a run the evidence already settled."""
 
     def test_reports_zero_ambiguous_when_evidence_settles_everything(self, client, monkeypatch):
-        import llm
+        from ai import llm
         called = {"n": 0}
 
         def _never(*a, **k):
@@ -385,7 +385,7 @@ class TestPdcDerivedQuality:
        at all, they are the only measurements that will ever exist."""
 
     def test_profiling_response_carries_a_derived_score(self, client, monkeypatch):
-        import pdc_api
+        from sources import pdc_api
         monkeypatch.setattr(
             pdc_api, "pdc_profile_for_columns",
             lambda *a, **k: {
@@ -402,3 +402,24 @@ class TestPdcDerivedQuality:
         assert p["s.t.sparse_col"]["derived_quality"] == 40
         assert p["s.t.unprofiled"]["derived_quality"] is None, "no measurement, no score"
         assert r.json()["derived_quality"] == 2, "counts only the scored ones"
+
+
+class TestSourceViewer:
+    """The "Under the hood" viewer serves files by RELATIVE PATH.
+
+    Nothing else checks those strings, so a module move breaks them silently -
+    the page 404s and the learner concludes the app is broken rather than that a
+    path went stale. This is the check that grouping the modules into packages
+    needed and did not have.
+    """
+
+    def test_every_whitelisted_source_exists(self):
+        import api
+        missing = [k for k in api._SOURCE_WHITELIST if not os.path.isfile(api._source_path(k))]
+        assert not missing, "whitelisted sources that do not exist: {}".format(missing)
+
+    def test_developer_tools_are_not_offered(self):
+        """cli/* does not ship with the installer, so serving it would 404 on a
+           real install even though it resolves in a checkout."""
+        import api
+        assert not [k for k in api._SOURCE_WHITELIST if k.startswith("cli/")]

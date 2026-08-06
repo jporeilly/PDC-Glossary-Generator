@@ -1,7 +1,7 @@
 """The scan's own fallback definition reads like prose but says nothing — it has
 to be flagged, because that flag is what turns into the AI pass's REWRITE
 REQUIRED instruction."""
-import defqa
+from engine import defqa
 
 
 def _lint(term, definition):

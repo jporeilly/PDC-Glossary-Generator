@@ -19,7 +19,7 @@ import concurrent.futures
 
 import httpx
 
-import llm_providers          # hosted providers (Anthropic / OpenAI / Azure / Google)
+from ai import llm_providers          # hosted providers (Anthropic / OpenAI / Azure / Google)
 
 MODEL      = os.environ.get("LLM_MODEL", "llama3.2:3b")
 OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://localhost:11434").rstrip("/")

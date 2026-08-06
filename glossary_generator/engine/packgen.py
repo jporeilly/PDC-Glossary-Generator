@@ -29,7 +29,7 @@ replaced seed is still visible in the conflict report). Pass `resolutions`
 from __future__ import annotations
 import re
 
-import tagdict
+from engine import tagdict
 
 _NON = re.compile(r"[^A-Za-z0-9]+")
 

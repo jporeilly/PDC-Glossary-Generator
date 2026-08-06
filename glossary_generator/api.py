@@ -59,19 +59,19 @@ def _load_dotenv(path=None):
 
 _load_dotenv()
 
-import paths
-import suggester
-import tagdict
-import audit
-import similarity
-import policy_draft
-import defqa
-import packgen
-import llm
-import llm_providers
-import llm_detect
-import dbconn
-import seed_sample
+from core import paths
+from engine import suggester
+from engine import tagdict
+from core import audit
+from engine import similarity
+from engine import policy_draft
+from engine import defqa
+from engine import packgen
+from ai import llm
+from ai import llm_providers
+from ai import llm_detect
+from sources import dbconn
+from sources import seed_sample
 
 def _app_version():
     """Single source of truth for the app version: the VERSION file beside api.py,
@@ -417,7 +417,7 @@ def _state_files():
     app version restores cleanly on a newer one — the app can change, the
     state format tolerates it. Paths honor the same env overrides the app
     itself uses."""
-    import audit as _audit
+    from core import audit as _audit
     files = [(SETTINGS_FILE, "settings.json"),
              (CONN_FILE, "connections.json"),
              (GLOSS_FILE, "glossaries.json"),
@@ -511,25 +511,38 @@ async def api_state_restore(request: Request):
             "running_version": APP_VERSION}
 
 # Source files this app will expose for transparency (the "Under the hood" viewer).
+#
+# Keys are RELATIVE PATHS, so they follow the package layout rather than
+# describing it separately - when the modules were grouped into core/ engine/
+# ai/ sources/, a list of bare filenames would have quietly 404'd instead.
+# cli/* is deliberately absent: those are developer entry points and the
+# installer does not ship them, so serving them would fail on a real install.
 # Whitelisted on purpose — runtime state (people.json, settings.json, secrets) is
 # never served. This is a teaching tool: the learner can read exactly what runs.
 # Keys are the stable names the UI shows; pdc_api/* keys resolve to the shared
 # pdc_client package at the repo root (extracted in 1.9.0).
 _SOURCE_WHITELIST = {
-    "api.py":          "FastAPI backend — every /api/* endpoint and how it dispatches.",
-    "suggester.py":    "Scan + term suggestion: introspection, profiling, JSONL build.",
+    "api.py":                  "FastAPI backend - every /api/* endpoint and how it dispatches.",
+    "core/paths.py":           "Where state lives: the one place that decides which directory.",
+    "core/audit.py":           "Append-only steward audit trail.",
+    "engine/suggester.py":     "Scan + term suggestion: introspection, profiling, JSONL build.",
+    "engine/similarity.py":    "Duplicate detection and the evidence rubric behind it.",
+    "engine/tagdict.py":       "The governed Term & tag dictionary.",
+    "engine/packgen.py":       "Grows a domain pack from reviewed rows.",
+    "engine/packinit.py":      "Scaffolds a thin domain pack for a new company.",
+    "engine/defqa.py":         "Definition linter.",
+    "engine/policy_draft.py":  "Drafts PDC classification policies from the Registry.",
+    "ai/llm.py":               "Model client used for definition/purpose enrichment.",
+    "ai/llm_providers.py":     "Hosted providers: Anthropic, OpenAI/Azure, Google.",
+    "ai/llm_detect.py":        "Host/GPU detection and model recommendation.",
+    "sources/dbconn.py":       "Database connection + driver handling for the live scan.",
+    "sources/seed_sample.py":  "Seeds a sample dataset into a schema for demos.",
     "pdc_api/core.py":     "PDC public-API client: transport, auth, response helpers.",
     "pdc_api/entities.py": "PDC public-API client: entity filter/resolve + catalog harvest.",
     "pdc_api/terms.py":    "PDC public-API client: term resolution and id stamping.",
     "pdc_api/jobs.py":     "PDC public-API client: jobs (trust score, discovery, profiling).",
     "pdc_api/apply.py":    "PDC public-API client: merge + PATCH write-back.",
     "pdc_api/bulkload.py": "PDC public-API client: bulk data-source loader.",
-    "dbconn.py":       "Database connection + driver handling for the live scan.",
-    "llm.py":          "Local Ollama client used for definition/purpose enrichment.",
-    "llm_detect.py":   "Host/GPU detection and Ollama model recommendation.",
-    "build_roster.py": "Helper to build a people roster.",
-    "cli_suggester.py":"Command-line entry point for the suggester.",
-    "seed_sample.py":  "Seeds a sample dataset into a schema for demos.",
 }
 
 def _source_path(key):
@@ -778,7 +791,7 @@ def import_connections_csv(body: dict = Body(default={})):
        Body: {csv|rows, preview?, only?}. preview=true returns the candidate list
        (parsed, not saved) so the UI can let the user tick which to import. only=[names]
        imports just those; omit to import all."""
-    import pdc_api
+    from sources import pdc_api
     body = body or {}
     rows = body.get("rows")
     if not rows and body.get("csv"):
@@ -1413,7 +1426,7 @@ def api_resolve_fuzzy(body: dict = Body(default={})):
     definition as context. Proposals only — the steward binds each one.
     Body: {names, definitions?, base_url, username/password|token, realm?,
     version?, verify_tls?, glossary_name?, model?, compute?}."""
-    import pdc_api
+    from sources import pdc_api
     body = body or {}
     names = [str(n).strip() for n in (body.get("names") or []) if str(n).strip()]
     base = (body.get("base_url") or "").strip()
@@ -1480,7 +1493,7 @@ def _resolve_terms_impl(body, progress=None):
     Returns the response dict; raises ValueError (bad request) or RuntimeError
     (PDC-side failure). `progress` gets {phase:'term', done, total, name} per
     lookup and {phase:'finishing'} before the stamp/probe tail."""
-    import pdc_api
+    from sources import pdc_api
     api_json = body.get("json") or []
     base = (body.get("base_url") or "").strip()
     version = body.get("version") or "v2"
@@ -1595,7 +1608,7 @@ def _pdc_token_and_reauth(body, base, version, verify):
     """Return (token, reauth) for a PDC call. reauth re-mints a token from
        username/password on a 401; it is None when only a bearer token was given
        (nothing to re-auth with). Token is kept in memory only, never persisted."""
-    import pdc_api
+    from sources import pdc_api
     user = body.get("username", "")
     pwd = body.get("password", "")
     token = (body.get("token") or "").strip()
@@ -1628,7 +1641,7 @@ def pdc_token(body: dict = Body(default={})):
        display-only decode (username, roles, expiry) so the operator can confirm
        the right account before writing. Token is returned for in-memory use only;
        the app never persists it."""
-    import pdc_api
+    from sources import pdc_api
     body = body or {}
     base = (body.get("base_url") or "").strip()
     version = body.get("version") or "v2"
@@ -1650,7 +1663,8 @@ def pdc_token(body: dict = Body(default={})):
 # columns (databaseType/configMethod/affinityId/region/fqdnId) blank to accept the
 # kind-derived defaults; set them to override (an export fills the exact PDC codes).
 def _bulk_sample_csv():
-    import pdc_api, io, csv
+    import io, csv
+    from sources import pdc_api
     buf = io.StringIO()
     w = csv.DictWriter(buf, fieldnames=pdc_api.CSV_COLUMNS, extrasaction="ignore",
                        lineterminator="\r\n")
@@ -2326,7 +2340,8 @@ def connections_export_csv():
     """Export the app's saved connections as a bulk-loader CSV (same columns the
        loader consumes). Includes credentials, so the CSV loads straight back in —
        treat the file as sensitive."""
-    import pdc_api, io, csv
+    import io, csv
+    from sources import pdc_api
     rows = [r for r in (_saved_conn_to_row(c) for c in _load_connections()) if r]
     buf = io.StringIO()
     w = csv.DictWriter(buf, fieldnames=pdc_api.CSV_COLUMNS, extrasaction="ignore",
@@ -2344,7 +2359,7 @@ def pdc_connections_export(body: dict = Body(default={})):
        connection can be captured and replayed. Secrets are blanked — PDC never
        returns plaintext credentials — so the operator re-enters them before reload.
        Auth is a bearer token or username/password, exactly like the other PDC calls."""
-    import pdc_api
+    from sources import pdc_api
     body = body or {}
     base = (body.get("base_url") or body.get("base") or "").strip()
     version = body.get("version") or "v2"
@@ -2372,7 +2387,7 @@ def _bulk_load_events(body):
        create -> test-connection (poll) -> metadata ingest, yielding one event
        dict per row (plus start/done). Auth is a bearer token or
        username/password; secrets are never persisted or logged."""
-    import pdc_api
+    from sources import pdc_api
     base = (body.get("base_url") or body.get("base") or "").strip()
     version = body.get("version") or "v2"
     verify = bool(body.get("verify_tls", False))
@@ -2481,7 +2496,7 @@ def pdc_bulk_load(body: dict = Body(default={})):
 def _apply_to_pdc_impl(body, progress=None):
     """The apply pipeline shared by the JSON, SSE and job endpoints. Returns the
        report dict; raises ValueError (bad request) or RuntimeError (PDC-side)."""
-    import pdc_api
+    from sources import pdc_api
     api_json = body.get("json") or []
     base = (body.get("base_url") or "").strip()
     version = body.get("version") or "v2"
@@ -2577,7 +2592,7 @@ def trigger_profiling(body: dict = Body(default={})):
        only the object-store records, resolve their folders (cascading to files) to
        entity UUIDs, and POST the discovery job. 'poll' optionally waits for the job
        to finish so the caller can immediately re-pull profiling stats."""
-    import pdc_api
+    from sources import pdc_api
     body = body or {}
     base = (body.get("base_url") or "").strip()
     version = body.get("version") or "v2"
@@ -2662,7 +2677,7 @@ def api_discovery_progress(body: dict = Body(default={})):
     Body: {ids, baseline, job_id?, base_url, auth...}.
     Returns {profiled, total, done, per: {id: bool}, job: {status, activity,
     worker, duration, error} | null, worker_done}."""
-    import pdc_api
+    from sources import pdc_api
     body = body or {}
     ids = [str(x) for x in (body.get("ids") or []) if str(x).strip()]
     baseline = body.get("baseline") or {}
@@ -2698,7 +2713,7 @@ def api_discovery_progress(body: dict = Body(default={})):
 def job_status_route(body: dict = Body(default={})):
     """Poll a PDC background job by id (GET /jobs/{id}/status) so the UI can show a
        profiling/discovery job's progress without leaving the app."""
-    import pdc_api
+    from sources import pdc_api
     body = body or {}
     base = (body.get("base_url") or "").strip()
     version = body.get("version") or "v2"
@@ -2718,7 +2733,7 @@ def job_status_route(body: dict = Body(default={})):
 def pdc_profiling(body: dict = Body(default={})):
     """Pull PDC's own profiling stats for a set of columns, keyed by
        'schema.table.column', for the app-vs-PDC side-by-side."""
-    import pdc_api
+    from sources import pdc_api
     body = body or {}
     base = (body.get("base_url") or "").strip()
     version = body.get("version") or "v2"
@@ -2814,7 +2829,7 @@ def pdc_source_to_connection(body: dict = Body(default={})):
        (or endpoint/bucket), and save it needing only the secret. If a connection
        with the same name exists, its config is refreshed but a saved secret is
        KEPT — re-adding never wipes a working credential."""
-    import pdc_api
+    from sources import pdc_api
     body = body or {}
     base = (body.get("base_url") or "").strip()
     version = body.get("version") or "v2"
@@ -2866,7 +2881,7 @@ def pdc_source_to_connection(body: dict = Body(default={})):
 def pdc_data_sources(body: dict = Body(default={})):
     """List the data-source connections already configured in PDC, so the user can
        harvest a glossary straight from the catalog (no direct DB access or secret)."""
-    import pdc_api
+    from sources import pdc_api
     body = body or {}
     base = (body.get("base_url") or "").strip()
     version = body.get("version") or "v2"
@@ -2887,7 +2902,7 @@ def pdc_source_test(body: dict = Body(default={})):
        object stores). An ingest that reported OK but scanned an empty schema shows
        here as 0 — the check that would have caught the public-vs-cscu_core bug.
        Read-only: no jobs triggered."""
-    import pdc_api
+    from sources import pdc_api
     body = body or {}
     base = (body.get("base_url") or "").strip()
     version = body.get("version") or "v2"
@@ -2921,7 +2936,7 @@ def pdc_source_config(body: dict = Body(default={})):
        see exactly which databaseType / serviceType / fileSystemType / configMethod a
        working object-store source uses — the values the loader must match. Create one
        AWS S3 source by hand in the PDC UI, then inspect it here."""
-    import pdc_api
+    from sources import pdc_api
     body = body or {}
     base = (body.get("base_url") or "").strip()
     version = body.get("version") or "v2"
@@ -2962,7 +2977,7 @@ def pdc_harvest(body: dict = Body(default={})):
        already scanned for a data source, run them through the same suggester a live
        scan uses, and overlay what PDC ALREADY governs (sensitivity/trust/terms) so
        the user can see existing work before generating. No direct DB access."""
-    import pdc_api
+    from sources import pdc_api
     body = body or {}
     base = (body.get("base_url") or "").strip()
     version = body.get("version") or "v2"
@@ -3036,7 +3051,7 @@ def pdc_harvest(body: dict = Body(default={})):
 def pdc_glossary_exists(body: dict = Body(default={})):
     """Pre-flight check: does a glossary with this name already exist in PDC? Lets the
        UI warn and offer update-vs-create instead of creating a duplicate on import."""
-    import pdc_api
+    from sources import pdc_api
     body = body or {}
     base = (body.get("base_url") or "").strip()
     version = body.get("version") or "v2"

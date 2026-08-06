@@ -5,11 +5,11 @@ the llm language guard. No PDC, no Ollama, no network."""
 import json
 import os
 
-import defqa
-import llm
-import packgen
-import policy_draft
-import similarity
+from engine import defqa
+from ai import llm
+from engine import packgen
+from engine import policy_draft
+from engine import similarity
 
 from conftest import make_row as _row
 
@@ -325,20 +325,20 @@ class TestLLMGuardrails:
 
 class TestDetection:
     def test_parse_nvidia_smi_multi_gpu(self):
-        import llm_detect
+        from ai import llm_detect
         name, vram, count = llm_detect.parse_nvidia_smi(
             "NVIDIA GeForce RTX 3060, 12288\nNVIDIA GeForce RTX 3060, 12288\n")
         assert count == 2 and name.startswith("2×") and vram == 24.0
 
     def test_recommend_dual_gpu_sets_sched_spread(self):
-        import llm_detect
+        from ai import llm_detect
         rec = llm_detect.recommend(ram_gb=64.0, vram_gb=24.0, gpu_count=2)
         assert rec.env_suggestions.get("OLLAMA_SCHED_SPREAD") == "1"
         assert rec.model  # a concrete model is always recommended
         assert "GPUs" in rec.reason
 
     def test_recommend_cpu_floor(self):
-        import llm_detect
+        from ai import llm_detect
         rec = llm_detect.recommend(ram_gb=8.0, vram_gb=None, gpu_count=0)
         assert rec.model == "llama3.2:1b"
         assert "OLLAMA_SCHED_SPREAD" not in rec.env_suggestions
@@ -349,7 +349,7 @@ class TestDataQualityScore:
     NOT-NULL fallback when nothing was profiled (the 'wall of DQ 100s')."""
 
     def test_unprofiled_column_scores_none_not_100(self):
-        import suggester
+        from engine import suggester
         # pasted-DDL / unprofiled scan: no dimensions measured — a NOT NULL
         # constraint alone must not assert perfect quality
         assert suggester.quality_score_column(notnull=True) is None
@@ -357,12 +357,12 @@ class TestDataQualityScore:
         assert suggester.quality_score_column(notnull=True, expect_unique=True) is None
 
     def test_notnull_proxy_still_counts_alongside_a_real_measurement(self):
-        import suggester
+        from engine import suggester
         q = suggester.quality_score_column(validity=0.5, notnull=True)
         assert q == round((0.4 * 1.0 + 0.3 * 0.5) / 0.7 * 100)
 
     def test_profiled_dimensions_score_and_renormalise(self):
-        import suggester
+        from engine import suggester
         assert suggester.quality_score_column(completeness=1.0) == 100
         assert suggester.quality_score_column(completeness=0.5) == 50
         q = suggester.quality_score_column(completeness=1.0, uniqueness=0.8,
@@ -370,7 +370,7 @@ class TestDataQualityScore:
         assert q == round((0.4 * 1.0 + 0.3 * 0.8) / 0.7 * 100)
 
     def test_data_element_links_leave_unprofiled_quality_empty(self):
-        import suggester
+        from engine import suggester
         rows = [_row("Member Number", "cscu_core.members.mbr_no",
                      Source_Quality_Dims={"cscu_core.members.mbr_no":
                                           {"c": None, "u": None, "v": None,
@@ -402,7 +402,7 @@ class TestDuplicateNamesMustBecomeDistinctTerms:
                          Enum_Values="CURRENT;DEFAULT", Keep="Yes")]
 
     def test_same_category_disambiguates(self):
-        import similarity
+        from engine import similarity
         rec = similarity.recommend_resolution(self._rows("Account", "Account"))
         assert rec["action"] == "split"
 
@@ -410,7 +410,7 @@ class TestDuplicateNamesMustBecomeDistinctTerms:
         """The regression: this used to recommend 'separate' because PDC can
            hold two same-named terms in different categories — which is true,
            and irrelevant, because Resolve never looks at the category."""
-        import similarity
+        from engine import similarity
         rec = similarity.recommend_resolution(self._rows("Governance", "Billing & Rates"))
         assert rec["action"] == "split", \
             "different concepts sharing a name must be renamed, whatever their categories"
@@ -424,31 +424,31 @@ class TestQualityFromPdcStats:
        cannot read at all, they are the ONLY evidence."""
 
     def test_derives_a_score_from_pdc_density(self):
-        import suggester
+        from engine import suggester
         # a fully populated column PDC profiled: density 100%
         assert suggester.quality_from_pdc_stats({"density": 100}) == 100
 
     def test_accepts_percentages_or_fractions(self):
-        import suggester
+        from engine import suggester
         assert (suggester.quality_from_pdc_stats({"density": 75})
                 == suggester.quality_from_pdc_stats({"density": 0.75}))
 
     def test_uniqueness_counts_only_where_expected(self):
         """A low-cardinality enum must not be marked poor quality for repeating."""
-        import suggester
+        from engine import suggester
         stats = {"density": 100, "uniqueness": 10}
         assert suggester.quality_from_pdc_stats(stats, expect_unique=False) == 100
         assert suggester.quality_from_pdc_stats(stats, expect_unique=True) < 100
 
     def test_unprofiled_returns_none_not_zero(self):
         """The same rule the column scorer follows: no measurement, no score."""
-        import suggester
+        from engine import suggester
         assert suggester.quality_from_pdc_stats({}) is None
         assert suggester.quality_from_pdc_stats({"cardinality": 8}) is None
         assert suggester.quality_from_pdc_stats(None) is None
 
     def test_reads_pdc_alias_spellings(self):
-        import suggester
+        from engine import suggester
         assert suggester.quality_from_pdc_stats({"nonNullDensity": 100}) == 100
 
 
@@ -465,7 +465,7 @@ class TestFormatIdentityIsNotConceptIdentity:
                 {"Term": "B", "Value_Pattern": pat, "Source_Column": "s.t.b"})
 
     def test_a_bare_number_is_no_longer_evidence_of_one_concept(self):
-        import similarity
+        from engine import similarity
         for pat in (r"^0\.\d{2}$", r"^\d\.\d{4}$", r"^\d{6}$", r"^\d+$"):
             a, b = self._rows(pat)
             verdict, why = similarity.compare_evidence(a, b)
@@ -474,7 +474,7 @@ class TestFormatIdentityIsNotConceptIdentity:
 
     def test_a_minted_code_still_is(self):
         """A prefixed key is issued by one system for one purpose."""
-        import similarity
+        from engine import similarity
         for pat in (r"^AWC-[A-Z]{2}-\d{6}$", r"^CSCU-\d{6}$"):
             a, b = self._rows(pat)
             verdict, why = similarity.compare_evidence(a, b)
@@ -482,7 +482,7 @@ class TestFormatIdentityIsNotConceptIdentity:
             assert "identical induced value format" in why
 
     def test_differing_formats_still_say_different(self):
-        import similarity
+        from engine import similarity
         a = {"Term": "A", "Value_Pattern": r"^\d{6}$", "Source_Column": "s.t.a"}
         b = {"Term": "B", "Value_Pattern": r"^AWC-\d{6}$", "Source_Column": "s.t.b"}
         verdict, _ = similarity.compare_evidence(a, b)
@@ -491,7 +491,7 @@ class TestFormatIdentityIsNotConceptIdentity:
     def test_the_bias_is_toward_asking_the_steward(self):
         """A letter CLASS is a shape, not a minted marker. Returning None sends
            it to the steward; a false 'same' would merge unrelated concepts."""
-        import similarity
+        from engine import similarity
         assert similarity._is_distinctive_format(r"^[A-Z]{2}\d{4}$") is False
 
 
@@ -507,30 +507,30 @@ class TestValueOverlapIsNotConceptIdentity:
                 "Source_Column": f"s.t.{name}"}
 
     def test_numeric_overlap_no_longer_claims_one_concept(self):
-        import similarity
+        from engine import similarity
         v, why = similarity.compare_evidence(self._row("paid", ["1", "2", "3"]),
                                              self._row("outstanding", ["1", "2", "3"]))
         assert v is None
         assert "plain numbers" in why
 
     def test_a_code_list_still_decides(self):
-        import similarity
+        from engine import similarity
         v, why = similarity.compare_evidence(self._row("a", ["OPEN", "CLOSED"]),
                                              self._row("b", ["OPEN", "CLOSED"]))
         assert v == "same" and "overlap" in why
 
     def test_disjoint_code_lists_still_say_different(self):
-        import similarity
+        from engine import similarity
         v, why = similarity.compare_evidence(self._row("a", ["OPEN", "CLOSED"]),
                                              self._row("b", ["CURRENT", "DEFAULT"]))
         assert v == "different" and "code lists" in why
 
     def test_a_single_value_is_too_thin_to_be_a_vocabulary(self):
-        import similarity
+        from engine import similarity
         assert similarity._is_coded_vocabulary({"ACTIVE"}) is False
 
     def test_decimals_and_counts_are_not_vocabularies(self):
-        import similarity
+        from engine import similarity
         assert similarity._is_coded_vocabulary({"1.5", "2.25"}) is False
         assert similarity._is_coded_vocabulary({"12", "45", "78"}) is False
 
@@ -545,7 +545,7 @@ def test_engine_ships_no_categories():
     come from the domain pack, which is grown from the company's own scan.
     Renaming them to neutral words would have kept the same flaw.
     """
-    import suggester
+    from engine import suggester
     assert suggester.CAT_KEYWORDS == [], \
         "a builtin category keyword has crept back into the engine"
     assert not hasattr(suggester, "BUILTIN_CAT_KEYWORDS")
@@ -554,7 +554,7 @@ def test_engine_ships_no_categories():
 
     # The single documented exception: the engine creates document rows itself,
     # so it must name a category for them - and a pack can rename it.
-    import tagdict
+    from engine import tagdict
     assert tagdict.document_category() == "Records & Documents"
 
 
@@ -563,7 +563,7 @@ def test_document_category_is_pack_overridable(fresh_dict, tmp_path, monkeypatch
        glossary that calls this bucket something else has to be able to say so,
        or the harvest files its rows under a name nobody chose."""
     import json
-    import tagdict
+    from engine import tagdict
     pack = tmp_path / "pack.json"
     pack.write_text(json.dumps({"document_category": "Unstructured Content"}), encoding="utf-8")
     monkeypatch.setenv("GLOSSARY_DOMAIN_PACK", str(pack))
@@ -574,9 +574,41 @@ def test_document_rows_keep_the_governed_tag(fresh_dict):
     """Removing the builtin category->tag seeds once cost the harvest its
        governed "document" tag - rows fell back to the slug "records-documents",
        which is not in the vocabulary."""
-    import suggester
-    import tagdict
+    from engine import suggester
+    from engine import tagdict
     tags = suggester.suggest_tags(tagdict.document_category(), "LOW", "", "No", False, [],
                                   name="conservation_letter.pdf", term="Conservation Letter")
     assert "document" in tags
     assert "records-documents" not in tags
+
+
+def test_the_generic_layer_carries_no_industry_vocabulary():
+    """The dictionary's built-in seed is GOVERNANCE vocabulary, not somebody's
+    industry.
+
+    It shipped "Meter Reading" as a governed term, plus metering/usage/rate tags
+    and a usage|consumption|meter rule - the water-utility scenario leaking into
+    the engine, exactly as "Billing & Rates" did in CAT_KEYWORDS before 1.29. A
+    credit union has no use for "Metering", and offering it as governed
+    vocabulary implies somebody chose it.
+
+    Anything domain-specific belongs in a domain pack, where extra_tags puts it
+    straight into the allow-list.
+    """
+    from engine import tagdict
+
+    banned = {"metering", "usage", "rate", "billing", "revenue", "asset"}
+    assert not (banned & set(tagdict._SEED_TAGS)), \
+        "industry tags back in the generic layer: {}".format(banned & set(tagdict._SEED_TAGS))
+
+    terms = " ".join(tagdict._SEED_TERMS).lower()
+    for word in ("meter", "tariff", "premise"):
+        assert word not in terms, "industry term in the generic seed: " + word
+
+    for pattern, tags in tagdict._SEED_RULES:
+        leaked = banned & set(tags)
+        assert not leaked, "rule {!r} assigns industry tags {}".format(pattern, leaked)
+
+    # The regulatory vocabulary every estate needs must NOT have gone with it.
+    for keep in ("pii", "personal-data", "maskable", "cde", "temporal", "compliance"):
+        assert keep in tagdict._SEED_TAGS, "governance vocabulary was lost: " + keep

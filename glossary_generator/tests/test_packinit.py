@@ -7,7 +7,7 @@ should be doing. This scaffolds the skeleton; the export step grows it.
 """
 import json
 
-import packinit
+from engine import packinit
 
 
 class TestScaffold:

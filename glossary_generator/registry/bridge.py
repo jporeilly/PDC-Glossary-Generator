@@ -42,7 +42,7 @@ def _tag_vocabulary():
     embedded in the Registry so the Policy Generator's Assign-Tags and term links stay
     inside the same governed vocabulary — the consistency contract."""
     try:
-        import tagdict
+        from engine import tagdict
         gov_tags = tagdict.governed_tags()
         gov_terms = tagdict.governed_terms()
         meta = tagdict.tags_meta()
@@ -197,7 +197,7 @@ def _audit_summary():
     """A compact governance audit summary (who approved/edited the vocabulary, when),
     embedded so the Registry carries its own provenance to the Policy Generator."""
     try:
-        import audit
+        from core import audit
         return audit.summary()
     except Exception:
         return {"count": 0, "recent": []}
