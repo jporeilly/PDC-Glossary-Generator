@@ -14,6 +14,56 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.35.0] - 2026-08-06
+
+### Removed - the legacy Jinja UI
+
+`templates/` and `static/js/00-12` (456 KB) are gone, with the Jinja shell, the
+`/static` mount and the `jinja2` dependency. The React build superseded it at
+1.11 and the fallback then went twenty releases without being exercised against
+the current API - so on the one occasion it fired it would have rendered a
+1.11-era page against a 1.34 backend. `/` now returns a 503 naming the cause
+(`cd frontend && npm ci && npm run build`), which is the only way to reach it:
+a checkout that was never built.
+
+### Removed - the example domain packs no longer ship
+
+`water_utility.example.json` was going into every installer. Having spent 1.29,
+1.33 and 1.34 taking one industry's vocabulary out of the categories, the tag
+dictionary and the CDE patterns, shipping that industry's pack as the sole
+example put it straight back in the box - with a customer's name on part of it.
+Packs are scenario material; `packinit` writes a fresh one from the company name
+at install time.
+
+### Removed - customer names from the environment files
+
+`.env` named a customer and pointed at their pack; `.env.example` named another
+and referenced a scenario zip. Both now say `Your Company` and
+`/path/to/domain_pack.json`. `.env` is gitignored and never shipped, but a
+checkout that behaves unlike a fresh install is exactly the gap that hid several
+of today's bugs.
+
+### Added - Try again
+
+The failure panel restarts the backend in place, on a **new** free port - if the
+last failure was the port, reusing it fails the same way. Everybody closes and
+relaunches after a failed start; the app may as well do it, and a port clash or
+a file briefly held by antivirus clears on the second attempt. It returns to the
+live view rather than reloading, so the log already captured is kept.
+
+### Added - Open data folder
+
+Opens the state directory in Explorer. It is the answer to "where did my
+glossary go?", and typing an `%APPDATA%` path by hand is nobody's idea of a good
+time.
+
+### Fixed - retry leaked its predecessor's timer
+
+Each retry started a new interval without clearing the old one, so the elapsed
+counter advanced two seconds per second and two independent deadline timers
+raced to declare failure. Caught by retrying twice in the preview and watching
+the clock.
+
 ## [1.34.1] - 2026-08-06
 
 ### Fixed - drinking-water regulation was deciding Critical Data Elements

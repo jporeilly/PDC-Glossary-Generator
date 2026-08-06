@@ -206,10 +206,12 @@
     -->
     <div class="support">
       <div class="actions">
+        <button id="retryBtn">Try again</button>
         <button id="fixBtn" class="ghost">Suggest fixes</button>
         <button id="copyBtn">Copy details</button>
         <button id="saveBtn">Save report</button>
         <button id="mailBtn">Email support</button>
+        <button id="folderBtn" class="ghost">Open data folder</button>
       </div>
       <p class="addr">Send to <strong>james.oreilly@pentaho.com</strong> - paste the details,
          or attach the saved report.</p>
@@ -486,7 +488,10 @@
   // second it last reached while the 90s timeout never fires. The screen then
   // sits there forever looking like it is still working.
   var finished = false;
-  var clock = setInterval(function () {
+
+  // Named, so Retry can restart it: the interval is cleared when a run ends,
+  // and a retry is a new run.
+  function tickClock() {
     if (finished) { return; }
     var ms = Date.now() - started;
     var secs = Math.round(ms / 1000);
@@ -502,7 +507,9 @@
       }
     }
     if (ms > DEADLINE_MS) { die(); }
-  }, 1000);
+  }
+
+  var clock = setInterval(tickClock, 1000);
 
   function die() {
     if (finished) { return; }
@@ -632,6 +639,58 @@
       fixBtn.disabled = false;
       fixBtn.textContent = 'Suggest fixes';
     });
+  };
+
+  // Retry restarts the backend IN PLACE, on a new free port. Everyone closes
+  // and relaunches after a failed start; the app may as well do it, and a port
+  // clash or a file briefly held by antivirus clears on a second attempt.
+  var retryBtn = document.getElementById('retryBtn');
+  retryBtn.onclick = function () {
+    retryBtn.disabled = true;
+    retryBtn.textContent = 'Restarting...';
+    invoke('restart_server').then(function (ok) {
+      if (!ok) {
+        hint('The backend would not restart. The report below is unchanged.', false);
+        retryBtn.disabled = false;
+        retryBtn.textContent = 'Try again';
+        return;
+      }
+      // Back to the live view and start polling from scratch, rather than
+      // reloading the page - a reload would lose the log we already captured.
+      document.getElementById('error').style.display = 'none';
+      document.getElementById('live').style.display = '';
+      document.body.classList.remove('errored');
+      retryBtn.disabled = false;
+      retryBtn.textContent = 'Try again';
+      // Clear before starting another, or each retry leaves its predecessor
+      // running: the elapsed counter then advances two seconds per second and
+      // two independent deadline timers race to call die().
+      clearInterval(clock);
+      started = Date.now();
+      finished = false;
+      reached = 0;
+      seen = 0;
+      placeholderCleared = false;
+      consoleEl.innerHTML = '';
+      STEPS.forEach(function (st) { setState(st.id, '', ''); });
+      setState('shell', 'done');
+      advanceTo(1);
+      clock = setInterval(tickClock, 1000);
+      poll();
+    }).catch(function (e) {
+      hint('Could not restart: ' + e, false);
+      retryBtn.disabled = false;
+      retryBtn.textContent = 'Try again';
+    });
+  };
+
+  document.getElementById('folderBtn').onclick = function () {
+    invoke('open_state_dir').then(function (dir) {
+      if (window.__TAURI__.opener) {
+        window.__TAURI__.opener.openPath(dir).catch(function () {});
+      }
+      hint('Your data lives in ' + dir);
+    }).catch(function (e) { hint('Could not open the folder: ' + e, false); });
   };
 
   document.getElementById('copyBtn').onclick = function () {

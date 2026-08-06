@@ -79,6 +79,16 @@ $excludeDirs = @(".venv", "__pycache__", ".pytest_cache", "registries", "tests",
 # import assertion at the end of this script exists because of that trap.
 $excludeDirs  += @("cli")
 
+# Example domain packs do NOT ship.
+#
+# The engine was made industry-agnostic in 1.29/1.33/1.34 - categories, tag
+# dictionary and CDE patterns all had one scenario's vocabulary removed. Then
+# shipping water_utility.example.json as the only example put that vocabulary
+# straight back in the box, with a customer's name on some of it. Packs are
+# scenario material; they belong with the scenario, and packinit writes a fresh
+# one from the company name at install time.
+$excludeDirs  += @("domain_packs")
+
 # robocopy: /MIR-free mirror of a clean tree, /XD and /XF do the excluding.
 # Exit codes 0-7 are success (8+ is a real failure) - a quirk worth pinning,
 # because treating any non-zero as failure makes every build look broken.

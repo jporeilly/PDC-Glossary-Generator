@@ -189,6 +189,51 @@ fn env_report(handle: tauri::AppHandle) -> serde_json::Value {
     })
 }
 
+/// Stop the backend and start it again, in place.
+///
+/// Until now the only recovery from a failed start was closing the window and
+/// relaunching - which is what everyone tries first anyway, so the app may as
+/// well do it. A port already in use, an antivirus holding a file for a moment,
+/// a service starting slowly: all clear on a second attempt, and none of them
+/// deserve a reinstall.
+///
+/// A NEW free port is chosen, deliberately: if the last failure was the port,
+/// reusing it would fail the same way.
+#[tauri::command]
+fn restart_server(handle: tauri::AppHandle, state: State<'_, AppState>) -> bool {
+    let resource_dir = strip_verbatim(&handle.path().resource_dir().unwrap_or_default());
+    let app_dir = app_dir(&handle);
+    let boot_py = boot_py(&handle);
+    let state_dir = state_dir(&handle);
+
+    let Ok(mut guard) = state.server.lock() else { return false };
+    if let Some(srv) = guard.as_mut() {
+        srv.stop();
+    }
+    *guard = None;
+
+    match Server::start(&resource_dir, &boot_py, &app_dir, &state_dir) {
+        Ok(srv) => {
+            *guard = Some(srv);
+            true
+        }
+        Err(e) => {
+            eprintln!("restart failed: {e}");
+            false
+        }
+    }
+}
+
+/// Open the state directory in Explorer. It is the answer to "where did my
+/// glossary go?", and typing an %APPDATA% path by hand is nobody's idea of a
+/// good time.
+#[tauri::command]
+fn open_state_dir(handle: tauri::AppHandle) -> String {
+    let dir = state_dir(&handle);
+    std::fs::create_dir_all(&dir).ok();
+    dir.to_string_lossy().into_owned()
+}
+
 /// Everything a support email needs, as one block of text.
 ///
 /// Built HERE rather than assembled in JavaScript so that the version, the OS
@@ -316,7 +361,7 @@ fn main() {
         .manage(AppState {
             server: shared.clone(),
         })
-        .invoke_handler(tauri::generate_handler![server_url, server_log, server_alive, server_ready, env_report, diagnostics, save_report, llm_suggest])
+        .invoke_handler(tauri::generate_handler![server_url, server_log, server_alive, server_ready, env_report, diagnostics, save_report, llm_suggest, restart_server, open_state_dir])
         .setup(move |app| {
             let handle = app.handle().clone();
             let resource_dir = strip_verbatim(&handle.path().resource_dir().unwrap_or_default());

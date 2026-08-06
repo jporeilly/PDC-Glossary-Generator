@@ -2,7 +2,7 @@
 api.py — FastAPI backend for the Glossary Suggester.
 
 The FastAPI port of the old Flask app.py: same /api contract route-for-route
-(the vanilla-JS UI in templates/ + static/ runs unchanged against it), plus
+plus
 interactive docs at /docs and additive start/poll job endpoints (/api/jobs/*)
 for the long-running PDC work — the SSE/NDJSON streaming endpoints are kept
 byte-compatible for the current UI, the job endpoints are the forward path for
@@ -24,7 +24,6 @@ import uuid
 from fastapi import FastAPI, Body, Request
 from fastapi.responses import JSONResponse, Response, StreamingResponse, HTMLResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
 
 HERE = os.path.dirname(__file__)
 
@@ -104,8 +103,6 @@ def _err(message, status_code):
     """Error payload in the app's contract shape: {'error': msg} + HTTP status
        (the UI checks data.error — never FastAPI's default {'detail': ...})."""
     return JSONResponse({"error": message}, status_code=status_code)
-
-templates = Jinja2Templates(directory=os.path.join(HERE, "templates"))
 
 DEFAULT_DDL = os.environ.get("GLOSSARY_DDL", "/mnt/user-data/uploads/01-schema-and-data.sql")
 PEOPLE_FILE = paths.state_path("people.json", "GLOSSARY_PEOPLE")
@@ -268,19 +265,23 @@ def _stats(rows):
 
 @app.get("/", include_in_schema=False)
 def index(request: Request):
-    """Serve the single-page application shell — the React build when it exists
-    (frontend/dist, built by the installer), else the legacy Jinja shell."""
+    """Serve the single-page application shell.
+
+    There is one UI: the React build in frontend/dist. A Jinja shell used to
+    stand in when that was absent, but the React build superseded it at 1.11 and
+    the fallback then went twenty releases without being exercised against the
+    current API - so on the one occasion it fired it would have rendered a
+    1.11-era page against this backend. An honest error beats a stale UI.
+    """
     dist_index = os.path.join(os.path.dirname(HERE), "frontend", "dist", "index.html")
-    if os.path.isfile(dist_index):
-        # MUST revalidate. This file names the content-hashed bundle, so a stale
-        # copy loads the previous release's JS — the app upgrades on disk and the
-        # user still sees the old UI with no clue why. The Jinja shell below has
-        # always had its `v` cache-buster; the React path went without one.
-        # `no-cache` means "revalidate", not "don't store", so 304s still apply.
-        return FileResponse(dist_index, headers={"Cache-Control": "no-cache"})
-    # v busts browser caches for /static/*.css|js on every release — a stale
-    # cached script against new endpoints is the VM's classic failure mode
-    return templates.TemplateResponse(request, "index.html", {"v": APP_VERSION})
+    if not os.path.isfile(dist_index):
+        return _err("The web UI has not been built. From the repo root: "
+                    "cd frontend && npm ci && npm run build", 503)
+    # MUST revalidate. This file names the content-hashed bundle, so a stale copy
+    # loads the previous release's JS - the app upgrades on disk and the user
+    # still sees the old UI with no clue why. `no-cache` means "revalidate", not
+    # "do not store", so 304s still apply.
+    return FileResponse(dist_index, headers={"Cache-Control": "no-cache"})
 
 # Brand favicon — an inline SVG (teal→blue rounded tile with a "G" monogram), served
 # for both /favicon.svg and the browser's automatic /favicon.ico probe, so neither
@@ -3243,9 +3244,8 @@ def api_job_pull_model(body: dict = Body(default={})):
     return _start_job("pull-model", _runner)
 
 # --------------------------------------------------------------------------- #
-#  Static assets — mounted last so every /api/* route above wins. The current
-#  UI is the Jinja shell at "/" + /static; when the React build lands
-#  (frontend/dist), it takes over "/" automatically.
+#  Static assets - mounted last so every /api/* route above wins. The SPA in
+#  frontend/dist owns "/" and everything under it.
 # --------------------------------------------------------------------------- #
 class _UiStatic(StaticFiles):
     """Serve the SPA with the only cache policy that survives an upgrade.
@@ -3274,8 +3274,6 @@ class _UiStatic(StaticFiles):
             resp.headers["Cache-Control"] = "no-cache"
         return resp
 
-
-app.mount("/static", StaticFiles(directory=os.path.join(HERE, "static")), name="static")
 
 _UI_DIST = os.path.join(os.path.dirname(HERE), "frontend", "dist")
 if os.path.isdir(_UI_DIST):
