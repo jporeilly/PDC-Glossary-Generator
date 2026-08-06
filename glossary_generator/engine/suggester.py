@@ -1034,10 +1034,15 @@ def _slug(s):
 # Critical Data Element: governed with the highest care. Inferred from keys, high
 # sensitivity, financial/identity PII, and critical business/compliance/safety terms.
 # Always reviewable by the Data Steward in the grid.
+# GENERIC signals only. This carried meter id, lead level, contaminant, pH
+# and turbidity until 1.34 - drinking-water regulation deciding what counts
+# as a Critical Data Element in EVERY estate, the same leak the category
+# keywords had before 1.29 and the tag dictionary had before 1.33. A domain
+# pack adds whatever a company's regulator actually cares about.
 CDE_PATTERNS = re.compile(
     r"(account.?number|\bssn\b|social.?security|tax.?id|\bein\b|"
-    r"licen[cs]e|permit|meter.?(id|number|no)|balance|amount.?(due|owed)|"
-    r"complian|violation|lead.?(level|ppb)?|contaminant|ph.?level|turbidity)", re.I)
+    r"licen[cs]e|permit|balance|amount.?(due|owed)|"
+    r"complian|violation)", re.I)
 
 def is_cde(name, sens, pii, key_like):
     """Heuristic test for a Critical Data Element — a field governed with the

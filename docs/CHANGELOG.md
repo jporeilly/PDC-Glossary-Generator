@@ -14,6 +14,42 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.34.1] - 2026-08-06
+
+### Fixed - drinking-water regulation was deciding Critical Data Elements
+
+`CDE_PATTERNS` carried `meter.?id`, `lead.?level`, `contaminant`, `ph.?level`
+and `turbidity`. That regex marks columns as **Critical Data Element** - the
+highest-care classification the app assigns - so one industry's regulator was
+deciding CDEs in every estate.
+
+This is the third place the water utility had reached into the engine, after the
+category keywords (1.29) and the tag dictionary (1.33.0), and the furthest in:
+categories are cosmetic next to a governance flag.
+
+What stays is regulatory vocabulary that crosses industries - national
+identifiers, tax ids, licences, balances, amounts due, compliance, violations. A
+domain pack adds whatever a company's own regulator cares about. A test now
+asserts `chlorine_residual_ppm`, `turbidity_ntu` and `meter_id` are not CDEs by
+name alone, and that `account_number`, `ssn` and `amount_due` still are.
+
+### Fixed - the last real host in the UI
+
+`SettingsPage` named the lab in two places: the MinIO endpoint placeholder and
+the "no port given" hint. Both now use `[PDC SERVER]`, matching the other three
+forms.
+
+### Audit
+
+Everything remaining that names a scenario is a **comment or docstring** -
+`cscu-postgres` in an example, `turbidity_ntu` explaining why a similarity rule
+exists. Those record why the code is shaped as it is and were left alone;
+deleting them would lose the reasoning and change no behaviour. The shipped
+bundle contains no `192.168.`, no `pentaho.io`, no `pdc_user`, no
+`/mnt/user-data`.
+
+183 tests.
+
 ## [1.34.0] - 2026-08-06
 
 ### Fixed - the lab's IP address shipped in the UI

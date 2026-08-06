@@ -612,3 +612,30 @@ def test_the_generic_layer_carries_no_industry_vocabulary():
     # The regulatory vocabulary every estate needs must NOT have gone with it.
     for keep in ("pii", "personal-data", "maskable", "cde", "temporal", "compliance"):
         assert keep in tagdict._SEED_TAGS, "governance vocabulary was lost: " + keep
+
+
+def test_no_industry_vocabulary_decides_critical_data_elements():
+    """CDE_PATTERNS governs which columns are marked Critical Data Element.
+
+    It carried meter id, lead level, contaminant, pH and turbidity - drinking
+    water regulation applied to every estate, the third place the water utility
+    had leaked into the engine after the category keywords and the tag
+    dictionary. A bank's CDEs are not decided by a water quality rule.
+
+    What stays is regulatory vocabulary that crosses industries: national
+    identifiers, tax ids, licences, balances, amounts due, compliance and
+    violations.
+    """
+    from engine import suggester
+
+    pattern = suggester.CDE_PATTERNS.pattern.lower()
+    for word in ("meter", "turbidity", "contaminant", "ph.?level", "lead.?"):
+        assert word not in pattern, "industry term still decides CDE: " + word
+
+    for name in ("chlorine_residual_ppm", "turbidity_ntu", "meter_id"):
+        assert not suggester.CDE_PATTERNS.search(name), \
+            "{} should not be a CDE by name alone".format(name)
+
+    for name in ("account_number", "ssn", "tax_id", "amount_due", "violation_code"):
+        assert suggester.CDE_PATTERNS.search(name), \
+            "{} is cross-industry regulatory vocabulary and must still match".format(name)

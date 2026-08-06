@@ -476,7 +476,7 @@ function LabStoreCard() {
   // Nudge on the two lab mistakes: the console port, or an S3 URL with no port.
   const ep = (cfg?.endpoint || '').trim()
   const epWarn = /:9001(\/|$)/.test(ep) ? 'That’s the web console port — the S3 API is on :9000.'
-    : (ep && !/:\d+/.test(ep)) ? 'No port given — the lab S3 API is on :9000 (e.g. http://pentaho.io:9000).'
+    : (ep && !/:\d+/.test(ep)) ? 'No port given — the S3 API is on :9000 (e.g. http://[PDC SERVER]:9000).'
     : ''
 
   async function check(config) {
@@ -514,7 +514,7 @@ function LabStoreCard() {
       <div className="form-grid">
         <label>
           Endpoint
-          <input type="text" placeholder="http://pentaho.io:9000" value={cfg.endpoint}
+          <input type="text" placeholder="http://[PDC SERVER]:9000" value={cfg.endpoint}
                  onChange={(e) => onEndpoint(e.target.value)} />
           {epWarn && <span className="warn" style={{ fontSize: '.78rem' }}>{epWarn}</span>}
         </label>
