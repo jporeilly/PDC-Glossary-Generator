@@ -1,0 +1,19 @@
+  MANUAL STEPS THE RESET CANNOT DO FOR YOU
+  ---------------------------------------------------------------------------
+    1  Log in at @PDC_HOST@ as 'admin' - the USERNAME, not an email address.
+       11.0.0 seeds the pdc realm with stock users. If the password is
+       unknown, set it with kcadm from the VM console - see
+       docs/PDC-VM-TROUBLESHOOTING.md, the invalid_grant section.
+
+    2  Re-upload the offline licence (.bin). Both routes need a JWT:
+         .\pdc-remote.ps1 token      then paste into @PDC_HOST@@SWAGGER_PATH@
+       or, if the .bin already sits on the VM:
+         .\pdc-remote.ps1 license
+
+    3  Reload the lab data and re-register the data sources. The lab stack
+       on 5433/9000 was NOT touched, but the catalog's record of it was.
+
+    4  Reload the cast into Keycloak (users + PDC roles), then re-add any
+       custom email domains to the css-auth-proxy allowlist. PDC rejects
+       logins whose email domain is not on that list, and the list lived in
+       a volume that has just been deleted.

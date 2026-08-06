@@ -1,0 +1,19 @@
+  A server started inside WSL is not reachable from the LAN - WSL2 sits
+  behind its own NAT - so this serves the key from the WINDOWS side instead.
+  Only @PUBDIR@ is exposed: one public key, nothing else.
+
+  1) In a separate PowerShell window on Windows, run:
+
+       python -m http.server @PORT@ --directory "@WINDIR@"
+
+     Allow it on Private networks if Windows Firewall prompts.
+
+  2) At the VM console:
+
+       mkdir -p ~/.ssh && chmod 700 ~/.ssh
+       curl -fsS http://@HOSTIP@:@PORT@/pdc.pub >> ~/.ssh/authorized_keys
+       chmod 600 ~/.ssh/authorized_keys && echo ENROLLED
+
+  3) Ctrl-C the PowerShell window. Do not leave it running.
+
+  Then: .\pdc-remote.ps1 ssh-test

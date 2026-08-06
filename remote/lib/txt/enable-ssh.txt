@@ -1,0 +1,28 @@
+  There is no remote way to open a closed SSH port: that is the point of a
+  closed SSH port. Go to the VM's console window and run the block below.
+  It is idempotent - safe to re-run.
+
+  If the console auto-logs-in and you do not know the account name, the first
+  command tells you. Write it down; .\pdc-remote.ps1 config needs it.
+
+  --- type this at the VM console -------------------------------------------
+
+    whoami; id -nG           # note the username, and whether 'docker' is there
+
+    sudo apt-get update
+    sudo apt-get install -y openssh-server
+    sudo systemctl enable --now ssh
+    sudo systemctl status ssh --no-pager | head -5
+
+    sudo ufw status | head -1        # only if ufw is active
+    sudo ufw allow 22/tcp
+
+    ip -4 addr show | grep -w inet   # confirm the VM's IP
+
+  ---------------------------------------------------------------------------
+
+  If 'docker' was NOT in the id -nG output, also run:
+
+    sudo usermod -aG docker $(whoami)     # then log out and back in
+
+  Then come back here and run:  .\pdc-remote.ps1 wait-ssh

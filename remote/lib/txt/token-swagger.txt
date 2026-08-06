@@ -1,0 +1,61 @@
+  HOW TO USE IT IN SWAGGER
+  ---------------------------------------------------------------------------
+    1  Open  @PDC_HOST@@SWAGGER_PATH@
+
+    2  Click the green "Authorize" button, top right.
+
+    3  Paste what is now on your clipboard.
+         - If the dialog is labelled  bearerAuth (http, Bearer)  paste ONLY
+           the token. Swagger prepends the word Bearer itself, and pasting
+           it twice gives you a 401 that looks like a bad password.
+         - If it shows a plain "Value" box, or says apiKey / in: header,
+           paste the whole  Bearer eyJ...  string.
+       .\pdc-remote.ps1 token puts "Bearer <token>" on the clipboard; the raw token on
+       its own is in .state/token.jwt if you need the shorter form.
+
+    4  Authorize, then Close. Endpoints now show a closed padlock.
+
+    5  Find  the licensing upload operation  and Try it out.
+         deviceId = @DEVICE_ID@
+         fileData = your .bin file, via Choose File
+       Execute. A 200 with licence details means it took.
+
+    6  Confirm in the PDC UI under Administration - Licensing.
+
+  TOKEN LIFETIME
+  ---------------------------------------------------------------------------
+    Keycloak access tokens here are short-lived, typically 5 to 15 minutes.
+    When Swagger starts answering 401, just run .\pdc-remote.ps1 token again and
+    re-Authorize. You do not need to log out of anything.
+
+  IF THE TOKEN REQUEST ITSELF FAILS
+  ---------------------------------------------------------------------------
+    invalid_grant        wrong username or password. Note PDC wants the
+                         USERNAME (admin, catalog.admin), not the email.
+    unauthorized_client  the client does not allow direct-access-grants.
+                         Enable it in the Keycloak admin console, or use the
+                         browser flow and copy the token out of devtools.
+    invalid_client       wrong client id for this build. List the realm's
+                         clients in the Keycloak admin console.
+    404 on the realm     Keycloak is not up, or the realm import has not
+                         finished. Check with: .\pdc-remote.ps1 health
+
+  DOING IT WITHOUT THE SWAGGER UI
+  ---------------------------------------------------------------------------
+    Token, then upload, in two curl calls from this machine:
+
+      TOKEN=$(curl -sk -X POST \
+        '@PDC_HOST@/keycloak/realms/@KC_REALM@/protocol/openid-connect/token' \
+        -d client_id=@KC_CLIENT@ -d grant_type=password \
+        -d username=admin --data-urlencode 'password=YOURPASSWORD' \
+        | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')
+
+      curl -k -X POST '@PDC_HOST@@LICENSE_PATH@' \
+        -H "Authorization: Bearer $TOKEN" \
+        -F 'deviceId=@DEVICE_ID@' \
+        -F 'fileData=@/path/to/licence.bin;type=application/octet-stream'
+
+    The raw token from .\pdc-remote.ps1 token is already saved at
+    @STATE_DIR@/token.jwt (mode 600, gitignored), so the second call can be
+
+      -H "Authorization: Bearer $(cat @STATE_DIR@/token.jwt)"

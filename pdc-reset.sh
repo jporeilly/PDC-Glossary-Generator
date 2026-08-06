@@ -29,6 +29,15 @@ CONTAINER_PREFIX="${CONTAINER_PREFIX:-pdc-}"
 PDC_HOST="${PDC_HOST:-https://pentaho.io}"        # PDC's own HTTPS URL
 DEVICE_ID="${DEVICE_ID:-pdc-demo}"
 
+# API paths. These were /api/public/... until 2026-08-06, when probing a healthy
+# 11.0.0 stack showed that prefix returns 404 -- Traefik has no router for it --
+# while /api/ and /swagger/ are routed (302 to Keycloak when unauthenticated).
+# Read the codes carefully if you change these: 404 = no such route, whereas
+# 302/401 = the route exists and you are simply not authenticated.
+# Keep in step with SWAGGER_PATH / LICENSE_PATH in remote/Makefile.
+SWAGGER_PATH="${SWAGGER_PATH:-/swagger/}"
+LICENSE_PATH="${LICENSE_PATH:-/api/v2/licensing/uploadLicense}"
+
 # conf/.env overrides to guarantee on every rebuild (config survives the wipe, but we enforce these)
 ENFORCE_OFFLINE_LICENSE="${ENFORCE_OFFLINE_LICENSE:-1}"   # sets LICENSING_OFFLINE_INSTALL=true
 
@@ -263,7 +272,7 @@ if [ -n "$LICENSE_BIN" ]; then
     if [ -z "$TOKEN" ]; then
       warn "Token request failed — upload the license manually via Swagger."
     else
-      curl -sk -X POST "$PDC_HOST/api/public/v2/licensing/uploadLicense" \
+      curl -sk -X POST "$PDC_HOST$LICENSE_PATH" \
         -H "Authorization: Bearer $TOKEN" \
         -F "deviceId=$DEVICE_ID" \
         -F "fileData=@$LICENSE_BIN;type=application/octet-stream" \
@@ -282,7 +291,9 @@ echo "     — log in as 'admin' (username, NOT the email) with the training def
 echo "     set it via kcadm (see docs/PDC-VM-TROUBLESHOOTING.md, 'invalid_grant' section)."
 echo "     Older builds instead show a Register page at $PDC_HOST — create the root user there."
 [ -z "$LICENSE_BIN" ] && \
-echo "  2. Re-upload the offline license (.bin) via Swagger: $PDC_HOST/api/public/swagger/"
+echo "  2. Re-upload the offline license (.bin) via Swagger: $PDC_HOST$SWAGGER_PATH"
+[ -z "$LICENSE_BIN" ] && \
+echo "     (needs a bearer token — driving this from Windows? run 'make token' in remote/)"
 echo "  3. Re-load the demo lab (cd data_sources/lab && make up && make load SCENARIO=<ID>,"
 echo "     ID one of CSCU, RETAIL, HEALTH, MFG) and re-register that scenario's two data"
 echo "     sources — fastest via the app's bulk loader and the scenario's datasources CSV."

@@ -1,0 +1,72 @@
+  A guided, checkpointed remote control for pdc-reset.sh. Every command says
+  what it is about to do, why, and what "good" looks like afterwards.
+
+  Run as:   .\pdc-remote.ps1 <command> [KEY=VALUE ...]
+  Any KEY=VALUE argument overrides configuration for that one run.
+
+  ---------------------------------------------------------------------------
+  FIRST TIME - one-time enrollment, needs the VM console once
+  ---------------------------------------------------------------------------
+    config          Answer 4 questions; writes pdc-remote.env (gitignored)
+    probe           Which VM ports are actually open right now
+    enable-ssh      The exact commands to type at the VM CONSOLE to turn sshd
+                    on. Cannot be done remotely - a closed port 22 is the
+                    whole reason this step exists.
+    wait-ssh        Poll until port 22 answers, so you know it took
+    enroll          Generate an SSH key and put a ready-to-paste
+                    authorized_keys one-liner on your clipboard. No password
+                    is typed, stored or transmitted.
+    import-wsl-key  Already enrolled a key from WSL? Copy it here instead of
+                    enrolling a second one.
+    ssh-test        Prove passwordless login works
+    sudo-help       Your VM asks for a sudo password: three ways to deal with
+                    that, including the one where you never need sudo again
+    doctor          16 preflight checks - reachability, auth, docker group,
+                    sudo, deployment dir, disk, RAM, vm.max_map_count
+
+  ---------------------------------------------------------------------------
+  EVERY DAY
+  ---------------------------------------------------------------------------
+    status          pdc.sh ps on the VM, with a state tally
+    health          HTTP probe of front door, Swagger, Keycloak, admin API
+    logs SVC=fe     Tail a service's logs (SVC=fe N=200 by default)
+    unstick         Re-run 'pdc.sh up' - the usual fix for services stranded
+                    in "Created" behind a failed init
+    shell           Interactive SSH session on the VM
+
+  ---------------------------------------------------------------------------
+  THE RESET
+  ---------------------------------------------------------------------------
+    plan            Exactly what a reset would do. Non-destructive. Start here.
+    dry-run         Ask the VM which volumes/containers WOULD be deleted
+    backup          Pull conf/.env + a container/volume snapshot to logs\
+    reset           The real thing. 10 checkpoints, typed confirmation, live
+                    streamed output, independent verification.
+    reset-keep-opensearch
+                    Same, but preserves the opensearch volumes and skips the
+                    securityadmin repair. Much faster.
+    resume          Pick up after a failed or interrupted reset
+    verify          Re-run only the post-reset verification
+
+  ---------------------------------------------------------------------------
+  AFTER A RESET
+  ---------------------------------------------------------------------------
+    token           Fetch a JWT from Keycloak and copy it to the clipboard,
+                    ready for Swagger's "Authorize" box. Shows the expiry and
+                    exactly how to paste it.
+    license         Upload an offline .bin that already sits ON THE VM
+                    (skip this if you prefer the Swagger UI)
+    env-check       Is LICENSING_OFFLINE_INSTALL=true in conf/.env?
+    env-fix         The console one-liner that sets it
+
+  ---------------------------------------------------------------------------
+  STATE
+  ---------------------------------------------------------------------------
+    checkpoints     The 10-point checklist with pass/fail + timestamps
+    show-config     Effective settings
+    clean           Forget checkpoints (keeps logs and config)
+    clean-logs      Delete logs\
+    distclean       clean + clean-logs + remove pdc-remote.env
+
+  Every command writes a timestamped transcript to logs\.
+  Full write-up: docs\PDC-REMOTE-RESET.md

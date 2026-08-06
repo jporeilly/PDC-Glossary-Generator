@@ -1,0 +1,63 @@
+  TARGET      @TARGET@:@SSH_PORT@
+  SCRIPT      @RESET_SCRIPT@
+              uploaded to @REMOTE_SCRIPT@, CRLF stripped, chmod 755
+  DEPLOYMENT  @PDC_DIR@
+  FLAGS       @FLAGS@
+
+  WHAT GETS DESTROYED
+  ---------------------------------------------------------------------------
+    - every @CPREFIX@* container            (docker rm -f)
+    - every @VPREFIX@* volume, which means:
+        the catalog and every profiled data source
+        every glossary and business term
+        every Keycloak user, role and credential in the pdc realm
+        trust scores and lineage
+        the installed licence
+        the css-auth-proxy email-domain allowlist
+@KEEPNOTE@
+  WHAT SURVIVES
+  ---------------------------------------------------------------------------
+    - everything on disk under @PDC_DIR@: conf/, certs, compose files, .env
+    - the lab data stack on 5433 and 9000 - separate containers, untouched
+    - this workstation's SSH key and config
+
+  WHAT THE SCRIPT DOES, IN ORDER
+  ---------------------------------------------------------------------------
+    1  pdc.sh stop, then docker rm -f the @CPREFIX@* containers to free the
+       volumes, then docker volume rm
+    2  enforce LICENSING_OFFLINE_INSTALL=true in conf/.env
+    3  pdc.sh up
+    4  wait for the OpenSearch node's REST port to answer at all
+    5  append the self-signed CN=admin cert to extra.crt so the node trusts
+       it. A fresh pdc_opensearch volume regenerates extra.crt containing
+       only the node CA, and without this securityadmin fails mTLS with
+       certificate_unknown, which is what makes opensearch-cluster-init
+       exit 1 on a clean rebuild.
+    6  restart the node to reload the truststore, then run securityadmin
+       against REST 9200 - up to three attempts, because straight after a
+       restart the node answers REST while the cluster is still forming and
+       the first attempt fails transiently.
+    7  pdc.sh up AGAIN. This is the step people miss. The failed init chain
+       leaves fe, public-api, glossary and friends in "Created"; Traefik is
+       up but has no backends, so every URL 404s. Re-running up starts them.
+    8  wait for fe and public-api to actually report Up
+
+  WHAT THIS MAKEFILE ADDS
+  ---------------------------------------------------------------------------
+    - a snapshot of conf/.env plus a container, volume and disk inventory
+      written to logs/ before anything is touched
+    - independent verification afterwards rather than trusting the exit
+      code: .opendistro_security exists, fe and public-api are Up, the HTTPS
+      front door is not 404, the Keycloak realm answers
+    - a 10-point checkpoint record, so an interrupted run can be resumed
+    - a full transcript in logs/
+
+  EXPECT 8 TO 20 MINUTES.
+
+  AFTERWARDS, BY HAND
+  ---------------------------------------------------------------------------
+    1  log in at @PDC_HOST@ as 'admin' - the username, not an email address
+    2  re-upload the offline licence:  .\pdc-remote.ps1 token, then Swagger
+    3  reload the lab data and re-register the data sources
+    4  reload the cast into Keycloak, and re-add any custom email domains to
+       the css-auth-proxy allowlist - that list lived in a wiped volume too

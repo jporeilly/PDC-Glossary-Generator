@@ -1,0 +1,9 @@
+  Because there is no VM password to hand to ssh-copy-id, we enroll the
+  public key directly. Nothing secret travels: a public key is public.
+
+  The one-liner below is now ON YOUR WINDOWS CLIPBOARD. Paste it into the VM
+  console - VMware Tools, SPICE and Proxmox noVNC all support paste - and
+  press Enter. It should print:  ENROLLED
+
+  If the console has no clipboard at all, use the HTTP fallback instead:
+  .\pdc-remote.ps1 enroll-http

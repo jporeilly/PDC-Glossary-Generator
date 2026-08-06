@@ -1,0 +1,79 @@
+  WHAT ACTUALLY NEEDS ROOT DURING A RESET
+  ---------------------------------------------------------------------------
+    Almost nothing. pdc-reset.sh escalates in exactly one place -
+    ensure_env_kv(), which guarantees LICENSING_OFFLINE_INSTALL=true in
+    conf/.env. That file is root-owned, and it SURVIVES the wipe.
+
+    Everything else - stopping the stack, force-removing containers, deleting
+    volumes, docker exec into the OpenSearch node - is plain docker, which
+    needs GROUP MEMBERSHIP, not sudo.
+
+    So the only open question is how you want that one .env line handled.
+
+
+  OPTION A - set it once by hand, then never need sudo again   RECOMMENDED
+  ---------------------------------------------------------------------------
+    ensure_env_kv() short-circuits when the value is already correct: it
+    returns before it ever reaches for sudo. Look at the top of the function -
+
+        if [ -f "$f" ] && grep -q "^${key}=${val}\$" "$f"; then
+          ok "conf/.env already has ${key}=${val}"
+          return 0
+        fi
+
+    Set it once at the console and every future reset runs with zero
+    privilege escalation:
+
+        .\pdc-remote.ps1 env-fix        prints and clipboards the exact console one-liner
+        .\pdc-remote.ps1 env-check      confirms it from here afterwards
+
+
+  OPTION B - a NOPASSWD sudoers drop-in
+  ---------------------------------------------------------------------------
+    Only worth it if you want conf/.env managed remotely for other reasons.
+    Run at the VM console. visudo -c validates the file afterwards, so a
+    typo cannot lock you out of sudo:
+
+        echo "@VM_USER@ ALL=(ALL) NOPASSWD:ALL" | \
+          sudo tee /etc/sudoers.d/90-pdc-remote
+        sudo chmod 440 /etc/sudoers.d/90-pdc-remote
+        sudo visudo -c
+
+    Narrower, if blanket NOPASSWD makes you uneasy on this VM:
+
+        sudo tee /etc/sudoers.d/90-pdc-remote >/dev/null <<'SUDOERS'
+        @VM_USER@ ALL=(root) NOPASSWD: /usr/bin/tee -a @PDC_DIR@/conf/.env
+        @VM_USER@ ALL=(root) NOPASSWD: /usr/bin/cat @PDC_DIR@/conf/.env
+        @VM_USER@ ALL=(root) NOPASSWD: /usr/bin/touch @PDC_DIR@/conf/.env
+        @VM_USER@ ALL=(root) NOPASSWD: /usr/bin/grep *
+        @VM_USER@ ALL=(root) NOPASSWD: /usr/bin/sed -i *
+        SUDOERS
+        sudo chmod 440 /etc/sudoers.d/90-pdc-remote
+        sudo visudo -c
+
+    Note that "sed -i *" is broad by nature - a wildcard sudoers rule for an
+    editor is close to full root. Option A avoids the whole question.
+
+
+  OPTION C - do nothing
+  ---------------------------------------------------------------------------
+    ensure_env_kv() is deliberately forgiving. With no sudo and no TTY it
+    prints
+
+        [warn] conf/.env not writable (and no sudo) - set X=Y manually
+
+    and carries on; set -e does not kill the run over it. The reset still
+    completes. You just want Option A done at some point, so the offline
+    licence flag is right on a freshly built deployment.
+
+
+  SEPARATE ISSUE, AND NON-NEGOTIABLE: the docker group
+  ---------------------------------------------------------------------------
+    A remote reset cannot run if docker itself needs sudo, because sudo over
+    a non-interactive SSH session has nowhere to prompt for a password.
+
+        sudo usermod -aG docker @VM_USER@
+        # then fully log out of the console session, or: newgrp docker
+        docker ps        # must work WITHOUT sudo
+
+    Check it from here with:  .\pdc-remote.ps1 priv-test

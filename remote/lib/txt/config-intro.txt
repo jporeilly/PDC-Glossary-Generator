@@ -1,0 +1,6 @@
+  Four questions. Answers go to pdc-remote.env, which is gitignored - it
+  never leaves this machine.
+
+  No passwords are collected here, by design. Authentication to the VM is
+  SSH-key only (see .\pdc-remote.ps1 enroll), and the PDC admin password is prompted
+  for at the moment it is needed, never stored.

@@ -1,0 +1,7 @@
+  PDC's public API is OAuth2-protected by Keycloak, so Swagger's "Authorize"
+  button wants a bearer token. This fetches one with a direct-grant (password)
+  request against realm '@KC_REALM@', client '@KC_CLIENT@'.
+
+  Your password is read with echo off, sent once over TLS, and never written
+  to disk or to shell history. The TOKEN that comes back is printed - treat
+  it like a password until it expires.
