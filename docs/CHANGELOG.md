@@ -14,6 +14,29 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.32.10] - 2026-08-06
+
+### Changed - the installer shows a checklist, not a transcript
+
+`nsExec::ExecToLog` piped every line of every provisioning script into the
+details pane - several hundred lines of PowerShell output for three steps. The
+useful signal was in there somewhere, which is the same as not being there.
+
+`SetDetailsPrint none` around each call silences the chatter without changing
+what runs or what exit code comes back, so the pane now reads:
+
+    Installing PDC Glossary Generator 1.32.10 - app, bundled Python and drivers
+    Seeding Acme Energy...
+      [ok] company seeded
+    Ollama: installing if missing, then pulling one model (several GB)...
+      [ok] local model ready
+    Checking this machine...
+      [ok] environment checks passed
+
+A step that fails says which script to re-run, which prints the full output it
+just suppressed. That is the right place for the detail: nobody reads three
+hundred lines during an install, and the person who needs them wants them after.
+
 ## [1.32.9] - 2026-08-06
 
 ### Fixed - the environment check could not find the bundled Python

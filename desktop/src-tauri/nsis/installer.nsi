@@ -686,9 +686,7 @@ Section "-Install"
 
   !insertmacro CheckIfAppIsRunning "${MAINBINARYNAME}.exe" "${PRODUCTNAME}"
 
-  DetailPrint "Installing ${PRODUCTNAME} ${VERSION} to $INSTDIR"
-  DetailPrint "This carries its own Python and every database driver - about 12,000 files,"
-  DetailPrint "so the next step is the slowest part of a plain install."
+  DetailPrint "Installing ${PRODUCTNAME} ${VERSION} - app, bundled Python and drivers"
 
   ; The vendored Python tree is REPLACED, not overlaid: file extraction only
   ; adds and overwrites, so a dependency dropped between releases would linger
@@ -841,11 +839,15 @@ Section "Seed this company (glossary categories)" SecSeed
   ${If} $R7 == ""
     DetailPrint "Seed: no company name given - skipped. Run provisioning\seed-company.ps1 later."
   ${Else}
-    DetailPrint "Seed: writing the domain pack for $R7..."
+    DetailPrint "Seeding $R7..."
+    SetDetailsPrint none
     nsExec::ExecToLog 'powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$INSTDIR\provisioning\seed-company.ps1" -Company "$R7" -Categories "$R6" -PdcUrl "$SeedPdcUrl"'
     Pop $0
-    ${If} $0 <> 0
-      DetailPrint "Seed reported an issue (exit $0) - run provisioning\seed-company.ps1 manually."
+    SetDetailsPrint both
+    ${If} $0 = 0
+      DetailPrint "  [ok] company seeded"
+    ${Else}
+      DetailPrint "  [!]  seed skipped - run provisioning\seed-company.ps1 to see why"
     ${EndIf}
   ${EndIf}
 SectionEnd
@@ -855,11 +857,15 @@ Section "Ollama AI runtime (local model)" SecOllama
   ; Optional on purpose: the app also drives Anthropic, OpenAI/Azure and
   ; Gemini from its Settings page, so a machine without Ollama is a
   ; configuration choice rather than a broken install.
-  DetailPrint "Ollama: installing if missing, then pulling the model this hardware can run..."
+  DetailPrint "Ollama: installing if missing, then pulling one model (several GB)..."
+  SetDetailsPrint none
   nsExec::ExecToLog 'powershell -NoProfile -ExecutionPolicy Bypass -File "$INSTDIR\provisioning\install-ollama.ps1"'
   Pop $0
-  ${If} $0 <> 0
-    DetailPrint "Ollama setup reported an issue (exit $0) - re-run provisioning\install-ollama.ps1."
+  SetDetailsPrint both
+  ${If} $0 = 0
+    DetailPrint "  [ok] local model ready"
+  ${Else}
+    DetailPrint "  [!]  Ollama skipped - re-run provisioning\install-ollama.ps1 to see why"
   ${EndIf}
 SectionEnd
 
@@ -868,11 +874,15 @@ Section "Check this machine" SecCheck
   ; Runs last so it reports the state the other sections left behind.
   ; Never fails the install: it is a report, and a red line in the log is
   ; more use than a rolled-back installation.
-  DetailPrint "Checking the environment..."
+  DetailPrint "Checking this machine..."
+  SetDetailsPrint none
   nsExec::ExecToLog 'powershell -NoProfile -ExecutionPolicy Bypass -File "$INSTDIR\provisioning\check-environment.ps1" -NoPrompt'
   Pop $0
-  ${If} $0 <> 0
-    DetailPrint "Environment check found blocking problems - see the lines above."
+  SetDetailsPrint both
+  ${If} $0 = 0
+    DetailPrint "  [ok] environment checks passed"
+  ${Else}
+    DetailPrint "  [!]  environment check found problems - run provisioning\check-environment.ps1 for the detail"
   ${EndIf}
 SectionEnd
 
