@@ -161,6 +161,55 @@ fn env_report(handle: tauri::AppHandle) -> serde_json::Value {
     })
 }
 
+/// Everything a support email needs, as one block of text.
+///
+/// Built HERE rather than assembled in JavaScript so that the version, the OS
+/// and the resolved paths cannot be omitted by a page that failed to load
+/// properly - which, on a startup failure, is exactly the situation. Also
+/// written to a file, because a 40-line traceback survives a paste badly and an
+/// attachment does not.
+#[tauri::command]
+fn save_report(handle: tauri::AppHandle) -> serde_json::Value {
+    let diag = diagnostics(handle.clone());
+    let env = env_report(handle.clone());
+
+    let mut out = String::new();
+    out.push_str("PDC Glossary Generator - startup report\n");
+    out.push_str("=======================================\n\n");
+    out.push_str(&format!("version   : {}\n", handle.package_info().version));
+    out.push_str(&format!("os        : {} {}\n", std::env::consts::OS, std::env::consts::ARCH));
+    out.push_str(&format!("exe       : {}\n",
+        std::env::current_exe().map(|p| p.to_string_lossy().into_owned())
+            .unwrap_or_else(|_| "unknown".into())));
+    out.push_str("\n-- what the shell resolved ------------------------\n");
+    out.push_str(&serde_json::to_string_pretty(&diag).unwrap_or_default());
+    out.push_str("\n\n-- this install ----------------------------------\n");
+    out.push_str(&serde_json::to_string_pretty(&env).unwrap_or_default());
+    out.push_str("\n\n-- backend output --------------------------------\n");
+    let log = last_server_output();
+    if log.is_empty() {
+        out.push_str("(the backend produced no output at all)\n");
+    } else {
+        for line in log {
+            out.push_str(&line);
+            out.push('\n');
+        }
+    }
+
+    // Into the STATE directory, which is writable by definition - the install
+    // directory is not, and a report that cannot be written is worse than none.
+    let path = state_dir(&handle).join("startup-report.txt");
+    let written = std::fs::create_dir_all(state_dir(&handle))
+        .and_then(|_| std::fs::write(&path, &out))
+        .is_ok();
+
+    serde_json::json!({
+        "text": out,
+        "path": path.to_string_lossy(),
+        "written": written,
+    })
+}
+
 /// Surfaced on the splash when startup fails, so a dead backend reads as an
 /// error message rather than a permanently blank window.
 #[tauri::command]
@@ -193,7 +242,7 @@ fn main() {
         .manage(AppState {
             server: shared.clone(),
         })
-        .invoke_handler(tauri::generate_handler![server_url, server_log, env_report, diagnostics])
+        .invoke_handler(tauri::generate_handler![server_url, server_log, env_report, diagnostics, save_report])
         .setup(move |app| {
             let handle = app.handle().clone();
             let resource_dir = strip_verbatim(&handle.path().resource_dir().unwrap_or_default());

@@ -14,6 +14,35 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.32.2] - 2026-08-06
+
+### Added - the failure panel produces a support email
+
+The point of that panel is not to be read, it is to be **sent**. Three actions:
+
+- **Copy details** - the whole report to the clipboard.
+- **Save report** - writes `startup-report.txt` to the state directory (writable
+  by definition; the install directory is not) and reveals it in Explorer, so it
+  can be attached rather than pasted.
+- **Email support** - opens a pre-addressed mail to
+  `james.oreilly@pentaho.com`, having copied the details first. `mailto` bodies
+  are truncated by most clients well before a 40-line traceback fits, so the
+  body carries the summary and the detail travels by clipboard.
+
+The report is assembled by the **shell**, not the page: version, OS, executable
+path, resolved paths, install identity and the full backend log. On a startup
+failure the page itself may be half-working, and a report missing the version is
+the one that generates a second round of emails.
+
+### Fixed - clipboard copy could fail with no fallback
+
+`navigator.clipboard.writeText` can **reject** as well as be absent - "Document
+is not focused" is the common one, and it happens exactly when someone clicks a
+button while focus is elsewhere. The legacy `execCommand` path was only reached
+when the API was missing, so that case simply failed. Rejection now falls back
+too, and if both refuse the message says so and points at Save report rather
+than claiming success.
+
 ## [1.32.1] - 2026-08-06
 
 ### Added - the splash answers the first question a new install raises

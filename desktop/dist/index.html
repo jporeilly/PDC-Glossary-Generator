@@ -115,8 +115,22 @@
   .error h2 { font-size: 1rem; color: #ff7b72; margin: 0 0 .5rem; }
   .error p { color: #9aa7b4; margin: 0 0 .55rem; font-size: .89rem; }
   pre { background: rgba(0,0,0,.45); border: 1px solid rgba(255,255,255,.08);
-        border-radius: 7px; padding: .7rem; overflow: auto; max-height: 175px;
+        border-radius: 7px; padding: .7rem; overflow: auto; max-height: 150px;
         font: 11.5px/1.5 Consolas, monospace; color: #c9d1d9; }
+
+  .support { margin-top: .9rem; }
+  .actions { display: flex; gap: .5rem; flex-wrap: wrap; }
+  .actions button {
+    font: 600 .84rem/1 "Segoe UI", system-ui, sans-serif;
+    padding: .52rem .9rem; border-radius: 6px; cursor: pointer;
+    color: #fff; background: #cc0000; border: 1px solid #a30000;
+  }
+  .actions button:hover { background: #e00000; }
+  .actions button.ghost { background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.18); }
+  .actions button.ghost:hover { background: rgba(255,255,255,.12); }
+  .addr { margin: .65rem 0 0; font-size: .84rem; color: #9aa7b4; }
+  .addr strong { color: #e6edf3; }
+  .hint { margin: .3rem 0 0; font-size: .8rem; color: #7ee29a; min-height: 1.1em; }
 </style>
 </head>
 <body>
@@ -155,6 +169,22 @@
     <pre id="diag">collecting...</pre>
     <p>If <code>api_py_found</code> or <code>vendored_python</code> is false, the install is
        incomplete - reinstall, or run the app from a checkout with <code>run.ps1</code>.</p>
+
+    <!--
+      The point of this panel is a support email, not a read. Buttons first,
+      because the useful action is "send this to someone who can fix it" and the
+      detail above is only there so the sender can see what they are sending.
+    -->
+    <div class="support">
+      <div class="actions">
+        <button id="copyBtn">Copy details</button>
+        <button id="saveBtn">Save report</button>
+        <button id="mailBtn">Email support</button>
+      </div>
+      <p class="addr">Send to <strong>james.oreilly@pentaho.com</strong> - paste the details,
+         or attach the saved report.</p>
+      <p class="hint" id="supportHint"></p>
+    </div>
   </div>
 </div>
 
@@ -390,6 +420,94 @@
         .catch(function () { setTimeout(poll, 400); });
     }).catch(function () { setTimeout(poll, 400); });
   }
+
+  // ---- support actions -----------------------------------------------------
+  var SUPPORT = 'james.oreilly@pentaho.com';
+  var reportText = '';
+  var reportPath = '';
+
+  function hint(msg, ok) {
+    var el = document.getElementById('supportHint');
+    el.textContent = msg;
+    el.style.color = ok === false ? '#ff9d96' : '#7ee29a';
+  }
+
+  // Built by the SHELL, not assembled here: on a startup failure the page
+  // itself may be half-working, and a report missing the version or the paths
+  // is the one that generates a second round of emails.
+  function report() {
+    if (reportText) { return Promise.resolve({ text: reportText, path: reportPath }); }
+    return invoke('save_report').then(function (r) {
+      reportText = r.text; reportPath = r.path;
+      return r;
+    });
+  }
+
+  function copyText(text) {
+    // The async API can REJECT as well as be absent - "Document is not focused"
+    // is the common one, and it happens exactly when a user clicks a button
+    // while something else has focus. Falling back only on absence left that
+    // case failing, so the rejection path falls back too.
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      return navigator.clipboard.writeText(text).catch(function () {
+        return legacyCopy(text);
+      });
+    }
+    return legacyCopy(text);
+  }
+
+  function legacyCopy(text) {
+    return new Promise(function (resolve, reject) {
+      var ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      var ok = false;
+      try { ok = document.execCommand('copy'); } catch (e) {}
+      document.body.removeChild(ta);
+      ok ? resolve() : reject(new Error('copy refused'));
+    });
+  }
+
+  document.getElementById('copyBtn').onclick = function () {
+    report().then(function (r) { return copyText(r.text); })
+      .then(function () { hint('Copied. Paste it into an email to ' + SUPPORT + '.'); })
+      .catch(function (e) { hint('Could not copy: ' + e + ' - use Save report instead.', false); });
+  };
+
+  document.getElementById('saveBtn').onclick = function () {
+    report().then(function (r) {
+      hint('Saved to ' + r.path);
+      // Reveal it rather than opening it: the user needs to ATTACH the file,
+      // and a text editor full of tracebacks does not help them do that.
+      if (window.__TAURI__.opener) {
+        window.__TAURI__.opener.revealItemInDir(r.path).catch(function () {});
+      }
+    }).catch(function (e) { hint('Could not save the report: ' + e, false); });
+  };
+
+  document.getElementById('mailBtn').onclick = function () {
+    report().then(function (r) {
+      // mailto bodies are truncated by most clients well before a 40-line
+      // traceback fits, so the body carries the summary and the details go via
+      // the clipboard - which is why this copies first and says so.
+      return copyText(r.text).then(function () { return r; }, function () { return r; });
+    }).then(function (r) {
+      var subject = 'PDC Glossary Generator - startup failure';
+      var body = 'The app did not start. Full details are on my clipboard - pasting below.\n\n'
+               + 'Report also saved at:\n' + r.path + '\n\n----\n\n';
+      var url = 'mailto:' + SUPPORT
+              + '?subject=' + encodeURIComponent(subject)
+              + '&body=' + encodeURIComponent(body);
+      if (window.__TAURI__.opener) {
+        window.__TAURI__.opener.openUrl(url).catch(function () { window.location.href = url; });
+      } else {
+        window.location.href = url;
+      }
+      hint('Details copied - paste them into the email that just opened.');
+    }).catch(function (e) { hint('Could not prepare the email: ' + e, false); });
+  };
 
   if (HAS_TAURI) { showIdentity(); poll(); } else { previewMode(); }
 </script>
