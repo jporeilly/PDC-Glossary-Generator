@@ -14,6 +14,30 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.32.6] - 2026-08-06
+
+### Fixed - the default install path was not Program Files
+
+`installMode` was `both`, which sounds more flexible than it is. Tauri's
+template picks the default `$INSTDIR` with
+
+    !if perMachine ... !else if currentUser ...
+
+and there is **no `both` branch**, so `$INSTDIR` was simply never set and
+MultiUser's own per-user default took over. The app landed somewhere nobody
+expected, which is how it was spotted.
+
+Now `perMachine`: `C:\Program Files\PDC Glossary Generator`, named outright by
+the template rather than inferred. Two consequences, both deliberate:
+
+- It always elevates, and a standard user cannot install it. For a tool an admin
+  puts on a workshop machine that is the right trade.
+- On a **shared** machine the seed runs as the installing admin and writes that
+  account's `%APPDATA%`. A second user gets an unseeded state directory and needs
+  `provisioning\seed-company.ps1` run once as themselves. Recorded in the README
+  rather than worked around, because the alternative - state in the install
+  directory - is what 1.25.0 removed.
+
 ## [1.32.5] - 2026-08-06
 
 ### Added - the build version, on screen from the first frame

@@ -101,7 +101,19 @@ Expect these, none of which are bugs:
   "Windows protected your PC" → *More info* → *Run anyway*. Every attendee will
   hit this until the binary is code-signed; that's the one thing standing
   between this and a hands-off rollout.
-- **Admin rights.** `installMode` is `both`; per-machine needs elevation.
+- **Admin rights, always.** `installMode` is `perMachine`, so it installs to
+  `C:\Program Files\PDC Glossary Generator` and always prompts for elevation.
+  A standard user cannot install it.
+
+  It was `both` until 1.32.6, which sounded more flexible and wasn't: the
+  template's default-path chain has no `both` branch, so `$INSTDIR` was never
+  set and MultiUser's per-user default won - the app landed somewhere nobody
+  expected. `perMachine` names the path outright.
+
+  One consequence worth knowing on a **shared** machine: the seed step runs as
+  the installing admin, so it writes that account's `%APPDATA%`. A second user
+  logging in gets an unseeded state directory and needs
+  `provisioning\seed-company.ps1` run once as themselves.
 - **Network is needed for two things only** — the WebView2 bootstrapper (if the
   machine lacks the runtime) and the Ollama model pull. The app and its Python
   are entirely inside the installer.
