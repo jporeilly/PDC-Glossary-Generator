@@ -272,10 +272,27 @@
     });
   }
 
-  function poll() {
+  // The clock and the deadline run on their OWN interval, not inside poll().
+  //
+  // They used to be the first two lines of poll(), which meant both depended on
+  // the poll chain staying alive: one invoke that never settles - a wedged
+  // backend is exactly when that happens - and the counter freezes at whatever
+  // second it last reached while the 90s timeout never fires. The screen then
+  // sits there forever looking like it is still working.
+  var finished = false;
+  var clock = setInterval(function () {
+    if (finished) { return; }
     var secs = Math.round((Date.now() - started) / 1000);
     footEl.textContent = secs > 3 ? secs + 's elapsed' : '';
-    if (Date.now() - started > DEADLINE_MS) { fail(); return; }
+    if (Date.now() - started > DEADLINE_MS) {
+      finished = true;
+      clearInterval(clock);
+      fail();
+    }
+  }, 1000);
+
+  function poll() {
+    if (finished) { return; }
 
     invoke('server_log').then(pushLines).catch(function () {});
 
@@ -289,6 +306,8 @@
           return r.json();
         })
         .then(function (v) {
+          finished = true;
+          clearInterval(clock);
           advanceTo(STEPS.length);
           setState('connect', 'done', v && v.version ? 'v' + v.version : '');
           setTimeout(function () { window.location.replace(url); }, 420);

@@ -61,6 +61,15 @@ Two bugs found by driving the real code path with fake log lines:
 Opened in a plain browser it says so, rather than freezing: `window.__TAURI__`
 is absent there, so every call rejects and the old page just sat still.
 
+The elapsed clock and the 90-second deadline run on their **own interval**, not
+inside the poll chain. They started life as the first two lines of `poll()`,
+which made both depend on that chain staying alive: one `invoke` that never
+settles - a wedged backend is precisely when that happens - and the counter
+freezes at whatever second it last reached while the timeout never fires, so the
+screen sits there forever looking busy. Verified by stubbing `invoke` with a
+promise that never resolves: the clock keeps counting, and the deadline still
+trips through to the error panel.
+
 ### Added - installer feedback and a licence
 
 The details pane is shown by default and the "Show details" button hidden - the
