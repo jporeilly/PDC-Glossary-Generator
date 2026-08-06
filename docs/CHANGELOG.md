@@ -14,6 +14,66 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.32.0] - 2026-08-06
+
+### Fixed - the packaged app could not start at all
+
+The first clean-laptop install failed with "The local server did not start",
+while every path in the diagnostics reported `true`. The cause: Tauri's
+`resource_dir()` canonicalises, so on Windows it returns an extended-length path
+- `\?\C:\Program Files\...`. Those are legal for file APIs, which is why
+`is_file()` passed on all of them, but they are **not** legal as a process
+working directory: `SetCurrentDirectory` rejects the verbatim form, so
+`boot.py`'s `os.chdir()` raised and the backend died before uvicorn bound a
+port.
+
+Stripped in the shell (`strip_verbatim`) and again in `boot.py` (`_plain`), for
+drive paths only - a genuine UNC or an over-long path still needs the prefix.
+
+### Fixed - a failure with nothing to show for itself
+
+`stdout`/`stderr` were piped and never read. The traceback explaining the
+failure sat in a pipe nobody drained, so a dead server looked exactly like a
+slow one - and an undrained pipe would eventually have blocked a *working*
+server mid-run. Both streams are now drained on their own threads into a
+40-line ring buffer, exposed as `server_log`.
+
+### Added - a startup screen that shows the work
+
+Rebuilt around the Pentaho swirl (`make-swirl.py`, a vector path so it can be
+drawn on and rotated - reusable as-is by Content Manager), with five checks that
+advance off **real signals**: uvicorn's own `Started server process`,
+`Waiting for application startup`, `Application startup complete`. Nothing
+advances on a timer, because a checklist that ticks itself is a progress bar
+wearing a disguise. Beneath it, the backend's live output.
+
+A failure now turns the active check red and colours the traceback, instead of
+sitting at 90 seconds and then blanking.
+
+Two bugs found by driving the real code path with fake log lines:
+
+- `pushLines` cleared its placeholder by re-calling itself with the cursor still
+  at 0 - infinite recursion on the first line of output.
+- The checklist ran **backwards**: uvicorn prints `Uvicorn running on ...` last,
+  and that also matches the Python step's pattern, so a finished step got its
+  spinner back. Progression is monotonic now.
+
+Opened in a plain browser it says so, rather than freezing: `window.__TAURI__`
+is absent there, so every call rejects and the old page just sat still.
+
+### Added - installer feedback and a licence
+
+The details pane is shown by default and the "Show details" button hidden - the
+optional steps take minutes and a collapsed log made a working installer look
+hung. Core install now narrates what it is doing.
+
+`LICENSE.txt` is adapted from Pentaho Content Manager's for this product: the
+course-content and exam-results sections replaced by what this app actually
+does - connecting to your sources, what profiling reads, and the one route by
+which data leaves the machine (a hosted AI provider, off by default). It records
+that classification is deterministic rather than AI-driven, which is a
+regulatory position worth stating in writing.
+
 ## [1.31.2] - 2026-08-06
 
 ### Changed - Pentaho branding, shared with Content Manager

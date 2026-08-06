@@ -388,6 +388,18 @@ Var AppStartMenuFolder
 !insertmacro MUI_PAGE_STARTMENU Application $AppStartMenuFolder
 
 ; 7. Installation page
+; The optional steps are slow - a model pull is several GB - and a collapsed
+; details pane makes a working installer look hung. Show the log, and say what
+; each step is doing as it starts.
+ShowInstDetails show
+Function InstFilesShow
+  ; ShowInstDetails alone leaves the "Show details" button sitting there doing
+  ; nothing useful; hiding it makes clear the log IS the page.
+  FindWindow $0 "#32770" "" $HWNDPARENT
+  GetDlgItem $1 $0 1027
+  ShowWindow $1 ${SW_HIDE}
+FunctionEnd
+!define MUI_PAGE_CUSTOMFUNCTION_SHOW InstFilesShow
 !insertmacro MUI_PAGE_INSTFILES
 
 ; 8. Finish page
@@ -646,6 +658,10 @@ Section "-Install"
 
   !insertmacro CheckIfAppIsRunning "${MAINBINARYNAME}.exe" "${PRODUCTNAME}"
 
+  DetailPrint "Installing ${PRODUCTNAME} ${VERSION} to $INSTDIR"
+  DetailPrint "This carries its own Python and every database driver - about 12,000 files,"
+  DetailPrint "so the next step is the slowest part of a plain install."
+
   ; The vendored Python tree is REPLACED, not overlaid: file extraction only
   ; adds and overwrites, so a dependency dropped between releases would linger
   ; and keep being importable. Left in place would make "what shipped" and
@@ -886,6 +902,8 @@ Section Uninstall
   !endif
 
   !insertmacro CheckIfAppIsRunning "${MAINBINARYNAME}.exe" "${PRODUCTNAME}"
+
+  DetailPrint "Removing ${PRODUCTNAME} from $INSTDIR"
 
   ; Delete the app directory and its content from disk
   ; Copy main executable

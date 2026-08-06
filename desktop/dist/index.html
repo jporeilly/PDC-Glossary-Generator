@@ -4,66 +4,268 @@
 <meta charset="utf-8">
 <title>PDC Glossary Generator</title>
 <style>
-  :root { color-scheme: light dark; }
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
   body {
-    margin: 0; height: 100vh; display: flex; align-items: center; justify-content: center;
-    font: 15px/1.5 "Segoe UI", system-ui, sans-serif;
-    background: #0f1720; color: #e6edf3;
+    margin: 0; height: 100vh; overflow: hidden;
+    display: flex; align-items: center; justify-content: center;
+    font: 15px/1.55 "Segoe UI", system-ui, sans-serif;
+    color: #e6edf3;
+    /* Pentaho red bleeding out of a near-black field, so the brand reads before
+       any text is legible. */
+    background: radial-gradient(940px 640px at 50% 38%, #3d0708 0%, #1a0a0e 44%, #0f1720 80%);
   }
-  .panel { max-width: 34rem; padding: 2rem; text-align: center; }
-  h1 { font-size: 1.15rem; font-weight: 600; margin: 0 0 .35rem; letter-spacing: .01em; }
-  .sub { color: #8b98a5; margin: 0 0 1.6rem; }
-  .bar { height: 3px; background: #1e2a36; border-radius: 3px; overflow: hidden; }
-  .bar i { display: block; height: 100%; width: 35%; background: #cc0000; border-radius: 3px;
-           animation: slide 1.1s ease-in-out infinite; }
-  @keyframes slide { 0% { margin-left: -35%; } 100% { margin-left: 100%; } }
-  .status { margin-top: 1rem; color: #8b98a5; font-size: .9rem; min-height: 1.4em; }
-  .error { display: none; text-align: left; margin-top: 1.5rem; }
-  .error h2 { font-size: .95rem; color: #ff7b72; margin: 0 0 .5rem; }
-  .error p { color: #8b98a5; margin: 0 0 .75rem; }
-  pre { background: #0b1017; border: 1px solid #1e2a36; border-radius: 6px;
-        padding: .75rem; overflow-x: auto; font-size: .8rem; color: #c9d1d9; }
+  .stage { width: min(600px, 90vw); }
+
+  header { display: flex; align-items: center; gap: 1.05rem; margin-bottom: 1.5rem; }
+  .markwrap { position: relative; width: 78px; height: 78px; flex: 0 0 78px; }
+  svg.mark { position: absolute; inset: 0; width: 78px; height: 78px; }
+  .swirl {
+    fill: none; stroke: #cc0000; stroke-width: 7.5;
+    stroke-linecap: round; stroke-linejoin: round;
+    filter: drop-shadow(0 0 12px rgba(204,0,0,.55));
+    stroke-dasharray: 640; stroke-dashoffset: 640;
+    animation: draw 2.2s cubic-bezier(.35,.6,.3,1) forwards, spin 16s linear 2.2s infinite;
+    transform-origin: 50% 50%;
+  }
+  @keyframes draw { to { stroke-dashoffset: 0; } }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  /* Concentric pulses - the estate being swept. Decorative, but it makes a
+     20-second cold start read as work rather than a hang. */
+  .ring {
+    position: absolute; inset: 0; border: 1px solid rgba(204,0,0,.40);
+    border-radius: 50%; animation: pulse 3.2s ease-out infinite;
+  }
+  .ring:nth-child(2) { animation-delay: 1.05s; }
+  .ring:nth-child(3) { animation-delay: 2.1s; }
+  @keyframes pulse { 0% { transform: scale(.5); opacity: .75; } 100% { transform: scale(2); opacity: 0; } }
+
+  h1 { font-size: 1.3rem; font-weight: 600; margin: 0 0 .15rem; letter-spacing: .015em; }
+  .sub { color: #9aa7b4; margin: 0; font-size: .9rem; }
+
+  /* The checks. Each row is driven by a real signal, never a timer. */
+  ul.checks { list-style: none; margin: 0 0 1.15rem; padding: 0; }
+  ul.checks li {
+    display: flex; align-items: center; gap: .7rem;
+    padding: .38rem .1rem; font-size: .93rem; color: #6f7d8c;
+    transition: color .25s ease;
+  }
+  li.active { color: #e6edf3; }
+  li.done   { color: #9aa7b4; }
+  li.failed { color: #ff7b72; }
+  .dot { flex: 0 0 16px; height: 16px; position: relative; }
+  .dot::before {
+    content: ""; position: absolute; inset: 3px; border-radius: 50%;
+    background: rgba(255,255,255,.14);
+  }
+  li.active .dot::before {
+    inset: 0; background: none;
+    border: 2px solid rgba(204,0,0,.25); border-top-color: #ff3b3b; border-radius: 50%;
+    animation: spin .8s linear infinite;
+  }
+  li.done .dot::after {
+    content: ""; position: absolute; left: 4px; top: 1px; width: 5px; height: 10px;
+    border: solid #2ea043; border-width: 0 2px 2px 0; transform: rotate(42deg);
+  }
+  li.done .dot::before { background: none; }
+  li.failed .dot::after {
+    content: "!"; position: absolute; inset: 0; text-align: center;
+    font-weight: 700; font-size: 12px; color: #ff7b72; line-height: 16px;
+  }
+  li.failed .dot::before { background: none; }
+  .note { margin-left: auto; font-size: .78rem; color: #5c6874; }
+
+  /* What is actually happening: the backend's own stdout/stderr, live. */
+  .console {
+    height: 118px; overflow-y: auto;
+    background: rgba(0,0,0,.34); border: 1px solid rgba(255,255,255,.07);
+    border-radius: 7px; padding: .55rem .7rem;
+    font: 11.5px/1.55 Consolas, "Cascadia Mono", monospace; color: #8fa0b2;
+    -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 18%, #000 100%);
+            mask-image: linear-gradient(180deg, transparent 0, #000 18%, #000 100%);
+    scrollbar-width: none;
+  }
+  .console::-webkit-scrollbar { display: none; }
+  .console div { white-space: pre-wrap; word-break: break-word; }
+  .console .err { color: #ff9d96; }
+  .console .muted { color: #4f5d6c; }
+
+  .foot { margin-top: .8rem; font-size: .8rem; color: #5c6874; text-align: right; }
+
+  .error { display: none; }
+  .error h2 { font-size: 1rem; color: #ff7b72; margin: 0 0 .5rem; }
+  .error p { color: #9aa7b4; margin: 0 0 .55rem; font-size: .89rem; }
+  pre { background: rgba(0,0,0,.45); border: 1px solid rgba(255,255,255,.08);
+        border-radius: 7px; padding: .7rem; overflow: auto; max-height: 175px;
+        font: 11.5px/1.5 Consolas, monospace; color: #c9d1d9; }
 </style>
 </head>
 <body>
-<div class="panel">
-  <h1>PDC Glossary Generator</h1>
-  <p class="sub">Starting the local server&hellip;</p>
-  <div class="bar"><i></i></div>
-  <div class="status" id="status"></div>
+<div class="stage">
+  <header>
+    <div class="markwrap">
+      <div class="ring"></div><div class="ring"></div><div class="ring"></div>
+      <svg class="mark" viewBox="0 0 100 100" aria-hidden="true">
+        <path class="swirl" d="M 47.17 47.17 L 47.27 46.84 L 47.39 46.50 L 47.56 46.17 L 47.76 45.84 L 47.99 45.52 L 48.26 45.22 L 48.57 44.93 L 48.90 44.66 L 49.27 44.41 L 49.67 44.19 L 50.09 44.00 L 50.55 43.84 L 51.02 43.72 L 51.52 43.63 L 52.03 43.59 L 52.56 43.58 L 53.10 43.62 L 53.65 43.71 L 54.20 43.84 L 54.75 44.02 L 55.29 44.25 L 55.83 44.52 L 56.36 44.85 L 56.86 45.22 L 57.35 45.64 L 57.81 46.10 L 58.24 46.61 L 58.64 47.17 L 59.00 47.76 L 59.32 48.39 L 59.59 49.05 L 59.81 49.75 L 59.99 50.47 L 60.11 51.22 L 60.17 51.99 L 60.18 52.77 L 60.12 53.56 L 60.00 54.36 L 59.82 55.16 L 59.57 55.96 L 59.26 56.75 L 58.88 57.52 L 58.44 58.27 L 57.94 59.00 L 57.37 59.70 L 56.74 60.36 L 56.06 60.99 L 55.32 61.56 L 54.53 62.09 L 53.69 62.56 L 52.80 62.97 L 51.88 63.32 L 50.91 63.61 L 49.92 63.82 L 48.90 63.96 L 47.86 64.02 L 46.81 64.00 L 45.74 63.91 L 44.68 63.73 L 43.61 63.47 L 42.56 63.13 L 41.52 62.70 L 40.51 62.20 L 39.53 61.61 L 38.58 60.94 L 37.67 60.20 L 36.81 59.38 L 36.01 58.49 L 35.27 57.53 L 34.59 56.51 L 33.99 55.43 L 33.46 54.30 L 33.01 53.12 L 32.65 51.89 L 32.37 50.63 L 32.19 49.34 L 32.11 48.02 L 32.12 46.70 L 32.23 45.36 L 32.45 44.02 L 32.76 42.69 L 33.18 41.37 L 33.69 40.07 L 34.31 38.81 L 35.03 37.58 L 35.84 36.40 L 36.75 35.27 L 37.74 34.20 L 38.82 33.20 L 39.99 32.27 L 41.23 31.42 L 42.54 30.66 L 43.91 30.00 L 45.34 29.43 L 46.82 28.97 L 48.35 28.61 L 49.91 28.36 L 51.49 28.23 L 53.10 28.22 L 54.72 28.33 L 56.33 28.55 L 57.94 28.90 L 59.53 29.37 L 61.09 29.96 L 62.62 30.66 L 64.11 31.49 L 65.54 32.43 L 66.90 33.48 L 68.20 34.64 L 69.42 35.89 L 70.55 37.25 L 71.58 38.69 L 72.51 40.22 L 73.34 41.82 L 74.04 43.50 L 74.63 45.23 L 75.10 47.01 L 75.43 48.84 L 75.63 50.70 L 75.69 52.58 L 75.61 54.47 L 75.40 56.37 L 75.04 58.25 L 74.54 60.12 L 73.90 61.96 L 73.12 63.76 L 72.21 65.51 L 71.16 67.20 L 69.99 68.82 L 68.69 70.36 L 67.27 71.81 L 65.74 73.16 L 64.10 74.40 L 62.37 75.52 L 60.55 76.53 L 58.64 77.40 L 56.67 78.13 L 54.63 78.72 L 52.55 79.16 L 50.42 79.45 L 48.27 79.59 L 46.09 79.56 L 43.92 79.38 L 41.75 79.03 L 39.59 78.52 L 37.47 77.86 L 35.39 77.03 L 33.36 76.05 L 31.40 74.92 L 29.52 73.63 L 27.73 72.21 L 26.03 70.65 L 24.45 68.96 L 22.98 67.15 L 21.65 65.22 L 20.45 63.19 L 19.39 61.07 L 18.50 58.86 L 17.76 56.58 L 17.18 54.24 L 16.78 51.85 L 16.55 49.43 L 16.50 46.98 L 16.63 44.52 L 16.94 42.06 L 17.43 39.62 L 18.10 37.21 L 18.96 34.85 L 19.98 32.54 L 21.18 30.30 L 22.55 28.14 L 24.08 26.08 L 25.77 24.12 L 27.60 22.28 L 29.57 20.58 L 31.67 19.01 L 33.90 17.60 L 36.23 16.35 L 38.66 15.26 L 41.17 14.35 L 43.76 13.62 L 46.40 13.08 L 49.10 12.74 L 51.82 12.59 L 54.56 12.64 L 57.30 12.89 L 60.03 13.35 L 62.73 14.00 L 65.39 14.86 L 67.99 15.91 L 70.52 17.15 L 72.96 18.59 L 75.30 20.20 L 77.53 21.99 L 79.63 23.95 L 81.59 26.07 L 83.40 28.33 L 85.05 30.73 L 86.53 33.26 L 87.82 35.89 L 88.92 38.63 L 89.82 41.46 L 90.52 44.35 L 91.00 47.30 L 91.27 50.29 L 91.32 53.31 L 91.15 56.34 L 90.76 59.36 L 90.14 62.35 L 89.31 65.30 L 88.25 68.20 L 86.99 71.03 L 85.51 73.76 L 83.83 76.40 L 81.95 78.91 L 79.89 81.29 L 77.65 83.52 L 75.24 85.59 L 72.68 87.49 L 69.98 89.20"/>
+      </svg>
+    </div>
+    <div>
+      <h1>PDC Glossary Generator</h1>
+      <p class="sub">Build a governed business glossary</p>
+    </div>
+  </header>
 
-  <!--
-    A backend that never comes up would otherwise leave a blank window with no
-    explanation, which is the single worst failure mode for a workshop machine.
-    After the timeout we show what the shell actually resolved instead.
-  -->
+  <div id="live">
+    <ul class="checks" id="checks"></ul>
+    <div class="console" id="console"><div class="muted">waiting for the backend...</div></div>
+    <div class="foot" id="foot"></div>
+  </div>
+
   <div class="error" id="error">
     <h2>The local server did not start</h2>
-    <p>The desktop shell could not reach the Glossary Generator backend. What it resolved:</p>
-    <pre id="diag">collecting&hellip;</pre>
+    <!--
+      The backend's own output comes FIRST. Every path check can pass while the
+      server still dies - which is exactly what a verbatim \\?\ working directory
+      did - so the resolved paths are the second question, not the first.
+    -->
+    <p>What the backend said before it stopped:</p>
+    <pre id="log">collecting...</pre>
+    <p>What the shell resolved:</p>
+    <pre id="diag">collecting...</pre>
     <p>If <code>api_py_found</code> or <code>vendored_python</code> is false, the install is
        incomplete - reinstall, or run the app from a checkout with <code>run.ps1</code>.</p>
   </div>
 </div>
 
 <script>
-  // Deadline generous enough for a cold start on a slow VM (first import of
-  // the DB drivers and provider SDKs is not fast), short enough that a genuine
-  // failure does not look like a hang.
+  // Generous enough for a genuine cold start - the first import of the DB
+  // drivers and provider SDKs is slow - but short enough that a real failure
+  // does not read as a hang.
   var DEADLINE_MS = 90000;
   var started = Date.now();
-  var statusEl = document.getElementById('status');
+  var seen = 0;
+
+  var consoleEl = document.getElementById('console');
+  var footEl    = document.getElementById('foot');
+
+  // Every step is driven by a REAL signal: a line the backend printed, or a
+  // successful HTTP call. Nothing here advances on a timer, because a checklist
+  // that ticks itself is just a progress bar wearing a disguise.
+  var STEPS = [
+    { id: 'shell',   label: 'Locating the application',        match: null },
+    { id: 'python',  label: 'Starting the bundled Python',     match: /Started server process|Uvicorn running/i },
+    { id: 'drivers', label: 'Loading drivers and AI providers', match: /Waiting for application startup/i },
+    { id: 'ready',   label: 'Starting the web server',          match: /Application startup complete/i },
+    { id: 'connect', label: 'Connecting to the workspace',      match: null }
+  ];
+
+  var ul = document.getElementById('checks');
+  STEPS.forEach(function (s) {
+    var li = document.createElement('li');
+    li.id = 'step-' + s.id;
+    li.innerHTML = '<span class="dot"></span><span>' + s.label + '</span>' +
+                   '<span class="note" id="note-' + s.id + '"></span>';
+    ul.appendChild(li);
+  });
+
+  function setState(id, state, note) {
+    var li = document.getElementById('step-' + id);
+    if (!li) return;
+    li.className = state;
+    if (note !== undefined) { document.getElementById('note-' + id).textContent = note; }
+  }
+  function stateOf(id) { return (document.getElementById('step-' + id) || {}).className || ''; }
+
+  // MONOTONIC. uvicorn prints "Uvicorn running on ..." last, but that line also
+  // matches the Python step's pattern, so a naive setter walked the list
+  // backwards and re-span a spinner on a step that had already finished.
+  var reached = 0;
+
+  function advanceTo(index) {
+    if (index <= reached) { return; }
+    reached = index;
+    for (var i = 0; i < STEPS.length; i++) {
+      if (i < index) { if (stateOf(STEPS[i].id) !== 'failed') setState(STEPS[i].id, 'done'); }
+      else if (i === index) { if (stateOf(STEPS[i].id) !== 'failed') setState(STEPS[i].id, 'active'); }
+    }
+  }
+
+  setState('shell', 'active');
+  advanceTo(1);
+  setState('shell', 'done');
+
+  var placeholderCleared = false;
+
+  function pushLines(lines) {
+    if (!placeholderCleared && lines.length > 0) {
+      // Drop the "waiting for the backend" placeholder once real output
+      // arrives. Done here, once, with a flag - an earlier version cleared it
+      // inside the tail of this function and re-called pushLines with `seen`
+      // still 0, which recursed until the stack blew.
+      consoleEl.innerHTML = '';
+      placeholderCleared = true;
+    }
+    for (var i = seen; i < lines.length; i++) {
+      var raw = lines[i];
+      var d = document.createElement('div');
+      // The tag the Rust side prefixes: [out] / [err]. Strip it for display but
+      // use it to colour genuine error output.
+      var isErr = /^\[err\]/.test(raw) && /error|traceback|exception/i.test(raw);
+      d.textContent = raw.replace(/^\[(out|err)\]\s?/, '');
+      if (isErr) { d.className = 'err'; }
+      consoleEl.appendChild(d);
+
+      for (var s = 0; s < STEPS.length; s++) {
+        if (STEPS[s].match && STEPS[s].match.test(raw)) { advanceTo(s + 1); }
+      }
+      if (/Traceback|ModuleNotFoundError|Error:/i.test(raw)) {
+        for (var k = 0; k < STEPS.length; k++) {
+          if (stateOf(STEPS[k].id) === 'active') { setState(STEPS[k].id, 'failed'); break; }
+        }
+      }
+    }
+    if (lines.length > seen) {
+      seen = lines.length;
+      consoleEl.scrollTop = consoleEl.scrollHeight;
+      while (consoleEl.childElementCount > 80) { consoleEl.removeChild(consoleEl.firstChild); }
+    }
+  }
+
+  // The Tauri bridge only exists inside the app window. Opened in a plain
+  // browser - which is how anyone would try to preview this page - every call
+  // throws and the screen sits there frozen, looking like the bug it is not.
+  // Say so instead.
+  var HAS_TAURI = !!(window.__TAURI__ && window.__TAURI__.core);
 
   function invoke(cmd) {
+    if (!HAS_TAURI) { return Promise.reject(new Error('no tauri bridge')); }
     return window.__TAURI__.core.invoke(cmd);
   }
 
+  function previewMode() {
+    consoleEl.innerHTML = '';
+    ['Preview only - this page is open in a browser, not in the app window.',
+     'window.__TAURI__ is absent, so there is no backend to talk to and',
+     'no log to stream. Launch the app to see the real thing.'
+    ].forEach(function (t) {
+      var d = document.createElement('div');
+      d.className = 'muted';
+      d.textContent = t;
+      consoleEl.appendChild(d);
+    });
+    setState('shell', 'done', 'preview');
+    setState('python', 'active', 'waiting');
+    footEl.textContent = 'preview mode';
+  }
+
   function fail() {
-    document.querySelector('.bar').style.display = 'none';
-    document.querySelector('.sub').textContent = '';
-    statusEl.textContent = '';
+    document.getElementById('live').style.display = 'none';
     document.getElementById('error').style.display = 'block';
     invoke('diagnostics').then(function (d) {
+      var log = d.server_log || [];
+      delete d.server_log;
+      document.getElementById('log').textContent =
+        log.length ? log.join('\n') : 'nothing - the backend produced no output at all.';
       document.getElementById('diag').textContent = JSON.stringify(d, null, 2);
     }).catch(function (e) {
       document.getElementById('diag').textContent = String(e);
@@ -71,27 +273,31 @@
   }
 
   function poll() {
+    var secs = Math.round((Date.now() - started) / 1000);
+    footEl.textContent = secs > 3 ? secs + 's elapsed' : '';
     if (Date.now() - started > DEADLINE_MS) { fail(); return; }
 
+    invoke('server_log').then(pushLines).catch(function () {});
+
     invoke('server_url').then(function (url) {
-      if (!url) { setTimeout(poll, 300); return; }
-      // Ask the app's own health endpoint rather than the root: the root is the
-      // SPA shell and would answer before the app is genuinely ready.
+      if (!url) { setTimeout(poll, 350); return; }
+      // Ask the app's own health endpoint, not "/": the root is the SPA shell
+      // and answers before the application is genuinely ready.
       fetch(url + '/api/version', { cache: 'no-store' })
         .then(function (r) {
           if (!r.ok) throw new Error('not ready');
-          statusEl.textContent = 'Ready - opening ' + url;
-          window.location.replace(url);
+          return r.json();
         })
-        .catch(function () {
-          var secs = Math.round((Date.now() - started) / 1000);
-          statusEl.textContent = secs > 4 ? 'still starting (' + secs + 's)' : '';
-          setTimeout(poll, 400);
-        });
+        .then(function (v) {
+          advanceTo(STEPS.length);
+          setState('connect', 'done', v && v.version ? 'v' + v.version : '');
+          setTimeout(function () { window.location.replace(url); }, 420);
+        })
+        .catch(function () { setTimeout(poll, 400); });
     }).catch(function () { setTimeout(poll, 400); });
   }
 
-  poll();
+  if (HAS_TAURI) { poll(); } else { previewMode(); }
 </script>
 </body>
 </html>

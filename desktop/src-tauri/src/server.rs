@@ -14,10 +14,12 @@
 //   3. STATE OUTSIDE THE INSTALL. GLOSSARY_STATE_DIR is set explicitly to the
 //      per-user data directory rather than left to the app's own fallback, so
 //      the packaged build never depends on probing Program Files.
-use std::io;
+use std::io::{self, BufRead, BufReader};
 use std::net::TcpListener;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
+use std::sync::Mutex;
+use std::thread;
 
 #[cfg(windows)]
 use std::os::windows::process::CommandExt;
@@ -28,6 +30,41 @@ const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 pub struct Server {
     pub port: u16,
     child: Option<Child>,
+}
+
+/// The backend's last words.
+///
+/// Piping stdout/stderr without ever READING them is worse than not piping at
+/// all: the traceback that explains the failure sits in a pipe nobody drains,
+/// and a dead server looks identical to a slow one. Kept to the last few lines
+/// because the useful part of a Python traceback is the end.
+const LOG_LINES: usize = 40;
+static SERVER_LOG: Mutex<Vec<String>> = Mutex::new(Vec::new());
+
+fn record(line: String) {
+    if let Ok(mut log) = SERVER_LOG.lock() {
+        if log.len() >= LOG_LINES {
+            log.remove(0);
+        }
+        log.push(line);
+    }
+}
+
+/// Everything the backend has said, oldest first.
+pub fn last_server_output() -> Vec<String> {
+    SERVER_LOG.lock().map(|l| l.clone()).unwrap_or_default()
+}
+
+/// Drain a pipe on its own thread. Reading them inline would block startup.
+fn drain<R: std::io::Read + Send + 'static>(stream: R, tag: &'static str) {
+    thread::spawn(move || {
+        for line in BufReader::new(stream).lines() {
+            match line {
+                Ok(l) => record(format!("[{tag}] {l}")),
+                Err(_) => break,
+            }
+        }
+    });
 }
 
 /// Ask the OS for a free port by binding to :0, then release it.
@@ -92,7 +129,17 @@ impl Server {
         #[cfg(windows)]
         cmd.creation_flags(CREATE_NO_WINDOW);
 
-        let child = cmd.spawn()?;
+        let mut child = cmd.spawn()?;
+
+        // Start draining IMMEDIATELY. A Python traceback is a few hundred bytes,
+        // which fits in the pipe buffer, but uvicorn's request logging does not -
+        // an undrained pipe eventually blocks the server mid-run.
+        if let Some(out) = child.stdout.take() {
+            drain(out, "out");
+        }
+        if let Some(err) = child.stderr.take() {
+            drain(err, "err");
+        }
 
         #[cfg(windows)]
         job::assign_to_kill_on_close_job(&child)?;

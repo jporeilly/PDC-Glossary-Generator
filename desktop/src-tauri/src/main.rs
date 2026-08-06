@@ -11,12 +11,12 @@
 
 mod server;
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
 use tauri::{Manager, State};
 
-use server::Server;
+use server::{last_server_output, Server};
 
 /// Shared so the window-close handler can stop the server without borrowing
 /// from the window - going through `State` there ties the borrow to a
@@ -25,6 +25,35 @@ type SharedServer = Arc<Mutex<Option<Server>>>;
 
 struct AppState {
     server: SharedServer,
+}
+
+/// Strip Windows' verbatim `\\?\` prefix.
+///
+/// Tauri's `resource_dir()` canonicalises, which on Windows yields an
+/// extended-length path like `\\?\C:\Program Files\...`. Those are legal for
+/// most file APIs, and the shell's own `is_file()` checks pass happily - which
+/// is why the diagnostics reported everything found while nothing worked.
+///
+/// They are NOT legal as a process WORKING DIRECTORY: `SetCurrentDirectory`
+/// rejects the verbatim form, so `boot.py`'s `os.chdir()` raised and the server
+/// died before uvicorn ever bound a port.
+///
+/// Only safe to strip for ordinary drive paths - a genuine UNC (`\\?\UNC\...`)
+/// or a >260-char path still needs the prefix, so those are left alone.
+fn strip_verbatim(p: &Path) -> PathBuf {
+    let s = p.to_string_lossy();
+    if let Some(rest) = s.strip_prefix(r"\\?\") {
+        // Drive-letter paths only: "C:\..." - never \\?\UNC\server\share.
+        let bytes = rest.as_bytes();
+        let drive_path = bytes.len() >= 3
+            && bytes[0].is_ascii_alphabetic()
+            && bytes[1] == b':'
+            && bytes[2] == b'\\';
+        if drive_path && rest.len() < 250 {
+            return PathBuf::from(rest);
+        }
+    }
+    p.to_path_buf()
 }
 
 /// Where api.py lives.
@@ -37,7 +66,7 @@ fn app_dir(handle: &tauri::AppHandle) -> PathBuf {
     // because api.py resolves the built UI as ../frontend/dist relative to
     // itself. Flattening it would leave the server up with nothing to serve.
     if let Ok(res) = handle.path().resource_dir() {
-        let packaged = res.join("app").join("glossary_generator");
+        let packaged = strip_verbatim(&res.join("app").join("glossary_generator"));
         if packaged.join("api.py").is_file() {
             return packaged;
         }
@@ -54,7 +83,7 @@ fn app_dir(handle: &tauri::AppHandle) -> PathBuf {
 /// applied twice, beats two rules that can disagree about which tree is live.
 fn boot_py(handle: &tauri::AppHandle) -> PathBuf {
     if let Ok(res) = handle.path().resource_dir() {
-        let packaged = res.join("app").join("boot.py");
+        let packaged = strip_verbatim(&res.join("app").join("boot.py"));
         if packaged.is_file() {
             return packaged;
         }
@@ -79,6 +108,18 @@ fn server_url(state: State<'_, AppState>) -> Option<String> {
     state.server.lock().ok()?.as_ref().map(|s| s.url())
 }
 
+/// The backend's output so far, for the splash to show WHILE it waits.
+///
+/// Deliberately separate from `diagnostics`: the splash polls this every few
+/// hundred ms and `diagnostics` stats several paths, which is wasted work on a
+/// hot loop. It also means the startup screen shows what is really happening -
+/// uvicorn's own "Started server process" / "Application startup complete" -
+/// rather than a bar that moves whether or not anything is working.
+#[tauri::command]
+fn server_log() -> Vec<String> {
+    last_server_output()
+}
+
 /// Surfaced on the splash when startup fails, so a dead backend reads as an
 /// error message rather than a permanently blank window.
 #[tauri::command]
@@ -93,8 +134,12 @@ fn diagnostics(handle: tauri::AppHandle) -> serde_json::Value {
         "vendored_python": handle
             .path()
             .resource_dir()
-            .map(|r| r.join("python").join("python.exe").is_file())
+            .map(|r| strip_verbatim(&r).join("python").join("python.exe").is_file())
             .unwrap_or(false),
+        // The last thing the backend said before dying. Without this a failed
+        // start is a blank window and a shrug: every path check passes, because
+        // the paths were never the problem.
+        "server_log": last_server_output(),
     })
 }
 
@@ -107,10 +152,10 @@ fn main() {
         .manage(AppState {
             server: shared.clone(),
         })
-        .invoke_handler(tauri::generate_handler![server_url, diagnostics])
+        .invoke_handler(tauri::generate_handler![server_url, server_log, diagnostics])
         .setup(move |app| {
             let handle = app.handle().clone();
-            let resource_dir = handle.path().resource_dir().unwrap_or_default();
+            let resource_dir = strip_verbatim(&handle.path().resource_dir().unwrap_or_default());
             let app_dir = app_dir(&handle);
             let boot_py = boot_py(&handle);
             let state_dir = state_dir(&handle);
