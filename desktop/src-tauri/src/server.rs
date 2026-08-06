@@ -270,3 +270,72 @@ mod job {
         Ok(())
     }
 }
+
+/// Minimal HTTP over a plain socket, for talking to Ollama on localhost.
+///
+/// No HTTP crate on purpose. The only endpoint this shell ever calls is
+/// 127.0.0.1:11434 - plain text, no TLS, no redirects, no auth - and pulling in
+/// a full client (and its TLS stack) to POST one JSON body would add more to the
+/// binary and the build than the feature is worth.
+pub mod ollama {
+    use std::io::{Read, Write};
+    use std::net::TcpStream;
+    use std::time::Duration;
+
+    fn request(method: &str, path: &str, body: Option<&str>, read_secs: u64) -> Option<String> {
+        let mut stream = TcpStream::connect_timeout(
+            &"127.0.0.1:11434".parse().ok()?,
+            Duration::from_millis(500),
+        )
+        .ok()?;
+        // A model that stalls must not hold the panel open forever; the caller
+        // has a support address to fall back on.
+        stream.set_read_timeout(Some(Duration::from_secs(read_secs))).ok()?;
+        stream.set_write_timeout(Some(Duration::from_secs(5))).ok()?;
+
+        let payload = body.unwrap_or("");
+        let req = format!(
+            "{method} {path} HTTP/1.1\r\nHost: 127.0.0.1:11434\r\nConnection: close\r\n\
+             Content-Type: application/json\r\nContent-Length: {}\r\n\r\n{payload}",
+            payload.len()
+        );
+        stream.write_all(req.as_bytes()).ok()?;
+
+        let mut raw = Vec::new();
+        // read_to_end returns Err on timeout, but whatever arrived before that is
+        // still in the buffer and may well be a complete response.
+        let _ = stream.read_to_end(&mut raw);
+        let text = String::from_utf8_lossy(&raw).into_owned();
+        let idx = text.find("\r\n\r\n")?;
+        Some(text[idx + 4..].to_string())
+    }
+
+    /// First installed model, or None when Ollama is up but empty - which is a
+    /// distinct state worth reporting, not a failure to connect.
+    pub fn first_model() -> Option<String> {
+        let body = request("GET", "/api/tags", None, 5)?;
+        let v: serde_json::Value = serde_json::from_str(&body).ok()?;
+        v.get("models")?
+            .as_array()?
+            .first()?
+            .get("name")?
+            .as_str()
+            .map(String::from)
+    }
+
+    /// Ask the local model what to try. Returns its text, or None.
+    pub fn suggest(model: &str, prompt: &str) -> Option<String> {
+        let payload = serde_json::json!({
+            "model": model,
+            "prompt": prompt,
+            "stream": false,
+            // Short and cool: this is troubleshooting, not prose, and a long
+            // rambling answer is worse than none when someone is stuck.
+            "options": { "temperature": 0.2, "num_predict": 400 }
+        })
+        .to_string();
+        let body = request("POST", "/api/generate", Some(&payload), 120)?;
+        let v: serde_json::Value = serde_json::from_str(&body).ok()?;
+        v.get("response")?.as_str().map(|s| s.trim().to_string())
+    }
+}

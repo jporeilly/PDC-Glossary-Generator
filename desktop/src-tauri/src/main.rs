@@ -223,6 +223,52 @@ fn save_report(handle: tauri::AppHandle) -> serde_json::Value {
     })
 }
 
+/// Ask the LOCAL model what to try before emailing anyone.
+///
+/// Local only, and that is the point: the report carries file paths, the company
+/// name and a traceback. Sending it to a hosted provider to save someone a
+/// support email would be a poor trade, and the licence says plainly that a
+/// local model keeps everything on the machine.
+///
+/// Returns a `status` the panel can act on rather than a bare string, because
+/// "Ollama is not running" and "Ollama is running but has no model" need
+/// different words in front of a stuck user.
+#[tauri::command]
+async fn llm_suggest(handle: tauri::AppHandle) -> serde_json::Value {
+    // Off the UI thread: generation takes seconds to a minute, and blocking here
+    // would freeze the very panel that is supposed to be helping.
+    tauri::async_runtime::spawn_blocking(move || {
+        if !server::port_open("127.0.0.1", 11434) {
+            return serde_json::json!({ "status": "no_ollama" });
+        }
+        let Some(model) = server::ollama::first_model() else {
+            return serde_json::json!({ "status": "no_model" });
+        };
+        let report = save_report(handle);
+        let text = report.get("text").and_then(|t| t.as_str()).unwrap_or("");
+
+        let prompt = format!(
+            "You are helping a Windows user whose desktop application failed to start.
+
+             The application is a local FastAPI server launched by a Tauri shell. It ships              its own Python runtime. Below is its startup report.
+
+             Give AT MOST three concrete things to try, most likely first. Each one line,              starting with a dash. Prefer checks the user can actually perform on Windows.              If the report shows a specific Python error, address THAT rather than giving              generic advice. Do not apologise, do not restate the problem, do not suggest              contacting support - they already have that option.
+
+             --- report ---
+{text}"
+        );
+
+        match server::ollama::suggest(&model, &prompt) {
+            Some(s) if !s.is_empty() => {
+                serde_json::json!({ "status": "ok", "model": model, "text": s })
+            }
+            _ => serde_json::json!({ "status": "failed", "model": model }),
+        }
+    })
+    .await
+    .unwrap_or_else(|_| serde_json::json!({ "status": "failed" }))
+}
+
 /// Surfaced on the splash when startup fails, so a dead backend reads as an
 /// error message rather than a permanently blank window.
 #[tauri::command]
@@ -255,7 +301,7 @@ fn main() {
         .manage(AppState {
             server: shared.clone(),
         })
-        .invoke_handler(tauri::generate_handler![server_url, server_log, server_alive, env_report, diagnostics, save_report])
+        .invoke_handler(tauri::generate_handler![server_url, server_log, server_alive, env_report, diagnostics, save_report, llm_suggest])
         .setup(move |app| {
             let handle = app.handle().clone();
             let resource_dir = strip_verbatim(&handle.path().resource_dir().unwrap_or_default());

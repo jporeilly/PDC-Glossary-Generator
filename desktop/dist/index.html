@@ -7,7 +7,7 @@
   :root { color-scheme: dark; }
   * { box-sizing: border-box; }
   body {
-    margin: 0; height: 100vh; overflow: hidden;
+    margin: 0; min-height: 100vh; overflow: hidden;
     display: flex; align-items: center; justify-content: center;
     font: 15px/1.55 "Segoe UI", system-ui, sans-serif;
     color: #e6edf3;
@@ -111,6 +111,18 @@
 
   .foot { margin-top: .55rem; font-size: .8rem; color: #5c6874; text-align: right; }
 
+  /* The failure panel can be far taller than the window - a real traceback is
+     40 lines - and the startup view deliberately does not scroll. Without this
+     the buttons end up below the fold with no way to reach them, which is the
+     one thing on this screen that must always be clickable. */
+  body.errored { align-items: flex-start; overflow-y: auto; padding: 2rem 0; }
+  body.errored .stage { margin: auto 0; }
+  body.errored::-webkit-scrollbar { width: 10px; }
+  body.errored::-webkit-scrollbar-thumb {
+    background: rgba(255,255,255,.16); border-radius: 5px;
+  }
+  body.errored::-webkit-scrollbar-track { background: rgba(0,0,0,.25); }
+
   .error { display: none; }
   .error h2 { font-size: 1rem; color: #ff7b72; margin: 0 0 .5rem; }
   .error p { color: #9aa7b4; margin: 0 0 .55rem; font-size: .89rem; }
@@ -131,6 +143,15 @@
   .addr { margin: .65rem 0 0; font-size: .84rem; color: #9aa7b4; }
   .addr strong { color: #e6edf3; }
   .hint { margin: .3rem 0 0; font-size: .8rem; color: #7ee29a; min-height: 1.1em; }
+
+  .advice { display: none; margin-top: .8rem; padding: .75rem .85rem;
+            border: 1px solid rgba(126,226,154,.28); border-radius: 7px;
+            background: rgba(46,160,67,.07); font-size: .88rem; color: #cfe9d6; }
+  .advice h3 { margin: 0 0 .45rem; font-size: .82rem; font-weight: 600;
+               letter-spacing: .04em; text-transform: uppercase; color: #7ee29a; }
+  .advice pre { background: none; border: 0; padding: 0; margin: 0; max-height: none;
+                white-space: pre-wrap; font: inherit; color: #cfe9d6; }
+  .advice .src { margin-top: .5rem; font-size: .74rem; color: #6f8a78; }
 </style>
 </head>
 <body>
@@ -177,6 +198,7 @@
     -->
     <div class="support">
       <div class="actions">
+        <button id="fixBtn" class="ghost">Suggest fixes</button>
         <button id="copyBtn">Copy details</button>
         <button id="saveBtn">Save report</button>
         <button id="mailBtn">Email support</button>
@@ -184,6 +206,13 @@
       <p class="addr">Send to <strong>james.oreilly@pentaho.com</strong> - paste the details,
          or attach the saved report.</p>
       <p class="hint" id="supportHint"></p>
+      <!--
+        Local model only. The report carries file paths, the company name and a
+        traceback; sending that to a hosted provider to save a support email
+        would be a poor trade, and the licence says a local model keeps
+        everything on the machine.
+      -->
+      <div class="advice" id="advice"></div>
     </div>
   </div>
 </div>
@@ -361,6 +390,13 @@
   function fail() {
     document.getElementById('live').style.display = 'none';
     document.getElementById('error').style.display = 'block';
+    document.body.classList.add('errored');
+
+    // Ollama is checked here rather than at load: on a healthy launch this panel
+    // never appears, and probing a port nobody asked about is wasted work.
+    invoke('env_report').then(function (r) {
+      if (r && r.ollama) { document.getElementById('fixBtn').style.display = ''; }
+    }).catch(function () {});
 
     // "collecting..." must never be the last word. If the shell itself is wedged
     // this call never settles, and the panel that exists to explain a failure
@@ -501,6 +537,44 @@
       ok ? resolve() : reject(new Error('copy refused'));
     });
   }
+
+  // Offered only when a LOCAL model can answer. The button is hidden otherwise
+  // rather than shown-and-disabled, because a dead button on an error screen is
+  // one more thing to wonder about.
+  var fixBtn = document.getElementById('fixBtn');
+  fixBtn.style.display = 'none';
+
+  function showAdvice(html, source) {
+    var el = document.getElementById('advice');
+    el.innerHTML = '<h3>Things to try first</h3>' + html +
+                   (source ? '<div class="src">' + source + '</div>' : '');
+    el.style.display = 'block';
+  }
+
+  fixBtn.onclick = function () {
+    fixBtn.disabled = true;
+    fixBtn.textContent = 'Asking the local model...';
+    invoke('llm_suggest').then(function (r) {
+      if (r.status === 'ok') {
+        var pre = document.createElement('pre');
+        pre.textContent = r.text;
+        showAdvice(pre.outerHTML,
+          'Suggested by ' + r.model + ' running locally. Nothing left this machine. ' +
+          'Treat it as a starting point, not a diagnosis.');
+      } else if (r.status === 'no_model') {
+        hint('Ollama is running but has no model pulled - nothing to ask.', false);
+      } else if (r.status === 'no_ollama') {
+        hint('No local model available on this machine.', false);
+      } else {
+        hint('The local model could not answer. Send the report instead.', false);
+      }
+    }).catch(function (e) {
+      hint('Could not reach the local model: ' + e, false);
+    }).then(function () {
+      fixBtn.disabled = false;
+      fixBtn.textContent = 'Suggest fixes';
+    });
+  };
 
   document.getElementById('copyBtn').onclick = function () {
     report().then(function (r) { return copyText(r.text); })

@@ -14,6 +14,35 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.32.4] - 2026-08-06
+
+### Fixed - the failure panel could not be scrolled
+
+The startup view sets `overflow: hidden` deliberately, and the failure panel
+inherits it. A real traceback is 40 lines, so the buttons ended up below the
+fold with no way to reach them - the one thing on that screen that must always
+be clickable. The body scrolls once the panel is shown, and only then.
+
+### Added - ask the local model before emailing anyone
+
+When Ollama is running with a model, a **Suggest fixes** button sends the
+startup report to it and shows up to three concrete things to try. Hidden
+entirely when no local model is available, rather than shown-and-disabled: a
+dead button on an error screen is one more thing to wonder about.
+
+**Local only.** The report carries file paths, the company name and a traceback;
+sending that to a hosted provider to save a support email would be a poor trade,
+and the licence already says a local model keeps everything on the machine. The
+answer is labelled with the model that produced it and called a starting point,
+not a diagnosis.
+
+The Ollama client is hand-rolled over `TcpStream` - about forty lines. The only
+endpoint this shell will ever call is `127.0.0.1:11434`: plain HTTP, no TLS, no
+redirects, no auth. Pulling in a full HTTP client and its TLS stack for one JSON
+POST would cost more in binary size and build time than the feature is worth.
+Generation runs on a blocking thread with a 120-second read timeout, so a stalled
+model cannot freeze the panel that is meant to be helping.
+
 ## [1.32.3] - 2026-08-06
 
 ### Fixed - the support panel could appear for an app that was merely slow
