@@ -26,3 +26,14 @@ frontend/dist/
 
 # local state backups taken before destructive resets (never committed)
 state-backup-*/
+
+# pdc-remote (remote/) local state - config, keys, checkpoints, JWTs, logs
+remote/pdc-remote.env
+remote/.state/
+remote/logs/
+
+# desktop shell (Tauri): vendored runtime, staged app tree and Rust build output
+desktop/node_modules/
+desktop/src-tauri/vendor/
+desktop/src-tauri/target/
+desktop/src-tauri/gen/

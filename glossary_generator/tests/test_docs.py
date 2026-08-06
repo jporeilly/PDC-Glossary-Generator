@@ -22,6 +22,20 @@ def test_required_docs_exist():
         assert os.path.exists(os.path.join(REPO, p)), f"missing {p}"
 
 
+def test_desktop_installer_version_matches():
+    """tauri.conf.json's version NAMES the built installer. Drift there ships a
+       file whose filename misstates what is inside it, which is the one kind of
+       version mistake a user cannot check."""
+    import json
+    conf = os.path.join(REPO, "desktop", "src-tauri", "tauri.conf.json")
+    if not os.path.isfile(conf):
+        return  # desktop shell is optional; nothing to check
+    with open(conf, encoding="utf-8") as f:
+        version = _read(APP_DIR, "VERSION").strip()
+        assert json.load(f)["version"] == version, \
+            f"desktop/src-tauri/tauri.conf.json version != VERSION {version}"
+
+
 def test_version_markers_agree():
     version = _read(APP_DIR, "VERSION").strip()
     assert re.fullmatch(r"\d+\.\d+\.\d+", version), version

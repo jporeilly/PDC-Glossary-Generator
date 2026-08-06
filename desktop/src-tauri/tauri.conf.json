@@ -1,0 +1,54 @@
+{
+  "$schema": "https://schema.tauri.app/config/2.0.0",
+  "productName": "PDC Glossary Generator",
+  "version": "1.26.0",
+  "identifier": "com.pentaho.pdc-glossary",
+
+  "build": {
+    "beforeBuildCommand": "npm run fetch:python && npm run stage:app",
+    "frontendDist": "../dist"
+  },
+
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [
+      {
+        "label": "main",
+        "title": "PDC Glossary Generator",
+        "width": 1400,
+        "height": 900,
+        "minWidth": 900,
+        "minHeight": 600,
+        "resizable": true,
+        "center": true,
+        "visible": true
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+
+  "bundle": {
+    "active": true,
+    "targets": ["nsis"],
+    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/icon.ico"],
+    "resources": {
+      "vendor/python": "python",
+      "vendor/app": "app"
+    },
+    "category": "Business",
+    "shortDescription": "Build a PDC business glossary from a live data estate",
+    "longDescription": "Scans a data estate, proposes a governed business glossary with categories, sensitivity and data-quality expectations, and pushes the result into Pentaho Data Catalog.",
+    "publisher": "Pentaho Presales Engineering",
+    "windows": {
+      "webviewInstallMode": { "type": "embedBootstrapper" },
+      "nsis": {
+        "installMode": "both",
+        "languages": ["English"]
+      }
+    }
+  },
+
+  "plugins": {}
+}

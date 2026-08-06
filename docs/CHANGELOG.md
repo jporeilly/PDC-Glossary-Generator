@@ -14,6 +14,72 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.26.0] - 2026-08-06
+
+### Added - `desktop/`, a Windows installer for the app
+
+A Tauri shell that starts the existing FastAPI server on a free port and points
+a webview at it. The app is unchanged and there is still one UI, served the same
+way in both builds, so the desktop and browser versions cannot drift apart.
+
+`npm run tauri:build` produces an NSIS `.exe` in
+`desktop/src-tauri/target/release/bundle/nsis/`.
+
+**A vendored Python, not PyInstaller.** `fetch-python.ps1` stages the official
+Windows embeddable package plus the requirements (~164 MB). The dependency set
+is `oracledb`, `psycopg2-binary`, `pymssql`, `boto3` and three provider SDKs -
+dynamic-import-heavy code that PyInstaller's static analysis gets wrong, and
+gets wrong at *runtime*, on the attendee's machine. A vendored tree is just
+files: what was tested is what ships. The stamp covers the requirements hash as
+well as the Python version, so adding a dependency forces a rebuild.
+
+**A free port, chosen at launch**, because 5000 is popular and a second instance
+must not read as "the app won't start".
+
+**A kill-on-close job object.** Closing the window stops the server directly,
+but a crash or a Task Manager kill would leak `uvicorn` - still holding the port
+and the state files, so the *next* launch fails for a reason the user cannot
+see.
+
+**A splash that can fail out loud.** It polls `/api/version` (not `/`, which is
+the SPA shell and answers before the app is ready) and, after 90 seconds, shows
+what the shell actually resolved: app dir, boot script, state dir, whether the
+vendored runtime is present. A blank window is the worst failure mode on a
+workshop machine.
+
+### Three things the packaging exposed
+
+- **The embeddable runtime's `._pth` replaces `sys.path` outright** and drops the
+  working directory, and `PYTHONPATH` is ignored while a `._pth` is present - so
+  `python -m uvicorn api:app` can never import the app, whatever directory it
+  runs in. `boot.py` sets the path explicitly and gives packaged and dev
+  launches one code path.
+- **`pdc_client` lives at the repo root** and is pip-installed into the dev venv,
+  so nothing under `glossary_generator/` points at it. It is now staged
+  explicitly, with an assertion that would have caught the omission before an
+  installer shipped.
+- **`robocopy` returns 1 for "files were copied"**, and PowerShell surfaces the
+  last native exit code as the script's - so a successful staging run would have
+  looked like a failure to npm and aborted the build.
+
+### Security
+
+`stage-app.ps1` excludes `.env`, `glossaries.json`, `connections.json`,
+`settings.json`, `people.json`, `audit_log.json` and the rest, then re-scans the
+staged tree and fails the build if any of them slipped through. A developer's
+`connections.json` would carry lab hostnames into a customer install; `.env`
+would carry provider API keys.
+
+### Tests
+
+158. The new one pins `tauri.conf.json`'s version to `VERSION` - it names the
+installer, so drift there ships a file that misstates what is inside it.
+
+### Not done
+
+Placeholder icons; no Full/Minimal/Custom components page; no post-install
+environment check for Ollama and PDC reachability.
+
 ## [1.25.0] - 2026-08-06
 
 ### Added - state has a home of its own (`paths.py`)

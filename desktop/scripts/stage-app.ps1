@@ -1,0 +1,124 @@
+<#
+.SYNOPSIS
+    Stage the Python app + built React UI for bundling.
+
+.DESCRIPTION
+    Copies glossary_generator\ and frontend\dist\ into src-tauri\vendor\app,
+    which tauri.conf.json's bundle.resources maps to "app" inside the install.
+
+    The staged tree MIRRORS the repo layout:
+
+        app\glossary_generator\api.py
+        app\frontend\dist\index.html
+
+    That is not cosmetic. api.py resolves the built UI as
+    os.path.join(os.path.dirname(HERE), "frontend", "dist") - one level up from
+    itself - so flattening the two into a single directory would leave the
+    server running with no UI to serve.
+
+    Deliberately EXCLUDES local state and developer debris. Shipping a
+    developer's connections.json or glossaries.json into a customer install
+    would leak lab hostnames and hand every attendee the same pre-populated
+    glossary; .env would leak provider API keys outright.
+
+.NOTES
+    Windows PowerShell 5.1+. ASCII-only on purpose.
+#>
+[CmdletBinding()]
+param()
+
+$ErrorActionPreference = "Stop"
+# Without this an undefined variable expands to empty and robocopy just returns
+# exit 16 - which is how the staging destination silently became "" once.
+Set-StrictMode -Version Latest
+
+$desktopDir = Split-Path -Parent $PSScriptRoot
+$repoRoot   = Split-Path -Parent $desktopDir
+$srcApp     = Join-Path $repoRoot "glossary_generator"
+$srcUi      = Join-Path $repoRoot "frontend\dist"
+$stageDir   = Join-Path $desktopDir "src-tauri\vendor\app"
+$stageApp   = Join-Path $stageDir "glossary_generator"
+$stageUi    = Join-Path $stageDir "frontend\dist"
+
+function Ok($m)   { Write-Host "  [ok] $m" -ForegroundColor Green }
+function Warn($m) { Write-Host "  [!]  $m" -ForegroundColor Yellow }
+
+Write-Host ""
+Write-Host "  Staging the app" -ForegroundColor Cyan
+
+if (-not (Test-Path -LiteralPath (Join-Path $srcApp "api.py"))) {
+    throw "glossary_generator\api.py not found - is $repoRoot the repo root?"
+}
+if (-not (Test-Path -LiteralPath (Join-Path $srcUi "index.html"))) {
+    throw "frontend\dist\index.html not found - run 'npm run build' in frontend\ first"
+}
+
+if (Test-Path -LiteralPath $stageDir) { Remove-Item -LiteralPath $stageDir -Recurse -Force }
+New-Item -ItemType Directory -Path $stageDir -Force | Out-Null
+
+# State files and secrets: never shipped. The installed app starts empty and
+# writes to the per-user state directory (see glossary_generator\paths.py).
+$excludeFiles = @(
+    ".env", "glossaries.json", "glossaries.json.bak", "settings.json",
+    "connections.json", "people.json", "audit_log.json", "tag_dictionary.json",
+    "domain_pack.json", "datasources.csv"
+)
+$excludeDirs = @(".venv", "__pycache__", ".pytest_cache", "registries", "tests")
+
+# robocopy: /MIR-free mirror of a clean tree, /XD and /XF do the excluding.
+# Exit codes 0-7 are success (8+ is a real failure) - a quirk worth pinning,
+# because treating any non-zero as failure makes every build look broken.
+$roboArgs = @($srcApp, $stageApp, "/E", "/NFL", "/NDL", "/NJH", "/NJS", "/NP")
+foreach ($d in $excludeDirs)  { $roboArgs += @("/XD", (Join-Path $srcApp $d)) }
+foreach ($f in $excludeFiles) { $roboArgs += @("/XF", (Join-Path $srcApp $f)) }
+& robocopy @roboArgs | Out-Null
+if ($LASTEXITCODE -ge 8) { throw "robocopy failed staging the app (exit $LASTEXITCODE)" }
+
+# The built SPA, one level up from glossary_generator - the shape api.py
+# expects (see the .DESCRIPTION note above).
+New-Item -ItemType Directory -Path $stageUi -Force | Out-Null
+& robocopy $srcUi $stageUi "/E" "/NFL" "/NDL" "/NJH" "/NJS" "/NP" | Out-Null
+if ($LASTEXITCODE -ge 8) { throw "robocopy failed staging the UI (exit $LASTEXITCODE)" }
+
+# boot.py puts the app dir on sys.path before importing it. The embeddable
+# runtime's ._pth replaces sys.path outright, so without this the server cannot
+# import api.py whatever working directory it is given. See desktop/boot.py.
+Copy-Item -LiteralPath (Join-Path $desktopDir "boot.py") -Destination (Join-Path $stageDir "boot.py") -Force
+
+# pdc_client lives at the REPO ROOT and is pip-installed into the dev venv, so
+# nothing in glossary_generator/ points at it. Miss it and api.py raises
+# ModuleNotFoundError at import time - after the installer has shipped.
+$srcClient = Join-Path $repoRoot "pdc_client"
+if (-not (Test-Path -LiteralPath (Join-Path $srcClient "__init__.py"))) {
+    throw "pdc_client\__init__.py not found at $srcClient"
+}
+& robocopy $srcClient (Join-Path $stageDir "pdc_client") "/E" "/NFL" "/NDL" "/NJH" "/NJS" "/NP" `
+    "/XD" (Join-Path $srcClient "__pycache__") | Out-Null
+if ($LASTEXITCODE -ge 8) { throw "robocopy failed staging pdc_client (exit $LASTEXITCODE)" }
+
+# Belt and braces: prove nothing sensitive slipped through. A rename or a new
+# state file would otherwise be caught only by a customer.
+$leaked = Get-ChildItem -LiteralPath $stageDir -Recurse -File |
+    Where-Object { $excludeFiles -contains $_.Name }
+if ($leaked) {
+    $leaked | ForEach-Object { Warn ("leaked: " + $_.FullName) }
+    throw "state or secret files reached the staging tree - fix the exclude list"
+}
+
+# The three paths the shell and the server actually depend on. Assert them here,
+# where the fix is obvious, rather than at first launch on an attendee's laptop.
+foreach ($must in @((Join-Path $stageApp "api.py"),
+                    (Join-Path $stageUi  "index.html"),
+                    (Join-Path $stageDir "boot.py"),
+                    (Join-Path $stageDir "pdc_client\__init__.py"))) {
+    if (-not (Test-Path -LiteralPath $must)) { throw "staging incomplete: $must is missing" }
+}
+
+$count = (Get-ChildItem -LiteralPath $stageDir -Recurse -File).Count
+Ok "staged $count file(s) to src-tauri\vendor\app"
+Write-Host ""
+
+# robocopy returns 1 for "files were copied" and pip leaves its own code behind.
+# PowerShell surfaces the LAST native exit code as the script's, so a successful
+# run would look like a failure to npm and abort the tauri build.
+exit 0

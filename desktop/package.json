@@ -1,0 +1,16 @@
+{
+  "name": "pdc-glossary-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Windows desktop shell for the PDC Glossary Generator",
+  "scripts": {
+    "fetch:python": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/fetch-python.ps1",
+    "stage:app": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/stage-app.ps1",
+    "tauri": "tauri",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.0.0"
+  }
+}
