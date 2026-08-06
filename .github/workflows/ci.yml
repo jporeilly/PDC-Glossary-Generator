@@ -1,0 +1,121 @@
+name: CI
+
+# Two jobs, because they answer different questions.
+#
+#   tests         - does the engine still behave? Fast, runs on every push.
+#   fresh-install - does the thing we SHIP still start clean, and carry nothing
+#                   it should not? Slower (it vendors a Python runtime), and the
+#                   only job that exercises the staged tree rather than the
+#                   checkout. Every leak found on 2026-08-06 - a lab IP
+#                   pre-filled in a form, one industry's pack shipped as the
+#                   default, that industry's vocabulary in three classification
+#                   layers - was visible from a fresh install and invisible from
+#                   a developer's machine.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest httpx fastapi
+      - name: Run the suite
+        run: python -m pytest -q
+
+  fresh-install:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build the SPA
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+
+      # Vendors the embeddable runtime and installs the requirements into it.
+      # Slow, and the point: the staged tree is imported with the interpreter
+      # that will actually ship, so a module dropped from the stage fails HERE
+      # rather than on an attendee's laptop.
+      - name: Vendor the Python runtime
+        working-directory: desktop
+        run: npm run fetch:python
+
+      - name: Stage the app
+        working-directory: desktop
+        run: npm run stage:app
+
+      - name: Nothing scenario-specific reached the stage
+        shell: pwsh
+        run: |
+          $stage = "desktop/src-tauri/vendor/app"
+          $bad = @()
+          foreach ($p in @("domain_packs", "water_utility", "templates")) {
+            if (Get-ChildItem $stage -Recurse -Filter "*$p*" -ErrorAction SilentlyContinue) {
+              $bad += "path contains '$p'"
+            }
+          }
+          # Read as text too: a leak is usually a string, not a filename.
+          foreach ($rx in @("192\.168\.\d+\.\d+", "pentaho\.io", "catalog123", "minio_secret")) {
+            $hit = Get-ChildItem $stage -Recurse -Include *.py,*.csv,*.json -ErrorAction SilentlyContinue |
+                   Select-String -Pattern $rx -List
+            if ($hit) { $bad += "$rx in $($hit[0].Path)" }
+          }
+          if ($bad) { $bad | ForEach-Object { Write-Host "  $_" }; throw "the stage carries content it must not ship" }
+          Write-Host "stage is clean"
+
+      # The real smoke test: start the SHIPPED tree against an EMPTY state
+      # directory and prove it serves. This is the first launch a customer gets.
+      - name: Boot the staged app on a clean state directory
+        shell: pwsh
+        run: |
+          $py    = "desktop/src-tauri/vendor/python/python.exe"
+          $boot  = "desktop/src-tauri/vendor/app/boot.py"
+          $app   = "desktop/src-tauri/vendor/app/glossary_generator"
+          $state = Join-Path $env:RUNNER_TEMP "fresh-state"
+          New-Item -ItemType Directory -Path $state -Force | Out-Null
+          $env:GLOSSARY_STATE_DIR = $state
+
+          $p = Start-Process -FilePath $py -ArgumentList $boot,"--port","5599","--app-dir",$app `
+                             -PassThru -WindowStyle Hidden
+          try {
+            $ok = $false
+            foreach ($i in 1..60) {
+              Start-Sleep -Milliseconds 500
+              try { $v = Invoke-RestMethod "http://127.0.0.1:5599/api/version" -TimeoutSec 2; $ok = $true; break } catch {}
+            }
+            if (-not $ok) { throw "the staged app did not start on a clean state directory" }
+            Write-Host "version: $($v.version)"
+
+            $cfg = Invoke-RestMethod "http://127.0.0.1:5599/config"
+            if ($cfg.state_dir -ne $state) { throw "state went to $($cfg.state_dir), not $state" }
+            # /config reports the resolved paths; assert the pack really is
+            # absent rather than trusting a field that does not exist. An
+            # assertion on a missing property is silently always true, which is
+            # the worst kind of green.
+            if (Test-Path $cfg.paths.domain_pack) { throw "a domain pack shipped: $($cfg.paths.domain_pack)" }
+            if ($cfg.paths.glossaries -notlike "$state*") { throw "glossaries would be written outside the state dir" }
+
+            $root = Invoke-WebRequest "http://127.0.0.1:5599/" -UseBasicParsing
+            if ($root.StatusCode -ne 200) { throw "the SPA did not serve" }
+            Write-Host "clean start OK - served the UI and wrote nothing it should not"
+          } finally {
+            Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
+          }

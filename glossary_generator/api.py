@@ -104,7 +104,10 @@ def _err(message, status_code):
        (the UI checks data.error — never FastAPI's default {'detail': ...})."""
     return JSONResponse({"error": message}, status_code=status_code)
 
-DEFAULT_DDL = os.environ.get("GLOSSARY_DDL", "/mnt/user-data/uploads/01-schema-and-data.sql")
+# No default path: /mnt/user-data/uploads/... was the authoring machine's
+# layout and means nothing on a customer install. Unset is honest; the DDL
+# field asks for a path when one is needed.
+DEFAULT_DDL = os.environ.get("GLOSSARY_DDL", "")
 PEOPLE_FILE = paths.state_path("people.json", "GLOSSARY_PEOPLE")
 # Optional scenario seed roster (e.g. the CSCU people that ship with the credit-union
 # domain pack). Copied into the live PEOPLE_FILE once, only when that file is missing or

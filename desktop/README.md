@@ -133,10 +133,33 @@ and `PDC` skipped until you give it a server. If `Vendored dependencies` fails,
 the install is incomplete — that check imports `oracledb` and `psycopg2` rather
 than just confirming `python.exe` exists.
 
+## Code signing
+
+Wired, and off until you configure a certificate:
+
+```powershell
+$env:PDCG_SIGN_THUMBPRINT = "<sha1 thumbprint of a cert in the Windows store>"
+npm run tauri:build
+```
+
+`scripts/sign.ps1` runs for every bundled binary. **With no thumbprint set it
+prints a line and exits 0**, so an unsigned developer build still succeeds — a
+build that failed because a colleague has no certificate would help nobody.
+
+The repo holds no certificate and no `.pfx`. A thumbprint names a certificate
+the machine already trusts: it carries no key material and is safe in a CI
+variable, while the private key stays in the certificate store or on the token
+backing it. That is what the code-signing rules have required since June 2023,
+which is also why a password-protected `.pfx` is not offered here.
+
+`PDCG_SIGN_TIMESTAMP` overrides the RFC-3161 timestamp URL. Both the file digest
+and the **timestamp** digest are SHA-256; leaving the timestamp at signtool's
+SHA-1 default produces a signature that expires with the certificate instead of
+outliving it.
+
 ## Not done yet
 
 - **Icons are placeholders** (`src-tauri/icons/`) — generated, not designed.
-- **The installer is unsigned** — see SmartScreen above.
 
 ## What a fresh install starts with, and what you supply
 

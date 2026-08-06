@@ -7,7 +7,7 @@ dependencies, skips auto-generated keys, references parent PKs for FK columns, a
 generates values by column name + type. By default it only fills EMPTY tables.
 
 CLI:   python seed_sample.py --host localhost --port 5433 --db your_db \
-                          --user pdc_user --password 'catalog123!' --rows 200
+                          --user <user> --password '<password>' --rows 200
 API:   from seed_sample import seed ; seed(cfg, rows=200)
 """
 import random, datetime, string, argparse
@@ -211,7 +211,10 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--host", default="localhost"); ap.add_argument("--port", default="5433")
     ap.add_argument("--db", default="sample_db"); ap.add_argument("--schema", default="public")
-    ap.add_argument("--user", default="pdc_user"); ap.add_argument("--password", default="catalog123!")
+    # No credential defaults. These were a real lab account and password, in a
+    # module api.py imports - so they shipped, and anyone running the tool
+    # without arguments was quietly trying somebody else's login.
+    ap.add_argument("--user", required=True); ap.add_argument("--password", required=True)
     ap.add_argument("--rows", type=int, default=200)
     ap.add_argument("--all", action="store_true", help="also top up non-empty tables")
     a = ap.parse_args()

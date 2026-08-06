@@ -14,6 +14,57 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.36.0] - 2026-08-06
+
+### Added - CI, and a fresh-install smoke test
+
+There was no CI. Two jobs now:
+
+- **tests** on Linux - the suite, on every push.
+- **fresh-install** on Windows - vendors the runtime, stages the app, greps the
+  staged tree for anything scenario-specific, then **boots the shipped tree
+  against an empty state directory** and asserts it serves the UI, resolves
+  state to that directory, and finds no domain pack.
+
+That second job is the one that matters. Every leak found today was visible from
+a fresh install and invisible from a developer's checkout, and all of them were
+found by a person installing the app on a laptop.
+
+`test_fresh_install.py` does the same in-process, and **found three more on its
+first run**:
+
+- `seed_sample.py` had `--user pdc_user --password 'catalog123!'` as argparse
+  **defaults** - a real lab account, in a module `api.py` imports, so it shipped.
+  Anyone running the tool without arguments was quietly trying somebody else's
+  login. Both are `required=True` now.
+- `DEFAULT_DDL` was `/mnt/user-data/uploads/01-schema-and-data.sql`, the
+  authoring machine's layout, meaningless on a customer install. Empty now.
+
+The banned-string test reads its exclusion list **from `stage-app.ps1`** rather
+than keeping a copy: a drifted copy would either fail on the developer's own
+`connections.json`, which never ships, or - far worse - stop checking a file
+that does.
+
+### Added - code signing, off until a certificate is configured
+
+`bundle.windows.signCommand` runs `scripts/sign.ps1` for every bundled binary.
+With no `PDCG_SIGN_THUMBPRINT` set it prints a line and **exits 0**, so an
+unsigned developer build still succeeds - a build that failed because a
+colleague has no certificate would help nobody.
+
+No certificate or `.pfx` is in the repo. A thumbprint names a certificate the
+machine already trusts, carries no key material, and is safe in a CI variable
+while the private key stays in the store or on the token behind it - which the
+code-signing rules have required since June 2023.
+
+Both the file digest and the **timestamp** digest are SHA-256. Leaving the
+timestamp at signtool's SHA-1 default produces a signature that expires with the
+certificate instead of outliving it.
+
+### Tests
+
+201.
+
 ## [1.35.0] - 2026-08-06
 
 ### Removed - the legacy Jinja UI
