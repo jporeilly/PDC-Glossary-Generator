@@ -14,6 +14,62 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.30.0] - 2026-08-06
+
+### Added - `seed-company.ps1`, the first-run step 1.29 made necessary
+
+Removing the builtin categories means a fresh install classifies nothing until a
+pack tells it how. This asks for the two things only the customer can answer -
+company name and glossary categories - scaffolds a thin pack with `packinit`,
+and writes it to the **state directory** together with the company name in
+`settings.json`. `-Company`/`-Categories` make it non-interactive; `npm run seed`
+is the shortcut.
+
+Refuses to overwrite an existing pack without `-Force` (and backs it up), because
+by then it has usually been grown from a scan and is worth far more than a
+skeleton.
+
+The 1.29 removal shows up here immediately: seeding `Customer,...,Usage,...` now
+produces keywords for **all six** categories. The old builtin-collision check
+dropped `Customer` and `Usage` as "would never fire", so the two commonest
+categories came out unmatched.
+
+### Added - `load-pdc-users.ps1 -ExportPeople` (PDC-Scenarios)
+
+Builds `people.json` from the Keycloak realm over **HTTPS** - the Admin REST API,
+so no SSH and no container access. It prompts for the admin password because
+that API is bearer-token only.
+
+The account **UUID** is the point: names, emails and roles can be typed by hand,
+the UUID cannot, and without it a glossary term cannot be bound to a real steward
+(the app keeps such a person visible but will not offer them as a binding).
+Disabled accounts are skipped and `default-roles-*` filtered - listing Keycloak
+plumbing makes every steward look identically privileged.
+
+Persona detail Keycloak knows nothing about (`stakeholder_role`, `community`,
+`owns`, `expertise`) is merged forward by email, so refreshing does not discard
+curation. `make users-people` prints the command.
+
+### Added - `desktop/scripts/lib/common.ps1`
+
+`check-environment.ps1` and `seed-company.ps1` both need "where does state live"
+and "which Python do I run". Two copies is two chances to disagree with
+`paths.py`, and a check that probes a different directory from the one the app
+writes to is worse than no check.
+
+Its `Resolve-AppPy` prefers the **checkout** over `vendorpp`: the staged tree
+is a build artifact that goes stale, and preferring it once ran a pre-1.29
+`packinit` that warned about builtin keywords which no longer exist. In a
+packaged install the checkout path is simply absent, so the staged tree still
+wins there.
+
+### Fixed
+
+`packinit` writes its "no keyword for X" notes to stderr, and under
+`$ErrorActionPreference = "Stop"` PowerShell 5.1 turns any stderr line from a
+native command into a terminating `NativeCommandError` - so a successful seed
+with useful notes looked like a crash. The call now judges by exit code.
+
 ## [1.29.0] - 2026-08-06
 
 ### Removed - the engine no longer ships a category taxonomy

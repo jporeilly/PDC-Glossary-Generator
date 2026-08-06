@@ -15,6 +15,8 @@ desktop/
   scripts/fetch-python.ps1 vendors a self-contained Python + the requirements
   scripts/stage-app.ps1    copies the app + built SPA into vendor/app
   scripts/check-environment.ps1  post-install check: what is missing, and the fix
+  scripts/seed-company.ps1 first-run: company name + categories -> domain_pack.json
+  scripts/lib/common.ps1   shared state-dir / interpreter resolution
   src-tauri/src/main.rs    window, paths, the two invoke commands
   src-tauri/src/server.rs  free port, spawn uvicorn, job object
 ```
@@ -80,8 +82,48 @@ in a packaged install — the environment check prints the exact path, and so do
 
 | File | What it is | How it gets there |
 | --- | --- | --- |
-| `domain_pack.json` | the scenario vocabulary: table categories, terms, abbreviations, category keywords | copy one in, point `GLOSSARY_DOMAIN_PACK` at it, or let the app write it from a reviewed scan (*Draft pack → apply*) |
-| `people.json` | the steward roster | seeded once from `GLOSSARY_PEOPLE_SEED` if empty, then edited in the app |
+| `domain_pack.json` | the scenario vocabulary: table categories, terms, abbreviations, category keywords | `npm run seed` (below), or let the app write it from a reviewed scan (*Draft pack → apply*) |
+| `people.json` | the steward roster | export it from Keycloak (below), or seed from `GLOSSARY_PEOPLE_SEED` and edit in the app |
+
+### Seeding a company
+
+```powershell
+npm run seed        # asks for the company name and its categories
+```
+
+Since 1.29 the engine asserts **no categories of its own**, so a fresh install
+classifies nothing until a pack tells it how. `seed-company.ps1` asks for the two
+things only the customer can answer, scaffolds a thin pack with `packinit`, and
+writes it to the state directory along with the company name in `settings.json`.
+
+The pack is thin on purpose — category keywords, governed tags, placeholder
+definitions; table mappings and terms left empty. Those come from evidence:
+
+    seed -> scan -> review -> Export domain pack
+
+Re-running refuses to overwrite an existing pack without `-Force`, because by
+then it has usually been grown from a scan and is worth far more than the
+skeleton. `-Company` and `-Categories` make it non-interactive for unattended
+installs.
+
+### Seeding the roster from Keycloak
+
+```powershell
+.\load-pdc-users.ps1 -ExportPeople .\people.json -SkipTlsCheck
+```
+
+(in the PDC-Scenarios repo — `make users-people` prints the same command.)
+
+Read-only, over **HTTPS**: it uses Keycloak's Admin REST API, so no SSH and no
+container access. It prompts for the Keycloak admin password, because that API
+is bearer-token only.
+
+The account **UUID** is the point. Names, emails and roles can be typed by hand;
+the UUID cannot, and without it a glossary term cannot be bound to a real
+steward — the app keeps such a person visible but will not offer them as a
+binding. Persona detail that Keycloak knows nothing about (`stakeholder_role`,
+`community`, `owns`, `expertise`) is merged forward by email, so refreshing the
+roster does not discard curation.
 
 A pack in the state directory **wins over the starter that shipped with the
 install** — that is what makes "bring your own pack" work, and it is why writes
