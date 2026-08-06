@@ -333,17 +333,20 @@ function PdcAuthFields({ pdc }) {
       <div className="form-grid">
         <label>
           PDC base URL
-          <input type="text" placeholder="https://192.168.1.200 (server root)"
+          <input type="text" placeholder="https://[PDC SERVER]"
                  value={pdc.base} onChange={(e) => pdc.set({ base: e.target.value })} />
+          <span className="muted">the server root, not a path &mdash; use the hostname, since PDC routes by vhost</span>
         </label>
         <label>
           Username
-          <input type="text" autoComplete="off" value={pdc.user}
+          <input type="text" autoComplete="off" placeholder="PDC admin user"
+                 value={pdc.user}
                  onChange={(e) => pdc.set({ user: e.target.value })} />
         </label>
         <label>
           Password
-          <input type="password" autoComplete="new-password" value={pdc.pass}
+          <input type="password" autoComplete="new-password" placeholder="PDC admin password"
+                 value={pdc.pass}
                  onChange={(e) => pdc.set({ pass: e.target.value })} />
         </label>
         <label>
@@ -960,15 +963,23 @@ function PdcScanCard({ ps }) {
 
 /* ================= connection form (new / edit) ================= */
 
+/* Defaults are SHAPE, never somebody's address.
+ *
+ * The MinIO endpoint used to default to a real lab IP - not a placeholder, an
+ * actual pre-filled value - so a fresh install arrived pointing at a machine on
+ * a network the user has never seen, and "it cannot connect" was the first
+ * thing the app said. Ports and engine names are safe to assume; hosts,
+ * accounts and buckets are not.
+ */
 const DB_DEFAULTS = {
-  engine: 'postgresql', host: 'localhost', port: '5433', database: 'public',
-  schema: 'public', user: 'pdc_user', password: '', ssl: false, profile: true,
+  engine: 'postgresql', host: '', port: '5432', database: '',
+  schema: 'public', user: '', password: '', ssl: false, profile: true,
 }
 const MINIO_DEFAULTS = {
-  endpoint: '192.168.1.200:9000', bucket: 'documents', access_key: '', secret_key: '',
+  endpoint: '', bucket: '', access_key: '', secret_key: '',
   prefix: '', secure: false, level: 'file', profile_dq: false,
 }
-const DDL_DEFAULTS = { path: '/mnt/user-data/uploads/01-schema-and-data.sql' }
+const DDL_DEFAULTS = { path: '' }
 
 function ConnectionForm({ editing, onSaved, onCancel }) {
   const [name, setName] = useState('')
@@ -1095,7 +1106,7 @@ function ConnectionForm({ editing, onSaved, onCancel }) {
           <label>
             Endpoint
             <input type="text" value={minio.endpoint} onChange={(e) => onEndpoint(e.target.value)}
-                   placeholder="192.168.1.200:9000" />
+                   placeholder="[PDC SERVER]:9000  (the S3 API port, not the console)" />
           </label>
           <label>Bucket<input type="text" value={minio.bucket} onChange={(e) => setMinio({ ...minio, bucket: e.target.value })} /></label>
           <label>Access key<input type="text" autoComplete="off" value={minio.access_key} onChange={(e) => setMinio({ ...minio, access_key: e.target.value })} /></label>

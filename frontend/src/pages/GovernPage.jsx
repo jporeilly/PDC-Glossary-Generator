@@ -1077,8 +1077,9 @@ function KeycloakCard({ onFetch, msg }) {
       <div className="form-grid gov-kcgrid">
         <label>
           Base URL
-          <input type="text" placeholder="https://host/keycloak" value={kc.base}
+          <input type="text" placeholder="https://[PDC SERVER]/keycloak" value={kc.base}
                  onChange={(e) => set({ base: e.target.value })} />
+          <span className="muted">PDC fronts Keycloak on its own host at /keycloak &mdash; not the container's address</span>
         </label>
         <label>
           Realm (users)
@@ -1092,12 +1093,13 @@ function KeycloakCard({ onFetch, msg }) {
         </label>
         <label>
           Username
-          <input type="text" placeholder="admin" value={kc.user}
+          <input type="text" placeholder="Keycloak admin user" value={kc.user}
                  onChange={(e) => set({ user: e.target.value })} />
         </label>
         <label>
           Password
-          <input type="password" autoComplete="off" value={kc.pass}
+          <input type="password" autoComplete="off" placeholder="Keycloak admin password"
+                 value={kc.pass}
                  onChange={(e) => set({ pass: e.target.value })} />
         </label>
         <label className="gov-kcspan3">

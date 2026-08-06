@@ -14,6 +14,42 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.34.0] - 2026-08-06
+
+### Fixed - the lab's IP address shipped in the UI
+
+`MINIO_DEFAULTS.endpoint` was `192.168.1.200:9000` - not a placeholder, an
+actual **pre-filled value**. A fresh install on a customer machine arrived
+pointing at a host on a network they have never seen, so the first thing the app
+did was fail to connect to somebody else's server. `DB_DEFAULTS` carried
+`pdc_user` and port `5433` the same way, and the DDL path defaulted to
+`/mnt/user-data/uploads/...`.
+
+Defaults are **shape**, never somebody's address. Engine names, ports and
+`schema: public` are safe to assume; hosts, accounts and buckets are not. All
+three default sets are now empty where they named anything real.
+
+### Changed - one convention for every connection field
+
+Three forms had three: `https://192.168.1.200 (server root)` on Connect,
+`https://pdc.example.com` on Apply, `https://host/keycloak` on Govern - and only
+one of them said whose credentials to type.
+
+    PDC base URL   https://[PDC SERVER]
+    Keycloak       https://[PDC SERVER]/keycloak
+    Username       PDC admin user / Keycloak admin user
+    Password       PDC admin password / Keycloak admin password
+    MinIO endpoint [PDC SERVER]:9000  (the S3 API port, not the console)
+
+A bracketed marker cannot be mistaken for a working default the way
+`https://pdc.example.com` and `admin` both can. And the Keycloak form now says
+PDC fronts it **on its own host** at `/keycloak` - people otherwise reach for the
+Keycloak container's address, and since PDC routes by vhost a bare IP answers
+401 on every path, which reads as bad credentials.
+
+Verified against the built bundle: no `192.168.`, no `pdc_user`, no
+`/mnt/user-data` anywhere in it.
+
 ## [1.33.1] - 2026-08-06
 
 ### Fixed - the restructure broke the seed, and the standalone script with it
