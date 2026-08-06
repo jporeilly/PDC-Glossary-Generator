@@ -14,9 +14,9 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
-## [1.32.0] - 2026-08-06
+## [1.31.2] - 2026-08-06
 
-### Added - Pentaho branding, shared with Content Manager
+### Changed - Pentaho branding, shared with Content Manager
 
 Same swirl, same wordmark, same `#CC0000`: `src-tauri/icons/brand/` and
 `scripts/make-icons.py` are copied from Pentaho Content Manager so the two
