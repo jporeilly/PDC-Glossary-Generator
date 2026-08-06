@@ -101,17 +101,20 @@ function Test-Port([string]$TargetHost, [int]$Port, [int]$TimeoutMs = 1500) {
     } catch { return $false }
 }
 
+. (Join-Path $PSScriptRoot "lib\common.ps1")
+
 $desktopDir = Split-Path -Parent $PSScriptRoot
 $repoRoot   = Split-Path -Parent $desktopDir
 
-# Resolved by the Python check below and reused by the model sizing: the
-# interpreter to run, and the directory holding llm_detect.py.
-$script:PyExe = $null
-$script:AppPy = $null
-foreach ($cand in @((Join-Path $desktopDir "src-tauri\vendor\app\glossary_generator"),
-                    (Join-Path $repoRoot "glossary_generator"))) {
-    if (Test-Path -LiteralPath (Join-Path $cand "llm_detect.py")) { $script:AppPy = $cand; break }
-}
+# Through the SHARED resolvers, which understand both layouts.
+#
+# This script used to carry its own copy of these rules, hardcoded to the
+# checkout - $desktopDir\src-tauri\vendor\python. In an installed layout that
+# path does not exist (the runtime is at $INSTDIR\python), so the check reported
+# "Python 3.9+ not found" on a perfectly good installation and called it a
+# blocking failure. The one script whose job is to tell you whether the install
+# is sound was the one that could not find it.
+$script:AppPy = Resolve-AppPy $PSScriptRoot
 
 Say ""
 Say "  PDC Glossary Generator - environment check" "Cyan"
@@ -146,57 +149,48 @@ if ($wv2) {
         "winget install -e --id Microsoft.EdgeWebView2Runtime"
 }
 
-# Python. The packaged app carries its own, so this is only about a checkout.
-$vendored = Join-Path $desktopDir "src-tauri\vendor\python\python.exe"
-if (Test-Path -LiteralPath $vendored) {
-    $ver = & $vendored -c "import sys;print('.'.join(map(str,sys.version_info[:3])))" 2>$null
-    $script:PyExe = $vendored
-    Report "Python (vendored)" "OK" "$ver - shipped with the app, nothing to install"
+# Python. Resolve-PyExe knows both layouts: $INSTDIR\python for an install,
+# desktop\src-tauri\vendor\python for a checkout, then PATH.
+$script:PyExe = Resolve-PyExe $PSScriptRoot
+$bundled = $script:PyExe -and (Test-Path -LiteralPath $script:PyExe) -and
+           ($script:PyExe -like "*\python\python.exe")
 
-    # The imports that actually break in a packaged build. A runtime that runs
-    # but cannot import oracledb is the failure this whole check exists for.
-    $probe = & $vendored -c "import uvicorn,fastapi,psycopg2,oracledb,boto3;print('ok')" 2>&1
-    if ($LASTEXITCODE -eq 0) {
-        Report "Vendored dependencies" "OK" "uvicorn, fastapi, psycopg2, oracledb, boto3"
-    } else {
-        Report "Vendored dependencies" "FAIL" "the vendored runtime cannot import its own packages" `
-            "cd desktop; npm run fetch:python -- -Force"
-    }
+if (-not $script:PyExe) {
+    Report "Python 3.9+" "FAIL" "no interpreter found, bundled or on PATH" `
+        "reinstall the app, or install Python: winget install -e --id Python.Python.3.12"
 } else {
-    $pyCmd = $null
-    $pyVer = $null
-    foreach ($cand in @("python", "py -3")) {
-        try {
-            $v = & ([scriptblock]::Create("$cand -c `"import sys;print('.'.join(map(str,sys.version_info[:3]))) if sys.version_info[:2]>=(3,9) else sys.exit(1)`"")) 2>$null
-            if ($LASTEXITCODE -eq 0 -and $v) { $pyCmd = $cand; $pyVer = $v.Trim(); break }
-        } catch {}
-    }
-    if ($pyCmd) {
-        if ($pyCmd -eq "python") { $script:PyExe = "python" }
-        Report "Python 3.9+" "OK" "$pyVer via '$pyCmd'"
+    $ver = & $script:PyExe -c "import sys;print('.'.join(map(str,sys.version_info[:3])))" 2>$null
+    if ($bundled) {
+        Report "Python (bundled)" "OK" ("" + $ver + " - shipped with the app, nothing to install")
     } else {
-        Report "Python 3.9+" "FAIL" "not found - needed to run from a checkout" `
-            "winget install -e --id Python.Python.3.12"
+        Report "Python 3.9+" "OK" ("" + $ver + " - from PATH (running from a checkout)")
     }
-    Report "Python (vendored)" "SKIP" "not a packaged install - run.ps1 builds a venv instead"
+
+    # The imports that actually break in a packaged build. A runtime that starts
+    # but cannot import oracledb is the failure this whole check exists for, and
+    # confirming python.exe merely EXISTS would miss it entirely.
+    $probe = & $script:PyExe -c "import uvicorn,fastapi,psycopg2,oracledb,boto3;print('ok')" 2>&1
+    if ($LASTEXITCODE -eq 0) {
+        Report "Python dependencies" "OK" "uvicorn, fastapi, psycopg2, oracledb, boto3"
+    } elseif ($bundled) {
+        Report "Python dependencies" "FAIL" "the bundled runtime cannot import its own packages" `
+            "the install is incomplete - reinstall"
+    } else {
+        Report "Python dependencies" "WARN" "not importable from this interpreter" `
+            "run.ps1 builds a venv with them; this only matters for a checkout"
+    }
 }
 
 # -- state -------------------------------------------------------------------
 Say ""
 Say "  State" "Cyan"
 
-# Mirrors glossary_generator\paths.py: explicit env var, else the app dir when
-# writable, else per-user. Kept deliberately in step with that file.
-if ($env:GLOSSARY_STATE_DIR) {
-    $stateDir = $env:GLOSSARY_STATE_DIR
-    $stateWhy = "GLOSSARY_STATE_DIR"
-} elseif (Test-Path -LiteralPath (Join-Path $repoRoot "glossary_generator\api.py")) {
-    $stateDir = Join-Path $repoRoot "glossary_generator"
-    $stateWhy = "app directory (checkout)"
-} else {
-    $stateDir = Join-Path $env:APPDATA "com.pentaho.pdc-glossary"
-    $stateWhy = "per-user (packaged install)"
-}
+# Through the shared resolver, for the same reason as the interpreter above: a
+# check that probes a different directory from the one the app writes to is
+# worse than no check.
+$state    = Resolve-StateDir $PSScriptRoot
+$stateDir = $state.Path
+$stateWhy = $state.Why
 
 $writable = $false
 try {

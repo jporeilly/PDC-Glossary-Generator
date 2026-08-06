@@ -384,8 +384,10 @@ InstType "Minimal (app only)"
 ; everything it needs on the command line.
 Var SeedCompany
 Var SeedCategories
+Var SeedPdcUrl
 Var SeedCompanyBox
 Var SeedCategoriesBox
+Var SeedPdcBox
 Page custom PageSeedDetails PageSeedDetailsLeave
 
 ; The page functions live below the sections, next to ApplyComponentFlags:
@@ -840,7 +842,7 @@ Section "Seed this company (glossary categories)" SecSeed
     DetailPrint "Seed: no company name given - skipped. Run provisioning\seed-company.ps1 later."
   ${Else}
     DetailPrint "Seed: writing the domain pack for $R7..."
-    nsExec::ExecToLog 'powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$INSTDIR\provisioning\seed-company.ps1" -Company "$R7" -Categories "$R6"'
+    nsExec::ExecToLog 'powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$INSTDIR\provisioning\seed-company.ps1" -Company "$R7" -Categories "$R6" -PdcUrl "$SeedPdcUrl"'
     Pop $0
     ${If} $0 <> 0
       DetailPrint "Seed reported an issue (exit $0) - run provisioning\seed-company.ps1 manually."
@@ -912,7 +914,12 @@ Function PageSeedDetails
   ${NSD_CreateText} 0 82u 100% 13u "$SeedCategories"
   Pop $SeedCategoriesBox
 
-  ${NSD_CreateLabel} 0 104u 100% 20u "Skip this by unticking 'Seed this company' on the previous page, or run provisioning\seed-company.ps1 afterwards."
+  ${NSD_CreateLabel} 0 102u 100% 18u "Pentaho Data Catalog server, if you have one - any server, there is no default. Optional; it can be set on the Connections page later, and credentials are never stored here."
+  Pop $1
+  ${NSD_CreateText} 0 122u 100% 13u "$SeedPdcUrl"
+  Pop $SeedPdcBox
+
+  ${NSD_CreateLabel} 0 140u 100% 12u "Skip all of this by unticking 'Seed this company' on the previous page."
   Pop $1
 
   nsDialogs::Show
@@ -921,6 +928,7 @@ FunctionEnd
 Function PageSeedDetailsLeave
   ${NSD_GetText} $SeedCompanyBox $SeedCompany
   ${NSD_GetText} $SeedCategoriesBox $SeedCategories
+  ${NSD_GetText} $SeedPdcBox $SeedPdcUrl
   ; An empty company name is the one thing the seed cannot work around, so treat
   ; it as "not now" rather than running the script to no purpose.
   ${If} $SeedCompany == ""

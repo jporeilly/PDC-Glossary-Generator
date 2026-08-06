@@ -14,6 +14,34 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.32.9] - 2026-08-06
+
+### Fixed - the environment check could not find the bundled Python
+
+On a real installation it reported "Python 3.9+ not found" and called it a
+blocking failure. The script carried its **own copy** of the "which interpreter"
+rule, hardcoded to the checkout layout
+(`desktop\src-tauriendor\python\python.exe`). In an installed tree the
+runtime is at `$INSTDIR\python`, so it looked in a directory that does not
+exist. The one script whose job is to say whether the install is sound was the
+one that could not find it.
+
+It now uses the shared `Resolve-PyExe` / `Resolve-AppPy` / `Resolve-StateDir`
+from `lib/common.ps1`, which understand both layouts - the same resolvers
+`seed-company.ps1` and `install-ollama.ps1` already used. That module was created
+precisely so this rule would exist once; leaving one caller with a private copy
+is what produced the failure.
+
+Verified from a simulated install root: **"Everything checks out."**
+
+### Added - the installer asks for the PDC server
+
+Alongside the company name, and optional. It is written to `settings.json` as
+`pdc_base`, so the app opens pointing at the right catalog and the environment
+check has a server to probe instead of skipping it. Any server - there is still
+no default anywhere. Credentials are never stored there; the app asks when it
+connects.
+
 ## [1.32.8] - 2026-08-06
 
 ### Changed - developer tools no longer ship

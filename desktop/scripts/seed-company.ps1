@@ -32,6 +32,11 @@
 .PARAMETER Domain
     Short pack id (e.g. water_utility). Derived from the company name if omitted.
 
+.PARAMETER PdcUrl
+    Pentaho Data Catalog server to record as the app's connection, e.g.
+    https://catalog.example.com. Optional - it can be set later on the
+    Connections page. Any PDC server; there is no default.
+
 .PARAMETER Force
     Overwrite an existing domain pack. It is backed up first.
 
@@ -49,6 +54,7 @@ param(
     [string]$Company,
     [string]$Categories,
     [string]$Domain,
+    [string]$PdcUrl,
     [switch]$Force
 )
 
@@ -153,6 +159,10 @@ if (Test-Path -LiteralPath $settingsPath) {
     }
 }
 $settings["company"] = $Company
+# Recorded so the app opens pointing at the right catalog, and so the
+# environment check has a server to probe instead of skipping. Credentials are
+# NOT stored here - the app asks for those when it connects.
+if ($PdcUrl) { $settings["pdc_base"] = $PdcUrl.TrimEnd("/") }
 # NO BYTE-ORDER MARK. Set-Content -Encoding UTF8 writes one in PowerShell 5.1,
 # and the app reads its state with encoding="utf-8" (not utf-8-sig) inside a
 # try/except that returns the DEFAULT on failure - so a BOM does not raise, it
