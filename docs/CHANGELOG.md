@@ -14,6 +14,28 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.32.13] - 2026-08-06
+
+### Changed - the install log is a checklist and nothing else
+
+Every step now prints the same two shapes: a line while it runs, one indented
+result when it finishes. The results say what happened rather than that
+something did, and the outcome markers line up - `[ok]`, `[--]` for skipped,
+`[!!]` for a problem - so the eye can find the one line that matters.
+
+    Installing application files (bundled Python and drivers)...
+       [ok] application files
+    Seeding Test Company...
+       [ok] domain pack written
+    Setting up Ollama (installs it, and downloads a model only if you have none)...
+       [ok] local model available
+    Checking this machine...
+       [ok] no problems found
+
+The version came off the first line - it is on the welcome page already - and
+the Ollama line now says what it will actually do, since "pulling one model
+(several GB)" was true only on a machine with none.
+
 ## [1.32.12] - 2026-08-06
 
 ### Fixed - an existing Ollama setup is now left alone

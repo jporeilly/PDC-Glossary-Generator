@@ -687,7 +687,6 @@ Section "-Install"
 
   !insertmacro CheckIfAppIsRunning "${MAINBINARYNAME}.exe" "${PRODUCTNAME}"
 
-  DetailPrint "Installing ${PRODUCTNAME} ${VERSION} - app, bundled Python and drivers"
 
   ; The vendored Python tree is REPLACED, not overlaid: file extraction only
   ; adds and overwrites, so a dependency dropped between releases would linger
@@ -699,7 +698,7 @@ Section "-Install"
   ; moving, but 12,000 "Extract: ..." lines stay out of the log, which exists to
   ; show what the install DID, not every file it wrote.
   SetDetailsPrint textonly
-  DetailPrint "Installing application files..."
+  DetailPrint "Installing application files (bundled Python and drivers)..."
 
   ; Copy main executable
   File "${MAINBINARYSRCPATH}"
@@ -718,7 +717,7 @@ Section "-Install"
   {{/each}}
 
   SetDetailsPrint both
-  DetailPrint "  [ok] application files installed"
+  DetailPrint "   [ok] application files"
 
   ; Create file associations
   {{#each file_associations as |association| ~}}
@@ -847,15 +846,16 @@ Section "Seed this company (glossary categories)" SecSeed
   ${EndIf}
 
   ${If} $R7 == ""
-    DetailPrint "Seed: no company name given - skipped. Run provisioning\seed-company.ps1 later."
+    DetailPrint "Company seed"
+    DetailPrint "   [--] skipped - no company name given"
   ${Else}
     DetailPrint "Seeding $R7..."
     nsExec::Exec 'powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$INSTDIR\provisioning\seed-company.ps1" -Company "$R7" -Categories "$R6" -PdcUrl "$SeedPdcUrl"'
     Pop $0
     ${If} $0 = 0
-      DetailPrint "  [ok] company seeded"
+      DetailPrint "   [ok] domain pack written"
     ${Else}
-      DetailPrint "  [!]  seed skipped - run provisioning\seed-company.ps1 to see why"
+      DetailPrint "   [--] skipped - run provisioning\seed-company.ps1 to see why"
     ${EndIf}
   ${EndIf}
 SectionEnd
@@ -865,13 +865,13 @@ Section "Ollama AI runtime (local model)" SecOllama
   ; Optional on purpose: the app also drives Anthropic, OpenAI/Azure and
   ; Gemini from its Settings page, so a machine without Ollama is a
   ; configuration choice rather than a broken install.
-  DetailPrint "Ollama: installing if missing, then pulling one model (several GB)..."
+  DetailPrint "Setting up Ollama (installs it, and downloads a model only if you have none)..."
   nsExec::Exec 'powershell -NoProfile -ExecutionPolicy Bypass -File "$INSTDIR\provisioning\install-ollama.ps1"'
   Pop $0
   ${If} $0 = 0
-    DetailPrint "  [ok] local model ready"
+    DetailPrint "   [ok] local model available"
   ${Else}
-    DetailPrint "  [!]  Ollama skipped - re-run provisioning\install-ollama.ps1 to see why"
+    DetailPrint "   [--] skipped - re-run provisioning\install-ollama.ps1 to see why"
   ${EndIf}
 SectionEnd
 
@@ -884,9 +884,9 @@ Section "Check this machine" SecCheck
   nsExec::Exec 'powershell -NoProfile -ExecutionPolicy Bypass -File "$INSTDIR\provisioning\check-environment.ps1" -NoPrompt'
   Pop $0
   ${If} $0 = 0
-    DetailPrint "  [ok] environment checks passed"
+    DetailPrint "   [ok] no problems found"
   ${Else}
-    DetailPrint "  [!]  environment check found problems - run provisioning\check-environment.ps1 for the detail"
+    DetailPrint "   [!!] problems found - run provisioning\check-environment.ps1 for the detail"
   ${EndIf}
 SectionEnd
 
