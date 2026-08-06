@@ -63,7 +63,12 @@ $excludeFiles = @(
     "connections.json", "people.json", "audit_log.json", "tag_dictionary.json",
     "domain_pack.json", "datasources.csv"
 )
-$excludeDirs = @(".venv", "__pycache__", ".pytest_cache", "registries", "tests")
+$excludeDirs = @(".venv", "__pycache__", ".pytest_cache", "registries", "tests",
+                 # 1.4 MB of documentation artwork. Referenced by docs/GUIDE.md
+                 # and REFERENCE.md, so it stays in the REPO - but the app never
+                 # serves it, and an installer is not where documentation images
+                 # belong.
+                 "diagrams")
 
 # Developer tools, not part of the app. Neither is imported by anything - that
 # was checked, not assumed, and it matters: seed_sample.py LOOKS like a dev

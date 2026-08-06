@@ -36,8 +36,29 @@ could never catch a module excluded by mistake; this does, in about two seconds.
 It compiled `__pycache__` into the tree `robocopy` had just finished excluding
 it from, and those `.pyc` files shipped - stale caches for a Python version the
 user may not be running. `-B` on the probe, and a sweep afterwards so anything
-else that touches the stage cannot leave caches behind either. 97 files staged
-down to 72.
+else that touches the stage cannot leave caches behind either.
+
+Also dropped `diagrams/` from the stage - 1.4 MB of documentation artwork the
+app never serves. It stays in the repo, where `docs/GUIDE.md` and
+`REFERENCE.md` reference it. **97 files staged down to 60, 1.6 MB.**
+
+### On "remove files that are not referenced"
+
+Audited, and the honest answer is that **nothing here is unreferenced**:
+
+| Looked at | Referenced by |
+| --- | --- |
+| `diagrams/` | `docs/GUIDE.md`, `REFERENCE.md`, `README.md` |
+| `registry/selftest.py` | `glossary_generator/README.md` documents `python -m registry.selftest` |
+| `cli_suggester.py`, `build_roster.py` | `docs/REFERENCE.md` |
+
+So the cleanup is about what **ships**, not what exists - which is what the
+staging excludes now do. One genuine open question remains, and it is a decision
+rather than a tidy-up: the legacy Jinja UI (`templates/` + `static/js/00-12`,
+~456 KB) is still live code - `api.py` falls back to it when `frontend/dist` is
+absent - but the React build has superseded it since 1.11, so it has not been
+exercised against the current API in a long time. Keeping it means maintaining a
+second UI; removing it means a checkout with no built frontend serves nothing.
 
 ### Fixed - the installer would not compile
 
