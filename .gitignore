@@ -37,3 +37,6 @@ desktop/node_modules/
 desktop/src-tauri/vendor/
 desktop/src-tauri/target/
 desktop/src-tauri/gen/
+
+# scenario people seed - kept local at the user's request
+glossary_generator/domain_packs/water_utility.people.json
