@@ -408,8 +408,7 @@
   // wrong diagnosis; one that says "the server answered, the window could not
   // read it" points straight at the actual fault.
   function classify(log, diag) {
-    var text = (log || []).join('
-');
+    var text = (log || []).join('\n');
     var answered = /200 OK/.test(text);
     var traceback = /Traceback|ModuleNotFoundError|ImportError/i.test(text);
     var addrInUse = /address already in use|10048/i.test(text);

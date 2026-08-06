@@ -14,6 +14,36 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.32.16] - 2026-08-06
+
+### Fixed - 1.32.15's splash did not run at all
+
+It showed the logo, an empty version badge and "waiting for the backend...", and
+nothing else - no checklist, no polling, no navigation. It read as a very slow
+start; it was a **syntax error**. The splash script is one block, so an error
+anywhere stops all of it.
+
+The cause was `join('
+')` written through an inline Python heredoc, which ate
+the escape and left an unterminated string literal. That is the fourth time
+today the same class of fault has shipped - ``, ``, `` in PowerShell
+paths, and now `
+` in JavaScript.
+
+### Added - the splash is parsed and cross-checked by the test suite
+
+Because reviewing harder has now failed four times:
+
+- `node --check` on the extracted script. A syntax error here is invisible until
+  the app is installed and launched, which is the most expensive place to find
+  one.
+- Every `invoke('...')` target is checked against the `#[tauri::command]`
+  functions the shell actually defines. A renamed command fails **silently** -
+  the promise rejects, the catch re-polls, the splash waits forever - which is
+  the same shape as the CORS bug and just as unreadable from the screen.
+
+179 tests.
+
 ## [1.32.15] - 2026-08-06
 
 ### Fixed - "Ollama has no model pulled" on a machine with fourteen
