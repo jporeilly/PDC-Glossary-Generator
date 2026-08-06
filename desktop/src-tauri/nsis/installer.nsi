@@ -850,7 +850,18 @@ Section "Seed this company (glossary categories)" SecSeed
     DetailPrint "   [--] skipped - no company name given"
   ${Else}
     DetailPrint "Seeding $R7..."
-    nsExec::Exec 'powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$INSTDIR\provisioning\seed-company.ps1" -Company "$R7" -Categories "$R6" -PdcUrl "$SeedPdcUrl"'
+    ; Build the argument list, omitting switches with no value.
+    ; powershell -File reads -Categories "" as a MISSING argument and exits
+    ; before running anything, so passing them unconditionally failed every
+    ; seed where the optional fields were left blank.
+    StrCpy $R5 '-Company "$R7"'
+    ${If} $R6 != ""
+      StrCpy $R5 '$R5 -Categories "$R6"'
+    ${EndIf}
+    ${If} $SeedPdcUrl != ""
+      StrCpy $R5 '$R5 -PdcUrl "$SeedPdcUrl"'
+    ${EndIf}
+    nsExec::Exec 'powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$INSTDIR\provisioning\seed-company.ps1" $R5'
     Pop $0
     ${If} $0 = 0
       DetailPrint "   [ok] domain pack written"

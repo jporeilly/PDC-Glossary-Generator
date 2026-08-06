@@ -14,6 +14,32 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.32.18] - 2026-08-06
+
+### Fixed - the seed was skipped on every install
+
+The checklist said `[--] skipped - run provisioning\seed-company.ps1 to see why`
+even with a company name entered. Two faults, found by reproducing the
+installer's exact invocation:
+
+**Empty arguments.** `powershell -File` reads `-Categories ""` as a *missing*
+argument and exits before running anything:
+
+    Missing an argument for parameter 'Categories'
+
+The installer passed `-Categories` and `-PdcUrl` unconditionally, so the normal
+case - the page now asks only for the company - failed every time. The argument
+list is built conditionally now, omitting switches with no value.
+
+**A second unguarded prompt.** The categories `Read-Host` was never given the
+interactive check that the company prompt got in 1.32.7. It would have thrown
+under `-NonInteractive` the moment the first fault was fixed. Both prompts now
+go through one `Read-IfInteractive` helper, because guarding them separately is
+precisely how this was missed twice.
+
+Verified with the exact command the installer sends: `exit=0`, and the pack and
+settings written - `Arizona Water` -> `arizona_water`, four categories.
+
 ## [1.32.17] - 2026-08-06
 
 ### Fixed - the swirl was flush against the header's edge

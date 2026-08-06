@@ -63,6 +63,20 @@ Set-StrictMode -Version Latest
 
 . (Join-Path $PSScriptRoot "lib\common.ps1")
 
+# The ONLY way this script asks a question.
+#
+# It runs two ways: from a PowerShell prompt, where asking is right, and from
+# the installer via nsExec, which gives it no console. There, -NonInteractive
+# makes Read-Host THROW - and with $ErrorActionPreference = "Stop" that is fatal,
+# so the step reports "skipped" for a reason that has nothing to do with the
+# question. Guarding one prompt and not the other is how that happened twice.
+function Read-IfInteractive {
+    param([string] $Prompt)
+    if (-not [Environment]::UserInteractive) { return "" }
+    if ([Console]::IsInputRedirected) { return "" }
+    try { return (Read-Host $Prompt).Trim() } catch { return "" }
+}
+
 function Ok($m)   { Write-Host "  [ok] $m" -ForegroundColor Green }
 function Warn($m) { Write-Host "  [!]  $m" -ForegroundColor Yellow }
 function Say($m)  { Write-Host "  $m" -ForegroundColor DarkGray }
@@ -93,9 +107,7 @@ Ok ("state directory: " + $state.Path + " (" + $state.Why + ")")
 # access problem, which is exactly how it was first reported. So: ask when a
 # person is there, and otherwise say plainly what to do instead.
 if (-not $Company) {
-    if ([Environment]::UserInteractive -and -not [Console]::IsInputRedirected) {
-        try { $Company = (Read-Host "  Company name").Trim() } catch { $Company = "" }
-    }
+    $Company = Read-IfInteractive "  Company name"
 }
 if (-not $Company) {
     Warn "No company name supplied and nothing to ask on - skipping."
@@ -107,7 +119,9 @@ if (-not $Categories) {
     Write-Host ""
     Say "Glossary categories, comma separated. These are the top-level buckets"
     Say "terms are filed under. Press Enter to take the suggested starting list."
-    $Categories = (Read-Host "  Categories").Trim()
+    $Categories = Read-IfInteractive "  Categories"
+    # Blank is fine and common: packinit falls back to its suggested list, and
+    # the pack grows from the first scan regardless.
 }
 
 if (-not $Domain) {
