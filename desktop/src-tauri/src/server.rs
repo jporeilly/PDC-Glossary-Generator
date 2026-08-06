@@ -166,6 +166,23 @@ impl Server {
         })
     }
 
+    /// Has the backend exited? `Some(false)` while running, `Some(true)` once
+    /// it has died, `None` if we cannot tell.
+    ///
+    /// This is what separates "dead" from "merely slow", and the splash needs
+    /// that distinction: a cold start on a slow disk can take a long time, but a
+    /// process that has EXITED is never going to answer, and waiting out a
+    /// timeout before saying so wastes the user's time and invites a support
+    /// email about a failure the app already knew about.
+    pub fn exited(&mut self) -> Option<bool> {
+        let child = self.child.as_mut()?;
+        match child.try_wait() {
+            Ok(Some(_)) => Some(true),
+            Ok(None) => Some(false),
+            Err(_) => None,
+        }
+    }
+
     pub fn url(&self) -> String {
         format!("http://127.0.0.1:{}", self.port)
     }

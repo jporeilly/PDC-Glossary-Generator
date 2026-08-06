@@ -14,6 +14,31 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.32.3] - 2026-08-06
+
+### Fixed - the support panel could appear for an app that was merely slow
+
+The failure panel has always been hidden unless startup failed, but "failed" was
+decided by a single 90-second timer - which cannot tell a dead backend from a
+slow one. A cold start on a slow disk (12,000 files, and the first import of
+`oracledb`/`boto3`/`openai` is not quick) could cross it and put a support
+address in front of someone whose app was about to work. That generates exactly
+the enquiries the panel exists to prevent.
+
+Split into three signals:
+
+- **The backend exited** - `server_alive` reports it directly from
+  `child.try_wait()`, and the panel appears at once. No amount of waiting
+  revives an exited process, so making someone sit out a timeout is pure delay.
+- **45 seconds** - an inline note saying it is taking longer than usual and the
+  log below is live. Support is NOT offered. Polling continues.
+- **4 minutes** - give up and offer support. Deliberately far out now that a
+  genuine crash no longer has to wait for it.
+
+Verified both paths against the real code: alive-but-slow leaves the panel
+hidden and shows the notice; a dead backend surfaces it in under a second with
+the deadline set to effectively never.
+
 ## [1.32.2] - 2026-08-06
 
 ### Added - the failure panel produces a support email

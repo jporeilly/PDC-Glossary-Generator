@@ -189,10 +189,21 @@
 </div>
 
 <script>
-  // Generous enough for a genuine cold start - the first import of the DB
-  // drivers and provider SDKs is slow - but short enough that a real failure
-  // does not read as a hang.
-  var DEADLINE_MS = 90000;
+  // Two thresholds, because "slow" and "broken" are different states and only
+  // one of them is worth emailing anyone about.
+  //
+  // SLOW_MS  - say it is taking longer than usual, and keep waiting. A cold
+  //            start on a slow disk genuinely can take this long: 12,000 files,
+  //            and the first import of oracledb/boto3/openai is not quick.
+  // DEADLINE - give up and offer support. Deliberately far out, because a
+  //            support panel shown to someone whose app was merely late
+  //            generates exactly the enquiries it is meant to prevent.
+  //
+  // Neither matters when the backend has actually DIED: server_alive reports
+  // that directly, and the panel appears immediately, because no amount of
+  // waiting will revive an exited process.
+  var SLOW_MS = 45000;
+  var DEADLINE_MS = 240000;
   var started = Date.now();
   var seen = 0;
 
@@ -387,19 +398,40 @@
   var finished = false;
   var clock = setInterval(function () {
     if (finished) { return; }
-    var secs = Math.round((Date.now() - started) / 1000);
+    var ms = Date.now() - started;
+    var secs = Math.round(ms / 1000);
     footEl.textContent = secs > 3 ? secs + 's elapsed' : '';
-    if (Date.now() - started > DEADLINE_MS) {
-      finished = true;
-      clearInterval(clock);
-      fail();
+
+    if (ms > SLOW_MS) {
+      var s = document.getElementById('setup');
+      if (s.dataset.slow !== '1' && s.style.display !== 'block') {
+        s.dataset.slow = '1';
+        s.textContent = 'Still starting. A first launch on a slow disk can take a couple of '
+                      + 'minutes while the bundled drivers load - the log below is live.';
+        s.style.display = 'block';
+      }
     }
+    if (ms > DEADLINE_MS) { die(); }
   }, 1000);
+
+  function die() {
+    if (finished) { return; }
+    finished = true;
+    clearInterval(clock);
+    fail();
+  }
 
   function poll() {
     if (finished) { return; }
 
     invoke('server_log').then(pushLines).catch(function () {});
+
+    // A process that has exited is never going to answer. Checking this is what
+    // lets the deadline above stay generous without making a genuine failure sit
+    // there for four minutes pretending to work.
+    invoke('server_alive').then(function (alive) {
+      if (alive === false) { die(); }
+    }).catch(function () {});
 
     invoke('server_url').then(function (url) {
       if (!url) { setTimeout(poll, 350); return; }

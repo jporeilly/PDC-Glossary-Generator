@@ -120,6 +120,19 @@ fn server_log() -> Vec<String> {
     last_server_output()
 }
 
+/// False once the backend process has exited. Lets the splash fail fast on a
+/// dead server instead of waiting out a timeout meant for a slow one.
+#[tauri::command]
+fn server_alive(state: State<'_, AppState>) -> bool {
+    let Ok(mut guard) = state.server.lock() else {
+        return true; // cannot tell - assume alive rather than cry wolf
+    };
+    match guard.as_mut() {
+        Some(srv) => !srv.exited().unwrap_or(false),
+        None => false, // never started
+    }
+}
+
 /// What this install actually is: seeded or not, and what it can reach.
 ///
 /// Native rather than shelling out to check-environment.ps1: spawning
@@ -242,7 +255,7 @@ fn main() {
         .manage(AppState {
             server: shared.clone(),
         })
-        .invoke_handler(tauri::generate_handler![server_url, server_log, env_report, diagnostics, save_report])
+        .invoke_handler(tauri::generate_handler![server_url, server_log, server_alive, env_report, diagnostics, save_report])
         .setup(move |app| {
             let handle = app.handle().clone();
             let resource_dir = strip_verbatim(&handle.path().resource_dir().unwrap_or_default());
