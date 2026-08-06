@@ -14,6 +14,53 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.28.0] - 2026-08-06
+
+### Changed - no hardcoded PDC server, and no hardcoded model
+
+Both defaults were wrong for anyone who is not on this laptop.
+
+**PDC**: the check no longer falls back to `https://pentaho.io`. It now resolves
+`-PdcUrl` -> `$env:PDC_BASE_URL` -> **the app's own saved connection**
+(`settings.json` `pdc_base`, written by the Connections page) -> `.env` ->
+**a prompt** -> and if none of those answer, it SKIPs the PDC checks rather than
+guessing. Guessing a host either probes a stranger's server or reports a healthy
+machine as broken because someone else's is down. `-NoPrompt` for unattended
+runs; `-Json` implies it. Reading the app's saved connection is the point: the
+server you last worked against is the one worth checking.
+
+**Ollama model**: `check-environment.ps1` no longer names `llama3.2:3b`. It calls
+the app's own `llm_detect.recommend()`, which sizes the model to the hardware -
+VRAM first, aggregating multi-GPU, then RAM, then a CPU floor - and reports what
+it found. Naming a model here would have been a second rule quietly disagreeing
+with the app's Settings page; recommending a 32B model to a laptop and a 1B model
+to a 2x3060 rig are both real costs. Verified on the dev rig: `2x RTX 3060,
+24.0 GB VRAM -> qwen2.5:32b`. Where the detector cannot run, the fix text points
+at the Settings page instead of inventing a name.
+
+### Fixed - the domain pack could not be written in a packaged install
+
+`domain_pack_path()` returned an ASSET path (beside the code), but the pack is
+two things at once: a starter that ships with the install, and a file the app
+REWRITES via *Draft pack -> apply*. Under a packaged install that path is in
+Program Files, so the write fails and the endpoint reports success on a file it
+never replaced.
+
+Split in two: `domain_pack_path()` reads `$GLOSSARY_DOMAIN_PACK` -> the **state
+directory** -> the shipped starter; `domain_pack_write_path()` never returns the
+install directory. A pack the user drops into the state directory now wins over
+the shipped one, which is what makes "supply your own pack" work at all.
+
+### Fixed
+
+PowerShell strips embedded double quotes when passing arguments to a native
+executable, so the detector probe's `json.dumps({"model": ...})` arrived as bare
+names and died with `NameError`. Single quotes inside the Python.
+
+### Tests
+
+160.
+
 ## [1.27.0] - 2026-08-06
 
 ### Added - `check-environment.ps1`

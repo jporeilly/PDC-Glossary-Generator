@@ -13,24 +13,34 @@
 
       - Ollama absent is not fatal: the app also drives Anthropic, OpenAI/Azure
         and Gemini, selected on the Settings page.
-      - PDC unreachable is not fatal: the vhost is normally configured after
+      - PDC unreachable is not fatal: the server is normally configured after
         install, and most of the app (scan, review, govern) works offline.
 
     Treating those as hard failures would teach people to ignore the output,
     which costs more than the check is worth.
 
 .PARAMETER PdcUrl
-    PDC base URL to probe. Defaults to $env:PDC_BASE_URL, then to the value in
-    glossary_generator\.env, then https://pentaho.io.
+    PDC base URL to probe. Works against ANY PDC server - there is no built-in
+    default, deliberately. Resolution order: this parameter, $env:PDC_BASE_URL,
+    the app's own saved connection (settings.json "pdc_base", written by the
+    Connections page), glossary_generator\.env, then a prompt. If none of those
+    answer, the PDC checks are skipped rather than guessing a host.
+
+.PARAMETER NoPrompt
+    Never ask for a PDC URL. For unattended/provisioning runs.
 
 .PARAMETER Json
-    Emit the results as JSON only - for piping into a provisioning log.
+    Emit the results as JSON only - for piping into a provisioning log. Implies
+    -NoPrompt.
 
 .EXAMPLE
     .\check-environment.ps1
 
 .EXAMPLE
-    .\check-environment.ps1 -PdcUrl https://pentaho.io -Json
+    .\check-environment.ps1 -PdcUrl https://catalog.example.com
+
+.EXAMPLE
+    .\check-environment.ps1 -NoPrompt -Json
 
 .NOTES
     Windows PowerShell 5.1+. ASCII-only on purpose.
@@ -38,6 +48,7 @@
 [CmdletBinding()]
 param(
     [string]$PdcUrl,
+    [switch]$NoPrompt,
     [switch]$Json
 )
 
@@ -93,6 +104,15 @@ function Test-Port([string]$TargetHost, [int]$Port, [int]$TimeoutMs = 1500) {
 $desktopDir = Split-Path -Parent $PSScriptRoot
 $repoRoot   = Split-Path -Parent $desktopDir
 
+# Resolved by the Python check below and reused by the model sizing: the
+# interpreter to run, and the directory holding llm_detect.py.
+$script:PyExe = $null
+$script:AppPy = $null
+foreach ($cand in @((Join-Path $desktopDir "src-tauri\vendor\app\glossary_generator"),
+                    (Join-Path $repoRoot "glossary_generator"))) {
+    if (Test-Path -LiteralPath (Join-Path $cand "llm_detect.py")) { $script:AppPy = $cand; break }
+}
+
 Say ""
 Say "  PDC Glossary Generator - environment check" "Cyan"
 Say "  Reports what is missing and how to fix it. Only WebView2 and Python are" "DarkGray"
@@ -130,6 +150,7 @@ if ($wv2) {
 $vendored = Join-Path $desktopDir "src-tauri\vendor\python\python.exe"
 if (Test-Path -LiteralPath $vendored) {
     $ver = & $vendored -c "import sys;print('.'.join(map(str,sys.version_info[:3])))" 2>$null
+    $script:PyExe = $vendored
     Report "Python (vendored)" "OK" "$ver - shipped with the app, nothing to install"
 
     # The imports that actually break in a packaged build. A runtime that runs
@@ -151,6 +172,7 @@ if (Test-Path -LiteralPath $vendored) {
         } catch {}
     }
     if ($pyCmd) {
+        if ($pyCmd -eq "python") { $script:PyExe = "python" }
         Report "Python 3.9+" "OK" "$pyVer via '$pyCmd'"
     } else {
         Report "Python 3.9+" "FAIL" "not found - needed to run from a checkout" `
@@ -216,6 +238,56 @@ $ollamaUrl = $env:OLLAMA_URL
 if (-not $ollamaUrl) { $ollamaUrl = "http://127.0.0.1:11434" }
 $ollamaUp = Test-Port "127.0.0.1" 11434
 
+# WHICH model to pull is the app's decision, not this script's. llm_detect.py
+# sizes a model to the actual hardware - VRAM first, then RAM, aggregating
+# multi-GPU - and naming one here would be a second rule that quietly disagrees
+# with what the app's own Settings page recommends. Recommending a 32B model to
+# a laptop, or a 1B model to the 2x3060 rig, are both real costs.
+$recModel  = $null
+$recReason = $null
+$hwDetail  = $null
+if ($script:PyExe -and $script:AppPy) {
+    # SINGLE quotes inside the Python. PowerShell strips embedded double quotes
+    # when passing arguments to a native executable, so a dict written with "..."
+    # keys arrives as bare names and dies with NameError.
+    $probe = @'
+import json, sys
+sys.path.insert(0, sys.argv[1])
+import llm_detect as d
+ram = d.total_ram_gb()
+name, vram, count = d.nvidia_gpu()
+r = d.recommend(ram, vram, count)
+print(json.dumps({'model': r.model, 'reason': r.reason, 'ram': ram,
+                  'vram': vram, 'gpu': name, 'gpus': count}))
+'@
+    try {
+        $out = & $script:PyExe -c $probe $script:AppPy 2>$null
+        if ($LASTEXITCODE -eq 0 -and $out) {
+            $d = $out | ConvertFrom-Json
+            $recModel  = $d.model
+            $recReason = $d.reason
+            if ($d.gpu) {
+                $hwDetail = "" + $d.gpu + ", " + $d.vram + " GB VRAM"
+            } elseif ($d.ram) {
+                $hwDetail = "CPU only, " + $d.ram + " GB RAM"
+            }
+        }
+    } catch {}
+}
+if ($recModel) {
+    Report "Hardware / model sizing" "OK" ("$hwDetail -> $recModel")
+} else {
+    Report "Hardware / model sizing" "SKIP" "could not run the app's detector - see the Settings page"
+}
+
+# The fix text follows the detector. With no detector we say where to look
+# rather than inventing a model name.
+if ($recModel) {
+    $pullFix = "ollama pull $recModel   # $recReason"
+} else {
+    $pullFix = "open the app's Settings page - it recommends a model for this machine"
+}
+
 if ($ollamaUp) {
     $models = @()
     try {
@@ -224,16 +296,20 @@ if ($ollamaUp) {
             $models = @($tags.models | ForEach-Object { $_.name })
         }
     } catch {}
-    if ($models.Count -gt 0) {
-        Report "Ollama" "OK" ("" + $models.Count + " model(s): " + (($models | Select-Object -First 3) -join ", "))
-    } else {
+    if ($models.Count -eq 0) {
         # Up but empty is the trap: the app connects, then every generate call
         # fails, which reads as "the AI is broken" rather than "no model".
-        Report "Ollama" "WARN" "running on 11434 but NO model pulled" "ollama pull llama3.2:3b"
+        Report "Ollama" "WARN" "running on 11434 but NO model pulled" $pullFix
+    } elseif ($recModel -and ($models -notcontains $recModel)) {
+        # Has models, but not the one sized to this hardware. Not a problem -
+        # any of them will work - so this is information, not a warning.
+        Report "Ollama" "OK" ("" + $models.Count + " model(s); recommended $recModel not among them")
+    } else {
+        Report "Ollama" "OK" ("" + $models.Count + " model(s): " + (($models | Select-Object -First 3) -join ", "))
     }
 } else {
     Report "Ollama" "WARN" "not running on 11434" `
-        "winget install -e --id Ollama.Ollama; ollama pull llama3.2:3b"
+        ("winget install -e --id Ollama.Ollama" + [Environment]::NewLine + "  " + $pullFix)
 }
 
 # Hosted providers: presence only. Never print or log a key.
@@ -261,24 +337,68 @@ if ($anyHosted) {
 Say ""
 Say "  Pentaho Data Catalog (optional at install time)" "Cyan"
 
-if (-not $PdcUrl) { $PdcUrl = $env:PDC_BASE_URL }
+# NO default host. This check runs against whatever PDC the operator actually
+# has, and guessing one would either probe a stranger's server or report a
+# healthy machine as broken because someone else's host is down.
+#
+# Order: -PdcUrl, then the environment, then what the APP itself has saved
+# (settings.json's pdc_base - the Connections page writes it), then .env, then
+# ask. Reading the app's own setting is the point: whatever server you last
+# connected to is the one worth checking.
+$pdcWhy = $null
+if ($PdcUrl) { $pdcWhy = "-PdcUrl" }
+
+if (-not $PdcUrl -and $env:PDC_BASE_URL) {
+    $PdcUrl = $env:PDC_BASE_URL
+    $pdcWhy = "PDC_BASE_URL"
+}
+if (-not $PdcUrl) {
+    $settingsFile = Join-Path $stateDir "settings.json"
+    if (Test-Path -LiteralPath $settingsFile) {
+        try {
+            $cfg = Get-Content -LiteralPath $settingsFile -Raw | ConvertFrom-Json
+            if ($cfg.PSObject.Properties.Name -contains "pdc_base" -and $cfg.pdc_base) {
+                $PdcUrl = "" + $cfg.pdc_base
+                $pdcWhy = "the app's saved connection"
+            }
+        } catch {}
+    }
+}
 if (-not $PdcUrl) {
     $envFile = Join-Path $repoRoot "glossary_generator\.env"
     if (Test-Path -LiteralPath $envFile) {
         $line = Get-Content -LiteralPath $envFile |
             Where-Object { $_ -match '^\s*PDC_BASE_URL\s*=' } | Select-Object -First 1
-        if ($line) { $PdcUrl = ($line -split "=", 2)[1].Trim().Trim('"').Trim("'") }
+        if ($line) {
+            $PdcUrl = ($line -split "=", 2)[1].Trim().Trim('"').Trim("'")
+            $pdcWhy = ".env"
+        }
     }
 }
-if (-not $PdcUrl) { $PdcUrl = "https://pentaho.io" }
+# Ask, but only when a person is there to answer. -Json and -NoPrompt are for
+# provisioning runs, where a blocked prompt would hang the whole job.
+if (-not $PdcUrl -and -not $Json -and -not $NoPrompt -and [Environment]::UserInteractive) {
+    Say ""
+    Say "  No PDC server is configured yet." "DarkGray"
+    Say "  Enter one to check it now, or press Enter to skip." "DarkGray"
+    $answer = Read-Host "  PDC base URL (e.g. https://catalog.example.com)"
+    if ($answer) {
+        $PdcUrl = $answer.Trim()
+        $pdcWhy = "entered now - not saved; set it on the app's Connections page to keep it"
+    }
+}
+
+if (-not $PdcUrl) {
+    Report "PDC" "SKIP" "no server configured - pass -PdcUrl, or set it on the Connections page"
+} else {
 
 # PDC routes by vhost. A bare IP answers 401 on every path, which looks like bad
 # credentials and sends people to reset passwords that were never wrong.
 if ($PdcUrl -match '^https?://(\d{1,3}\.){3}\d{1,3}(:\d+)?/?$') {
     Report "PDC URL" "WARN" "$PdcUrl is a bare IP - PDC routes by vhost and will answer 401 everywhere" `
-        "use the hostname, e.g. https://pentaho.io"
+        "use the server's hostname instead of its IP address"
 } else {
-    Report "PDC URL" "OK" $PdcUrl
+    Report "PDC URL" "OK" ("$PdcUrl (from $pdcWhy)")
 }
 
 # Any HTTP answer proves reachability; 401/403 means PDC is up and asking for
@@ -331,8 +451,10 @@ if ($pdc.Reached -and $pdc.Tls) {
         "expected on a lab VM; trust the cert, or keep using the app's own connection settings"
 } else {
     Report "PDC reachable" "WARN" "$PdcUrl - $($pdc.Detail)" `
-        "configure the vhost later; scan, review and govern work without PDC"
+        "check the hostname and that the server is up; scan, review and govern work without PDC"
 }
+
+}   # end: a PDC server was configured
 
 # -- summary -----------------------------------------------------------------
 if ($Json) {

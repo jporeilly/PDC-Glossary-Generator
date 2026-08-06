@@ -113,16 +113,42 @@ def asset_path(name):
 
 
 def domain_pack_path():
-    """The scenario vocabulary pack. An ASSET, not state - it ships with the
-       install or is pointed at by $GLOSSARY_DOMAIN_PACK.
+    """Where to READ the scenario vocabulary pack.
 
-       Here because the same two-line rule was written out independently in
-       api.py (twice), tagdict.py and suggester.py. Four copies of "where does
-       the pack come from" is four chances for a packaged build to resolve it
-       differently, and the engine silently falls back to generic defaults when
-       the file is missing - so a wrong answer looks like a bland glossary, not
-       an error."""
-    return os.environ.get("GLOSSARY_DOMAIN_PACK") or asset_path("domain_pack.json")
+       The pack is both things at once, which is why it needs its own rule:
+       a STARTER that ships with the install, and something the app REWRITES
+       (Draft pack / export-pack with apply). Resolution:
+
+         1. $GLOSSARY_DOMAIN_PACK - an explicit file, wherever it lives.
+         2. domain_pack.json in the state directory - a pack the user dropped in
+            or the app wrote. This is the one that must win over the shipped
+            copy, or refreshing the pack would appear to do nothing.
+         3. domain_pack.json beside the code - the shipped starter, read-only in
+            a packaged install.
+
+       Written out once here because the same rule had been copied into api.py
+       (three times), tagdict.py and suggester.py, and the engine falls back to
+       generic defaults SILENTLY when the file is missing - so a copy that
+       resolved differently would surface as a bland glossary, not an error."""
+    explicit = os.environ.get("GLOSSARY_DOMAIN_PACK")
+    if explicit:
+        return explicit
+    in_state = os.path.join(state_dir(), "domain_pack.json")
+    if os.path.isfile(in_state):
+        return in_state
+    return asset_path("domain_pack.json")
+
+
+def domain_pack_write_path():
+    """Where to WRITE the pack. Never the install directory.
+
+       `domain_pack_path()` can legitimately return the shipped starter, which
+       under a packaged install sits in Program Files - writing there fails, and
+       "Draft pack -> apply" would report success on a file it could not
+       replace. Writes always land in the state directory (or the explicit
+       override, if the operator set one)."""
+    return os.environ.get("GLOSSARY_DOMAIN_PACK") or \
+        os.path.join(state_dir(), "domain_pack.json")
 
 
 def reset_cache():

@@ -88,7 +88,36 @@ def test_domain_pack_prefers_the_env_var_then_the_install(clean_env, tmp_path):
     clean_env.setenv("GLOSSARY_DOMAIN_PACK", str(tmp_path / "pack.json"))
     assert paths.domain_pack_path() == str(tmp_path / "pack.json")
     clean_env.delenv("GLOSSARY_DOMAIN_PACK", raising=False)
+    clean_env.setenv("GLOSSARY_STATE_DIR", str(tmp_path / "state"))
     assert paths.domain_pack_path() == paths.asset_path("domain_pack.json")
+
+
+def test_a_pack_in_the_state_dir_beats_the_shipped_one(clean_env, tmp_path):
+    """The user drops a pack in, or the app rewrites one. Either must win over
+       the starter that shipped with the install, or refreshing the pack would
+       appear to do nothing."""
+    clean_env.delenv("GLOSSARY_DOMAIN_PACK", raising=False)
+    state = tmp_path / "state"
+    state.mkdir()
+    clean_env.setenv("GLOSSARY_STATE_DIR", str(state))
+    assert paths.domain_pack_path() == paths.asset_path("domain_pack.json")
+
+    (state / "domain_pack.json").write_text("{}", encoding="utf-8")
+    assert paths.domain_pack_path() == str(state / "domain_pack.json")
+
+
+def test_pack_writes_never_target_the_install_dir(clean_env, tmp_path):
+    """The read path can be the shipped starter, which under a packaged install
+       is in Program Files. Writing there fails, and "Draft pack -> apply" would
+       report success on a file it never replaced."""
+    clean_env.delenv("GLOSSARY_DOMAIN_PACK", raising=False)
+    clean_env.setenv("GLOSSARY_STATE_DIR", str(tmp_path))
+    assert paths.domain_pack_write_path() == os.path.join(str(tmp_path), "domain_pack.json")
+    assert paths.domain_pack_write_path() != paths.asset_path("domain_pack.json")
+
+    # An explicit override still wins - the operator chose that file.
+    clean_env.setenv("GLOSSARY_DOMAIN_PACK", str(tmp_path / "chosen.json"))
+    assert paths.domain_pack_write_path() == str(tmp_path / "chosen.json")
 
 
 def test_writability_is_probed_not_asked(tmp_path):

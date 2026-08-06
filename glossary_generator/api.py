@@ -2249,7 +2249,11 @@ def api_export_pack(body: dict = Body(default={})):
         # one) and reseed the dictionary from it — approved company items and
         # company rules survive the reseed, pending scan-noise is discarded
         import json as _json, shutil, time
-        path = paths.domain_pack_path()
+        # WRITE path, not the read path: the read path can be the shipped
+        # starter, which in a packaged install lives in Program Files. Writing
+        # there fails and this endpoint would report success on a file it never
+        # replaced.
+        path = paths.domain_pack_write_path()
         backup = None
         try:
             if os.path.exists(path):
