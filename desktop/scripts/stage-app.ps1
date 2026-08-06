@@ -65,6 +65,13 @@ $excludeFiles = @(
 )
 $excludeDirs = @(".venv", "__pycache__", ".pytest_cache", "registries", "tests")
 
+# Developer tools, not part of the app. Neither is imported by anything - that
+# was checked, not assumed, and it matters: seed_sample.py LOOKS like a dev
+# script by its name and is imported by api.py, so dropping it would break the
+# packaged app on a customer machine and nowhere else. The import assertion at
+# the end of this script exists because of exactly that trap.
+$excludeFiles += @("cli_suggester.py", "build_roster.py")
+
 # robocopy: /MIR-free mirror of a clean tree, /XD and /XF do the excluding.
 # Exit codes 0-7 are success (8+ is a real failure) - a quirk worth pinning,
 # because treating any non-zero as failure makes every build look broken.
@@ -112,6 +119,36 @@ foreach ($must in @((Join-Path $stageApp "api.py"),
                     (Join-Path $stageDir "boot.py"),
                     (Join-Path $stageDir "pdc_client\__init__.py"))) {
     if (-not (Test-Path -LiteralPath $must)) { throw "staging incomplete: $must is missing" }
+}
+
+# Prove the staged tree can actually be imported, using the runtime that will
+# ship with it. File-existence checks cannot catch a module excluded by mistake;
+# this can, and it costs about two seconds.
+$vendorPy = Join-Path $desktopDir "src-tauri\vendor\python\python.exe"
+if (Test-Path -LiteralPath $vendorPy) {
+    $probe = "import sys; sys.path.insert(0, sys.argv[1]); sys.path.insert(0, sys.argv[2]); import api; print('import ok')"
+    $prevEap = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    # -B: do NOT write bytecode. Without it this check compiles __pycache__ into
+    # the tree robocopy just finished excluding it from, and those .pyc files
+    # then ship - stale caches for a Python version the user may not even be
+    # running. The check has to leave the stage exactly as it found it.
+    $out = & $vendorPy -B -c $probe $stageApp $stageDir 2>&1
+    $code = $LASTEXITCODE
+    $ErrorActionPreference = $prevEap
+    if ($code -ne 0) {
+        $out | ForEach-Object { Warn $_ }
+        throw "the staged tree cannot import api.py - a module is missing from the stage"
+    }
+    # Belt and braces: -B covers this run, but anything else that touches the
+    # stage (a stray manual test, a future check) would leave caches behind, and
+    # a shipped .pyc is invisible until someone lists the installer.
+    Get-ChildItem -LiteralPath $stageDir -Recurse -Directory -Filter "__pycache__" |
+        ForEach-Object { Remove-Item -LiteralPath $_.FullName -Recurse -Force }
+
+    Ok "staged tree imports cleanly"
+} else {
+    Warn "no vendored runtime yet - skipping the import check (run fetch:python first)"
 }
 
 $count = (Get-ChildItem -LiteralPath $stageDir -Recurse -File).Count

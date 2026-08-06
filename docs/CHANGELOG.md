@@ -14,6 +14,47 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.32.8] - 2026-08-06
+
+### Changed - developer tools no longer ship
+
+`cli_suggester.py` and `build_roster.py` are out of the staged tree: nothing
+imports them, and they are not part of what a customer installs.
+
+`seed_sample.py` **stays**. It reads like a developer script and was on the first
+list for removal, but `api.py` imports it - dropping it would have broken the
+packaged app on a customer machine and nowhere else. Checked rather than assumed.
+
+### Added - staging proves the tree can be imported
+
+Which is what makes the above safe. The stage is now imported using the runtime
+that will ship with it, and the build fails if it cannot. A file-existence check
+could never catch a module excluded by mistake; this does, in about two seconds.
+
+### Fixed - the import check was shipping bytecode
+
+It compiled `__pycache__` into the tree `robocopy` had just finished excluding
+it from, and those `.pyc` files shipped - stale caches for a Python version the
+user may not be running. `-B` on the probe, and a sweep afterwards so anything
+else that touches the stage cannot leave caches behind either. 97 files staged
+down to 72.
+
+### Fixed - the installer would not compile
+
+`${SectionIsSelected}` resolves its section id at COMPILE time, so the new seed
+page could not sit above the `Section` that defines `SecSeed`. The `Page custom`
+directive stays where it is - pages are emitted in declaration order - and the
+functions moved below the sections, next to `ApplyComponentFlags`, which already
+worked that way.
+
+### Added - tests on the shell scripts
+
+Every `.ps1` under `desktop/scripts` is checked for control characters and
+non-ASCII. The same fault occurred three times in one day: a Windows path
+written through an inline Python heredoc, where ``, `` and `` silently
+become control bytes. Each time it parsed, committed, and failed only when run -
+once mid-build, once inside an installer. 176 tests (was 163).
+
 ## [1.32.7] - 2026-08-06
 
 ### Fixed - the install-time seed failed with an unauthorized-access error

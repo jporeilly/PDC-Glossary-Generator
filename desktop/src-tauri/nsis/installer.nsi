@@ -388,51 +388,10 @@ Var SeedCompanyBox
 Var SeedCategoriesBox
 Page custom PageSeedDetails PageSeedDetailsLeave
 
-Function PageSeedDetails
-  ; Nothing to ask if the component is unticked, or if the answers came from the
-  ; command line for an unattended run.
-  ${IfNot} ${SectionIsSelected} ${SecSeed}
-    Abort
-  ${EndIf}
-  ${GetOptions} $CMDLINE "/Company=" $R7
-  ${IfNot} ${Errors}
-    StrCpy $SeedCompany $R7
-    Abort
-  ${EndIf}
-
-  !insertmacro MUI_HEADER_TEXT "Company details"     "The glossary engine ships with no categories of its own. These seed the starting domain pack."
-
-  nsDialogs::Create 1018
-  Pop $0
-  ${If} $0 == error
-    Abort
-  ${EndIf}
-
-  ${NSD_CreateLabel} 0 0 100% 24u "Company name. It appears in generated definitions and can be changed later on the app's Settings page."
-  Pop $1
-  ${NSD_CreateText} 0 26u 100% 13u "$SeedCompany"
-  Pop $SeedCompanyBox
-
-  ${NSD_CreateLabel} 0 48u 100% 32u "Glossary categories, comma separated - the top-level buckets terms are filed under. Leave blank for a general-purpose starting set; a scan and review will grow the pack from your own data either way."
-  Pop $1
-  ${NSD_CreateText} 0 82u 100% 13u "$SeedCategories"
-  Pop $SeedCategoriesBox
-
-  ${NSD_CreateLabel} 0 104u 100% 20u "Skip this by unticking 'Seed this company' on the previous page, or run provisioning\seed-company.ps1 afterwards."
-  Pop $1
-
-  nsDialogs::Show
-FunctionEnd
-
-Function PageSeedDetailsLeave
-  ${NSD_GetText} $SeedCompanyBox $SeedCompany
-  ${NSD_GetText} $SeedCategoriesBox $SeedCategories
-  ; An empty company name is the one thing the seed cannot work around, so treat
-  ; it as "not now" rather than running the script to no purpose.
-  ${If} $SeedCompany == ""
-    !insertmacro UnselectSection ${SecSeed}
-  ${EndIf}
-FunctionEnd
+; The page functions live below the sections, next to ApplyComponentFlags:
+; ${SectionIsSelected} resolves ${SecSeed} at COMPILE time, so they cannot
+; appear before the Section that defines it. The directive above is what
+; fixes the page's position in the sequence; the functions are just named.
 
 ; 5. Choose install directory page
 !define MUI_PAGE_CUSTOMFUNCTION_PRE SkipIfPassive
@@ -923,6 +882,52 @@ SectionEnd
 !insertmacro MUI_FUNCTION_DESCRIPTION_END
 
 ; Command-line component toggles, called from .onInit.
+Function PageSeedDetails
+  ; Nothing to ask if the component is unticked, or if the answers came from the
+  ; command line for an unattended run.
+  ${IfNot} ${SectionIsSelected} ${SecSeed}
+    Abort
+  ${EndIf}
+  ${GetOptions} $CMDLINE "/Company=" $R7
+  ${IfNot} ${Errors}
+    StrCpy $SeedCompany $R7
+    Abort
+  ${EndIf}
+
+  !insertmacro MUI_HEADER_TEXT "Company details"     "The glossary engine ships with no categories of its own. These seed the starting domain pack."
+
+  nsDialogs::Create 1018
+  Pop $0
+  ${If} $0 == error
+    Abort
+  ${EndIf}
+
+  ${NSD_CreateLabel} 0 0 100% 24u "Company name. It appears in generated definitions and can be changed later on the app's Settings page."
+  Pop $1
+  ${NSD_CreateText} 0 26u 100% 13u "$SeedCompany"
+  Pop $SeedCompanyBox
+
+  ${NSD_CreateLabel} 0 48u 100% 32u "Glossary categories, comma separated - the top-level buckets terms are filed under. Leave blank for a general-purpose starting set; a scan and review will grow the pack from your own data either way."
+  Pop $1
+  ${NSD_CreateText} 0 82u 100% 13u "$SeedCategories"
+  Pop $SeedCategoriesBox
+
+  ${NSD_CreateLabel} 0 104u 100% 20u "Skip this by unticking 'Seed this company' on the previous page, or run provisioning\seed-company.ps1 afterwards."
+  Pop $1
+
+  nsDialogs::Show
+FunctionEnd
+
+Function PageSeedDetailsLeave
+  ${NSD_GetText} $SeedCompanyBox $SeedCompany
+  ${NSD_GetText} $SeedCategoriesBox $SeedCategories
+  ; An empty company name is the one thing the seed cannot work around, so treat
+  ; it as "not now" rather than running the script to no purpose.
+  ${If} $SeedCompany == ""
+    !insertmacro UnselectSection ${SecSeed}
+  ${EndIf}
+FunctionEnd
+
 Function ApplyComponentFlags
   ${GetOptions} $CMDLINE "/NoSeed" $R9
   ${IfNot} ${Errors}
