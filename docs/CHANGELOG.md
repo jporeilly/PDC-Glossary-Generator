@@ -14,6 +14,33 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.32.14] - 2026-08-06
+
+### Fixed - the splash never opened the app, against a server that was ready
+
+"Connecting to the workspace" span for 81 seconds while the backend logged
+`GET /api/version 200 OK` over and over. The server was fine the whole time.
+
+The splash lives on a `tauri://` origin, so `fetch('http://127.0.0.1:PORT/...')`
+is **cross-origin**. The request goes out - hence the 200s in the log - but the
+webview will not hand the response to JavaScript, because FastAPI sends no
+`Access-Control-Allow-Origin`. The promise rejected, the `catch` re-polled, and
+the loop ran forever.
+
+Readiness is now asked of the **shell**: `server_ready` performs the GET from
+Rust, where no same-origin rule applies. The top-level navigation that follows
+was never affected - navigating cross-origin is allowed, which is why the app
+itself works once it gets there.
+
+Worth noting the previous fixes were all real but none could have caught this:
+the paths resolved, the process was alive, the port was open, the log was
+streaming. Every signal said healthy because everything was.
+
+### Fixed - a backslash eaten by an escape
+
+The unseeded-install hint read `Run provisioningseed-company.ps1`. Same class of
+fault as the `.ps1` control characters, in a JavaScript string this time.
+
 ## [1.32.13] - 2026-08-06
 
 ### Changed - the install log is a checklist and nothing else

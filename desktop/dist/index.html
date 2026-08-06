@@ -481,23 +481,27 @@
       if (alive === false) { die(); }
     }).catch(function () {});
 
+    // Readiness is asked of the SHELL, not fetched from here.
+    //
+    // This page is on a tauri:// origin, so fetch('http://127.0.0.1:PORT/...')
+    // is cross-origin. The request goes out and the server logs a 200 - but the
+    // webview will not hand the response to JavaScript, because FastAPI sends no
+    // Access-Control-Allow-Origin. The promise rejected, the catch re-polled,
+    // and the splash sat at "Connecting to the workspace" against a server that
+    // had been ready for over a minute. Rust has no same-origin rule.
+    //
+    // The top-level navigation below is unaffected: navigating IS allowed
+    // cross-origin, which is why the app itself works once we get there.
     invoke('server_url').then(function (url) {
       if (!url) { setTimeout(poll, 350); return; }
-      // Ask the app's own health endpoint, not "/": the root is the SPA shell
-      // and answers before the application is genuinely ready.
-      fetch(url + '/api/version', { cache: 'no-store' })
-        .then(function (r) {
-          if (!r.ok) throw new Error('not ready');
-          return r.json();
-        })
-        .then(function (v) {
-          finished = true;
-          clearInterval(clock);
-          advanceTo(STEPS.length);
-          setState('connect', 'done', v && v.version ? 'v' + v.version : '');
-          setTimeout(function () { window.location.replace(url); }, 420);
-        })
-        .catch(function () { setTimeout(poll, 400); });
+      invoke('server_ready').then(function (ready) {
+        if (!ready) { setTimeout(poll, 400); return; }
+        finished = true;
+        clearInterval(clock);
+        advanceTo(STEPS.length);
+        setState('connect', 'done');
+        setTimeout(function () { window.location.replace(url); }, 420);
+      }).catch(function () { setTimeout(poll, 400); });
     }).catch(function () { setTimeout(poll, 400); });
   }
 

@@ -67,6 +67,40 @@ fn drain<R: std::io::Read + Send + 'static>(stream: R, tag: &'static str) {
     });
 }
 
+/// Does the backend answer a real HTTP request on this port?
+///
+/// Asked from RUST, not from the splash page. The page lives on a tauri://
+/// origin, so a fetch() to http://127.0.0.1 is cross-origin: the request goes
+/// out and the server logs a 200, but the webview refuses to hand the response
+/// to JavaScript because FastAPI sends no Access-Control-Allow-Origin. The
+/// promise rejects, the poll retries, and the splash spins forever against a
+/// server that has been ready the whole time. Rust has no such rule.
+pub fn http_ok(port: u16, path: &str) -> bool {
+    use std::io::{Read, Write};
+    use std::net::TcpStream;
+    use std::time::Duration;
+
+    let Ok(addr) = format!("127.0.0.1:{port}").parse() else { return false };
+    let Ok(mut stream) = TcpStream::connect_timeout(&addr, Duration::from_millis(400)) else {
+        return false;
+    };
+    let _ = stream.set_read_timeout(Some(Duration::from_secs(3)));
+    let req = format!(
+        "GET {path} HTTP/1.1
+Host: 127.0.0.1
+Connection: close
+
+"
+    );
+    if stream.write_all(req.as_bytes()).is_err() {
+        return false;
+    }
+    let mut buf = Vec::new();
+    let _ = stream.read_to_end(&mut buf);
+    let head = String::from_utf8_lossy(&buf[..buf.len().min(64)]);
+    head.starts_with("HTTP/1.1 200") || head.starts_with("HTTP/1.0 200")
+}
+
 /// Is something listening there? Used to spot Ollama without shelling out.
 ///
 /// A short timeout on purpose: this runs while the window is opening, and a

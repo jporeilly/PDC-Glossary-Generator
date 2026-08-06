@@ -133,6 +133,17 @@ fn server_alive(state: State<'_, AppState>) -> bool {
     }
 }
 
+/// True once the backend answers /api/version. See server::http_ok for why this
+/// cannot be a fetch() from the splash.
+#[tauri::command]
+fn server_ready(state: State<'_, AppState>) -> bool {
+    let Ok(guard) = state.server.lock() else { return false };
+    match guard.as_ref() {
+        Some(srv) => server::http_ok(srv.port, "/api/version"),
+        None => false,
+    }
+}
+
 /// What this install actually is: seeded or not, and what it can reach.
 ///
 /// Native rather than shelling out to check-environment.ps1: spawning
@@ -305,7 +316,7 @@ fn main() {
         .manage(AppState {
             server: shared.clone(),
         })
-        .invoke_handler(tauri::generate_handler![server_url, server_log, server_alive, env_report, diagnostics, save_report, llm_suggest])
+        .invoke_handler(tauri::generate_handler![server_url, server_log, server_alive, server_ready, env_report, diagnostics, save_report, llm_suggest])
         .setup(move |app| {
             let handle = app.handle().clone();
             let resource_dir = strip_verbatim(&handle.path().resource_dir().unwrap_or_default());
