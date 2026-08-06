@@ -1,14 +1,12 @@
 {
   "$schema": "https://schema.tauri.app/config/2.0.0",
   "productName": "PDC Glossary Generator",
-  "version": "1.30.0",
+  "version": "1.31.0",
   "identifier": "com.pentaho.pdc-glossary",
-
   "build": {
     "beforeBuildCommand": "npm run fetch:python && npm run stage:app",
     "frontendDist": "../dist"
   },
-
   "app": {
     "withGlobalTauri": true,
     "windows": [
@@ -28,27 +26,40 @@
       "csp": null
     }
   },
-
   "bundle": {
     "active": true,
-    "targets": ["nsis"],
-    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/icon.ico"],
+    "targets": [
+      "nsis"
+    ],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/icon.ico"
+    ],
     "resources": {
       "vendor/python": "python",
-      "vendor/app": "app"
+      "vendor/app": "app",
+      "../scripts/lib/common.ps1": "provisioning/lib/common.ps1",
+      "../scripts/seed-company.ps1": "provisioning/seed-company.ps1",
+      "../scripts/install-ollama.ps1": "provisioning/install-ollama.ps1",
+      "../scripts/check-environment.ps1": "provisioning/check-environment.ps1"
     },
     "category": "Business",
     "shortDescription": "Build a PDC business glossary from a live data estate",
     "longDescription": "Scans a data estate, proposes a governed business glossary with categories, sensitivity and data-quality expectations, and pushes the result into Pentaho Data Catalog.",
     "publisher": "Pentaho Presales Engineering",
     "windows": {
-      "webviewInstallMode": { "type": "embedBootstrapper" },
+      "webviewInstallMode": {
+        "type": "embedBootstrapper"
+      },
       "nsis": {
         "installMode": "both",
-        "languages": ["English"]
+        "languages": [
+          "English"
+        ],
+        "template": "nsis/installer.nsi"
       }
     }
   },
-
   "plugins": {}
 }

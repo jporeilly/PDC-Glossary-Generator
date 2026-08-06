@@ -40,6 +40,9 @@ function Resolve-StateDir {
     if ($env:GLOSSARY_STATE_DIR) {
         return @{ Path = $env:GLOSSARY_STATE_DIR; Why = "GLOSSARY_STATE_DIR" }
     }
+    # Only a CHECKOUT keeps state beside the code. An installed layout has its
+    # app tree under $INSTDIR, which is read-only, so it falls through to the
+    # per-user directory below - exactly as paths.py decides at runtime.
     $appDir = Join-Path $repoRoot "glossary_generator"
     if (Test-Path -LiteralPath (Join-Path $appDir "api.py")) {
         return @{ Path = $appDir; Why = "app directory (checkout)" }
@@ -71,19 +74,24 @@ function Test-DirWritable {
 
 function Resolve-PyExe {
     <#
-        The interpreter to run: the vendored runtime if this is a packaged
-        install or a built checkout, else whatever Python 3.9+ is on PATH.
-        Returns $null when neither is available.
+        The interpreter to run. Candidates cover BOTH layouts these scripts live
+        in, because the installer bundles copies of them:
+
+          installed:  $INSTDIR\provisioning\  ->  $INSTDIR\python\python.exe
+          checkout:   desktop\scripts\        ->  desktop\src-tauri\vendor\python\
+
+        Falls back to Python 3.9+ on PATH. Returns $null when there is none.
     #>
     param([Parameter(Mandatory)][string] $ScriptRoot)
 
-    $vendored = Join-Path (Get-DesktopDir $ScriptRoot) "src-tauri\vendor\python\python.exe"
-    if (Test-Path -LiteralPath $vendored) { return $vendored }
-
+    $here = Split-Path -Parent $ScriptRoot     # provisioning\.. or scripts\..
+    foreach ($rel in @("python\python.exe", "src-tauri\vendor\python\python.exe")) {
+        $c = Join-Path $here $rel
+        if (Test-Path -LiteralPath $c) { return $c }
+    }
     foreach ($cand in @("python", "py")) {
         try {
-            $probe = "import sys; sys.exit(0 if sys.version_info[:2] >= (3, 9) else 1)"
-            & $cand -c $probe 2>$null
+            & $cand -c "import sys; sys.exit(0 if sys.version_info[:2] >= (3, 9) else 1)" 2>$null
             if ($LASTEXITCODE -eq 0) { return $cand }
         } catch {}
     }
@@ -92,19 +100,21 @@ function Resolve-PyExe {
 
 function Resolve-AppPy {
     <#
-        The directory holding api.py / packinit.py / llm_detect.py: the staged
-        tree if there is one, else the checkout.
+        The directory holding api.py / packinit.py / llm_detect.py.
+
+        CHECKOUT FIRST among the dev candidates: vendor\app is a build artifact
+        that goes stale the moment the source changes, and on a dev machine both
+        exist - preferring it once ran a pre-1.29 packinit and warned about
+        builtin keywords that no longer exist. In an installed layout only
+        $INSTDIR\app is present, so it wins there by being the only one.
     #>
     param([Parameter(Mandatory)][string] $ScriptRoot)
 
-    # CHECKOUT FIRST. vendor\app is a build artifact that goes stale the moment
-    # the source changes, and on a dev machine both exist - preferring it once
-    # ran a pre-1.29 packinit and printed warnings about builtin keywords that
-    # no longer exist. In a packaged install the checkout path is simply absent,
-    # so the staged tree still wins there.
+    $here = Split-Path -Parent $ScriptRoot
     $candidates = @(
-        (Join-Path (Get-RepoRoot $ScriptRoot) "glossary_generator"),
-        (Join-Path (Get-DesktopDir $ScriptRoot) "src-tauri\vendor\app\glossary_generator")
+        (Join-Path $here "app\glossary_generator"),                    # installed
+        (Join-Path (Get-RepoRoot $ScriptRoot) "glossary_generator"),   # checkout
+        (Join-Path $here "src-tauri\vendor\app\glossary_generator")    # staged
     )
     foreach ($c in $candidates) {
         if (Test-Path -LiteralPath (Join-Path $c "packinit.py")) { return $c }

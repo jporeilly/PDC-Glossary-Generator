@@ -63,11 +63,68 @@ the staged tree and fails the build if any of them slipped through. A developer'
 `connections.json` would carry lab hostnames into a customer install; `.env`
 would carry provider API keys.
 
+## The installer
+
+`nsis/installer.nsi` adds a components page over Tauri's default template.
+
+| Install type | What runs |
+| --- | --- |
+| **Full** | app, company seed, Ollama, environment check |
+| **Minimal (app only)** | app only |
+| **Custom** | tick individually |
+
+The bundled Python runtime shows as a ticked, greyed-out entry. It has no
+payload of its own — it's laid down by the core section regardless — but the
+page is where someone decides what this thing needs, and "you don't have to
+install Python" is the most useful thing it can say there.
+
+Each optional step delegates to a script in `$INSTDIR\provisioning\`, all of
+which are re-runnable afterwards and are safe no-ops when their work is done.
+Nothing there can fail the installation: a skipped step leaves a working app.
+
+Silent installs:
+
+```powershell
+setup.exe /S /Company="Acme Energy" /Categories="Customer,Billing,Metering"
+setup.exe /S /NoSeed /NoOllama /NoCheck
+```
+
+`/Company=` is what makes the seed work unattended. Without it in a silent
+install the seed is **skipped rather than prompting**, because a prompt in an
+unattended job hangs it forever.
+
+## Testing on a clean laptop
+
+Expect these, none of which are bugs:
+
+- **SmartScreen will block it.** The installer is unsigned, so Windows shows
+  "Windows protected your PC" → *More info* → *Run anyway*. Every attendee will
+  hit this until the binary is code-signed; that's the one thing standing
+  between this and a hands-off rollout.
+- **Admin rights.** `installMode` is `both`; per-machine needs elevation.
+- **Network is needed for two things only** — the WebView2 bootstrapper (if the
+  machine lacks the runtime) and the Ollama model pull. The app and its Python
+  are entirely inside the installer.
+- **The Ollama step is the long one.** It pulls a single model sized to that
+  machine — several GB. Untick it for a quick test, or run
+  `provisioning\install-ollama.ps1` later.
+
+Then verify:
+
+```powershell
+& "$env:ProgramFiles\PDC Glossary Generator\provisioning\check-environment.ps1"
+```
+
+On a clean machine expect `WebView2 OK`, `Python (vendored) OK`, `Vendored
+dependencies OK`, a state directory under `%APPDATA%\com.pentaho.pdc-glossary`,
+and `PDC` skipped until you give it a server. If `Vendored dependencies` fails,
+the install is incomplete — that check imports `oracledb` and `psycopg2` rather
+than just confirming `python.exe` exists.
+
 ## Not done yet
 
 - **Icons are placeholders** (`src-tauri/icons/`) — generated, not designed.
-- **No components page.** PCM's `nsis/installer.nsi` has Full/Minimal/Custom
-  with `/NoOllama`-style switches; this build installs everything.
+- **The installer is unsigned** — see SmartScreen above.
 
 ## What a fresh install starts with, and what you supply
 

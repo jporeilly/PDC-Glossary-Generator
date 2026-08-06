@@ -14,6 +14,63 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.31.0] - 2026-08-06
+
+### Added - a components page, and the seed runs at install
+
+`desktop/src-tauri/nsis/installer.nsi` extends Tauri's default template with
+Full / Minimal / Custom, modelled on the Pentaho Content Manager installer:
+
+| Install type | What runs |
+| --- | --- |
+| Full | app, company seed, Ollama, environment check |
+| Minimal (app only) | app only |
+
+The bundled Python appears as a ticked, greyed-out entry with no payload of its
+own. It is laid down by the core section either way; the page is where someone
+decides what this needs, and "you do not have to install Python" is the most
+useful thing it can say there.
+
+Every optional step delegates to a script in `$INSTDIR\provisioning\`, all
+re-runnable afterwards and safe no-ops when their work is already done. None of
+them can fail the installation - a skipped step leaves a working app, which is
+the same principle the environment check follows.
+
+Silent switches: `/NoSeed`, `/NoOllama`, `/NoCheck`, plus `/Company=` and
+`/Categories=` to drive the seed unattended. **Without `/Company=` a silent
+install skips the seed rather than prompting** - a prompt in an unattended job
+hangs it forever.
+
+### Added - `install-ollama.ps1`, one model, sized to the machine
+
+Installs Ollama via winget if missing, starts it, waits for the port, then pulls
+**one** model - the one `llm_detect.recommend()` sizes to this hardware. Not a
+set: each is several GB and pulling a spread "just in case" turns a workshop
+setup into a long download of things nobody will run. Skips the download when
+that model is already present, so the installer log stays honest about what it
+actually did.
+
+### Changed - the shared resolvers handle both layouts
+
+`lib/common.ps1` is bundled into `provisioning/`, where the directory layout is
+`$INSTDIR\python` and `$INSTDIRpp` rather than the checkout's
+`desktop\src-tauriendor\...`. `Resolve-PyExe` and `Resolve-AppPy` now probe
+candidates covering both, so one copy of each rule serves the installed and
+development trees.
+
+### Changed - the vendored runtime is replaced on upgrade, not overlaid
+
+NSIS file extraction only adds and overwrites. A dependency dropped between
+releases would linger in `$INSTDIR\python` and stay importable, making "what
+shipped" and "what is installed" quietly different. That tree is now removed
+before the new one lands.
+
+### Known gap
+
+The installer is **unsigned**, so SmartScreen shows "Windows protected your PC"
+on a clean machine. Every attendee hits it until the binary is code-signed -
+the one thing standing between this and a hands-off rollout.
+
 ## [1.30.0] - 2026-08-06
 
 ### Added - `seed-company.ps1`, the first-run step 1.29 made necessary
