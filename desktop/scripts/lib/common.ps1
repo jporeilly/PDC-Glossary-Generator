@@ -100,7 +100,13 @@ function Resolve-PyExe {
 
 function Resolve-AppPy {
     <#
-        The directory holding api.py / packinit.py / llm_detect.py.
+        The app root: the directory holding api.py.
+
+        Probed on api.py, NOT on a module that might move. It used to look for
+        packinit.py, which the 1.33.0 restructure relocated to engine/ - so this
+        returned $null, seed-company.ps1 threw "packinit.py not found", and the
+        installer reported the seed as skipped. api.py is the one file whose
+        position is fixed: boot.py imports it by name.
 
         CHECKOUT FIRST among the dev candidates: vendor\app is a build artifact
         that goes stale the moment the source changes, and on a dev machine both
@@ -117,7 +123,7 @@ function Resolve-AppPy {
         (Join-Path $here "src-tauri\vendor\app\glossary_generator")    # staged
     )
     foreach ($c in $candidates) {
-        if (Test-Path -LiteralPath (Join-Path $c "packinit.py")) { return $c }
+        if (Test-Path -LiteralPath (Join-Path $c "api.py")) { return $c }
     }
     return $null
 }

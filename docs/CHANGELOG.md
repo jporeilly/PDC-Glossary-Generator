@@ -14,6 +14,25 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.33.1] - 2026-08-06
+
+### Fixed - the restructure broke the seed, and the standalone script with it
+
+`[--] skipped` again, for a third and entirely new reason: `Resolve-AppPy`
+probed for `packinit.py` in the app root, and 1.33.0 moved that module into
+`engine/`. The resolver returned `$null`, `seed-company.ps1` threw "packinit.py
+not found", and the step reported skipped - which also meant
+`provisioning\seed-company.ps1`, the very command the skip message tells you to
+run, was broken in the same way.
+
+The resolver now probes **`api.py`**, the one file whose position is fixed:
+`boot.py` imports it by name, so it cannot move without the app failing loudly
+first. Anchoring on a module that might be regrouped is what caused this.
+
+Neither the test suite nor the staging import check could catch it: both go
+through Python imports, and this is a PowerShell path probe. Verified directly
+against the restructured tree instead - `exit=0`, company and pack written.
+
 ## [1.33.0] - 2026-08-06
 
 ### Changed - the modules are grouped into packages

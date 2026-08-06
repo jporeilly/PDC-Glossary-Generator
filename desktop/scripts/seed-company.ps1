@@ -92,7 +92,7 @@ $pyExe  = Resolve-PyExe    $PSScriptRoot
 $appPy  = Resolve-AppPy    $PSScriptRoot
 
 if (-not $pyExe) { throw "No Python found. Install the app, or install Python 3.9+." }
-if (-not $appPy) { throw "packinit.py not found - is this a complete install?" }
+if (-not $appPy) { throw "api.py not found - is this a complete install?" }
 if (-not (Test-DirWritable $state.Path)) {
     throw ("State directory is not writable: " + $state.Path +
            " - set GLOSSARY_STATE_DIR to a writable path.")
@@ -142,7 +142,8 @@ if (Test-Path -LiteralPath $packPath) {
     Ok "existing pack backed up to $(Split-Path -Leaf $backup)"
 }
 
-$args = @((Join-Path $appPy "packinit.py"), "--domain", $Domain, "--company", $Company,
+# engine\packinit.py since 1.33.0 grouped the modules.
+$args = @((Join-Path $appPy "engine\packinit.py"), "--domain", $Domain, "--company", $Company,
           "-o", $packPath, "--force")
 if ($Categories) { $args += @("--categories", $Categories) }
 
