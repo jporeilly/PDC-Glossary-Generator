@@ -14,6 +14,16 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.32.5] - 2026-08-06
+
+### Added - the build version, on screen from the first frame
+
+A badge beside the title, sourced from the **shell** rather than the backend.
+That distinction is the whole point: "which build is this?" is the first
+question on any failure, and on a startup failure the backend is precisely what
+is missing. It shows on the success path too, so a screenshot of a working app
+is as identifiable as a screenshot of a broken one.
+
 ## [1.32.4] - 2026-08-06
 
 ### Fixed - the failure panel could not be scrolled

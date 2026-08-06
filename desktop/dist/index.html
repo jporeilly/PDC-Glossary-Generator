@@ -42,6 +42,12 @@
 
   h1 { font-size: 1.3rem; font-weight: 600; margin: 0 0 .15rem; letter-spacing: .015em; }
   .sub { color: #9aa7b4; margin: 0; font-size: .9rem; }
+  /* Sourced from the SHELL, not the backend: on a startup failure the backend
+     is exactly what is missing, and "which build is this?" is the first
+     question asked. */
+  .ver { font-size: .72rem; font-weight: 500; color: #8a97a4; letter-spacing: .02em;
+         border: 1px solid rgba(255,255,255,.15); border-radius: 999px;
+         padding: .12rem .45rem; vertical-align: middle; margin-left: .35rem; }
 
   /* The checks. Each row is driven by a real signal, never a timer. */
   ul.checks { list-style: none; margin: 0 0 1.15rem; padding: 0; }
@@ -164,7 +170,7 @@
       </svg>
     </div>
     <div>
-      <h1>PDC Glossary Generator</h1>
+      <h1>PDC Glossary Generator <span class="ver" id="ver"></span></h1>
       <p class="sub">Build a governed business glossary</p>
     </div>
   </header>
@@ -363,8 +369,13 @@
     document.getElementById('ident').appendChild(el);
   }
 
+  function showVersion(r) {
+    if (r && r.version) { document.getElementById('ver').textContent = 'v' + r.version; }
+  }
+
   function showIdentity() {
     invoke('env_report').then(function (r) {
+      showVersion(r);
       var ident = document.getElementById('ident');
       ident.innerHTML = '';
 
@@ -395,6 +406,7 @@
     // Ollama is checked here rather than at load: on a healthy launch this panel
     // never appears, and probing a port nobody asked about is wasted work.
     invoke('env_report').then(function (r) {
+      showVersion(r);
       if (r && r.ollama) { document.getElementById('fixBtn').style.display = ''; }
     }).catch(function () {});
 

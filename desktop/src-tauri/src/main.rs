@@ -165,6 +165,10 @@ fn env_report(handle: tauri::AppHandle) -> serde_json::Value {
         .filter(|s| !s.is_empty());
 
     serde_json::json!({
+        // Shown in the header at all times. Which build someone is running is
+        // the first question on any failure, and it must not depend on the
+        // backend answering - the backend is what failed.
+        "version": handle.package_info().version.to_string(),
         "state_dir": state.to_string_lossy(),
         "company": company,
         "seeded": pack.is_some(),
