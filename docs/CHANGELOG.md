@@ -14,6 +14,18 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.32.17] - 2026-08-06
+
+### Fixed - the swirl was flush against the header's edge
+
+It was pasted at a fixed 71% of the width and is about 28% wide, so it ran to
+99% while the wordmark opposite had a 6% margin. Visible on every installer and
+uninstaller page.
+
+The position is now derived from the mark's own width against the same margin
+constant, so the two sides match whatever the scale factor becomes - a fixed x
+would drift again the moment the swirl were resized.
+
 ## [1.32.16] - 2026-08-06
 
 ### Fixed - 1.32.15's splash did not run at all

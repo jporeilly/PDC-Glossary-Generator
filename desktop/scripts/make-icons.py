@@ -80,8 +80,13 @@ W, H = 150 * SS, 57 * SS
 hdr = Image.new("RGB", (W, H), ACCENT)
 sw = colorize(swirl_a, WHITE, (H * 0.74) / swirl_a.height)
 wmark = colorize(wm_a, WHITE, (W * 0.54) / wm_a.width)
-hdr.paste(wmark, (int(W * 0.06), int((H - wmark.height) / 2)), wmark)
-hdr.paste(sw, (int(W * 0.71), int((H - sw.height) / 2)), sw)
+MARGIN = 0.06
+hdr.paste(wmark, (int(W * MARGIN), int((H - wmark.height) / 2)), wmark)
+# Right margin computed to MATCH the left, rather than a fixed x that happened
+# to leave the swirl flush against the edge: it was pasted at 71% and is ~28%
+# wide, so it ran to 99%. Deriving the position from the mark's actual width
+# keeps the two margins equal whatever the scale factor above becomes.
+hdr.paste(sw, (W - int(W * MARGIN) - sw.width, int((H - sw.height) / 2)), sw)
 hdr.resize((150, 57), Image.LANCZOS).save(os.path.join(icons, "nsis-header.bmp"), "BMP")
 
 # ---------------- NSIS sidebar 164x314 ----------------
