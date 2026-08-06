@@ -14,6 +14,29 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.32.0] - 2026-08-06
+
+### Added - Pentaho branding, shared with Content Manager
+
+Same swirl, same wordmark, same `#CC0000`: `src-tauri/icons/brand/` and
+`scripts/make-icons.py` are copied from Pentaho Content Manager so the two
+installers look like they came from the same place. The masks are the classic
+Pentaho logo with the Hitachi tagline stripped.
+
+The **art is regenerated, not copied**. `make-icons.py` already took a
+`--title`, so the sidebar names this product; a new `--strapline` replaces PCM's
+"Workshop lab guide", which would have been wrong on a glossary tool. Wired into
+`bundle.windows.nsis` as `installerIcon`, `headerImage` and `sidebarImage`,
+replacing the generated placeholder icons.
+
+### Fixed - the sidebar strapline was clipped
+
+It rendered through a fixed-size font while the title above it used `fit_font`,
+so anything longer than the 164px sidebar was silently cut mid-word - "Business
+glossary for Pentaho Data Catalog" came out as "ess glossary for Pentaho Data
+Ca". The strapline is fitted too now, so the next person to change that text
+cannot reintroduce it.
+
 ## [1.31.1] - 2026-08-06
 
 ### Fixed - a BOM silently threw away everything the installer collected
