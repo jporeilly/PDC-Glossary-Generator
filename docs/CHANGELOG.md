@@ -14,6 +14,32 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.31.1] - 2026-08-06
+
+### Fixed - a BOM silently threw away everything the installer collected
+
+`Set-Content -Encoding UTF8` writes a byte-order mark in PowerShell 5.1. The app
+reads its state with `encoding="utf-8"` (not `utf-8-sig`) inside a `try/except`
+that returns the **default** on failure - so the BOM did not raise. It made
+`_read_json` fall back, silently, while everything reported success.
+
+Two files were affected, and both are exactly the files an install writes:
+
+- `settings.json` from `seed-company.ps1` - the company name the installer asked
+  for would have been discarded, and the app would have shown "your
+  organization".
+- `people.json` from `load-pdc-users.ps1 -ExportPeople` - the roster would have
+  come back EMPTY, after a successful-looking export.
+
+Both now write with `UTF8Encoding($false)`. Verified from a simulated install
+root: first bytes `7B 0D 0A`, and Python reads the company back.
+
+Found by rehearsing the **installed** layout (`$INSTDIR\python`,
+`$INSTDIRpp`, `$INSTDIR\provisioning`) rather than the checkout - the same
+rehearsal confirmed `Resolve-PyExe`, `Resolve-AppPy` and `Resolve-StateDir` all
+resolve correctly there, with state landing in
+`%APPDATA%\com.pentaho.pdc-glossary`.
+
 ## [1.31.0] - 2026-08-06
 
 ### Added - a components page, and the seed runs at install

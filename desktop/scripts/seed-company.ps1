@@ -140,8 +140,13 @@ if (Test-Path -LiteralPath $settingsPath) {
     }
 }
 $settings["company"] = $Company
-$settings | ConvertTo-Json -Depth 10 |
-    Set-Content -LiteralPath $settingsPath -Encoding UTF8
+# NO BYTE-ORDER MARK. Set-Content -Encoding UTF8 writes one in PowerShell 5.1,
+# and the app reads its state with encoding="utf-8" (not utf-8-sig) inside a
+# try/except that returns the DEFAULT on failure - so a BOM does not raise, it
+# silently discards the company name this script just collected. The install
+# would report success and the app would show none of it.
+$json = ($settings | ConvertTo-Json -Depth 10)
+[IO.File]::WriteAllText($settingsPath, $json, (New-Object System.Text.UTF8Encoding($false)))
 Ok "company name saved to settings.json"
 
 Write-Host ""
