@@ -67,6 +67,34 @@ would carry provider API keys.
 - **No components page.** PCM's `nsis/installer.nsi` has Full/Minimal/Custom
   with `/NoOllama`-style switches; this build installs everything.
 
+## What a fresh install starts with, and what you supply
+
+The installed app starts **empty on purpose** — `stage-app.ps1` ships no
+glossary, no connections, no settings and no `.env`, because a developer's copy
+of those would carry lab hostnames and API keys to every attendee.
+
+Two files decide what the app knows about a company. Both keep their usual
+names, and both live in the **state directory** (`%APPDATA%\com.pentaho.pdc-glossary`
+in a packaged install — the environment check prints the exact path, and so does
+`/config`):
+
+| File | What it is | How it gets there |
+| --- | --- | --- |
+| `domain_pack.json` | the scenario vocabulary: table categories, terms, abbreviations, category keywords | copy one in, point `GLOSSARY_DOMAIN_PACK` at it, or let the app write it from a reviewed scan (*Draft pack → apply*) |
+| `people.json` | the steward roster | seeded once from `GLOSSARY_PEOPLE_SEED` if empty, then edited in the app |
+
+A pack in the state directory **wins over the starter that shipped with the
+install** — that is what makes "bring your own pack" work, and it is why writes
+never target the install directory (Program Files is read-only, so *Draft pack →
+apply* would otherwise report success on a file it never replaced).
+
+The installer ships `domain_packs/*.example.json` as starting points, and
+`packinit.py` scaffolds a thin pack for a new company.
+
+`datasources.csv` is **not** in this list. Nothing reads it from disk: the bulk
+loader serves a sample for download and takes the filled-in copy back through
+the UI, so it is an upload, not configuration.
+
 ## Checking a machine
 
 ```powershell
