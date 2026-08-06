@@ -59,6 +59,7 @@ def _load_dotenv(path=None):
 
 _load_dotenv()
 
+import paths
 import suggester
 import tagdict
 import audit
@@ -107,17 +108,20 @@ def _err(message, status_code):
 templates = Jinja2Templates(directory=os.path.join(HERE, "templates"))
 
 DEFAULT_DDL = os.environ.get("GLOSSARY_DDL", "/mnt/user-data/uploads/01-schema-and-data.sql")
-PEOPLE_FILE = os.environ.get("GLOSSARY_PEOPLE", os.path.join(HERE, "people.json"))
+PEOPLE_FILE = paths.state_path("people.json", "GLOSSARY_PEOPLE")
 # Optional scenario seed roster (e.g. the CSCU people that ship with the credit-union
 # domain pack). Copied into the live PEOPLE_FILE once, only when that file is missing or
 # its roster is empty — so a fresh /data volume (Docker) or fresh checkout (run.sh) gets
 # the seeded roster, but live edits are never overwritten. Unset = generic empty roster.
 PEOPLE_SEED = os.environ.get("GLOSSARY_PEOPLE_SEED", "")
-CONN_FILE = os.environ.get("GLOSSARY_CONNECTIONS", os.path.join(HERE, "connections.json"))
-SETTINGS_FILE = os.environ.get("GLOSSARY_SETTINGS", os.path.join(HERE, "settings.json"))
-GLOSS_FILE = os.environ.get("GLOSSARY_GLOSSARIES", os.path.join(HERE, "glossaries.json"))
+CONN_FILE = paths.state_path("connections.json", "GLOSSARY_CONNECTIONS")
+SETTINGS_FILE = paths.state_path("settings.json", "GLOSSARY_SETTINGS")
+GLOSS_FILE = paths.state_path("glossaries.json", "GLOSSARY_GLOSSARIES")
 # Registry artifacts written at export time (consumed by the standalone Policy Generator).
-REGISTRY_DIR = os.environ.get("GLOSSARY_REGISTRY_DIR", os.path.join(HERE, "registries"))
+# Use REGISTRY_DIR everywhere, never a fresh os.path.join(HERE, "registries") - the
+# State snapshot/restore pair did exactly that and so ignored the env override it
+# documented, which under a packaged install meant restoring into Program Files.
+REGISTRY_DIR = paths.state_path("registries", "GLOSSARY_REGISTRY_DIR")
 
 def _registry_path(glossary_name):
     """Path of the Registry file for a glossary, keyed by its deterministic id so the
@@ -361,8 +365,14 @@ def show_config():
            if k.startswith(("GLOSSARY_", "LLM_", "OLLAMA_", "HOST", "PORT"))}
     return {
         "version": APP_VERSION,
+        # state_dir/state_dir_source answer "where did my glossary go?" without a
+        # filesystem hunt - the one question a packaged install makes hard, since
+        # the state no longer sits next to the executable.
+        "state_dir": paths.state_dir(),
+        "state_dir_source": paths.state_source(),
         "paths": {"ddl": DEFAULT_DDL, "people": PEOPLE_FILE, "connections": CONN_FILE,
-                  "settings": SETTINGS_FILE, "glossaries": GLOSS_FILE},
+                  "settings": SETTINGS_FILE, "glossaries": GLOSS_FILE,
+                  "registries": REGISTRY_DIR, "domain_pack": paths.domain_pack_path()},
         "ollama_url": llm.OLLAMA_URL,
         "model_default": DEFAULT_SETTINGS.get("model"),
         "env": env,
@@ -414,9 +424,9 @@ def _state_files():
              (PEOPLE_FILE, "people.json"),
              (tagdict.DICT_FILE, "tag_dictionary.json"),
              (_audit.AUDIT_FILE, "audit_log.json"),
-             (os.environ.get("GLOSSARY_DOMAIN_PACK") or os.path.join(HERE, "domain_pack.json"),
+             (paths.domain_pack_path(),
               "domain_pack.json")]
-    rdir = os.path.join(HERE, "registries")
+    rdir = REGISTRY_DIR
     if os.path.isdir(rdir):
         for f in sorted(os.listdir(rdir)):
             if f.endswith(".json"):
@@ -475,7 +485,7 @@ async def api_state_restore(request: Request):
             dest = targets[base]
         elif (base.startswith("registries/") and base.endswith(".json")
               and "/" not in base[len("registries/"):]):
-            dest = os.path.join(HERE, "registries", os.path.basename(base))
+            dest = os.path.join(REGISTRY_DIR, os.path.basename(base))
         else:
             skipped.append(name)
             continue
@@ -2225,7 +2235,7 @@ def api_export_pack(body: dict = Body(default={})):
     base = {}
     try:
         import json as _json
-        path = os.environ.get("GLOSSARY_DOMAIN_PACK") or os.path.join(HERE, "domain_pack.json")
+        path = paths.domain_pack_path()
         with open(path, encoding="utf-8") as f:
             base = _json.load(f)
     except Exception:
@@ -2239,7 +2249,7 @@ def api_export_pack(body: dict = Body(default={})):
         # one) and reseed the dictionary from it — approved company items and
         # company rules survive the reseed, pending scan-noise is discarded
         import json as _json, shutil, time
-        path = os.environ.get("GLOSSARY_DOMAIN_PACK") or os.path.join(HERE, "domain_pack.json")
+        path = paths.domain_pack_path()
         backup = None
         try:
             if os.path.exists(path):

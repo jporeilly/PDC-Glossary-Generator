@@ -9,6 +9,7 @@ Stages, all pure functions so both the CLI and the web app reuse them:
 A "row" is the steward-facing review record (also what the UI edits).
 """
 import os, re, json, uuid
+import paths
 import tagdict
 
 DOMAIN = "General"
@@ -709,8 +710,7 @@ def _load_domain_pack():
        $GLOSSARY_DOMAIN_PACK, else domain_pack.json beside this module. Returns {}
        when absent. Recognised keys: table_category, table_terms, cat_keywords,
        abbreviations, category_definitions. See domain_packs/*.example.json."""
-    path = os.environ.get("GLOSSARY_DOMAIN_PACK") or \
-        os.path.join(os.path.dirname(__file__), "domain_pack.json")
+    path = paths.domain_pack_path()
     try:
         with open(path, encoding="utf-8") as f:
             return json.load(f)

@@ -21,6 +21,12 @@ for _var, _name in [("GLOSSARY_TAG_DICTIONARY", "tag_dictionary.json"),
                     ("GLOSSARY_REGISTRY_DIR", "registries")]:
     os.environ[_var] = os.path.join(_TD, _name)
 
+# Belt and braces on top of the per-file overrides above: any state file added
+# LATER without its own env var still lands in the temp dir rather than in the
+# checkout. Without this the first such file quietly starts polluting the repo,
+# and the suite passes while doing it.
+os.environ["GLOSSARY_STATE_DIR"] = _TD
+
 APP_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if APP_DIR not in sys.path:
     sys.path.insert(0, APP_DIR)

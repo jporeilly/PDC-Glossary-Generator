@@ -19,8 +19,10 @@ Saved to tag_dictionary.json (override with $GLOSSARY_TAG_DICTIONARY).
 from __future__ import annotations
 import os, re, json, threading
 
-HERE = os.path.dirname(os.path.abspath(__file__))
-DICT_FILE = os.environ.get("GLOSSARY_TAG_DICTIONARY") or os.path.join(HERE, "tag_dictionary.json")
+import paths
+
+HERE = paths.APP_DIR
+DICT_FILE = paths.state_path("tag_dictionary.json", "GLOSSARY_TAG_DICTIONARY")
 SCHEMA = "term-tag-dictionary/1"
 _SENS = ("LOW", "MEDIUM", "HIGH")
 
@@ -179,7 +181,7 @@ _SEED_RULES = [
 
 
 def _domain_pack():
-    path = os.environ.get("GLOSSARY_DOMAIN_PACK") or os.path.join(HERE, "domain_pack.json")
+    path = paths.domain_pack_path()
     try:
         with open(path, encoding="utf-8") as f:
             return json.load(f)

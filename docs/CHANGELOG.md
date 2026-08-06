@@ -14,6 +14,61 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.25.0] - 2026-08-06
+
+### Added - state has a home of its own (`paths.py`)
+
+Groundwork for a packaged Windows install. Every persisted file used to default
+to a path beside `api.py`, which is right for a checkout and for the lab VM, and
+fatal under `C:\Program Files`: the directory is read-only, so the first save
+fails and the app looks broken rather than mis-installed.
+
+`paths.py` is now the single place that decides, in order:
+
+1. `$GLOSSARY_STATE_DIR` - explicit wins. The installer's launcher will set this,
+   so the packaged app never infers anything.
+2. The app directory, when it is writable. **Existing installs do not move** -
+   checkouts, `run.ps1`/`run.sh` and the training VM behave exactly as before.
+3. `%APPDATA%\PDC-Glossary` (or `$XDG_DATA_HOME`/`~/Library/Application Support`)
+   when the app directory is read-only, i.e. a packaged install.
+
+Writability is **probed** by creating a file, not asked via `os.access(W_OK)` -
+on Windows that reports the read-only attribute and ignores ACLs, so it returns
+true for a Program Files directory that then refuses the write.
+
+Per-file overrides (`$GLOSSARY_GLOSSARIES` and friends) still win over all of
+it, unchanged.
+
+### Fixed - the State snapshot ignored the registry override it documented
+
+`snapshot_files()` and the restore path both built `os.path.join(HERE,
+"registries")` directly while `_registry_path()` used `$GLOSSARY_REGISTRY_DIR`.
+The docstring claimed "paths honor the same env overrides the app itself uses",
+which was untrue for exactly this one: with the override set, a snapshot
+exported the wrong directory and a restore wrote into the install tree. Both now
+go through `REGISTRY_DIR`.
+
+### Changed - one rule for where the domain pack comes from
+
+`os.environ.get("GLOSSARY_DOMAIN_PACK") or <dir>/domain_pack.json` had been
+written out independently in `api.py` (three times), `tagdict.py` and
+`suggester.py`. A missing pack makes the engine fall back to generic defaults
+silently, so a copy that resolved differently would surface as a bland glossary
+rather than an error. Now `paths.domain_pack_path()`.
+
+### Changed - `/config` reports where state lives
+
+Adds `state_dir` and `state_dir_source`, and lists `registries` and
+`domain_pack` alongside the existing paths - "where did my glossary go?" should
+not require a filesystem hunt once the state stops sitting next to the app.
+
+### Tests
+
+157 (was 144). `test_paths.py` pins the decision order, the probe, and that
+assets never resolve into the state dir. `conftest.py` also sets
+`GLOSSARY_STATE_DIR` to the temp dir, so a state file added later without its
+own env var cannot quietly start polluting the checkout.
+
 ## [1.24.0] — 2026-08-05
 
 ### Fixed — overlapping values are not one concept unless they are a code list

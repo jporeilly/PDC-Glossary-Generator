@@ -11,8 +11,10 @@ deployment it would come from the authenticated identity. Persisted to audit_log
 from __future__ import annotations
 import os, json, threading, datetime
 
-HERE = os.path.dirname(os.path.abspath(__file__))
-AUDIT_FILE = os.environ.get("GLOSSARY_AUDIT_LOG") or os.path.join(HERE, "audit_log.json")
+import paths
+
+HERE = paths.APP_DIR
+AUDIT_FILE = paths.state_path("audit_log.json", "GLOSSARY_AUDIT_LOG")
 _LOCK = threading.Lock()
 _CAP = 5000  # keep the last N entries on disk
 
