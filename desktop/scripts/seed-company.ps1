@@ -79,10 +79,23 @@ if (-not (Test-DirWritable $state.Path)) {
 }
 Ok ("state directory: " + $state.Path + " (" + $state.Why + ")")
 
+# Prompt ONLY when there is a console to prompt on.
+#
+# The installer runs this through nsExec, which provides no interactive console,
+# and PowerShell's -NonInteractive makes Read-Host throw rather than hang. The
+# resulting error has nothing to do with company names and reads like a file
+# access problem, which is exactly how it was first reported. So: ask when a
+# person is there, and otherwise say plainly what to do instead.
 if (-not $Company) {
-    $Company = (Read-Host "  Company name").Trim()
+    if ([Environment]::UserInteractive -and -not [Console]::IsInputRedirected) {
+        try { $Company = (Read-Host "  Company name").Trim() } catch { $Company = "" }
+    }
 }
-if (-not $Company) { throw "A company name is required - it appears in every generated definition." }
+if (-not $Company) {
+    Warn "No company name supplied and nothing to ask on - skipping."
+    Say  "Run this again with -Company 'Your Company', or from a PowerShell prompt."
+    exit 0            # not a failure: the app installs fine without a pack
+}
 
 if (-not $Categories) {
     Write-Host ""

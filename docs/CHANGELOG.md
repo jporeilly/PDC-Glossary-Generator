@@ -14,6 +14,34 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.32.7] - 2026-08-06
+
+### Fixed - the install-time seed failed with an unauthorized-access error
+
+Reported as "no access to provisioning\seed-company.ps1", which is not what was
+happening. In a normal (non-silent) install no `/Company=` is given, so the
+script fell through to `Read-Host` - and `nsExec` runs it with **no interactive
+console**. The prompt does not ask a question there; it fails, and the failure
+surfaces as something that looks like a file-permission problem in Program
+Files. The path and the ACLs were never involved.
+
+Fixed at both ends, because either alone would leave the trap in place:
+
+- **The installer now asks.** A page after the components page collects the
+  company name and categories, shown only when the seed component is ticked and
+  `/Company=` was not supplied. An empty name unticks the component rather than
+  running the script to no purpose.
+- **The script no longer prompts blind.** It checks for an interactive console
+  first, and with none it explains what to run and exits **0** - the app installs
+  perfectly well without a domain pack, so this was never a failure.
+
+`powershell -NonInteractive` is now passed explicitly, so a future prompt fails
+loudly at the point it is added rather than hanging an unattended install.
+
+Verified with the installer's exact invocation: no `-Company` gives a clean skip
+at exit 0, and `-Company "Acme Energy"` seeds `domain_pack.json` and
+`settings.json` without a console.
+
 ## [1.32.6] - 2026-08-06
 
 ### Fixed - the default install path was not Program Files

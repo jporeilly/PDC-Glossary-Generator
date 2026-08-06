@@ -22,6 +22,8 @@ ManifestDPIAwareness PerMonitorV2
 !include "FileAssociation.nsh"
 !include "Win\COM.nsh"
 !include "Win\Propkey.nsh"
+!include "nsDialogs.nsh"
+!include "LogicLib.nsh"
 !include "StrFunc.nsh"
 ${StrCase}
 ${StrLoc}
@@ -372,6 +374,65 @@ InstType "Full (app, company seed, Ollama)"
 InstType "Minimal (app only)"
 !define MUI_PAGE_CUSTOMFUNCTION_PRE SkipIfPassive
 !insertmacro MUI_PAGE_COMPONENTS
+
+; 4c. Company details, for the seed.
+;
+; This exists because the seed step CANNOT prompt for them itself: nsExec runs
+; it with no interactive console, so a Read-Host there does not ask a question -
+; it fails, and the failure surfaces as something unrelated-looking. Collecting
+; the answers here means the script is always invoked non-interactively, with
+; everything it needs on the command line.
+Var SeedCompany
+Var SeedCategories
+Var SeedCompanyBox
+Var SeedCategoriesBox
+Page custom PageSeedDetails PageSeedDetailsLeave
+
+Function PageSeedDetails
+  ; Nothing to ask if the component is unticked, or if the answers came from the
+  ; command line for an unattended run.
+  ${IfNot} ${SectionIsSelected} ${SecSeed}
+    Abort
+  ${EndIf}
+  ${GetOptions} $CMDLINE "/Company=" $R7
+  ${IfNot} ${Errors}
+    StrCpy $SeedCompany $R7
+    Abort
+  ${EndIf}
+
+  !insertmacro MUI_HEADER_TEXT "Company details"     "The glossary engine ships with no categories of its own. These seed the starting domain pack."
+
+  nsDialogs::Create 1018
+  Pop $0
+  ${If} $0 == error
+    Abort
+  ${EndIf}
+
+  ${NSD_CreateLabel} 0 0 100% 24u "Company name. It appears in generated definitions and can be changed later on the app's Settings page."
+  Pop $1
+  ${NSD_CreateText} 0 26u 100% 13u "$SeedCompany"
+  Pop $SeedCompanyBox
+
+  ${NSD_CreateLabel} 0 48u 100% 32u "Glossary categories, comma separated - the top-level buckets terms are filed under. Leave blank for a general-purpose starting set; a scan and review will grow the pack from your own data either way."
+  Pop $1
+  ${NSD_CreateText} 0 82u 100% 13u "$SeedCategories"
+  Pop $SeedCategoriesBox
+
+  ${NSD_CreateLabel} 0 104u 100% 20u "Skip this by unticking 'Seed this company' on the previous page, or run provisioning\seed-company.ps1 afterwards."
+  Pop $1
+
+  nsDialogs::Show
+FunctionEnd
+
+Function PageSeedDetailsLeave
+  ${NSD_GetText} $SeedCompanyBox $SeedCompany
+  ${NSD_GetText} $SeedCategoriesBox $SeedCategories
+  ; An empty company name is the one thing the seed cannot work around, so treat
+  ; it as "not now" rather than running the script to no purpose.
+  ${If} $SeedCompany == ""
+    !insertmacro UnselectSection ${SecSeed}
+  ${EndIf}
+FunctionEnd
 
 ; 5. Choose install directory page
 !define MUI_PAGE_CUSTOMFUNCTION_PRE SkipIfPassive
@@ -797,21 +858,30 @@ Section "Seed this company (glossary categories)" SecSeed
   ; /Company= and /Categories= drive it unattended; with neither, the
   ; script prompts - and in a silent install a prompt would hang the
   ; job forever, so it is skipped instead and left for the operator.
-  ${GetOptions} $CMDLINE "/Company=" $R7
-  ${If} ${Errors}
-    StrCpy $R7 ""
+  ; Answers come from the page above, or from the command line for an
+  ; unattended run. They are NEVER asked for here: nsExec gives the script no
+  ; interactive console, so a prompt does not ask a question - it fails, and the
+  ; failure surfaces as something unrelated-looking.
+  StrCpy $R7 $SeedCompany
+  StrCpy $R6 $SeedCategories
+  ${If} $R7 == ""
+    ${GetOptions} $CMDLINE "/Company=" $R7
+    ${If} ${Errors}
+      StrCpy $R7 ""
+    ${EndIf}
   ${EndIf}
-  ${GetOptions} $CMDLINE "/Categories=" $R6
-  ${If} ${Errors}
-    StrCpy $R6 ""
+  ${If} $R6 == ""
+    ${GetOptions} $CMDLINE "/Categories=" $R6
+    ${If} ${Errors}
+      StrCpy $R6 ""
+    ${EndIf}
   ${EndIf}
 
   ${If} $R7 == ""
-  ${AndIf} ${Silent}
-    DetailPrint "Seed: skipped - silent install with no /Company=. Run provisioning\seed-company.ps1 later."
+    DetailPrint "Seed: no company name given - skipped. Run provisioning\seed-company.ps1 later."
   ${Else}
-    DetailPrint "Seed: writing the company's domain pack..."
-    nsExec::ExecToLog 'powershell -NoProfile -ExecutionPolicy Bypass -File "$INSTDIR\provisioning\seed-company.ps1" -Company "$R7" -Categories "$R6"'
+    DetailPrint "Seed: writing the domain pack for $R7..."
+    nsExec::ExecToLog 'powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$INSTDIR\provisioning\seed-company.ps1" -Company "$R7" -Categories "$R6"'
     Pop $0
     ${If} $0 <> 0
       DetailPrint "Seed reported an issue (exit $0) - run provisioning\seed-company.ps1 manually."
