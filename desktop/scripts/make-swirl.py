@@ -24,6 +24,8 @@ ap.add_argument("--r0", type=float, default=4.0, help="inner radius")
 ap.add_argument("--r1", type=float, default=44.0, help="outer radius")
 ap.add_argument("--colour", default="#cc0000", help="stroke colour")
 ap.add_argument("--width", type=float, default=7.5, help="stroke width")
+ap.add_argument("--no-pulses", action="store_true",
+                help="omit the concentric pulse rings (mark only)")
 ap.add_argument("--svg", help="write a standalone animated SVG here")
 ap.add_argument("--inject", help="replace __SPIRAL__ in this file with the path data")
 args = ap.parse_args()
@@ -56,16 +58,35 @@ SVG = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="12
     }}
     @keyframes draw {{ to {{ stroke-dashoffset: 0; }} }}
     @keyframes spin {{ to {{ transform: rotate(360deg); }} }}
+
+    /* Pulses. `r` and `opacity` are animated rather than a transform, so no
+       transform-origin is needed and it behaves identically inline, as an
+       <img>, or as a CSS background. */
+    .pulse {{
+      fill: none; stroke: {colour}; stroke-width: 0.8;
+      animation: pulse 3.2s ease-out infinite;
+    }}
+    .pulse:nth-of-type(2) {{ animation-delay: 1.05s; }}
+    .pulse:nth-of-type(3) {{ animation-delay: 2.10s; }}
+    @keyframes pulse {{
+      0%   {{ r: 24; opacity: .75; }}
+      100% {{ r: 96; opacity: 0; }}
+    }}
   </style>
-  <path class="swirl" d="{d}"/>
+{pulses}  <path class="swirl" d="{d}"/>
 </svg>
 """
-
 d = path_data()
+
+# Three identical rings; the stagger comes from :nth-of-type delays in the CSS
+# above, so adding or removing one needs no other change.
+RING = '  <circle class="pulse" cx="50" cy="50" r="24"/>'
+PULSES = "\n".join([RING, RING, RING]) + "\n"
 
 if args.svg:
     with open(args.svg, "w", encoding="utf-8", newline="") as f:
-        f.write(SVG.format(colour=args.colour, width=args.width, d=d))
+        f.write(SVG.format(colour=args.colour, width=args.width, d=d,
+                           pulses="" if args.no_pulses else PULSES))
     print("wrote", args.svg)
 elif args.inject:
     with open(args.inject, encoding="utf-8") as f:
