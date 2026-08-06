@@ -814,13 +814,22 @@ def table_term_rows(tables, col_rows=None):
     return rows
 
 # keyword fallback for tables not in the explicit map (order matters - first hit wins)
-CAT_KEYWORDS = [
-    ("billing", "Billing & Rates"), ("rate", "Billing & Rates"), ("invoice", "Billing & Rates"),
-    ("usage", "Usage"), ("consumption", "Usage"), ("meter", "Usage"),
-    ("alert", "Governance"), ("audit", "Governance"), ("compliance", "Governance"), ("policy", "Governance"),
-    ("document", "Records & Documents"), ("record", "Records & Documents"),
-    ("customer", "Customer"), ("account", "Customer"),
-] + [tuple(x) for x in _PACK.get("cat_keywords", [])]
+# Categories come from the DOMAIN PACK. The engine ships none.
+#
+# There used to be 14 builtins here - ("billing", "Billing & Rates"), ("usage",
+# "Usage") and so on. They were the water-utility scenario leaked into the
+# engine: a credit union scanning `invoice_total` got a category named
+# "Billing & Rates" that nobody had chosen, and it read as a considered default
+# rather than a leak. Renaming them to neutral words would have kept the same
+# flaw - the engine asserting a taxonomy the customer never agreed to.
+#
+# So: no pack, no keyword categorisation. categorize() returns "Uncategorized"
+# and categorize_column() returns None, which is honest and reviewable - the
+# steward assigns categories during review and `Export domain pack` turns those
+# decisions into the pack, so the SECOND scan is categorised from the company's
+# own evidence. Same rule as the removed _CANONICAL_SEEDS: custom, from the
+# profiled scan, never inbuilt.
+CAT_KEYWORDS = [tuple(x) for x in _PACK.get("cat_keywords", [])]
 
 def categorize(tname):
     """Map a physical table name to a business glossary category."""
@@ -1011,13 +1020,11 @@ def purpose(c, category, name, pii):
         return "Locates the customer for service and correspondence; governed for privacy."
     if pii == "FINANCIAL":
         return "Supports billing, revenue reporting, and financial reconciliation."
-    return {**{
-        "Customer": "Maintains customer records for service, billing, and communication.",
-        "Billing & Rates": "Supports billing, rate calculation, and revenue reporting.",
-        "Usage": "Measures usage or consumption for billing, forecasting, and analysis.",
-        "Governance": "Supports governance, alerting, and compliance tracking.",
-        "Records & Documents": "Stores supporting documents for reference and compliance.",
-    }, **_PACK.get("category_definitions", {})}.get(
+    # Definitions come from the pack, for the same reason the categories do:
+    # writing one here would put words in the steward's mouth about a category
+    # this engine did not choose. The templated sentence below is a neutral
+    # placeholder that reads as unfinished, which is what it is.
+    return _PACK.get("category_definitions", {}).get(
         category, f"Provides {category.lower()} context for reporting, governance, and discovery.")
 
 def _slug(s):
@@ -2254,7 +2261,7 @@ def _doc_classify(folder):
     return "LOW", ["document"], False
 
 def suggest_documents(folders, bucket="documents"):
-    """Turn harvested document folders into review rows under 'Records & Documents'.
+    """Turn harvested document folders into review rows under the document category.
        Carries an Owner_Hint when the store recorded an owner/steward."""
     rows = []
     for top, f in folders.items():
@@ -2269,8 +2276,8 @@ def suggest_documents(folders, bucket="documents"):
                 else "Holds supporting documents for reference and compliance.")
         conf = "High" if owner else ("Medium" if f["exts"] else "Low")
         reason = f"Owner tag/metadata: {owner}" if owner else "Derived from object-store folder"
-        doc_tags = suggest_tags("Records & Documents", sens, "", "Yes" if cde else "No", False, tags, name=name, term=name)
-        rows.append({"Keep": "Y", "Category": "Records & Documents", "Term": name,
+        doc_tags = suggest_tags(tagdict.document_category(), sens, "", "Yes" if cde else "No", False, tags, name=name, term=name)
+        rows.append({"Keep": "Y", "Category": tagdict.document_category(), "Term": name,
                      "Source_Column": f"{bucket}/{f['prefix']}".rstrip("/"),
                      "Definition": defn, "Purpose": purp, "Sensitivity": sens, "PII_Category": "",
                      "Critical_Data_Element": "Yes" if cde else "No", "Abbreviation": "",
@@ -2304,8 +2311,8 @@ def suggest_document_files(files, bucket="documents"):
         src = f"{bkt}/{folder}/{base}" if folder != "(root)" else f"{bkt}/{base}"
         rating = rate_document(owner=f.get("owner"), ext=f.get("ext"),
                                sensitivity=sens, recent=f.get("recent"))
-        doc_tags = suggest_tags("Records & Documents", sens, "", "Yes" if cde else "No", False, tags, name=term, term=term)
-        row = {"Keep": "Y", "Category": "Records & Documents", "Term": term,
+        doc_tags = suggest_tags(tagdict.document_category(), sens, "", "Yes" if cde else "No", False, tags, name=term, term=term)
+        row = {"Keep": "Y", "Category": tagdict.document_category(), "Term": term,
                "Source_Column": src,
                "Definition": f"Object '{base}' in the {bkt}/{folder} object store.",
                "Purpose": f"Holds {term} data for reference, audit, and compliance.",

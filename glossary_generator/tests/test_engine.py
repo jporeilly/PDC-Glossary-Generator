@@ -533,3 +533,50 @@ class TestValueOverlapIsNotConceptIdentity:
         import similarity
         assert similarity._is_coded_vocabulary({"1.5", "2.25"}) is False
         assert similarity._is_coded_vocabulary({"12", "45", "78"}) is False
+
+
+def test_engine_ships_no_categories():
+    """The engine must assert NO taxonomy of its own.
+
+    It shipped 14 builtin keywords until 1.29 - "Billing & Rates", "Usage",
+    "Records & Documents" - which was the water-utility scenario leaked into the
+    engine: a credit union scanning `invoice_total` got a category nobody had
+    chosen, and it read as a considered default rather than a leak. Categories
+    come from the domain pack, which is grown from the company's own scan.
+    Renaming them to neutral words would have kept the same flaw.
+    """
+    import suggester
+    assert suggester.CAT_KEYWORDS == [], \
+        "a builtin category keyword has crept back into the engine"
+    assert not hasattr(suggester, "BUILTIN_CAT_KEYWORDS")
+    assert suggester.categorize_column("invoice_total") is None
+    assert suggester.categorize("billing_invoice") == "Uncategorized"
+
+    # The single documented exception: the engine creates document rows itself,
+    # so it must name a category for them - and a pack can rename it.
+    import tagdict
+    assert tagdict.document_category() == "Records & Documents"
+
+
+def test_document_category_is_pack_overridable(fresh_dict, tmp_path, monkeypatch):
+    """The one category name the engine still carries must not be fixed. A
+       glossary that calls this bucket something else has to be able to say so,
+       or the harvest files its rows under a name nobody chose."""
+    import json
+    import tagdict
+    pack = tmp_path / "pack.json"
+    pack.write_text(json.dumps({"document_category": "Unstructured Content"}), encoding="utf-8")
+    monkeypatch.setenv("GLOSSARY_DOMAIN_PACK", str(pack))
+    assert tagdict.document_category() == "Unstructured Content"
+
+
+def test_document_rows_keep_the_governed_tag(fresh_dict):
+    """Removing the builtin category->tag seeds once cost the harvest its
+       governed "document" tag - rows fell back to the slug "records-documents",
+       which is not in the vocabulary."""
+    import suggester
+    import tagdict
+    tags = suggester.suggest_tags(tagdict.document_category(), "LOW", "", "No", False, [],
+                                  name="conservation_letter.pdf", term="Conservation Letter")
+    assert "document" in tags
+    assert "records-documents" not in tags

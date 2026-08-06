@@ -29,7 +29,7 @@ What it seeds, and why that much and no more:
                    evidence.
 
 Usage:
-    python packinit.py --domain water_utility --company "Arizona Water Company" \
+    python packinit.py --domain water_utility --company "Northgate Water" \
         --categories "Customer,Billing & Rates,Usage,Water Quality,Water System,Governance" \
         -o domain_packs/water_utility.json
 """
@@ -41,20 +41,22 @@ import os
 import re
 import sys
 
-# Categories every deployment tends to want; used when --categories is omitted.
+# A SUGGESTED starting list for --categories, used only when the caller omits
+# it. This is a scaffolding tool whose output the steward edits, so proposing a
+# skeleton is its job - unlike the engine, which must not assert a taxonomy at
+# scan time (see suggester.CAT_KEYWORDS).
 DEFAULT_CATEGORIES = ["Customer", "Finance", "Operations", "Governance",
                       "Records & Documents"]
+
+# The engine ships no builtin keywords any more, so nothing here can collide
+# with one. Kept as an empty set rather than deleted so the warning path below
+# still compiles for whatever the engine may reserve in future.
+_BUILTIN_KEYWORDS = set()
 
 # Words too generic to route a category on their own — a keyword of "data" or
 # "record" would swallow half the estate on the first scan.
 _STOPWORDS = {"and", "the", "of", "data", "info", "information", "general",
               "other", "misc", "record", "records", "document", "documents"}
-
-# suggester.CAT_KEYWORDS already ships these; a pack rule repeating one can
-# never fire, because the builtins are matched first.
-_BUILTIN_KEYWORDS = {"billing", "rate", "invoice", "usage", "consumption",
-                     "meter", "alert", "audit", "compliance", "policy",
-                     "document", "record", "customer", "account"}
 
 
 def slugify(text):

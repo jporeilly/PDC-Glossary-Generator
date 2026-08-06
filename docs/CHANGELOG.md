@@ -14,6 +14,67 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.29.0] - 2026-08-06
+
+### Removed - the engine no longer ships a category taxonomy
+
+`suggester.CAT_KEYWORDS` carried 14 builtin keywords: `("billing", "Billing &
+Rates")`, `("usage", "Usage")`, `("document", "Records & Documents")` and the
+rest. That was the **water-utility scenario leaked into the engine** - a credit
+union scanning `invoice_total` got a category named "Billing & Rates" that
+nobody had chosen, and it read as a considered default rather than a leak.
+
+Renaming them to neutral words was the first attempt and was the wrong fix: it
+kept the same flaw, the engine asserting a taxonomy the customer never agreed
+to. They are gone. Categories come from the domain pack, which is grown from the
+company's own scan - the same rule that removed `_CANONICAL_SEEDS` in 1.11.x.
+
+With no pack, `categorize()` returns `Uncategorized` and `categorize_column()`
+returns `None`. That is honest and reviewable: the steward assigns categories
+during review, and **Export domain pack** turns those decisions into the pack,
+so the second scan is categorised from the company's own evidence.
+
+`category_definitions` went the same way - writing a definition here would put
+words in the steward's mouth about a category the engine did not choose. The
+templated fallback reads as unfinished, which it is.
+
+### The one exception, and it is now overridable
+
+The engine creates document rows itself (`document_rows`), so it must name a
+category for them. That is a **content-type** label for unstructured content,
+not a domain taxonomy. `tagdict.document_category()` returns the pack's
+`document_category` if set, else `Records & Documents`, and it is read through a
+function so a pack installed later still wins.
+
+### Fixed - the document harvest lost its governed tag
+
+Caught while checking exactly this: removing the category->tag seeds meant
+`suggest_tags` fell back to the slug `records-documents`, which is not in the
+vocabulary, instead of the governed `document` tag. The single seed the engine
+still needs is back, keyed on `document_category()`.
+
+### Fixed - first-match ordering in the water pack
+
+The 14 keywords moved into `water_utility.example.json` so the scenario keeps
+its categories. They must sit FIRST: `cat_keywords` is first-match, and the
+pack's existing `("email", "Records & Documents")` rule otherwise claimed a
+database column called `customer_email`. Verified: `customer_email -> Customer`,
+`invoice_total -> Billing & Rates`, `turbidity_ntu -> Water Quality`,
+`conservation_letter -> Records & Documents`.
+
+### Changed
+
+`packinit.py` no longer keeps a hand-copied list of the engine's builtin
+keywords - there are none to collide with. The scaffolder keeps a *suggested*
+category list for `--categories`, which is its job: its output is a skeleton the
+steward edits, unlike the engine, which must not assert anything at scan time.
+
+Company name in the docstring and test fixture is now a fictional one.
+
+### Tests
+
+163.
+
 ## [1.28.0] - 2026-08-06
 
 ### Changed - no hardcoded PDC server, and no hardcoded model

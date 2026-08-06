@@ -24,6 +24,62 @@
   },
   "cat_keywords": [
     [
+      "customer",
+      "Customer"
+    ],
+    [
+      "account",
+      "Customer"
+    ],
+    [
+      "billing",
+      "Billing & Rates"
+    ],
+    [
+      "rate",
+      "Billing & Rates"
+    ],
+    [
+      "invoice",
+      "Billing & Rates"
+    ],
+    [
+      "usage",
+      "Usage"
+    ],
+    [
+      "consumption",
+      "Usage"
+    ],
+    [
+      "meter",
+      "Usage"
+    ],
+    [
+      "alert",
+      "Governance"
+    ],
+    [
+      "audit",
+      "Governance"
+    ],
+    [
+      "compliance",
+      "Governance"
+    ],
+    [
+      "policy",
+      "Governance"
+    ],
+    [
+      "document",
+      "Records & Documents"
+    ],
+    [
+      "record",
+      "Records & Documents"
+    ],
+    [
       "water_quality",
       "Water Quality"
     ],

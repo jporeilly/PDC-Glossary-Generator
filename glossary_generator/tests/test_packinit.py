@@ -22,13 +22,15 @@ class TestScaffold:
         pack, _ = packinit.scaffold("d", None, ["Water Quality"])
         assert pack["cat_keywords"] == [["quality", "Water Quality"]]
 
-    def test_never_emits_a_rule_that_cannot_fire(self):
-        """suggester matches builtins FIRST, so a pack rule repeating one is dead
-           weight that reads as configured behaviour."""
+    def test_common_categories_now_produce_real_rules(self):
+        """The engine used to ship 14 builtin keywords that matched FIRST, so a
+           pack rule repeating one was dead weight and the scaffold dropped it.
+           Those builtins are gone - the engine asserts no taxonomy - so
+           "Customer" and "Usage" are now the pack's to claim, and dropping them
+           would leave the two commonest categories unmatched."""
         pack, skipped = packinit.scaffold("d", None, ["Customer", "Usage"])
-        assert pack["cat_keywords"] == []
-        assert len(skipped) == 2
-        assert all("builtin" in why for _, _, why in skipped)
+        assert pack["cat_keywords"] == [["customer", "Customer"], ["usage", "Usage"]]
+        assert skipped == []
 
     def test_duplicate_keywords_are_dropped_not_shadowed(self):
         """cat_keywords is first-match; a second rule on the same word is dead."""
@@ -55,7 +57,7 @@ class TestScaffold:
         assert "accounts-cards" in pack["extra_tags"]
 
     def test_output_is_valid_json_and_names_the_lifecycle(self):
-        pack, _ = packinit.scaffold("water_utility", "Arizona Water Company", ["Usage2"])
+        pack, _ = packinit.scaffold("water_utility", "Northgate Water", ["Usage2"])
         json.dumps(pack)
         assert "Export domain pack" in pack["note"]
         assert pack["domain"] == "water_utility"

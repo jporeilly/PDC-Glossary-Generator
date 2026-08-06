@@ -156,13 +156,22 @@ _SEED_TERMS = {
     "Date":            {"aliases": ["Timestamp"], "sensitivity": "LOW", "tags": ["temporal"]},
 }
 
-_SEED_CATEGORY_TAGS = {
-    "Billing & Rates":     ["billing"],
-    "Usage":               ["usage"],
-    "Customer":            ["customer"],
-    "Governance":          ["governance"],
-    "Records & Documents": ["document"],
-}
+# The bucket harvested DOCUMENTS land in - the one category name the engine
+# still needs, because it CREATES those rows itself (suggester.document_rows)
+# and a row must carry a category. It is a content-type label for unstructured
+# content, not a domain taxonomy, which is why it survived the 1.29 removal of
+# the 14 builtin categories.
+#
+# Set "document_category" in a domain pack to rename it; the fallback below
+# applies only when no pack says otherwise. Read through a function rather than
+# frozen at import so a pack installed later still wins.
+_DOCUMENT_CATEGORY_FALLBACK = "Records & Documents"
+
+
+def document_category():
+    """Category for harvested documents: the pack's, else the fallback."""
+    return (_domain_pack().get("document_category")
+            or _DOCUMENT_CATEGORY_FALLBACK)
 
 _SEED_RULES = [
     (r"amount|charge|\bbill|cost|price|\bfee|payment|invoice|balance|\bdue\b|\bpaid|revenue|outstanding",
@@ -192,7 +201,11 @@ def _domain_pack():
 def _seed():
     """Fresh dictionary from the generic baseline + domain pack (company layer)."""
     pack = _domain_pack()
-    cat = {k: list(v) for k, v in _SEED_CATEGORY_TAGS.items()}
+    # The only category->tag seed the engine supplies, for the only category it
+    # creates. Everything else is the pack's (see suggester.CAT_KEYWORDS).
+    # Without it the document harvest still runs, but its rows fall back to the
+    # ungoverned slug "records-documents" instead of the governed "document" tag.
+    cat = {document_category(): ["document"]}
     for k, v in (pack.get("category_tags") or {}).items():
         cat[k] = list(v)
     rules = [{"pattern": r["pattern"], "tags": list(r["tags"]), "layer": "company"}
