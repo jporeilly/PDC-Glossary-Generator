@@ -14,6 +14,39 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.36.9] - 2026-08-07
+
+### Changed - the bulk load's options sit on their own row
+
+Mixed into the button row they wrapped unpredictably as the window narrowed, and
+**first row is a header** ended up alone on a line below the buttons, reading as
+if it belonged to something else. Buttons keep their row; the four options sit
+beneath in one group with a tighter gap, so they read as switches on the action
+rather than as more actions. Verified in the running app: options below buttons,
+all four on one line, defaults unchanged.
+
+### Fixed - run.ps1 carried the same dead-UI message as run.sh
+
+`run.sh` was corrected at 1.36.4; the PowerShell launcher still told the operator
+it was "serving the legacy UI until it is". The Jinja shell went at 1.35.0 and
+`/` now answers 503. Its guard was also the narrower kind, requiring the frontend
+directory to *exist* before checking for the build.
+
+Fixing the same sentence in two files is the smell, not the bug: any future
+launcher wants the same check, and the honest fix would be one script both call.
+
+### Note - the dev venv needs pdc_client installed
+
+`pdc_client` lives at the repo root and is not importable from
+`glossary_generator/`, so `run.ps1` fails at import with `ModuleNotFoundError`
+unless the package is installed into the dev venv:
+
+    glossary_generator\.venv\Scripts\python.exe -m pip install -e .
+
+This is the arrangement `stage-app.ps1` already documents, and it cannot reach
+the installer: `.venv` is in `$excludeDirs`, and the bundle takes its own copy of
+`pdc_client` by robocopy.
+
 ## [1.36.8] - 2026-08-07
 
 ### Added - Review says which terms PDC already holds, and in which glossary

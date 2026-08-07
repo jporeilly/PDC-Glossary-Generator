@@ -549,8 +549,19 @@ function BulkLoadCard({ pdc, onConnectionsChanged }) {
                 title="Import this CSV into the app's own connections — the ones the Test and live-scan panels here and the Schema and Files pages use.">
           Add to app connections
         </button>
-        <label className="check"><input type="checkbox" checked={opts.ingest}
-               onChange={(e) => setOpts({ ...opts, ingest: e.target.checked })} /> ingest metadata</label>
+        <span style={{ flex: 1 }} />
+        <button className="ghost" disabled={running} onClick={() => run(true)}>Dry run</button>
+        <button className="primary" disabled={running} onClick={() => run(false)}>Create &amp; ingest →</button>
+      </div>
+
+      {/* Options sit on their own row BELOW the buttons. Mixed into the button
+          row they wrapped unpredictably as the window narrowed, and a checkbox
+          that has drifted onto its own line reads as unrelated to the action it
+          modifies. */}
+      <div className="bl-opts">
+        <label className="check" title="Register each source in PDC and run a metadata ingest scoped to it.">
+          <input type="checkbox" checked={opts.ingest}
+                 onChange={(e) => setOpts({ ...opts, ingest: e.target.checked })} /> ingest metadata</label>
         <label className="check" title="If a source already exists in PDC, delete and recreate it so corrected CSV values take effect.">
           <input type="checkbox" checked={opts.replace}
                  onChange={(e) => setOpts({ ...opts, replace: e.target.checked })} /> recreate if exists</label>
@@ -560,9 +571,6 @@ function BulkLoadCard({ pdc, onConnectionsChanged }) {
         <label className="check" title="Read each structured file's first row as column names. Off, PDC treats it as data and names the columns Column-0, Column-1, … — which looks like real structure but is not. Applies to the object-store file scan; databases carry their own column names.">
           <input type="checkbox" checked={opts.header}
                  onChange={(e) => setOpts({ ...opts, header: e.target.checked })} /> first row is a header</label>
-        <span style={{ flex: 1 }} />
-        <button className="ghost" disabled={running} onClick={() => run(true)}>Dry run</button>
-        <button className="primary" disabled={running} onClick={() => run(false)}>Create &amp; ingest →</button>
       </div>
 
       {msg && <p className="summary">{msg}</p>}

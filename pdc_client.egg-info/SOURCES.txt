@@ -1,0 +1,15 @@
+LICENSE.txt
+README.md
+pyproject.toml
+pdc_client/__init__.py
+pdc_client/apply.py
+pdc_client/bulkload.py
+pdc_client/core.py
+pdc_client/entities.py
+pdc_client/jobs.py
+pdc_client/terms.py
+pdc_client.egg-info/PKG-INFO
+pdc_client.egg-info/SOURCES.txt
+pdc_client.egg-info/dependency_links.txt
+pdc_client.egg-info/requires.txt
+pdc_client.egg-info/top_level.txt

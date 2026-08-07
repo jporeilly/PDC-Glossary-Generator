@@ -124,3 +124,15 @@ span.mini i { display: block; height: 100%; background: var(--accent); }
 .ptbl-wrap > summary { padding: .55rem .8rem; cursor: pointer; font-size: .88rem; display: flex; gap: .7rem; align-items: baseline; flex-wrap: wrap; }
 .ptbl-wrap > summary .rc { color: var(--text-muted); font-size: .78rem; margin-left: auto; }
 .ptbl-wrap .table-scroll { padding: 0 .5rem .5rem; }
+
+/* Bulk-load options: their own row beneath the buttons. Mixed into the button
+   row they wrapped unpredictably, and a checkbox that has drifted onto its own
+   line reads as unrelated to the action it modifies. Tighter gap than .actions
+   so the group reads as one set of switches rather than four separate controls. */
+.bl-opts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .45rem 1.15rem;
+  margin-top: .7rem;
+}

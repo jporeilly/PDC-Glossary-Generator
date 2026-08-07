@@ -227,8 +227,15 @@ $env:PORT = "$Port"
 $appItem = Get-Item $PSScriptRoot -Force
 $realAppDir = if ($appItem.LinkType -and $appItem.Target) { [string]$appItem.Target } else { $PSScriptRoot }
 $feDir = Join-Path (Split-Path $realAppDir -Parent) 'frontend'
-if ((Test-Path $feDir) -and -not (Test-Path (Join-Path $feDir 'dist\index.html'))) {
-    Warn "React UI not built (frontend\dist missing) - serving the legacy UI until it is. Build with: cd ..\frontend; npm install; npm run build"
+# There is NO fallback UI: the Jinja shell went at 1.35.0, so without the build
+# every request to "/" answers 503. Checked unconditionally - the old guard also
+# required the frontend directory to EXIST before looking for the build, so a
+# deployment missing it outright got no warning at all. Same fix as run.sh (1.36.4);
+# this file carried the identical stale message.
+if (-not (Test-Path (Join-Path $feDir 'dist\index.html'))) {
+    Warn "Web UI not built (frontend\dist\index.html missing) - the app will start,"
+    Warn "but ""/"" answers 503 until it is built:"
+    Warn "  cd ..\frontend; npm ci; npm run build"
 }
 Write-Host "  Ready"
 Write-Host "  -> http://${BindHost}:${Port}" -ForegroundColor Cyan -NoNewline
