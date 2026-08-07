@@ -40,3 +40,7 @@ desktop/src-tauri/gen/
 
 # scenario people seed - kept local at the user's request
 glossary_generator/domain_packs/water_utility.people.json
+
+# setuptools build metadata from `pip install -e .` (the dev venv arrangement
+# stage-app.ps1 assumes). Regenerated on demand; never part of a build.
+*.egg-info/
