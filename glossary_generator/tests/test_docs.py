@@ -61,6 +61,37 @@ def test_version_markers_agree():
         f"README.md version badge {m and m.group(1)} != VERSION {version}"
 
 
+def test_build_manifest_versions_agree():
+    """The build manifests must state the version the build actually is.
+
+    These three drifted unnoticed - frontend/package.json stuck at 1.24.0 and
+    both desktop manifests at 0.1.0 while the app shipped 1.36.3 - because
+    nothing reads them at runtime, so nothing contradicted them. That is
+    exactly why they need a test rather than vigilance: a tree that gives four
+    different answers about its own version cannot be read with confidence,
+    and the reader has no way to tell which answer is the true one.
+    """
+    import json
+    version = _read(APP_DIR, "VERSION").strip()
+
+    for rel in (("frontend", "package.json"), ("desktop", "package.json")):
+        path = os.path.join(REPO, *rel)
+        if not os.path.isfile(path):
+            continue  # neither is required for the Python app to run
+        with open(path, encoding="utf-8") as f:
+            got = json.load(f).get("version")
+        assert got == version, \
+            f"{'/'.join(rel)} version {got} != VERSION {version}"
+
+    # Cargo's own [package] version. Dependency versions are inline tables
+    # ({ version = "2.0" }), so anchoring to line start picks out only ours.
+    cargo = os.path.join(REPO, "desktop", "src-tauri", "Cargo.toml")
+    if os.path.isfile(cargo):
+        m = re.search(r'^version\s*=\s*"([^"]+)"', _read(cargo), re.M)
+        assert m and m.group(1) == version, \
+            f"Cargo.toml version {m and m.group(1)} != VERSION {version}"
+
+
 def test_readme_reflects_fastapi_port():
     """The README must not describe the removed Flask entry point."""
     text = _read(REPO, "README.md")

@@ -16,6 +16,19 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
 
 ## [1.36.3] - 2026-08-07
 
+### Fixed - the build manifests each claimed a different version
+
+`frontend/package.json` said 1.24.0, `desktop/package.json` and
+`desktop/src-tauri/Cargo.toml` said 0.1.0, while the app shipped 1.36.3. Nothing
+reads these at runtime, so nothing ever contradicted them - which is precisely
+why they drifted, and why the fix is a test rather than a resolution to be
+careful. `test_docs.py` already held the drift guard for `tauri.conf.json`, the
+changelog and both README stamps; it now covers the three build manifests too.
+
+Harmless to the installed binary - `tauri.conf.json` names the bundle - but a
+tree that gives four answers about its own version cannot be read with
+confidence, and a reader has no way to tell which one is true.
+
 ### Added - the environment check reports the Cloudflare Access token
 
 Including the trap that makes it look configured when it is not.
