@@ -398,7 +398,15 @@ function BulkLoadCard({ pdc, onConnectionsChanged }) {
   // still reads OK. The sibling database form (DB_DEFAULTS) has always
   // defaulted profile true; these two are the same word on the same page and
   // disagreeing on it is what made this hard to spot.
-  const [opts, setOpts] = useState({ ingest: true, replace: false, profile: true, header: true })
+  // Defaults, applied to any row whose CSV leaves the matching column blank.
+  // classification stays off on purpose - see the note in bulkload.py: it
+  // assigns business terms that do not exist until this app's glossary has been
+  // applied, so on a first pass it can only mark everything unclassified.
+  const [opts, setOpts] = useState({
+    ingest: true, replace: false,
+    profile: true, header: true,                      // structured  (csv/json/parquet)
+    docMeta: true, summaries: false, classification: false,  // unstructured (pdf/docx/txt)
+  })
   const [msg, setMsg] = useState('')
   const [running, setRunning] = useState(false)
   const [progress, setProgress] = useState(null)   // {done, total}
@@ -465,7 +473,9 @@ function BulkLoadCard({ pdc, onConnectionsChanged }) {
     const payload = {
       ...pdcAuthBody(pdc), csv, dry_run: !!dry,
       options: { ingest: opts.ingest, wait: true, replace_existing: opts.replace,
-                 profile: opts.profile, header_row: opts.header },
+                 profile: opts.profile, header_row: opts.header,
+                 doc_metadata: opts.docMeta, summaries: opts.summaries,
+                 classification: opts.classification },
     }
     try {
       const result = await runJob('bulk-load', payload, (job) => {
@@ -554,23 +564,43 @@ function BulkLoadCard({ pdc, onConnectionsChanged }) {
         <button className="primary" disabled={running} onClick={() => run(false)}>Create &amp; ingest →</button>
       </div>
 
-      {/* Options sit on their own row BELOW the buttons. Mixed into the button
-          row they wrapped unpredictably as the window narrowed, and a checkbox
-          that has drifted onto its own line reads as unrelated to the action it
-          modifies. */}
+      {/* Options sit on their own rows BELOW the buttons, split by what they act
+          on. A CSV column of the same name overrides these per row, so one bucket
+          can be registered twice — a structured row scoped to *.csv and an
+          unstructured row scoped to *.pdf — each scanned appropriately. These are
+          the defaults for any row that leaves the column blank. */}
       <div className="bl-opts">
+        <span className="bl-optlbl">Load</span>
         <label className="check" title="Register each source in PDC and run a metadata ingest scoped to it.">
           <input type="checkbox" checked={opts.ingest}
                  onChange={(e) => setOpts({ ...opts, ingest: e.target.checked })} /> ingest metadata</label>
         <label className="check" title="If a source already exists in PDC, delete and recreate it so corrected CSV values take effect.">
           <input type="checkbox" checked={opts.replace}
                  onChange={(e) => setOpts({ ...opts, replace: e.target.checked })} /> recreate if exists</label>
-        <label className="check" title="After the ingest, run PDC's analysis job per source type — Data Profiling over a database's tables (distributions, uniqueness, patterns), Data Discovery over an object store's files. For an object store this also runs the file scan first (PDC's own Scan Files call), since Discovery analyses what that scan catalogs. Adds a few minutes per source.">
+      </div>
+
+      <div className="bl-opts">
+        <span className="bl-optlbl" title="Files with columns — csv, json, parquet — and a database's tables.">Structured</span>
+        <label className="check" title="After the ingest, run PDC's analysis job per source type — Data Profiling over a database's tables (distributions, uniqueness, patterns), Data Discovery over an object store's files. For an object store this also runs the file scan first (PDC's own Scan Files call), since Discovery analyses what that scan catalogs. Adds a few minutes per source. CSV column: profile">
           <input type="checkbox" checked={opts.profile}
                  onChange={(e) => setOpts({ ...opts, profile: e.target.checked })} /> profile / discover</label>
-        <label className="check" title="Read each structured file's first row as column names. Off, PDC treats it as data and names the columns Column-0, Column-1, … — which looks like real structure but is not. Applies to the object-store file scan; databases carry their own column names.">
+        <label className="check" title="Read each structured file's first row as column names. Off, PDC treats it as data and names the columns Column-0, Column-1, … — which looks like real structure but is not. Databases carry their own column names. CSV column: header">
           <input type="checkbox" checked={opts.header}
                  onChange={(e) => setOpts({ ...opts, header: e.target.checked })} /> first row is a header</label>
+      </div>
+
+      <div className="bl-opts">
+        <span className="bl-optlbl" title="Documents with no columns to profile — pdf, docx, txt, rtf.">Unstructured</span>
+        <label className="check" title="Extract each document's own properties — owner, page count, paragraph count. CSV column: docMetadata">
+          <input type="checkbox" checked={opts.docMeta}
+                 onChange={(e) => setOpts({ ...opts, docMeta: e.target.checked })} /> document metadata</label>
+        <label className="check" title="Generate a short summary and a sentiment label per document, shown on the asset's Summary tab. Costs time per file. CSV column: summaries">
+          <input type="checkbox" checked={opts.summaries}
+                 onChange={(e) => setOpts({ ...opts, summaries: e.target.checked })} /> summaries</label>
+        <label className="check" title="PDC's Data Classification assigns BUSINESS TERMS — which do not exist until this app's glossary has been built and applied, from the very profile this scan produces. On a first pass it can only mark everything unclassified. Run it as a second, deliberate pass over documents once terms exist. CSV column: classification">
+          <input type="checkbox" checked={opts.classification}
+                 onChange={(e) => setOpts({ ...opts, classification: e.target.checked })} /> classification
+          <span className="bl-secondpass">second pass</span></label>
       </div>
 
       {msg && <p className="summary">{msg}</p>}

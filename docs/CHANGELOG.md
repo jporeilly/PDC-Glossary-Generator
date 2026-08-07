@@ -14,6 +14,42 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.36.10] - 2026-08-07
+
+### Added - structured and unstructured files get their own scan options
+
+A CSV in an object store and a PDF in the same bucket want opposite treatment.
+The CSV wants its columns profiled and its first row read as names; the PDF has
+no columns at all and wants its document properties instead. One set of switches
+could not serve both.
+
+**In the UI** the options are now three labelled rows:
+
+    Load          ingest metadata · recreate if exists
+    Structured    profile / discover · first row is a header
+    Unstructured  document metadata · summaries · classification [second pass]
+
+**In the CSV** each has a matching optional column - `profile`, `header`,
+`docMetadata`, `summaries`, `classification` - which overrides the UI default
+for that row. So one bucket can be registered twice and scanned two ways:
+
+    minio,Documents_Structured,...,*.csv;*.json,...,true,true,false,false,false
+    minio,Documents_Unstructured,...,*.pdf;*.docx,...,false,false,true,false,false
+
+A **blank or absent column means "use the default"**, never `false`. A CSV
+written before these columns existed behaves exactly as it did - silently
+switching profiling off for every unfilled row would repeat 1.36.5's bug in a
+new place, so `row_flag` treats blank, missing and unparseable alike and the
+tests pin all three.
+
+**classification carries a `second pass` chip and stays off.** It assigns
+business terms, which do not exist until this app's glossary has been built and
+applied - from the very profile the scan produces. On a first pass it can only
+mark everything unclassified. Run it deliberately, afterwards, over documents.
+
+`datasources.sample.csv` now ships all three shapes: a database row leaving every
+option blank, and the two object-store rows above.
+
 ## [1.36.9] - 2026-08-07
 
 ### Changed - the bulk load's options sit on their own row

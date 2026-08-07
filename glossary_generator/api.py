@@ -2406,6 +2406,12 @@ def _bulk_load_events(body):
     # scanning without it names the columns Column-0..Column-N, which is worse
     # than useless - it looks like real structure.
     header_row = bool(opts.get("header_row", True))
+    # Unstructured-file options. classification defaults FALSE deliberately: it
+    # assigns business terms that do not exist until this app's glossary has been
+    # applied, so on a first pass it can only mark everything unclassified.
+    doc_metadata = bool(opts.get("doc_metadata", True))
+    summaries = bool(opts.get("summaries", False))
+    classification = bool(opts.get("classification", False))
     dry_run = bool(body.get("dry_run", False))
 
     rows = body.get("rows")
@@ -2461,7 +2467,10 @@ def _bulk_load_events(body):
                                         replace_existing=replace_existing,
                                         internal_scan=internal_scan,
                                         do_profile=do_profile,
-                                        header_row=header_row)
+                                        header_row=header_row,
+                                        doc_metadata=doc_metadata,
+                                        summaries=summaries,
+                                        classification=classification)
         except pdc_api.TokenExpired:
             if reauth:
                 try:
@@ -2472,7 +2481,10 @@ def _bulk_load_events(body):
                                                 replace_existing=replace_existing,
                                                 internal_scan=internal_scan,
                                                 do_profile=do_profile,
-                                                header_row=header_row)
+                                                header_row=header_row,
+                                                doc_metadata=doc_metadata,
+                                                summaries=summaries,
+                                                classification=classification)
                 except Exception as e:
                     rec = {"resourceName": name, "create": "FAIL",
                            "error": "re-auth/retry failed: %s" % str(e)[:240]}

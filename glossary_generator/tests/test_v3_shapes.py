@@ -314,3 +314,56 @@ class TestCloudflareEdge:
         # One half alone is a misconfiguration, not a partial credential.
         monkeypatch.delenv("CF_ACCESS_CLIENT_SECRET")
         assert core._access_headers() == {}
+
+
+class TestPerRowScanOptions:
+    """A CSV column overrides the UI default per row, so one bucket can be
+    registered twice - a structured row scoped to *.csv and an unstructured row
+    scoped to *.pdf - each scanned the way its own file types deserve.
+
+    The trap this guards: treating a BLANK cell as False. A CSV written before
+    these columns existed, or one that fills them in on only some rows, must
+    behave exactly as it did before - silently switching profiling off for every
+    unfilled row would be the same class of failure as the default that shipped
+    unticked in 1.36.5.
+    """
+
+    def test_blank_and_absent_mean_the_default(self):
+        from pdc_client.bulkload import row_flag
+        for row in ({}, {"profile": ""}, {"profile": "   "}, {"profile": None}):
+            assert row_flag(row, "profile", True) is True
+            assert row_flag(row, "profile", False) is False
+        assert row_flag(None, "profile", True) is True
+
+    def test_explicit_values_override(self):
+        from pdc_client.bulkload import row_flag
+        for yes in ("y", "Yes", "TRUE", "t", "1", "on"):
+            assert row_flag({"profile": yes}, "profile", False) is True, yes
+        for no in ("n", "No", "FALSE", "f", "0", "off"):
+            assert row_flag({"profile": no}, "profile", True) is False, no
+
+    def test_an_unreadable_value_is_never_a_silent_false(self):
+        from pdc_client.bulkload import row_flag
+        assert row_flag({"profile": "maybe"}, "profile", True) is True
+
+    def test_the_scan_carries_both_families(self):
+        from pdc_client import bulkload
+        sent = {}
+
+        def fake_req(method, url, token=None, body=None, **kw):
+            sent.update(body or {})
+            return {"data": {"jobId": "j1"}}
+
+        real = bulkload._req
+        bulkload._req = fake_req
+        try:
+            bulkload.internal_scan_files("https://pdc.example", "t", {"resourceId": "r"},
+                                         profile_files=True, header_row=True,
+                                         doc_metadata=True, summaries=True,
+                                         classification=False)
+        finally:
+            bulkload._req = real
+        d = sent["data"]
+        assert d["withProfile"] is True and d["headerExists"] is True      # structured
+        assert d["withDocMetadata"] is True and d["summarizeDocuments"] is True
+        assert d["classification"] is False, "must stay off unless asked for"

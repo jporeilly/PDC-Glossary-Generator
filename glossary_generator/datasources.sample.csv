@@ -1,3 +1,4 @@
-kind,resourceName,databaseType,configMethod,affinityId,host,port,databaseName,userName,password,endpoint,region,accessKeyID,secretAccessKey,accessKey,secretKey,container,path,schemaNames,fqdnId,description
-postgres,Operations_DB,,,,db-host,5432,public,db_user,CHANGE_ME,,,,,,,,,public,,Sample operational database
-minio,Documents,,,,,,,,,http://minio-host:9000,,minioadmin,CHANGE_ME,,,documents,/,,,Sample document store
+kind,resourceName,databaseType,configMethod,affinityId,host,port,databaseName,userName,password,endpoint,region,accessKeyID,secretAccessKey,accessKey,secretKey,container,path,includePatterns,excludePatterns,schemaNames,fqdnId,profile,header,docMetadata,summaries,classification,description
+postgres,Operations_DB,,,,db-host,5432,public,db_user,CHANGE_ME,,,,,,,,,,,public,,,,,,,Sample operational database
+minio,Documents_Structured,,,,,,,,,http://minio-host:9000,,minioadmin,CHANGE_ME,,,documents,/,*.csv;*.json,,,,true,true,false,false,false,Structured files — columns profiled with the first row as names
+minio,Documents_Unstructured,,,,,,,,,http://minio-host:9000,,minioadmin,CHANGE_ME,,,documents,/,*.pdf;*.docx;*.txt,,,,false,false,true,false,false,Documents — no columns to profile; extract properties instead
