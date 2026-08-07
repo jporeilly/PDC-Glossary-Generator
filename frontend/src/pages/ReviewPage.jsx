@@ -208,9 +208,55 @@ export default function ReviewPage({ onNavigate }) {
   const [expanded, setExpanded] = usePersistentState('review.expanded', null) // open editor row index
   const [hmSnap, setHmSnap] = usePersistentState('review.hmSnap', null)       // [{index, keep}] for the H+M toggle revert
 
+  // Which candidate terms PDC already holds, and in which glossary. Persisted
+  // like the other working context: the result is worth keeping across a hop to
+  // the Dictionary, and re-running it costs a round trip per distinct name.
+  const [xg, setXg] = usePersistentState('review.xglossary', null)  // {found, hits, checked} | null
+
   // Transient — safe to reset on navigation (in-flight runs, one-off messages).
   const [msg, setMsg] = useState('')
   const [error, setError] = useState(null)
+  const [xgConn, setXgConn] = useState({ base: '', ver: 'v3', realm: 'pdc',
+                                         user: '', pass: '', verify: false })
+  const [xgBusy, setXgBusy] = useState(false)
+  const [xgOpen, setXgOpen] = useState(false)
+
+  // Prefill the host from saved settings. Credentials are NOT saved anywhere and
+  // are asked for each time - see _pdc_token_and_reauth: the token lives in
+  // memory for the call and nothing is persisted.
+  useEffect(() => {
+    if (!xgOpen) return
+    apiGet('/api/settings').then((s) => setXgConn((c) => ({
+      ...c,
+      base: c.base || s.pdc_base || '',
+      realm: s.pdc_realm || c.realm,
+      ver: s.pdc_ver || c.ver,
+      verify: s.pdc_verify != null ? !!s.pdc_verify : c.verify,
+    }))).catch(() => {})
+  }, [xgOpen])
+
+  const checkExisting = useCallback(async () => {
+    const names = [...new Set(rows.filter((r) => r && truthy(r.Keep))
+                                  .map((r) => String(r.Term || '').trim()).filter(Boolean))]
+    if (!names.length) { setMsg('No kept terms to check.'); return }
+    if (!xgConn.base.trim()) { setMsg('PDC base URL is required.'); return }
+    setXgBusy(true); setMsg(`Checking ${names.length} term(s) against PDC…`)
+    try {
+      const d = await apiPost('/api/pdc/terms/existing', {
+        base_url: xgConn.base.trim(), version: xgConn.ver,
+        realm: (xgConn.realm || 'pdc').trim(), username: xgConn.user,
+        password: xgConn.pass, verify_tls: !!xgConn.verify, names,
+      })
+      setXg(d)
+      setMsg(d.hits
+        ? `${d.hits} of ${d.checked} term(s) already exist in PDC — reuse rather than re-author.`
+        : `None of the ${d.checked} term(s) exist in PDC yet.`)
+    } catch (e) {
+      setMsg(`Check failed: ${e.message}`)
+    } finally {
+      setXgBusy(false)
+    }
+  }, [rows, xgConn, setXg])
   const [reco, setReco] = useState({})             // {name: recommendation} — re-derived on mount
   const [advising, setAdvising] = useState(false)
   const [agent, setAgent] = useState(null)         // {label, done, total, proposed, cancelling}
@@ -1125,6 +1171,38 @@ export default function ReviewPage({ onNavigate }) {
                            onClose={() => setSim(null)} />
         )}
 
+        <div className="rv-xg">
+          <button className="ghost" onClick={() => setXgOpen((v) => !v)}
+                  title="Ask PDC which of these terms already exist, and in which glossary. An enterprise runs many small governed glossaries; reuse rises as coverage grows, and this is far cheaper to act on now than at Apply.">
+            {xgOpen ? '▾' : '▸'} Check PDC for existing terms
+            {xg && xg.hits > 0 && <span className="rv-ttbadge rv-xgbadge">{xg.hits}</span>}
+          </button>
+          {xgOpen && (
+            <div className="rv-xgform">
+              <input type="text" placeholder="https://[PDC SERVER]" value={xgConn.base}
+                     onChange={(e) => setXgConn({ ...xgConn, base: e.target.value })}
+                     aria-label="PDC base URL" />
+              <input type="text" placeholder="PDC admin user" value={xgConn.user}
+                     onChange={(e) => setXgConn({ ...xgConn, user: e.target.value })}
+                     aria-label="PDC username" />
+              <input type="password" placeholder="PDC admin password" value={xgConn.pass}
+                     onChange={(e) => setXgConn({ ...xgConn, pass: e.target.value })}
+                     aria-label="PDC password" />
+              <button className="primary" disabled={xgBusy} onClick={checkExisting}>
+                {xgBusy ? 'Checking…' : 'Check'}
+              </button>
+              {xg && (
+                <button className="ghost" onClick={() => setXg(null)} title="Clear the badges">
+                  Clear
+                </button>
+              )}
+              <span className="muted" style={{ fontSize: '.78rem' }}>
+                Credentials are used for this call only and never saved.
+              </span>
+            </div>
+          )}
+        </div>
+
         <div className="rv-tablewrap" ref={tableWrapRef}>
           <table className="rv-table">
             <colgroup>
@@ -1168,6 +1246,9 @@ export default function ReviewPage({ onNavigate }) {
                         <GridRow row={rows[i]} index={i} pos={posOf.get(i)} expanded={expanded === i}
                                  prop={proposals ? proposals.items[i] : undefined} onAcceptProp={acceptProp}
                                  onField={onField} onKeep={onKeep} onUseName={useName}
+                                 existsIn={xg && xg.found
+                                   ? xg.found[String(rows[i]?.Term || '').trim()]
+                                   : undefined}
                                  onEvidence={setEvidence} onToggle={toggleExpand} />
                         {expanded === i && rows[i] && (
                           <ExpandedRow row={rows[i]} index={i} onField={onField}
@@ -1364,7 +1445,7 @@ function ReviewGuide({ onNavigate }) {
    by batch while an agent runs. Nothing lands until a pill (or Accept all)
    is clicked. */
 
-const GridRow = memo(function GridRow({ row: r, index, pos, expanded, prop, onAcceptProp, onField, onKeep, onUseName, onEvidence, onToggle }) {
+const GridRow = memo(function GridRow({ row: r, index, pos, expanded, prop, onAcceptProp, onField, onKeep, onUseName, onEvidence, onToggle, existsIn }) {
   const tt = isTableTerm(r)
   const keptRow = truthy(r.Keep)
   const srcs = splitList(r.Source_Column)
@@ -1402,6 +1483,12 @@ const GridRow = memo(function GridRow({ row: r, index, pos, expanded, prop, onAc
         <input type="text" value={r.Term || ''} title={r.Term || ''}
                onChange={(e) => onField(index, 'Term', e.target.value)} aria-label="Term" />
         {tt && <span className="rv-ttbadge" title="Table-level record term — links to the whole table; always kept.">TABLE</span>}
+        {existsIn && (
+          <span className="rv-ttbadge rv-xgbadge"
+                title={`Already in PDC${existsIn.glossary ? ` — glossary "${existsIn.glossary}"` : ''}. Apply will link to the existing term rather than create a second one, so the definition PDC already holds is the one that stands. Reuse it, or rename this row if you mean a different concept.`}>
+            IN PDC{existsIn.glossary ? ` · ${existsIn.glossary}` : ''}
+          </span>
+        )}
         {!keptRow && r.Prune_Reason && (
           <span className="rv-ttbadge rv-keybadge"
                 title={`Auto-pruned by the scan: ${r.Prune_Reason}. The PK/FK relationship still travels to the Registry's physical model — tick Keep to restore it as a term.`}>

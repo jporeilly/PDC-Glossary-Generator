@@ -172,6 +172,18 @@ class TestStreamingContracts:
         assert row_ev["result"]["create"] == "DRY"
         assert row_ev["body"].get("password") not in ("p",), "secrets redacted in dry-run echo"
 
+    def test_cross_glossary_check_needs_a_host_but_not_a_round_trip(self, client):
+        """The Review-time "already in PDC?" check. An empty name list must not
+           reach the network: a steward with nothing kept yet should get an empty
+           answer, not an auth error about a server they never meant to call."""
+        r = client.post("/api/pdc/terms/existing", json={"names": ["Member Number"]})
+        assert r.status_code == 400 and "base URL" in r.json()["error"]
+
+        r = client.post("/api/pdc/terms/existing",
+                        json={"base_url": "https://pdc.example", "names": []})
+        assert r.status_code == 200
+        assert r.json() == {"found": {}, "checked": 0, "hits": 0}
+
     def test_apply_stream_preflight_400(self, client):
         r = client.post("/api/apply-to-pdc-stream", json={"json": []})
         assert r.status_code == 400 and "error" in r.json()

@@ -2940,6 +2940,58 @@ def pdc_source_test(body: dict = Body(default={})):
     except Exception as e:
         return JSONResponse({"ok": False, "error": str(e)[:300]}, status_code=502)
 
+@app.post("/api/pdc/terms/existing")
+def pdc_terms_existing(body: dict = Body(default={})):
+    """Which of these candidate terms ALREADY exist in PDC, and in which glossary.
+
+    The same lookup Resolve does, run early. Resolve already reuses an existing
+    term's id rather than minting a duplicate, so nothing was ever written twice
+    - but it runs at step 4, so a steward could author a definition for a concept
+    Billing already owns and only find out on Apply. This answers it during
+    Review, while changing your mind is still cheap.
+
+    Deliberately NOT scoped to one glossary: the whole point is to see across
+    them. An enterprise runs many small governed glossaries, and reuse rises as
+    coverage grows.
+    """
+    from sources import pdc_api
+    body = body or {}
+    base = (body.get("base_url") or "").strip()
+    version = body.get("version") or "v2"
+    verify = bool(body.get("verify_tls", False))
+    names = [str(n).strip() for n in (body.get("names") or []) if str(n).strip()]
+    if not base:
+        return _err("PDC base URL is required", 400)
+    if not names:
+        return {"found": {}, "checked": 0, "hits": 0}
+    try:
+        token, _ = _pdc_token_and_reauth(body, base, version, verify)
+        name_map = pdc_api.resolve_terms(base, token, names, None,
+                                         version=version, verify_tls=verify)
+    except Exception as e:
+        return _err(str(e)[:300], 502)
+
+    # glossaryId -> readable name, resolved once per glossary rather than per
+    # term: a hundred hits in one glossary is one lookup, not a hundred.
+    gloss_names, found = {}, {}
+    for nm, m in (name_map or {}).items():
+        if not isinstance(m, dict) or not m.get("id"):
+            continue
+        gid = m.get("glossaryId")
+        if gid and gid not in gloss_names:
+            try:
+                ent = pdc_api.get_entity(base, token, gid, version=version, verify_tls=verify)
+                e = ent.get("data", ent) if isinstance(ent, dict) else {}
+                if isinstance(e, list):
+                    e = e[0] if e else {}
+                gloss_names[gid] = (e or {}).get("name") or ""
+            except Exception:
+                gloss_names[gid] = ""     # id still tells the steward it exists
+        found[nm] = {"id": m.get("id"), "glossaryId": gid,
+                     "glossary": gloss_names.get(gid, "")}
+    return {"found": found, "checked": len(names), "hits": len(found)}
+
+
 @app.post("/api/pdc/source-config")
 def pdc_source_config(body: dict = Body(default={})):
     """Return the raw stored config of a PDC data source (secrets redacted) so you can

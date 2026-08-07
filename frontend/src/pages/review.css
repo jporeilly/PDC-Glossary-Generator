@@ -161,6 +161,14 @@ tr.rv-exprow > td {
 /* auto-pruned structural key (surrogate PK / FK reference-id): starts un-kept,
    relationship still travels to the Registry's physical model */
 .rv-keybadge { color: var(--status-warning); border-color: var(--status-warning); margin-left: .3rem; }
+/* the term already exists in PDC, in this or another glossary — reuse, don't
+   re-author. Accent rather than warning: it is good news, not a problem. */
+.rv-xgbadge { color: var(--accent); border-color: var(--accent); margin-left: .3rem; }
+.rv-xg { margin: .6rem 0 .2rem; }
+.rv-xgform {
+  display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; margin-top: .4rem;
+}
+.rv-xgform input[type="text"], .rv-xgform input[type="password"] { flex: 0 1 210px; }
 .rv-ren {
   display: block; background: none; border: none; cursor: pointer; text-align: left;
   color: var(--accent); font-size: .74rem; font-weight: 600; padding: 0; margin-top: .25rem;

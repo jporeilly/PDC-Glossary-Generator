@@ -14,6 +14,29 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.36.8] - 2026-08-07
+
+### Added - Review says which terms PDC already holds, and in which glossary
+
+**Check PDC for existing terms** on the Review page badges each candidate that
+already exists, with the owning glossary name: `IN PDC · Customer`.
+
+Resolve has always looked terms up catalog-wide and reused an existing id rather
+than minting a duplicate, so nothing was ever written twice. But Resolve is step
+4 — a steward could spend twenty minutes authoring a definition for a concept
+Billing already owns and only learn of it on Apply. This runs the same lookup
+during Review, while changing your mind is still cheap.
+
+Deliberately **not** scoped to one glossary: seeing across them is the point. An
+enterprise runs many small governed glossaries rather than one large one, and
+the reuse rate climbs as coverage grows — so the check earns more the further in
+you are.
+
+`POST /api/pdc/terms/existing` takes the kept term names and returns
+`{name: {id, glossaryId, glossary}}`. Glossary names resolve once per glossary,
+not once per term. Credentials are used for the call and never persisted, the
+same as every other PDC call the app makes.
+
 ## [1.36.7] - 2026-08-07
 
 ### Fixed - the file scan never asked PDC to profile the files
