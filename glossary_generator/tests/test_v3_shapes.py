@@ -8,6 +8,9 @@ so an unknown key is a 400, not a warning. Runs against the shared pdc_client
 package (via the pdc_api shim) after any change to the client / suggester
 builders."""
 import inspect
+import io
+
+import pytest
 
 from sources import pdc_api
 from engine import suggester
@@ -156,6 +159,71 @@ class TestObjectStoreFolderTypes:
         assert "FOLDER" in inspect.getsource(bulkload)
         for t in ("DIRECTORY", "FOLDER"):
             assert t in ent._TBL_TYPES and t in ent._FILE_TYPES
+
+
+class TestHttpErrorsKeepTheirDetail:
+    """HTTPError SUBCLASSES URLError, and Python matches except clauses in order.
+
+    With `except URLError` written first, every HTTP response landed there and
+    was re-raised bare. The whole HTTP handler below it became unreachable, so:
+    the response body vanished ("HTTP Error 400: Bad Request" and nothing else),
+    401 stopped raising TokenExpired, and the Cloudflare detection went dead.
+
+    Worse, the bulk loader's safe-recreate guard READS that text to tell a bad
+    body from a name conflict - so with no text it deleted working data sources.
+    Nothing caught it because no test had ever exercised the error path.
+    """
+
+    def _raise(self, monkeypatch, code, body):
+        import urllib.error
+        from pdc_client import core
+
+        def boom(*a, **k):
+            raise urllib.error.HTTPError(
+                "https://pdc.example/api/public/v2/data-sources", code, "Bad Request",
+                {}, io.BytesIO(body.encode()))
+
+        monkeypatch.setattr(core.urllib.request, "urlopen", boom)
+        return core
+
+    def test_the_response_body_reaches_the_caller(self, monkeypatch):
+        core = self._raise(monkeypatch, 400, '{"message":"resourceName already exists"}')
+        with pytest.raises(RuntimeError) as e:
+            core._req("POST", "https://pdc.example/api/public/v2/data-sources", token="t")
+        msg = str(e.value)
+        assert "already exists" in msg, "PDC's own explanation was dropped"
+        assert "400" in msg
+
+    def test_401_is_still_a_token_problem(self, monkeypatch):
+        core = self._raise(monkeypatch, 401, "expired")
+        with pytest.raises(core.TokenExpired):
+            core._req("GET", "https://pdc.example/api/public/v2/data-sources", token="t")
+
+    def test_cloudflare_is_still_named(self, monkeypatch):
+        core = self._raise(monkeypatch, 403, "<html>error code: 1010</html>")
+        with pytest.raises(RuntimeError) as e:
+            core._req("GET", "https://pdc.example/api/public/v2/data-sources", token="t")
+        assert "Cloudflare" in str(e.value)
+
+
+class TestRecreateFailsClosed:
+    """Deleting a data source needs positive proof the name is the only problem.
+
+    The guard used to delete unless the error looked like a validation failure -
+    i.e. an error it could not parse was taken as proof of a name conflict.
+    """
+
+    def test_an_unreadable_error_keeps_the_source(self):
+        m = "http error 400: bad request"
+        conflict = any(w in m for w in (
+            "already exists", "already in use", "duplicate", "conflict", "409", "unique"))
+        assert not conflict, "a bare 400 must never authorise a delete"
+
+    def test_a_real_conflict_still_recreates(self):
+        m = 'http 400 on post .../data-sources: {"message":"resourceName already exists"}'
+        conflict = any(w in m for w in (
+            "already exists", "already in use", "duplicate", "conflict", "409", "unique"))
+        assert conflict
 
 
 class TestCloudflareEdge:

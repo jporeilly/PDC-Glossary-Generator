@@ -177,6 +177,13 @@ def internal_scan_files(base_url, token, data_body, verify_tls=True, timeout=30)
     return {"job_id": jid, "raw": out}
 
 
+# 40 pages x 500 = 20,000 entities per source. Generous for a real estate while
+# still bounded, so a catalog far larger than expected cannot spin here forever.
+# A source that genuinely exceeds it is REPORTED rather than quietly clipped -
+# a short scope that says SUCCESS is the failure mode this whole path already had.
+_ENTITY_MAX_PAGES = 40
+
+
 def source_entity_ids(base_url, token, resource_name=None, resource_id=None,
                       kinds=("TABLE",), limit=500, verify_tls=True, timeout=30,
                       version="v2"):
@@ -190,18 +197,38 @@ def source_entity_ids(base_url, token, resource_name=None, resource_id=None,
         ex = find_existing_data_source(base_url, token, resource_name, version,
                                        verify_tls, timeout) or {}
         rid = ex.get("_id") or ex.get("resourceId") or ex.get("id")
-    # the filter API rejects size > 500 ("/size must be <= 500")
-    url = clean_base(base_url) + f"/api/public/v3/entities/filter?extended=false&size={min(int(limit), 500)}"
-    out = _req("POST", url, token=token, body={"filters": {}},
-               verify_tls=verify_tls, timeout=timeout)
-    rows = out.get("data", out) if isinstance(out, dict) else out
-    if isinstance(rows, dict):
-        rows = rows.get("data", [])
+    # Ask the SERVER for this source's entities, and follow the cursor.
+    #
+    # This used to post {"filters": {}} with size=500 and keep the matching rows
+    # in Python: it read the first 500 entities of the WHOLE ESTATE and profiled
+    # whichever of this source's entities happened to land inside that window.
+    # On a demo estate that mostly worked; on a real one the source's entities
+    # would rarely be in the first page at all, so the job would scope to almost
+    # nothing and still report SUCCESS. Nothing about the result said so.
+    #
+    # entities.filter_entities already does this correctly - filters server-side
+    # and follows the cursor across pages - so it is used rather than a second,
+    # worse copy living here.
+    from .entities import filter_entities
+    filters = {}
+    if rid:
+        filters["resourceIds"] = [str(rid)]
     want = {str(k).upper() for k in (kinds or ())}
+    if want:
+        filters["types"] = sorted(want)
+
+    rows = filter_entities(base_url, token, filters, version="v3",
+                           verify_tls=verify_tls, timeout=timeout,
+                           extended=False, size=min(int(limit), 500),
+                           max_pages=_ENTITY_MAX_PAGES)
     ids = []
     for r in rows if isinstance(rows, list) else []:
         if not isinstance(r, dict):
             continue
+        # Re-checked client-side: a server that ignores a filter it does not
+        # recognise would otherwise hand back the whole estate, and scoping a
+        # profiling job to another source's entities is worse than scoping it
+        # to none.
         if want and str(r.get("type") or "").upper() not in want:
             continue
         if rid and str(r.get("resourceId") or "") != str(rid):
@@ -240,7 +267,12 @@ def profile_source(base_url, token, resource_name=None, version="v2", verify_tls
     jr = run_job(base_url, token, job, {"scope": ids, "configs": {}},
                  version, verify_tls, timeout)
     rec = {"job_id": jr["job_id"], "entities": len(ids), "ok": bool(jr["job_id"]),
-           "activity": job, "error": None}
+           "activity": job, "error": None, "warning": None}
+    # No silent caps: a scope clipped at the page ceiling profiles part of the
+    # source and still returns SUCCESS, which reads as "all done".
+    if len(ids) >= _ENTITY_MAX_PAGES * min(int(limit), 500):
+        rec["warning"] = ("scope hit the %d-entity ceiling — this source has more, and "
+                          "the rest were NOT included" % len(ids))
     if wait and jr["job_id"]:
         w = wait_job(base_url, token, jr["job_id"], version, verify_tls, timeout,
                      poll_wait=poll_wait, max_wait=max_wait)
@@ -396,13 +428,22 @@ def bulk_load_one(base_url, token, row, version="v2", verify_tls=True, timeout=3
                 rec["create"] = "OK"
             except Exception as ce:
                 m = str(ce).lower()
-                looks_like_validation = any(w in m for w in (
-                    "required property", "must be array", "must match", "oneof",
-                    "schema", "invalid", "not allowed"))
-                if looks_like_validation:
+                # FAILS CLOSED. This used to delete unless the text looked like a
+                # validation error - so an error it could not READ was taken as
+                # proof of a name conflict. When core.py briefly lost the response
+                # body, every create failed as a bare "HTTP Error 400: Bad
+                # Request", and this guard deleted working sources on the strength
+                # of a message it had never parsed. Deleting now needs positive
+                # evidence that the name is the only thing wrong; anything else,
+                # including an unreadable error, keeps the existing source.
+                looks_like_conflict = any(w in m for w in (
+                    "already exists", "already in use", "duplicate", "conflict",
+                    "409", "unique"))
+                if not looks_like_conflict:
                     rec["create"] = "FAIL"
-                    rec["error"] = ("recreate aborted — new config is invalid, existing "
-                                    "source kept: " + str(ce)[:200])
+                    rec["error"] = ("recreate aborted, existing source kept — the create "
+                                    "failed for some reason other than the name being "
+                                    "taken: " + str(ce)[:200])
                     return rec
                 delete_data_source(base_url, token, ex_id, version, verify_tls, timeout)
                 cr = create_data_source(base_url, token, body, version, verify_tls, timeout)
@@ -514,6 +555,8 @@ def bulk_load_one(base_url, token, row, version="v2", verify_tls=True, timeout=3
                     label = "discovering" if _is_object_store else "profiling"
                     rec["note"] = ((rec.get("note") + " · ") if rec.get("note") else "") + \
                         "%s %d entit%s" % (label, pr["entities"], "y" if pr["entities"] == 1 else "ies")
+                    if pr.get("warning"):
+                        rec["note"] += " · " + pr["warning"]
                 else:
                     rec["profile"] = "FAIL"
                 if pr.get("error") and not rec["error"]:

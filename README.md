@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  <img alt="Version 1.36.5" src="https://img.shields.io/badge/version-1.36.5-0F766E">
+  <img alt="Version 1.36.6" src="https://img.shields.io/badge/version-1.36.6-0F766E">
   <img alt="Pentaho Data Catalog 11.0.0" src="https://img.shields.io/badge/Pentaho%20Data%20Catalog-11.0.0-1f6feb">
   <img alt="Public API v3" src="https://img.shields.io/badge/public%20API-v3-1f6feb">
   <img alt="Python 3.9+" src="https://img.shields.io/badge/python-3.9%2B-3776AB">
@@ -27,7 +27,7 @@
 
 ---
 
-**Version:** 1.36.5 · validated against Pentaho Data Catalog 11.0.0 (public API v3).
+**Version:** 1.36.6 · validated against Pentaho Data Catalog 11.0.0 (public API v3).
 
 > [!TIP]
 > **Quick start (Windows 11 host):** one command stands up the whole
@@ -47,9 +47,10 @@
 
 FastAPI backend with interactive API docs at **`/docs`**, and a
 **React 18 + Vite frontend** (`frontend/`, on the shared Policy Generator
-design kit) served from `frontend/dist` when built — the legacy Jinja shell
-remains as the fallback at `/` until then (the PDC-Demo installer builds the
-UI; manual: `cd frontend && npm install && npm run build`). A committed
+design kit) served from `frontend/dist`. There is no fallback UI — the Jinja
+shell went at 1.35.0, so until the build exists `/` answers **503** with the
+command to fix it (the PDC-Demo installer builds it; manual:
+`cd frontend && npm ci && npm run build`). A committed
 offline **pytest** suite keeps it honest (`pytest -q` from
 `glossary_generator/`): the engine checks, the PDC v3 API shape checks, the
 endpoint contract via TestClient, and a docs-consistency test that fails when

@@ -14,6 +14,54 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.36.6] - 2026-08-07
+
+### Fixed - every HTTP error had been reduced to "HTTP Error 400: Bad Request"
+
+`HTTPError` **subclasses** `URLError`, and Python matches `except` clauses in
+order. 1.36.2 added the `URLError` handler **above** the HTTP one, so every HTTP
+response landed there and was re-raised bare. The handler below it became
+unreachable, taking four things with it:
+
+- the response body - PDC's own explanation of the 400 was read and discarded
+- `401 -> TokenExpired`, so expiry stopped being recognised
+- the Cloudflare detection added one release earlier, in 1.36.1
+- **the bulk loader's safe-recreate guard**
+
+That last one caused real damage. The guard reads PDC's error text to tell a bad
+request body from a name conflict, and deletes only for a conflict. With no text
+to read it concluded "conflict" and **deleted a working data source**, then
+failed to recreate it.
+
+Two fixes, because the ordering bug was only half of it:
+
+- `except HTTPError` now precedes `except URLError`, with the reason recorded
+  where someone might reorder them again. Tests cover the body, the 401 and the
+  Cloudflare path - the error path had never been exercised, which is why a
+  regression this broad passed 204 tests.
+- **The recreate guard fails closed.** It deleted unless the error looked like a
+  validation failure, so an error it could not parse was taken as proof of a
+  conflict. Deleting now requires positive evidence that the name is the only
+  problem; anything unreadable keeps the existing source.
+
+### Fixed - profiling scoped itself from the first 500 entities of the whole estate
+
+`source_entity_ids` posted `{"filters": {}}` and matched `resourceId` in Python.
+It read the first 500 entities of the **entire catalog** and profiled whichever
+of the source's entities happened to fall in that window. On a demo estate that
+mostly worked; on a real one the source would rarely be in the first page at all,
+so the job scoped to almost nothing and still reported SUCCESS.
+
+`entities.filter_entities` already filtered server-side and followed the cursor
+correctly - so this now calls it instead of keeping a second, worse copy.
+`resourceIds` and `types` go to the server; the client-side check stays in case a
+server ignores a filter it does not recognise. A scope that hits the 20,000-entity
+ceiling is **reported on the row** rather than quietly clipped.
+
+### Fixed - the README described the removed Jinja UI as a live fallback
+
+The same stale claim as `run.sh` in 1.36.4, in a second place.
+
 ## [1.36.5] - 2026-08-07
 
 ### Changed - the bulk load now analyses by default, and says when it did not
