@@ -14,6 +14,29 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.36.5] - 2026-08-07
+
+### Changed - the bulk load now analyses by default, and says when it did not
+
+A bulk load registered two object stores in PDC and left them with files but no
+columns, statistics or sensitivity. Nothing had failed: **profile / discover**
+ships unticked, so neither the file scan nor Data Discovery ever ran. Every
+badge read OK and the only trace was a grey `SKIP`, which reads as "nothing to
+do here" rather than "the step you wanted was omitted".
+
+The commit that added the step is titled *"so the setup is one stop"* - and then
+defaulted it off, stopping the setup short. The sibling database form
+(`DB_DEFAULTS`) has always defaulted `profile: true`: the same word on the same
+page, behaving in opposite ways.
+
+- **Default flipped to on.** Ingest without analysis is the rarer intent.
+- **Skips are stated in words.** A source that registered but was never analysed
+  now raises a note saying what is missing and how to fill it in - counted only
+  where the create succeeded, so a row that failed earlier still reports its own
+  error rather than being blamed on profiling.
+- The results header now reads **profile / discover**, matching the checkbox,
+  and the card's description says what the step does and what is lost without it.
+
 ## [1.36.4] - 2026-08-07
 
 ### Fixed - run.sh promised a fallback UI that no longer exists

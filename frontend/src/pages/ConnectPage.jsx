@@ -392,7 +392,13 @@ const BL_BADGE = {
 
 function BulkLoadCard({ pdc, onConnectionsChanged }) {
   const [csv, setCsv] = useState('')
-  const [opts, setOpts] = useState({ ingest: true, replace: false, profile: false })
+  // profile defaults ON. Registering a source without analysing it leaves PDC
+  // holding tables/files with no columns, statistics or sensitivity - which
+  // looks like a broken load rather than a skipped step, because every badge
+  // still reads OK. The sibling database form (DB_DEFAULTS) has always
+  // defaulted profile true; these two are the same word on the same page and
+  // disagreeing on it is what made this hard to spot.
+  const [opts, setOpts] = useState({ ingest: true, replace: false, profile: true })
   const [msg, setMsg] = useState('')
   const [running, setRunning] = useState(false)
   const [progress, setProgress] = useState(null)   // {done, total}
@@ -486,12 +492,27 @@ function BulkLoadCard({ pdc, onConnectionsChanged }) {
 
   const rowIdx = table ? Object.keys(table.rows).map(Number).sort((a, b) => a - b) : []
 
+  // Sources that registered fine but were never analysed. Counted only where
+  // the create succeeded, so a row that failed earlier reports its own error
+  // instead of being blamed on profiling. A grey SKIP badge in the table reads
+  // as "nothing to do here"; the consequence needs saying in words.
+  const profileSkipped = table && !table.dryRun
+    ? rowIdx.filter((i) => {
+        const r = table.rows[i] || {}
+        return !r.working && r.profile === 'SKIP' &&
+               ['OK', 'EXISTS', 'RECREATED'].includes(r.create)
+      }).length
+    : 0
+
   return (
     <section className="card">
       <h2>Bulk-load data sources into PDC <span>setup step — runs before the glossary</span></h2>
       <p className="hint-line">
         Register many sources in PDC at once from a CSV. For each row the app <b>creates</b> the
-        data source, then triggers a <b>metadata ingest</b> scoped to it and waits for the job.
+        data source, triggers a <b>metadata ingest</b> scoped to it and waits for the job, then
+        <b> analyses</b> it — Data Profiling over a database's tables, a file scan plus Data
+        Discovery over an object store's files. Without that last step PDC lists the tables and
+        files but knows nothing inside them; untick <b>profile / discover</b> to skip it.
         Use <code>kind</code> = <code>postgres</code>, <code>mysql</code>, <code>oracle</code>,{' '}
         <code>minio</code>/<code>s3</code> or <code>azure_blob</code>. Secrets are sent to PDC only
         and never saved by the app. A source that already exists shows as{' '}
@@ -550,7 +571,7 @@ function BulkLoadCard({ pdc, onConnectionsChanged }) {
       {table && rowIdx.length > 0 && (
         <div className="table-scroll" style={{ marginTop: '.8rem' }}>
           <table>
-            <thead><tr><th>Resource</th><th>create</th><th>ingest</th><th>job</th><th>profile</th><th>note</th></tr></thead>
+            <thead><tr><th>Resource</th><th>create</th><th>ingest</th><th>job</th><th>profile / discover</th><th>note</th></tr></thead>
             <tbody>
               {rowIdx.map((i) => {
                 const r = table.rows[i]
@@ -571,6 +592,17 @@ function BulkLoadCard({ pdc, onConnectionsChanged }) {
             </tbody>
           </table>
         </div>
+      )}
+
+      {profileSkipped > 0 && (
+        <p className="summary" style={{ marginTop: '.8rem' }}>
+          <b className="warn">{profileSkipped} source(s) registered but not analysed.</b>{' '}
+          PDC has their tables and files, but no columns, statistics or sensitivity —
+          a database source needs Data Profiling and an object store needs its file
+          scan plus Data Discovery. Tick <b>profile / discover</b> above and run again
+          to fill them in; existing sources show as <span className="badge accent">EXISTS</span>{' '}
+          and are re-used, not duplicated.
+        </p>
       )}
 
       <div className="actions" style={{ marginTop: '1rem' }}>
