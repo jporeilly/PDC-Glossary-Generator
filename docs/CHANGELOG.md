@@ -14,6 +14,39 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.36.1] - 2026-08-07
+
+### Fixed - "Keycloak auth failed" when Keycloak never saw the request
+
+    Keycloak auth failed: HTTP 403 ... error code: 1010
+    /auth fallback failed: HTTP 403 ... error code: 1010
+
+Cloudflare's **browser integrity check**. `urllib` sends `Python-urllib/3.x`
+unless told otherwise, and that signature is refused at the edge - so the
+request never reached PDC and no credential was ever tested. Both paths failing
+identically was the tell.
+
+Three changes:
+
+- **The client identifies itself.** A descriptive `User-Agent`, which is what an
+  HTTP client should send anyway, and which a WAF rule can match on to allow it.
+- **Cloudflare refusals are named as such.** A `1xxx` code in the body means the
+  edge refused it; the error now says so and stops claiming auth failed. It is
+  deliberately NOT raised as `TokenExpired` even on a 403 - "auth failed" sends
+  people to check realms and passwords that were never involved.
+- **Cloudflare Access service tokens** via `CF_ACCESS_CLIENT_ID` /
+  `CF_ACCESS_CLIENT_SECRET`. Authenticating a *browser* against Access sets a
+  cookie on that browser session; this client has no cookie and cannot complete
+  an interactive login, so it stays blocked however many codes are typed in. A
+  service token is Cloudflare's documented answer for non-browser clients.
+
+From the environment, never `settings.json` - that file is included in the State
+snapshot the app can export, and these are credentials.
+
+### Tests
+
+204.
+
 ## [1.36.0] - 2026-08-06
 
 ### Added - CI, and a fresh-install smoke test

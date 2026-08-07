@@ -2,6 +2,7 @@
 import json
 import re
 import ssl
+import os
 import urllib.request
 import urllib.parse
 import urllib.error
@@ -45,11 +46,62 @@ def _ctx(verify_tls):
     return c
 
 
+# An HTTP client should say what it is. Left unset, urllib sends
+# "Python-urllib/3.x", which Cloudflare's browser integrity check refuses with
+# error 1010 - the request never reaches PDC, and the failure looks like an auth
+# problem. This is a description, not a disguise: a WAF rule that needs to allow
+# this app can match on it.
+USER_AGENT = "PDC-Glossary-Generator (+https://github.com/jporeilly/PDC-Glossary-Generator)"
+
+
+def _access_headers():
+    """Cloudflare Access service-token headers, when configured.
+
+    Authenticating a BROWSER against Access sets a CF_Authorization cookie on
+    that browser session. This client is a separate HTTP client with no cookie
+    and no way to complete an interactive login, so it stays blocked however
+    many codes a person types in. A service token is Cloudflare's documented
+    answer for non-browser clients: two headers, checked at the edge.
+
+    From the environment, never from the app's settings file - these are
+    credentials, and settings.json is included in the State snapshot the app can
+    export.
+
+        CF_ACCESS_CLIENT_ID       <id>.access
+        CF_ACCESS_CLIENT_SECRET   <secret>
+    """
+    cid = os.environ.get("CF_ACCESS_CLIENT_ID", "").strip()
+    sec = os.environ.get("CF_ACCESS_CLIENT_SECRET", "").strip()
+    if cid and sec:
+        return {"CF-Access-Client-Id": cid, "CF-Access-Client-Secret": sec}
+    return {}
+
+
+def _cloudflare_code(text):
+    """Cloudflare's own error number, if this came from the edge rather than PDC.
+
+    A 1xxx code in an HTML body means the request was refused BEFORE the origin
+    saw it, so nothing about credentials, realms or clients is implicated.
+    """
+    import re as _re
+    if not text:
+        return None
+    m = _re.search(r"error code:\s*(1\d{3})", text)
+    if m:
+        return m.group(1)
+    if "cloudflare" in text.lower() and "<html" in text.lower():
+        return "unknown"
+    return None
+
+
 def _req(method, url, token=None, body=None, headers=None, verify_tls=True,
          timeout=30, form=False):
     """Generic request. Returns parsed JSON (or {} on empty body).
        Raises TokenExpired on 401; RuntimeError with the server text otherwise."""
     h = dict(headers or {})
+    h.setdefault("User-Agent", USER_AGENT)
+    for k, v in _access_headers().items():
+        h.setdefault(k, v)
     if token:
         h["Authorization"] = f"Bearer {token}"
     data = None
@@ -77,6 +129,19 @@ def _req(method, url, token=None, body=None, headers=None, verify_tls=True,
             detail = e.read().decode("utf-8")[:600]
         except Exception:
             pass
+        cf = _cloudflare_code(detail)
+        if cf:
+            # Do NOT raise TokenExpired here even on a 403: the credentials were
+            # never tested. Saying "auth failed" sends people to check realms and
+            # passwords that Keycloak never saw.
+            raise RuntimeError(
+                "Blocked by Cloudflare (error {code}), not by PDC - the request "
+                "was refused at the edge and never reached the server, so "
+                "credentials are not the problem. Allow this client in the "
+                "Cloudflare WAF (match the User-Agent {ua!r}, or skip Browser "
+                "Integrity Check for the API paths), or reach PDC on an address "
+                "that bypasses Cloudflare. URL: {url}".format(
+                    code=cf, ua=USER_AGENT, url=url))
         if e.code == 401:
             raise TokenExpired(detail or "401 Unauthorized")
         raise RuntimeError(f"HTTP {e.code} on {method} {url}: {detail}")

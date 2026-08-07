@@ -156,3 +156,47 @@ class TestObjectStoreFolderTypes:
         assert "FOLDER" in inspect.getsource(bulkload)
         for t in ("DIRECTORY", "FOLDER"):
             assert t in ent._TBL_TYPES and t in ent._FILE_TYPES
+
+
+class TestCloudflareEdge:
+    """A refusal at the edge is not an auth failure.
+
+    Reported as "Keycloak auth failed: HTTP 403 ... error code: 1010" - which
+    sent the reader to check realms, clients and passwords that Keycloak never
+    saw. Both the Keycloak call and the /auth fallback failed identically,
+    because Cloudflare refused both before the origin.
+    """
+
+    def test_cloudflare_codes_are_recognised(self):
+        from pdc_client import core
+        assert core._cloudflare_code("error code: 1010") == "1010"
+        assert core._cloudflare_code("<html>error code: 1020</html>") == "1020"
+        assert core._cloudflare_code('{"error":"invalid_grant"}') is None
+        assert core._cloudflare_code("") is None
+        assert core._cloudflare_code(None) is None
+
+    def test_the_client_identifies_itself(self):
+        """urllib sends "Python-urllib/3.x" unless told otherwise, and that
+           signature is exactly what a browser integrity check refuses."""
+        from pdc_client import core
+        assert "PDC-Glossary-Generator" in core.USER_AGENT
+        assert "urllib" not in core.USER_AGENT.lower()
+
+    def test_access_service_token_comes_from_the_environment(self, monkeypatch):
+        """Not from settings.json: that file is included in the State snapshot
+           the app can export, and these are credentials."""
+        from pdc_client import core
+        monkeypatch.delenv("CF_ACCESS_CLIENT_ID", raising=False)
+        monkeypatch.delenv("CF_ACCESS_CLIENT_SECRET", raising=False)
+        assert core._access_headers() == {}
+
+        monkeypatch.setenv("CF_ACCESS_CLIENT_ID", "abc.access")
+        monkeypatch.setenv("CF_ACCESS_CLIENT_SECRET", "shh")
+        assert core._access_headers() == {
+            "CF-Access-Client-Id": "abc.access",
+            "CF-Access-Client-Secret": "shh",
+        }
+
+        # One half alone is a misconfiguration, not a partial credential.
+        monkeypatch.delenv("CF_ACCESS_CLIENT_SECRET")
+        assert core._access_headers() == {}
