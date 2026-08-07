@@ -1,4 +1,4 @@
-kind,resourceName,databaseType,configMethod,affinityId,host,port,databaseName,userName,password,endpoint,region,accessKeyID,secretAccessKey,accessKey,secretKey,container,path,includePatterns,excludePatterns,schemaNames,fqdnId,profile,header,docMetadata,summaries,classification,description
-postgres,Operations_DB,,,,db-host,5432,public,db_user,CHANGE_ME,,,,,,,,,,,public,,,,,,,Sample operational database
-minio,Documents_Structured,,,,,,,,,http://minio-host:9000,,minioadmin,CHANGE_ME,,,documents,/,*.csv;*.json,,,,true,true,false,false,false,Structured files — columns profiled with the first row as names
-minio,Documents_Unstructured,,,,,,,,,http://minio-host:9000,,minioadmin,CHANGE_ME,,,documents,/,*.pdf;*.docx;*.txt,,,,false,false,true,false,false,Documents — no columns to profile; extract properties instead
+kind,resourceName,databaseType,configMethod,affinityId,host,port,databaseName,userName,password,endpoint,region,accessKeyID,secretAccessKey,accessKey,secretKey,container,path,includePatterns,excludePatterns,schemaNames,fqdnId,profile,discover,profileFiles,header,docMetadata,skipRecentDays,description
+postgres,Operations_DB,,,,db-host,5432,public,db_user,CHANGE_ME,,,,,,,,,,,public,,,,,,,,Database — Data Profiling over its tables
+minio,Documents_Structured,,,,,,,,,http://minio-host:9000,,minioadmin,CHANGE_ME,,,documents,/,*.csv;*.json,,,,,true,true,true,false,0,Object store — csv/json only: read their columns with row 1 as names
+minio,Documents_Unstructured,,,,,,,,,http://minio-host:9000,,minioadmin,CHANGE_ME,,,documents,/,*.pdf;*.docx;*.txt,,,,,true,false,false,true,0,Object store — documents only: properties, no columns to profile

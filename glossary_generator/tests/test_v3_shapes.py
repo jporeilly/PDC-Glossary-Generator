@@ -346,7 +346,18 @@ class TestPerRowScanOptions:
         from pdc_client.bulkload import row_flag
         assert row_flag({"profile": "maybe"}, "profile", True) is True
 
-    def test_the_scan_carries_both_families(self):
+    def test_skip_recent_days_reads_as_an_int(self):
+        from pdc_client.bulkload import row_int
+        assert row_int({}, "skipRecentDays", 7) == 7
+        assert row_int({"skipRecentDays": ""}, "skipRecentDays", 7) == 7
+        assert row_int({"skipRecentDays": "0"}, "skipRecentDays", 7) == 0,             "0 is meaningful - no age restriction - and must not read as blank"
+        assert row_int({"skipRecentDays": "30"}, "skipRecentDays", 0) == 30
+        assert row_int({"skipRecentDays": "soon"}, "skipRecentDays", 7) == 7
+        assert row_int({"skipRecentDays": "-5"}, "skipRecentDays", 7) == 7
+
+    def test_the_scan_carries_the_object_store_options(self):
+        """Both file kinds share one bucket, so these travel on the SAME scan:
+           the structured files' columns and the documents' properties."""
         from pdc_client import bulkload
         sent = {}
 
@@ -359,11 +370,15 @@ class TestPerRowScanOptions:
         try:
             bulkload.internal_scan_files("https://pdc.example", "t", {"resourceId": "r"},
                                          profile_files=True, header_row=True,
-                                         doc_metadata=True, summaries=True,
-                                         classification=False)
+                                         doc_metadata=True, skip_recent_days=14)
         finally:
             bulkload._req = real
         d = sent["data"]
-        assert d["withProfile"] is True and d["headerExists"] is True      # structured
-        assert d["withDocMetadata"] is True and d["summarizeDocuments"] is True
-        assert d["classification"] is False, "must stay off unless asked for"
+        assert d["withProfile"] is True and d["headerExists"] is True
+        assert d["withDocMetadata"] is True
+        assert d["filesModifiedLaterThanDays"] == 14
+        assert d["filesAccessedLaterThanDays"] == 14
+        # ML-dependent options are never switched on from here
+        assert d["classification"] is False
+        assert d["addressDetection"] is False
+        assert d["summarizeDocuments"] is False

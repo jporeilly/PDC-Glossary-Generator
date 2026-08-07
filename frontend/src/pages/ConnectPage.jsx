@@ -399,13 +399,15 @@ function BulkLoadCard({ pdc, onConnectionsChanged }) {
   // defaulted profile true; these two are the same word on the same page and
   // disagreeing on it is what made this hard to spot.
   // Defaults, applied to any row whose CSV leaves the matching column blank.
-  // classification stays off on purpose - see the note in bulkload.py: it
-  // assigns business terms that do not exist until this app's glossary has been
-  // applied, so on a first pass it can only mark everything unclassified.
+  // Analysis splits by SOURCE TYPE, as PDC splits it: a database's tables go
+  // through Data Profiling, an object store's files through Data Discovery.
+  // The file-level switches are options ON that discovery pass, which is where
+  // PDC's own Configure Process dialog puts them.
   const [opts, setOpts] = useState({
     ingest: true, replace: false,
-    profile: true, header: true,                      // structured  (csv/json/parquet)
-    docMeta: true, summaries: false, classification: false,  // unstructured (pdf/docx/txt)
+    profile: true,                                     // databases -> Data Profiling
+    discover: true, profileFiles: true, header: true, docMeta: true,  // object stores
+    skipDays: 0,                                       // 0 = no age restriction
   })
   const [msg, setMsg] = useState('')
   const [running, setRunning] = useState(false)
@@ -473,9 +475,9 @@ function BulkLoadCard({ pdc, onConnectionsChanged }) {
     const payload = {
       ...pdcAuthBody(pdc), csv, dry_run: !!dry,
       options: { ingest: opts.ingest, wait: true, replace_existing: opts.replace,
-                 profile: opts.profile, header_row: opts.header,
-                 doc_metadata: opts.docMeta, summaries: opts.summaries,
-                 classification: opts.classification },
+                 profile: opts.profile, discover: opts.discover,
+                 profile_files: opts.profileFiles, header_row: opts.header,
+                 doc_metadata: opts.docMeta, skip_recent_days: opts.skipDays },
     }
     try {
       const result = await runJob('bulk-load', payload, (job) => {
@@ -580,27 +582,33 @@ function BulkLoadCard({ pdc, onConnectionsChanged }) {
       </div>
 
       <div className="bl-opts">
-        <span className="bl-optlbl" title="Files with columns — csv, json, parquet — and a database's tables.">Structured</span>
-        <label className="check" title="After the ingest, run PDC's analysis job per source type — Data Profiling over a database's tables (distributions, uniqueness, patterns), Data Discovery over an object store's files. For an object store this also runs the file scan first (PDC's own Scan Files call), since Discovery analyses what that scan catalogs. Adds a few minutes per source. CSV column: profile">
+        <span className="bl-optlbl" title="Database sources — PDC runs Data Profiling over their tables.">Structured</span>
+        <label className="check" title="Run PDC's Data Profiling over a database's tables after the ingest — distributions, uniqueness, patterns: the evidence the glossary's data-quality and identification work is built on. Adds a few minutes per source. CSV column: profile">
           <input type="checkbox" checked={opts.profile}
-                 onChange={(e) => setOpts({ ...opts, profile: e.target.checked })} /> profile / discover</label>
-        <label className="check" title="Read each structured file's first row as column names. Off, PDC treats it as data and names the columns Column-0, Column-1, … — which looks like real structure but is not. Databases carry their own column names. CSV column: header">
-          <input type="checkbox" checked={opts.header}
-                 onChange={(e) => setOpts({ ...opts, header: e.target.checked })} /> first row is a header</label>
+                 onChange={(e) => setOpts({ ...opts, profile: e.target.checked })} /> profile</label>
       </div>
 
       <div className="bl-opts">
-        <span className="bl-optlbl" title="Documents with no columns to profile — pdf, docx, txt, rtf.">Unstructured</span>
-        <label className="check" title="Extract each document's own properties — owner, page count, paragraph count. CSV column: docMetadata">
-          <input type="checkbox" checked={opts.docMeta}
+        <span className="bl-optlbl" title="Object-store sources — PDC runs Data Discovery over their files. A bucket holds both documents and structured files, so the options below apply within this pass.">Unstructured</span>
+        <label className="check" title="Run PDC's Data Discovery over an object store's files, which also runs the file scan first (PDC's own Scan Files call) since Discovery analyses what that scan catalogs. CSV column: discover">
+          <input type="checkbox" checked={opts.discover}
+                 onChange={(e) => setOpts({ ...opts, discover: e.target.checked })} /> discover</label>
+        <label className="check" title="PDC's 'Profile structured and semi-structured files' — read the columns of the csv/json/parquet files inside the bucket. Off, they are catalogued with no columns at all. CSV column: profileFiles">
+          <input type="checkbox" checked={opts.profileFiles} disabled={!opts.discover}
+                 onChange={(e) => setOpts({ ...opts, profileFiles: e.target.checked })} /> profile files</label>
+        <label className="check" title="Treat each structured file's first row as column names. Off, PDC reads it as data and names the columns Column-0, Column-1, … — which looks like real structure but is not. CSV column: header">
+          <input type="checkbox" checked={opts.header} disabled={!opts.discover || !opts.profileFiles}
+                 onChange={(e) => setOpts({ ...opts, header: e.target.checked })} /> first row is a header</label>
+        <label className="check" title="Extract each document's own properties — owner, page count, paragraph count. Office and PDF files. CSV column: docMetadata">
+          <input type="checkbox" checked={opts.docMeta} disabled={!opts.discover}
                  onChange={(e) => setOpts({ ...opts, docMeta: e.target.checked })} /> document metadata</label>
-        <label className="check" title="Generate a short summary and a sentiment label per document, shown on the asset's Summary tab. Costs time per file. CSV column: summaries">
-          <input type="checkbox" checked={opts.summaries}
-                 onChange={(e) => setOpts({ ...opts, summaries: e.target.checked })} /> summaries</label>
-        <label className="check" title="PDC's Data Classification assigns BUSINESS TERMS — which do not exist until this app's glossary has been built and applied, from the very profile this scan produces. On a first pass it can only mark everything unclassified. Run it as a second, deliberate pass over documents once terms exist. CSV column: classification">
-          <input type="checkbox" checked={opts.classification}
-                 onChange={(e) => setOpts({ ...opts, classification: e.target.checked })} /> classification
-          <span className="bl-secondpass">second pass</span></label>
+        <label className="check bl-days" title="PDC's 'Files Modified / Accessed More Than N Day(s) Ago'. 0 scans everything. Raise it to skip files touched recently — a landing area still being written to, for instance. CSV column: skipRecentDays">
+          skip files newer than
+          <input type="number" min="0" max="365" value={opts.skipDays} disabled={!opts.discover}
+                 onChange={(e) => setOpts({ ...opts, skipDays: Math.max(0, Number(e.target.value) || 0) })}
+                 aria-label="Skip files newer than this many days" />
+          days
+        </label>
       </div>
 
       {msg && <p className="summary">{msg}</p>}

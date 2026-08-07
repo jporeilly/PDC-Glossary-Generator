@@ -143,9 +143,13 @@ span.mini i { display: block; height: 100%; background: var(--accent); }
   font-size: .72rem; font-weight: 650; letter-spacing: .06em;
   text-transform: uppercase; color: var(--text-muted);
 }
-/* classification is the one option that must NOT be ticked on a first load */
-.bl-secondpass {
-  margin-left: .35rem; font-size: .64rem; font-weight: 700; letter-spacing: .04em;
-  text-transform: uppercase; color: var(--status-warning);
-  border: 1px solid var(--status-warning); border-radius: 4px; padding: 0 .28rem;
+/* the day filter reads as a sentence, so the number sits inline */
+.bl-days { gap: .35rem; }
+.bl-days input[type="number"] {
+  width: 3.6rem; padding: .18rem .35rem; font-size: .8rem;
+  font-variant-numeric: tabular-nums; text-align: right;
 }
+/* an option that depends on a switch above it should look inert when that
+   switch is off, rather than clickable-but-ignored */
+.bl-opts .check input:disabled { cursor: not-allowed; }
+.bl-opts .check:has(input:disabled) { opacity: .45; }

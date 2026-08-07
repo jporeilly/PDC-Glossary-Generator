@@ -55,6 +55,28 @@ def row_flag(row, name, default):
     return bool(default)      # unreadable value: the default, never a silent False
 
 
+def row_int(row, name, default):
+    """Read an optional per-row integer from the CSV, falling back to the default.
+
+       Same contract as row_flag: blank, missing or unparseable means "not
+       specified", so a value of 0 (which is meaningful - no age restriction) is
+       never confused with an empty cell.
+    """
+    if row is None:
+        return default
+    raw = row.get(name)
+    if raw is None:
+        return default
+    s = str(raw).strip()
+    if not s:
+        return default
+    try:
+        n = int(float(s))
+    except (TypeError, ValueError):
+        return default
+    return n if n >= 0 else default
+
+
 def _split_list(v):
     """'a;b , c' -> ['a','b','c'];  list -> list;  blank -> []."""
     if isinstance(v, (list, tuple)):
@@ -212,8 +234,8 @@ _SCAN_PROFILE_DEFAULTS = {
 
 
 def internal_scan_files(base_url, token, data_body, verify_tls=True, timeout=30,
-                        profile_files=True, header_row=True,
-                        doc_metadata=True, summaries=False, classification=False):
+                        profile_files=True, header_row=True, doc_metadata=True,
+                        skip_recent_days=0):
     """EXPERIMENTAL / UNSUPPORTED: trigger an object-store file scan via PDC's INTERNAL
        UI endpoint (POST /api/start-job) — the call the web app's "Scan Files" button
        makes. It is NOT part of the public API: no /public/, no version, undocumented,
@@ -269,19 +291,27 @@ def internal_scan_files(base_url, token, data_body, verify_tls=True, timeout=30,
     # Explicit arguments win over the defaults above, so a caller can scan
     # metadata only, or handle a headerless CSV, without editing this table.
     #
-    # STRUCTURED (csv/json/parquet): the file has columns, and the two switches
-    # that matter are whether to read them and whether row 1 names them.
+    # These are options ON the object store's scan, which is Data Discovery's
+    # pass - not a separate category. A bucket holds both kinds of file:
+    #   withProfile   read the columns of the structured ones (csv/json/parquet)
+    #   headerExists  treat row 1 as their column names
+    #   withDocMetadata  the documents' own properties (owner, page count)
     data_body["withProfile"] = bool(profile_files)
     data_body["headerExists"] = bool(header_row)
-    # UNSTRUCTURED (pdf/docx/txt): no columns to profile; what is worth having is
-    # the document's own properties, optionally a summary. classification stays
-    # off by default and on purpose - it assigns BUSINESS TERMS, which do not
-    # exist until the glossary this app builds has been applied, so on a first
-    # pass it can only mark everything unclassified. Enable it on a SECOND,
-    # deliberate pass over documents once terms exist.
     data_body["withDocMetadata"] = bool(doc_metadata)
-    data_body["summarizeDocuments"] = bool(summaries)
-    data_body["classification"] = bool(classification)
+    # "Files Modified / Accessed More Than N Day(s) Ago" - the dialog's two
+    # sliders, whose default is 0 = no age restriction. Raise it to skip files
+    # touched recently, e.g. a landing area still being written to.
+    _days = max(0, int(skip_recent_days or 0))
+    data_body["filesModifiedLaterThanDays"] = _days
+    data_body["filesAccessedLaterThanDays"] = _days
+    # NOT exposed, and pinned off: summarizeDocuments, addressDetection and
+    # classification all require ML to be configured, and a switch that silently
+    # does nothing is worse than no switch. classification additionally cannot
+    # work on a first pass - it assigns BUSINESS TERMS that do not exist until
+    # this app's glossary has been applied. Both are a deliberate second pass,
+    # run from PDC's own UI once ML is set up. _SCAN_PROFILE_DEFAULTS holds them
+    # false; nothing here turns them on.
     body = {"name": "METADATA_INGEST", "type": "START", "data": data_body}
     out = _req("POST", url, token=token, body=body, verify_tls=verify_tls, timeout=timeout)
     d = out.get("data", out) if isinstance(out, dict) else {}
@@ -505,8 +535,9 @@ def find_existing_data_source(base_url, token, resource_name, version="v2",
 def bulk_load_one(base_url, token, row, version="v2", verify_tls=True, timeout=30,
                   do_test=False, do_ingest=True, wait=True,
                   poll_wait=3.0, max_wait=300, skip_existing=True, replace_existing=False,
-                  internal_scan=False, do_profile=False, header_row=True,
-                  doc_metadata=True, summaries=False, classification=False):
+                  internal_scan=False, do_profile=False, do_discover=False,
+                  profile_files=True, header_row=True, doc_metadata=True,
+                  skip_recent_days=0):
     """Process a single row: create the data source, then trigger the metadata
        re-ingest job scoped to the new record and (optionally) poll it to a
        terminal state. Never raises for a row-level failure — returns a result
@@ -583,9 +614,17 @@ def bulk_load_one(base_url, token, row, version="v2", verify_tls=True, timeout=3
 
         _kind = str(row.get("kind") or "").strip().lower()
         _is_object_store = _kind in ("minio", "s3", "aws_s3") or body.get("databaseType") == "AWS"
-        # The row's own answer, where it gives one. Resolved once so the scan
-        # gate, the scan body and the profiling step below cannot disagree.
-        _row_profile = row_flag(row, "profile", do_profile)
+        # Split by SOURCE TYPE, which is how PDC divides it: a database's tables
+        # go through Data Profiling, an object store's files through Data
+        # Discovery. One analysis switch per kind, resolved once so the scan
+        # gate, the scan body and the analysis step below cannot disagree.
+        _row_profile = row_flag(row, "profile", do_profile)         # databases
+        _row_discover = row_flag(row, "discover", do_discover)      # object stores
+        _row_analyse = _row_discover if _is_object_store else _row_profile
+        _row_pfiles = row_flag(row, "profileFiles", profile_files)
+        _row_header = row_flag(row, "header", header_row)
+        _row_docmeta = row_flag(row, "docMetadata", doc_metadata)
+        _row_days = row_int(row, "skipRecentDays", skip_recent_days)
         if do_ingest and _is_object_store:
             # An object store's files reach the catalog ONLY through the file
             # scan, and Data Discovery analyses what that scan produced — so
@@ -593,7 +632,7 @@ def bulk_load_one(base_url, token, row, version="v2", verify_tls=True, timeout=3
             # nothing. The public API doesn't expose the trigger, so this uses
             # PDC's internal /api/start-job (the UI's own Scan Files call) with
             # the same bearer token.
-            if internal_scan or _row_profile:
+            if internal_scan or _row_discover:
                 # PDC's internal /api/start-job — the UI's Scan Files call.
                 data = dict(body)
                 data["resourceId"] = rec["resourceId"]
@@ -614,11 +653,10 @@ def bulk_load_one(base_url, token, row, version="v2", verify_tls=True, timeout=3
                     # means "use the default", never False.
                     jr = internal_scan_files(
                         base_url, token, data, verify_tls, timeout,
-                        profile_files=_row_profile,
-                        header_row=row_flag(row, "header", header_row),
-                        doc_metadata=row_flag(row, "docMetadata", doc_metadata),
-                        summaries=row_flag(row, "summaries", summaries),
-                        classification=row_flag(row, "classification", classification))
+                        profile_files=_row_pfiles,
+                        header_row=_row_header,
+                        doc_metadata=_row_docmeta,
+                        skip_recent_days=_row_days)
                     rec["jobId"] = jr["job_id"]
                     ingest_ok = True
                     rec["ingest"] = "OK"
@@ -673,7 +711,7 @@ def bulk_load_one(base_url, token, row, version="v2", verify_tls=True, timeout=3
         # object stores skip the ingest (no public file-scan trigger), so gate on
         # a good create instead: Data Discovery still runs over whatever files a
         # previous Scan Files put in the catalog.
-        if _row_profile and create_ok and rec["job"] in ("OK", "SENT", "SKIP", "TIMEOUT"):
+        if _row_analyse and create_ok and rec["job"] in ("OK", "SENT", "SKIP", "TIMEOUT"):
             try:
                 pr = profile_source(base_url, token, rec["resourceName"], version,
                                     verify_tls, timeout, wait=wait,

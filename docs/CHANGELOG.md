@@ -14,6 +14,51 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.36.11] - 2026-08-07
+
+### Changed - the option rows now split by SOURCE TYPE, as PDC does
+
+1.36.10 split them by file kind, which was the wrong axis. PDC divides the work
+by what the SOURCE is:
+
+| Row | PDC job | Applies to |
+| --- | --- | --- |
+| **Structured** — `profile` | Data Profiling | a database's tables |
+| **Unstructured** — `discover` | Data Discovery | an object store's files |
+
+The file-level switches are options **on** the discovery pass, not a category of
+their own - which is where PDC's own Configure Process dialog puts them, and
+where the code already drew the line (`job = "data-discovery" if object_store`).
+A bucket holds documents and csv files together, so one scan carries both:
+
+    STRUCTURED    profile
+    UNSTRUCTURED  discover · profile files · first row is a header
+                  document metadata · skip files newer than [n] days
+
+`profile files` is PDC's "Profile structured and semi-structured files"
+(`withProfile`). The four options beneath `discover` grey out when it is
+unticked, so nothing looks clickable but ignored.
+
+### Removed - the ML-dependent options
+
+`summaries`, `address detection` and `classification` all require ML to be
+configured. Offering a switch that silently does nothing is worse than offering
+none, so they are gone from the UI and the CSV, and pinned false in the scan
+body. Run them deliberately from PDC's own UI once ML is set up - which is also
+the right moment for classification, since it assigns business terms that do not
+exist until this app's glossary has been applied.
+
+### Added - skipRecentDays
+
+PDC's "Files Modified / Accessed More Than N Day(s) Ago" sliders, as a number on
+the Unstructured row and a `skipRecentDays` CSV column. 0 scans everything;
+raise it to skip a landing area still being written to. `row_int` reads it with
+the same contract as `row_flag` - blank, missing and unparseable all mean "use
+the default", so a meaningful **0** is never confused with an empty cell.
+
+CSV columns are now `profile`, `discover`, `profileFiles`, `header`,
+`docMetadata`, `skipRecentDays`; `datasources.sample.csv` ships all three shapes.
+
 ## [1.36.10] - 2026-08-07
 
 ### Added - structured and unstructured files get their own scan options
