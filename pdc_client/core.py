@@ -3,6 +3,7 @@ import json
 import re
 import ssl
 import os
+import socket
 import urllib.request
 import urllib.parse
 import urllib.error
@@ -123,6 +124,27 @@ def _req(method, url, token=None, body=None, headers=None, verify_tls=True,
             if raw.lstrip()[:1] == "<" and "/protocol/openid-connect/auth" in raw:
                 raise TokenExpired("redirected to the Keycloak login — token missing or expired")
             return json.loads(raw) if raw.strip() else {}
+    except urllib.error.URLError as e:
+        # Reached before any HTTP happened: DNS, TLS or a refused connection.
+        # Reporting these as "auth failed" is how a hosts-file entry missing on
+        # one machine became an afternoon of checking realms and passwords.
+        reason = getattr(e, "reason", e)
+        host = urllib.parse.urlsplit(url).hostname or url
+        if isinstance(e, urllib.error.HTTPError):
+            raise
+        if isinstance(reason, socket.gaierror):
+            raise RuntimeError(
+                "Cannot resolve {host!r} - this is DNS, not authentication, so "
+                "nothing was ever sent. Check the spelling, and remember a lab "
+                "vhost usually only resolves on machines carrying the hosts-file "
+                "entry for it: a laptop without that entry reaches whatever the "
+                "PUBLIC internet has at that name instead.".format(host=host))
+        if isinstance(reason, (ConnectionRefusedError, TimeoutError, socket.timeout)):
+            raise RuntimeError(
+                "{host} resolved but did not answer ({reason}) - the name is "
+                "right and the service is not listening, or a firewall is in "
+                "the way. Credentials are not involved.".format(host=host, reason=reason))
+        raise RuntimeError("Could not reach {host}: {reason}".format(host=host, reason=reason))
     except urllib.error.HTTPError as e:
         detail = ""
         try:

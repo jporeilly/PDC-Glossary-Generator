@@ -14,6 +14,41 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.36.2] - 2026-08-07
+
+### Fixed - network failures reported themselves as authentication failures
+
+    Keycloak auth failed: <urlopen error [Errno 11001] getaddrinfo failed>
+
+DNS. Nothing was sent, nothing authenticated, and the message pointed at
+Keycloak. Only `HTTPError` was caught, so every `URLError` - name resolution,
+refused connection, timeout - surfaced through a caller that assumed the failure
+was about credentials.
+
+Each now names itself, and says what it is NOT:
+
+- **Cannot resolve** - "this is DNS, not authentication, so nothing was ever
+  sent", plus the reason a lab vhost commonly fails on one machine and not
+  another: it resolves only where the hosts-file entry exists.
+- **Resolved but no answer** - "the name is right and the service is not
+  listening, or a firewall is in the way. Credentials are not involved."
+
+### Worth recording: a lab vhost on a domain somebody else owns
+
+The lab reaches PDC as `https://pentaho.io` through a hosts-file entry
+(`192.168.1.200 pentaho.io`). That domain is registered to Hitachi Vantara, so a
+machine WITHOUT the entry resolves the real public site - and the auth request
+carries a username and password in its body. A workshop laptop missing that
+entry does not merely fail; it posts lab credentials to a third party. It was
+refused by that site's WAF (Cloudflare error 1010), which is luck, not design.
+
+A name nobody owns - `pdc.internal`, `pdc.lab` - fails closed instead: no
+resolution, nothing sent.
+
+### Tests
+
+204.
+
 ## [1.36.1] - 2026-08-07
 
 ### Fixed - "Keycloak auth failed" when Keycloak never saw the request
