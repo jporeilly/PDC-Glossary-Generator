@@ -327,6 +327,36 @@ if ($anyHosted) {
     Report "Hosted LLM providers" "SKIP" "not configured - using Ollama"
 }
 
+# -- Cloudflare Access --------------------------------------------------------
+# Presence only, never the values.
+#
+# A service token is the only way a NON-BROWSER client gets through Access:
+# authenticating in a browser sets a cookie on that browser session, and the app
+# is a separate HTTP client that cannot complete an interactive login.
+#
+# The trap this checks for: the app is launched from the Start menu, so it
+# inherits nothing from a PowerShell session. "$env:CF_ACCESS_CLIENT_ID = ..."
+# in a terminal reaches only that terminal - the variables must be PERSISTENT
+# (setx, or System Properties > Environment Variables) and the app restarted.
+$cfId  = [Environment]::GetEnvironmentVariable("CF_ACCESS_CLIENT_ID", "User")
+if (-not $cfId) { $cfId = [Environment]::GetEnvironmentVariable("CF_ACCESS_CLIENT_ID", "Machine") }
+$cfSec = [Environment]::GetEnvironmentVariable("CF_ACCESS_CLIENT_SECRET", "User")
+if (-not $cfSec) { $cfSec = [Environment]::GetEnvironmentVariable("CF_ACCESS_CLIENT_SECRET", "Machine") }
+
+$sessionOnly = ($env:CF_ACCESS_CLIENT_ID -and -not $cfId)
+
+if ($cfId -and $cfSec) {
+    Report "Cloudflare Access token" "OK" "service token set for this user/machine"
+} elseif ($sessionOnly) {
+    Report "Cloudflare Access token" "WARN" "set in THIS shell only - the app will not see it" `
+        "setx CF_ACCESS_CLIENT_ID `"<id>.access`"; setx CF_ACCESS_CLIENT_SECRET `"<secret>`"  (then restart the app)"
+} elseif ($cfId -or $cfSec) {
+    Report "Cloudflare Access token" "WARN" "only half the pair is set - both are required" `
+        "set whichever of CF_ACCESS_CLIENT_ID / CF_ACCESS_CLIENT_SECRET is missing"
+} else {
+    Report "Cloudflare Access token" "SKIP" "not configured - only needed if PDC sits behind Cloudflare Access"
+}
+
 # -- PDC ---------------------------------------------------------------------
 Say ""
 Say "  Pentaho Data Catalog (optional at install time)" "Cyan"

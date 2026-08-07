@@ -14,6 +14,39 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.36.3] - 2026-08-07
+
+### Added - the environment check reports the Cloudflare Access token
+
+Including the trap that makes it look configured when it is not.
+
+`$env:CF_ACCESS_CLIENT_ID = "..."` in a PowerShell session reaches **only that
+session**. The app launches from the Start menu and inherits nothing from it, so
+the variables are set, the operator can see them, and the app still gets
+nothing. The check distinguishes the two and prints the fix:
+
+    [WARN] Cloudflare Access token   set in THIS shell only - the app will not see it
+      setx CF_ACCESS_CLIENT_ID "<id>.access"; setx CF_ACCESS_CLIENT_SECRET "<secret>"
+
+Half a pair is reported too - both headers are required and one alone is a
+misconfiguration rather than a partial credential. Presence only; the values are
+never printed.
+
+### Why one URL behaved two ways
+
+Worth recording, because it took three wrong theories to get to it. `pentaho.io`
+resolves differently per machine:
+
+- the development machine has a **hosts entry** (`192.168.1.200 pentaho.io`), so
+  it reaches the lab VM directly and never touches Cloudflare;
+- a clean laptop resolves the **public record**, which goes through Cloudflare
+  Access.
+
+Same URL, same app, two entirely different network paths - and therefore two
+unrelated failures (edge refusal on one machine, nothing at all on the other)
+that both surfaced as "Keycloak auth failed". A service token is needed only on
+the second path.
+
 ## [1.36.2] - 2026-08-07
 
 ### Fixed - network failures reported themselves as authentication failures
