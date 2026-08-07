@@ -162,7 +162,11 @@ def _req(method, url, token=None, body=None, headers=None, verify_tls=True,
                 "credentials are not the problem. Allow this client in the "
                 "Cloudflare WAF (match the User-Agent {ua!r}, or skip Browser "
                 "Integrity Check for the API paths), or reach PDC on an address "
-                "that bypasses Cloudflare. URL: {url}".format(
+                "that bypasses Cloudflare. If this is Cloudflare ACCESS, a "
+                "browser login does not help a non-browser client: add a Bypass "
+                "policy for this network's egress IP, or create a service token "
+                "and set CF_ACCESS_CLIENT_ID / CF_ACCESS_CLIENT_SECRET. "
+                "URL: {url}".format(
                     code=cf, ua=USER_AGENT, url=url))
         if e.code == 401:
             raise TokenExpired(detail or "401 Unauthorized")

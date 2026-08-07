@@ -366,7 +366,7 @@ if ($cfId -and $cfSec -and $looksTemplated) {
     Report "Cloudflare Access token" "WARN" "only half the pair is set - both are required" `
         "set whichever of CF_ACCESS_CLIENT_ID / CF_ACCESS_CLIENT_SECRET is missing"
 } else {
-    Report "Cloudflare Access token" "SKIP" "not configured - only needed if PDC sits behind Cloudflare Access"
+    Report "Cloudflare Access token" "SKIP" "not set - fine when PDC is reached directly, or via an Access Bypass policy"
 }
 
 # -- PDC ---------------------------------------------------------------------
