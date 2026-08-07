@@ -33,17 +33,18 @@ Each now names itself, and says what it is NOT:
 - **Resolved but no answer** - "the name is right and the service is not
   listening, or a firewall is in the way. Credentials are not involved."
 
-### Worth recording: a lab vhost on a domain somebody else owns
+### Worth recording: the lab vhost only resolves where the hosts entry exists
 
 The lab reaches PDC as `https://pentaho.io` through a hosts-file entry
-(`192.168.1.200 pentaho.io`). That domain is registered to Hitachi Vantara, so a
-machine WITHOUT the entry resolves the real public site - and the auth request
-carries a username and password in its body. A workshop laptop missing that
-entry does not merely fail; it posts lab credentials to a third party. It was
-refused by that site's WAF (Cloudflare error 1010), which is luck, not design.
+(`192.168.1.200 pentaho.io`) on the development machine. The domain is the
+author's own, so nothing is being sent anywhere unexpected - but the entry is
+per-machine, and a workshop laptop without it resolves the PUBLIC record
+instead of the lab VM. That is why the same URL reached the lab here and a
+Cloudflare edge there.
 
-A name nobody owns - `pdc.internal`, `pdc.lab` - fails closed instead: no
-resolution, nothing sent.
+For a laptop, either add the hosts entry or use a name that reaches the VM from
+that network. A bare IP will not do: PDC routes by vhost and answers 401 on
+every path.
 
 ### Tests
 
