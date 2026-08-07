@@ -161,6 +161,52 @@ class TestObjectStoreFolderTypes:
             assert t in ent._TBL_TYPES and t in ent._FILE_TYPES
 
 
+class TestFileScanProfilesStructuredFiles:
+    """PDC defaults withProfile and headerExists to FALSE on a file system scan.
+
+    Sending no value inherits that, and the result LOOKS like success: the files
+    are catalogued, every badge reads OK, and the CSVs have either no columns at
+    all or columns called Column-0..Column-N because the header row was read as
+    data. Keys confirmed against a real job record (jobType "File System Scan",
+    schemaId "file_system_scan").
+    """
+
+    def test_the_scan_asks_for_a_profile_and_a_header(self):
+        from pdc_client import bulkload
+        d = bulkload._SCAN_PROFILE_DEFAULTS
+        assert d["withProfile"] is True
+        assert d["headerExists"] is True
+
+    def test_classification_stays_off(self):
+        """It assigns BUSINESS TERMS, which do not exist until this app has built
+           the glossary - from the very profile this scan produces. On a first
+           pass it can only mark everything unclassified."""
+        from pdc_client import bulkload
+        d = bulkload._SCAN_PROFILE_DEFAULTS
+        assert d["classification"] is False
+        assert d["addressDetection"] is False
+
+    def test_the_caller_can_override_both(self):
+        from pdc_client import bulkload
+        sent = {}
+
+        def fake_req(method, url, token=None, body=None, **kw):
+            sent.update(body or {})
+            return {"data": {"jobId": "j1"}}
+
+        real = bulkload._req
+        bulkload._req = fake_req
+        try:
+            bulkload.internal_scan_files("https://pdc.example", "t", {"resourceId": "r"},
+                                         profile_files=False, header_row=False)
+        finally:
+            bulkload._req = real
+        data = sent["data"]
+        assert data["withProfile"] is False, "a metadata-only scan must stay metadata-only"
+        assert data["headerExists"] is False, "a headerless CSV must be scannable"
+        assert sent["name"] == "METADATA_INGEST"
+
+
 class TestHttpErrorsKeepTheirDetail:
     """HTTPError SUBCLASSES URLError, and Python matches except clauses in order.
 

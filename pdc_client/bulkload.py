@@ -163,13 +163,46 @@ def build_data_source_body(row):
     return _nonempty(body)
 
 
-def internal_scan_files(base_url, token, data_body, verify_tls=True, timeout=30):
+# The scan's profiling switches, read off a real job record from PDC's own
+# "Configure Process" dialog (jobType "File System Scan", schemaId
+# "file_system_scan"). PDC defaults withProfile and headerExists to FALSE, and
+# sending no value inherits that - which catalogues every CSV with no columns,
+# or with columns named Column-0..Column-N because the header row was read as
+# data. Both are the wrong answer for a structured file, so both are set here.
+#
+# classification stays FALSE deliberately, and that is not timidity: PDC's
+# classifier assigns BUSINESS TERMS, which do not exist until this app has built
+# the glossary - and it builds it from the very profile this scan produces.
+# Enabling it on a first pass can only mark everything unclassified. Once the
+# glossary is applied, a second deliberate pass with classification on is worth
+# running over UNSTRUCTURED documents, where there are no column names to reason
+# from. Structured files never need it: the app assigns their terms directly.
+_SCAN_PROFILE_DEFAULTS = {
+    "withProfile": True,        # "Profile structured and semi-structured files"
+    "headerExists": True,       # "Treat first row as header"
+    "withChecksum": True,       # "Compute checksum of document content"
+    "withDocMetadata": True,    # owner, page count, paragraph count
+    "classification": False,    # needs business terms that do not exist yet
+    "addressDetection": False,  # same dependency: it tags a term you must supply
+    "summarizeDocuments": False,
+}
+
+
+def internal_scan_files(base_url, token, data_body, verify_tls=True, timeout=30,
+                        profile_files=True, header_row=True):
     """EXPERIMENTAL / UNSUPPORTED: trigger an object-store file scan via PDC's INTERNAL
        UI endpoint (POST /api/start-job) — the call the web app's "Scan Files" button
        makes. It is NOT part of the public API: no /public/, no version, undocumented,
        and it may change or break between PDC releases. Gated behind an explicit toggle.
        Body shape (from the UI capture): {name:"METADATA_INGEST", type:"START", data:{…}}."""
     url = clean_base(base_url) + "/api/start-job"
+    data_body = dict(data_body or {})
+    for k, v in _SCAN_PROFILE_DEFAULTS.items():
+        data_body.setdefault(k, v)
+    # Explicit arguments win over the defaults above, so a caller can scan
+    # metadata only, or handle a headerless CSV, without editing this table.
+    data_body["withProfile"] = bool(profile_files)
+    data_body["headerExists"] = bool(header_row)
     body = {"name": "METADATA_INGEST", "type": "START", "data": data_body}
     out = _req("POST", url, token=token, body=body, verify_tls=verify_tls, timeout=timeout)
     d = out.get("data", out) if isinstance(out, dict) else {}
@@ -393,7 +426,7 @@ def find_existing_data_source(base_url, token, resource_name, version="v2",
 def bulk_load_one(base_url, token, row, version="v2", verify_tls=True, timeout=30,
                   do_test=False, do_ingest=True, wait=True,
                   poll_wait=3.0, max_wait=300, skip_existing=True, replace_existing=False,
-                  internal_scan=False, do_profile=False):
+                  internal_scan=False, do_profile=False, header_row=True):
     """Process a single row: create the data source, then trigger the metadata
        re-ingest job scoped to the new record and (optionally) poll it to a
        terminal state. Never raises for a row-level failure — returns a result
@@ -487,7 +520,11 @@ def bulk_load_one(base_url, token, row, version="v2", verify_tls=True, timeout=3
                 data.setdefault("deleteEmptyFolders", False)
                 data.setdefault("incremental", False)
                 try:
-                    jr = internal_scan_files(base_url, token, data, verify_tls, timeout)
+                    # The scan is what profiles a structured file, so the profile
+                    # switch belongs here - not only on the Discovery job after it.
+                    jr = internal_scan_files(base_url, token, data, verify_tls, timeout,
+                                             profile_files=bool(do_profile),
+                                             header_row=bool(header_row))
                     rec["jobId"] = jr["job_id"]
                     ingest_ok = True
                     rec["ingest"] = "OK"

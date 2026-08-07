@@ -14,6 +14,44 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.36.7] - 2026-08-07
+
+### Fixed - the file scan never asked PDC to profile the files
+
+An object store loaded through the bulk loader ended up in PDC with its CSVs
+catalogued and **no columns** - or columns named `Column-0 … Column-9`, which
+looks like real structure and is not. Every badge read OK.
+
+PDC's file system scan defaults **`withProfile: false`** and
+**`headerExists: false`**, and the loader sent neither, so it inherited both.
+Confirmed against a real job record from PDC's own Configure Process dialog
+(`jobType: "File System Scan"`, `schemaId: "file_system_scan"`):
+
+| Dialog checkbox | Parameter |
+| --- | --- |
+| Profile structured and semi-structured files | `withProfile` |
+| Treat first row as header | `headerExists` |
+| Compute checksum of document content | `withChecksum` |
+| Document Metadata | `withDocMetadata` |
+
+The switches belong on the **scan**, not on the Data Discovery job that follows
+it - the scan reads the files; the aggregation stage after it only rolls up what
+the scan produced. Both are now set explicitly, with **first row is a header**
+exposed on the bulk load card (defaulted on) so a headerless CSV stays scannable.
+
+### Why classification stays off
+
+PDC's Data Classification assigns **business terms** - which do not exist until
+this app has built the glossary, and it builds it from the very profile this
+scan produces. Enabled on a first pass it can only mark everything unclassified,
+leaving a pile to resolve by hand. PDC itself defaults it off.
+
+The order that works: scan and profile, let the app generate the glossary and
+apply it, and only then - if wanted - run a second, deliberate Discovery pass
+with classification on over **unstructured** documents, where there are no column
+names to reason from. Structured files never need it; the app assigns their terms
+directly, with the profile evidence behind each one.
+
 ## [1.36.6] - 2026-08-07
 
 ### Fixed - every HTTP error had been reduced to "HTTP Error 400: Bad Request"

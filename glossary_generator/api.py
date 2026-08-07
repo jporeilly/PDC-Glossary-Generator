@@ -2402,6 +2402,10 @@ def _bulk_load_events(body):
     replace_existing = bool(opts.get("replace_existing", False))
     internal_scan = bool(opts.get("internal_scan", False))
     do_profile = bool(opts.get("profile", False))
+    # Defaults TRUE: a CSV in an object store almost always carries a header, and
+    # scanning without it names the columns Column-0..Column-N, which is worse
+    # than useless - it looks like real structure.
+    header_row = bool(opts.get("header_row", True))
     dry_run = bool(body.get("dry_run", False))
 
     rows = body.get("rows")
@@ -2456,7 +2460,8 @@ def _bulk_load_events(body):
                                         do_ingest=do_ingest, wait=wait,
                                         replace_existing=replace_existing,
                                         internal_scan=internal_scan,
-                                        do_profile=do_profile)
+                                        do_profile=do_profile,
+                                        header_row=header_row)
         except pdc_api.TokenExpired:
             if reauth:
                 try:
@@ -2466,7 +2471,8 @@ def _bulk_load_events(body):
                                                 do_ingest=do_ingest, wait=wait,
                                                 replace_existing=replace_existing,
                                                 internal_scan=internal_scan,
-                                        do_profile=do_profile)
+                                                do_profile=do_profile,
+                                                header_row=header_row)
                 except Exception as e:
                     rec = {"resourceName": name, "create": "FAIL",
                            "error": "re-auth/retry failed: %s" % str(e)[:240]}

@@ -398,7 +398,7 @@ function BulkLoadCard({ pdc, onConnectionsChanged }) {
   // still reads OK. The sibling database form (DB_DEFAULTS) has always
   // defaulted profile true; these two are the same word on the same page and
   // disagreeing on it is what made this hard to spot.
-  const [opts, setOpts] = useState({ ingest: true, replace: false, profile: true })
+  const [opts, setOpts] = useState({ ingest: true, replace: false, profile: true, header: true })
   const [msg, setMsg] = useState('')
   const [running, setRunning] = useState(false)
   const [progress, setProgress] = useState(null)   // {done, total}
@@ -464,7 +464,8 @@ function BulkLoadCard({ pdc, onConnectionsChanged }) {
     setMsg(dry ? 'Building payloads…' : 'Loading… creating, testing and ingesting each source.')
     const payload = {
       ...pdcAuthBody(pdc), csv, dry_run: !!dry,
-      options: { ingest: opts.ingest, wait: true, replace_existing: opts.replace, profile: opts.profile },
+      options: { ingest: opts.ingest, wait: true, replace_existing: opts.replace,
+                 profile: opts.profile, header_row: opts.header },
     }
     try {
       const result = await runJob('bulk-load', payload, (job) => {
@@ -556,6 +557,9 @@ function BulkLoadCard({ pdc, onConnectionsChanged }) {
         <label className="check" title="After the ingest, run PDC's analysis job per source type — Data Profiling over a database's tables (distributions, uniqueness, patterns), Data Discovery over an object store's files. For an object store this also runs the file scan first (PDC's own Scan Files call), since Discovery analyses what that scan catalogs. Adds a few minutes per source.">
           <input type="checkbox" checked={opts.profile}
                  onChange={(e) => setOpts({ ...opts, profile: e.target.checked })} /> profile / discover</label>
+        <label className="check" title="Read each structured file's first row as column names. Off, PDC treats it as data and names the columns Column-0, Column-1, … — which looks like real structure but is not. Applies to the object-store file scan; databases carry their own column names.">
+          <input type="checkbox" checked={opts.header}
+                 onChange={(e) => setOpts({ ...opts, header: e.target.checked })} /> first row is a header</label>
         <span style={{ flex: 1 }} />
         <button className="ghost" disabled={running} onClick={() => run(true)}>Dry run</button>
         <button className="primary" disabled={running} onClick={() => run(false)}>Create &amp; ingest →</button>
