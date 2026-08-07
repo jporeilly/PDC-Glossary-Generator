@@ -199,6 +199,49 @@ def internal_scan_files(base_url, token, data_body, verify_tls=True, timeout=30,
     data_body = dict(data_body or {})
     for k, v in _SCAN_PROFILE_DEFAULTS.items():
         data_body.setdefault(k, v)
+
+    # OPEN BUG - an object-store scan started here enumerates nothing.
+    #
+    # PDC's SCAN_ROUTER creates our METADATA_INGEST as a **METADATA_REINGEST**
+    # pipeline, which looks for CHANGES rather than walking the bucket: the job
+    # reports "Data Discovery: total: 0", COMPLETES, and leaves the Data Canvas
+    # empty. The database path is unaffected - it goes through the public
+    # metadata/ingest job and gets a metadata_ingest pipeline, which works.
+    #
+    # Measured against the lab 2026-08-07, with the bucket holding 16 objects,
+    # MinIO reachable from inside the worker container and the credentials
+    # independently verified. Ruled out: containers, an empty path prefix,
+    # fullRescan=true, and the public metadata/ingest endpoint. What is still
+    # needed is a capture of what PDC's own "Scan Files" button sends, since
+    # that produces a first ingest and this does not.
+    #
+    # The worker enumerates from `containers` (PLURAL); the data-source body
+    # carries `container` (singular). A working scan captured from PDC's UI
+    # carries both, so both are sent - necessary, evidently not sufficient.
+    if not data_body.get("containers") and data_body.get("container"):
+        data_body["containers"] = [data_body["container"]]
+
+    # Values PDC's own Configure Process dialog sends that an API-built body
+    # leaves null. patternType must accompany include/excludePatterns ("*.md" is
+    # a valid glob and an invalid regex); the two day-filters are the dialog's
+    # sliders, default 0 = no age restriction; contentScanType matches a captured
+    # working scan.
+    #
+    # HONEST STATUS (measured against the lab 2026-08-07): setting these makes
+    # the job COMPLETE rather than FAIL, but it still enumerates nothing on an
+    # object store - see the note on METADATA_REINGEST in internal_scan_files.
+    # They are kept because they match a known-good scan, not because they are
+    # known to fix anything.
+    #
+    # Deliberately NOT setting supportedMaxFileSize: the dialog defaults it to
+    # 100MB, but null appears to mean "no ceiling", and silently capping an
+    # estate's large files would be a worse bug than the one being chased.
+    for k, v in (("patternType", "GLOB"),
+                 ("filesModifiedLaterThanDays", 0),
+                 ("filesAccessedLaterThanDays", 0),
+                 ("contentScanType", "SCAN_ONLY")):
+        if data_body.get(k) in (None, ""):
+            data_body[k] = v
     # Explicit arguments win over the defaults above, so a caller can scan
     # metadata only, or handle a headerless CSV, without editing this table.
     data_body["withProfile"] = bool(profile_files)
