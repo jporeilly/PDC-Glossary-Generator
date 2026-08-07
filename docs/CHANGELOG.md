@@ -14,6 +14,25 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.36.4] - 2026-08-07
+
+### Fixed - run.sh promised a fallback UI that no longer exists
+
+On a checkout without `frontend/dist`, the Linux launcher warned that it was
+"serving the legacy UI until it is". The Jinja shell and `templates/` were
+removed at **1.35.0**; `api.py` now answers `/` with a **503** and a build
+instruction. So the message named a UI that is gone and implied the app would
+still render something - sending an operator to debug a blank page instead of
+running one build command.
+
+The guard was also too narrow: it required `../frontend` to *exist* before
+checking for the build, so a deployment missing the directory outright got no
+warning at all. That is precisely the case most likely to reach a lab VM, where
+the SPA arrives prebuilt or not at all. Now checked unconditionally, and the
+command matches `api.py`'s own (`npm ci`, not `npm install`).
+
+Found while scoping the Linux lab edition.
+
 ## [1.36.3] - 2026-08-07
 
 ### Fixed - the build manifests each claimed a different version

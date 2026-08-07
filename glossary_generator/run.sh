@@ -110,10 +110,15 @@ echo
 
 # --- launch ----------------------------------------------------------------
 export HOST PORT
-# api.py serves the React build (frontend/dist) at "/" when it exists, else the
-# legacy Jinja shell — the PDC-Demo installer builds dist in deployments.
-if [ -d ../frontend ] && [ ! -f ../frontend/dist/index.html ]; then
-  warn "React UI not built (frontend/dist missing) — serving the legacy UI until it is. Build with: cd ../frontend && npm install && npm run build"
+# api.py serves the React build (frontend/dist) at "/". There is NO fallback:
+# the Jinja shell was removed at 1.35.0, so without the build every request to
+# "/" answers 503. Checked unconditionally — the old guard also required
+# ../frontend to exist, so a deployment missing the directory outright got no
+# warning at all, which is the case most likely to reach a lab VM.
+if [ ! -f ../frontend/dist/index.html ]; then
+  warn "Web UI not built (frontend/dist/index.html missing) — the app will start,"
+  warn "but \"/\" answers 503 until it is built:"
+  warn "  cd ../frontend && npm ci && npm run build"
 fi
 printf "${B}  Ready${RS}\n"
 printf "  ${TEAL}${B}→ http://%s:%s${RS}   ${DIM}(Ctrl-C to stop)${RS}\n\n" "$HOST" "$PORT"
