@@ -345,7 +345,19 @@ if (-not $cfSec) { $cfSec = [Environment]::GetEnvironmentVariable("CF_ACCESS_CLI
 
 $sessionOnly = ($env:CF_ACCESS_CLIENT_ID -and -not $cfId)
 
-if ($cfId -and $cfSec) {
+# A Client ID always ends ".access". Checking the SHAPE catches the two ways
+# this silently looks configured: the template pasted verbatim (<id>.access), and
+# a truncated or half-copied value. Presence alone would report both as OK.
+$looksTemplated = ($cfId -match "[<>]") -or ($cfSec -match "[<>]")
+$idShapeOk      = $cfId -match "\.access$"
+
+if ($cfId -and $cfSec -and $looksTemplated) {
+    Report "Cloudflare Access token" "WARN" "still contains <placeholders> - the template was set, not the values" `
+        "re-run setx with the real Client ID and Secret from Zero Trust > Access > Service Auth"
+} elseif ($cfId -and $cfSec -and -not $idShapeOk) {
+    Report "Cloudflare Access token" "WARN" "Client ID does not end in '.access' - check it was copied whole" `
+        "Zero Trust > Access > Service Auth shows the full Client ID"
+} elseif ($cfId -and $cfSec) {
     Report "Cloudflare Access token" "OK" "service token set for this user/machine"
 } elseif ($sessionOnly) {
     Report "Cloudflare Access token" "WARN" "set in THIS shell only - the app will not see it" `
