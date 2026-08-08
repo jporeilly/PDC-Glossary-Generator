@@ -106,6 +106,20 @@ if [ ! -f "$STAMP" ] || [ "$(cat "$STAMP" 2>/dev/null)" != "$REQ_HASH" ]; then
 else
   ok "Dependencies up to date"
 fi
+
+# pdc_client lives one level UP - the repo root on a dev checkout, the tarball
+# root on the Linux lab tree - and requirements.txt does not carry it, so a
+# fresh venv imports api.py straight into ModuleNotFoundError. Both trees put
+# pyproject.toml beside the package, so one editable install covers both.
+if ! python -c "import pdc_client" 2>/dev/null; then
+  if [ -f ../pyproject.toml ]; then
+    printf "  ${DIM}installing pdc_client (../pyproject.toml)…${RS}\n"
+    python -m pip install -q -e .. && ok "pdc_client installed" \
+      || die "could not install pdc_client from .. - see pip's output above"
+  else
+    die "pdc_client is not importable and ../pyproject.toml is missing - run from app/ inside the repo or the extracted tarball"
+  fi
+fi
 echo
 
 # --- launch ----------------------------------------------------------------

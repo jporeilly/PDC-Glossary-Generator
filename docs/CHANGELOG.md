@@ -14,6 +14,20 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.36.28] - 2026-08-08
+
+### Fixed - run.sh installs pdc_client itself
+
+A fresh `./run.sh` built its venv from requirements.txt and then imported
+api.py straight into `ModuleNotFoundError: pdc_client` - the package lives one
+level UP (repo root on a dev checkout, tarball root on the Linux lab tree) and
+requirements.txt does not carry it. Both trees put `pyproject.toml` beside the
+package, so run.sh now performs one editable install of `..` when the import
+fails, and dies with a plain explanation when there is nothing to install
+from. Field-caught on the lab VM; the same gap cost the dev machine a morning
+two days ago - the launcher now closes it everywhere instead of each machine
+rediscovering it.
+
 ## [1.36.27] - 2026-08-08
 
 ### Fixed - inline edits no longer lose focus after every letter
