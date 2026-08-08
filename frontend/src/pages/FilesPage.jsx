@@ -106,6 +106,39 @@ export default function FilesPage({ onNavigate }) {
       <section className="card">
         <h2>File browser <span>folders, objects and previews</span></h2>
         {connsError && <div className="error">{connsError}</div>}
+
+        <details className="uth">
+          <summary>Under the hood — browsing the object store (S3 API)</summary>
+          <div className="uth-body">
+            <p>
+              Plain S3, spoken directly to the endpoint on the connection — no PDC in the middle,
+              so this works before a bucket has ever been catalogued and is the quickest way to
+              confirm credentials and contents are what you think.
+            </p>
+            <ol className="uth-steps">
+              <li>
+                <b>Listing</b> — <code>list_objects_v2</code> with the current prefix and a
+                delimiter, paginated. The delimiter is what produces folders: S3 has none, only
+                keys containing <code>/</code>, so what you see as a tree is common prefixes.
+              </li>
+              <li>
+                <b>Preview</b> — <code>get_object</code> for the chosen key, read as a bounded
+                slice rather than the whole object, so opening a large file costs the first part
+                of it and no more.
+              </li>
+              <li>
+                <b>Tags</b> — <code>get_object_tagging</code> where the store supports it. MinIO
+                often does not, which is not an error: the column simply stays empty.
+              </li>
+            </ol>
+            <p className="uth-note">
+              Read-only throughout — nothing on this page writes, deletes or re-tags an object.
+              Use the host or VM address as the endpoint, never <code>localhost</code>: MinIO needs
+              path-style addressing, and <code>localhost</code> resolves inside whichever container
+              asks.
+            </p>
+          </div>
+        </details>
         <div className="actions" style={{ marginTop: 0 }}>
           <select value={connId || opts[0]?.id || ''} onChange={(e) => { setConnId(e.target.value); setData(null) }}
                   disabled={!opts.length} style={{ minWidth: 240 }}>

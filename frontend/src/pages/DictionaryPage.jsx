@@ -452,6 +452,78 @@ export default function DictionaryPage({ onNavigate }) {
             rows
           </label>
         </header>
+
+        <details className="uth">
+          <summary>Under the hood — the governed vocabulary API</summary>
+          <div className="uth-body">
+            <p>
+              All local, all against <code>tag_dictionary.json</code> in the app's state directory.
+              No PDC call is involved: this is the layer that decides what vocabulary is
+              <i> allowed</i> before anything reaches PDC at all.
+            </p>
+            <ol className="uth-steps">
+              <li>
+                <code>GET /api/tagdict</code> — the two-layer vocabulary: a generic baseline plus
+                your company layer, each entry carrying a status of <b>pending</b> or{' '}
+                <b>approved</b>.
+              </li>
+              <li>
+                <code>POST /api/tagdict/review</code> — approve, reject or rename. This is the gate:
+                only <b>approved</b> vocabulary reaches the Registry, so a term the scan invented
+                cannot become governed by accident.
+              </li>
+              <li>
+                <code>POST /api/tagdict/fold-advisor</code> — proposes folding near-duplicates
+                (<code>Mbr Rating</code> into <code>Member Rating</code>) using the domain pack's
+                abbreviations, so the pair is judged on meaning rather than string distance.
+              </li>
+              <li>
+                <code>POST /api/tagdict/ai-review</code> — an optional model pass over{' '}
+                <b>pending</b> entries only. It drafts language; it never changes a status, and it
+                is never asked about sensitivity or PII, which are computed from the scan so two
+                runs cannot disagree.
+              </li>
+            </ol>
+            <p className="uth-note">
+              Every change is appended to the audit trail with who and when — this is the record
+              that makes a classification defensible later.
+            </p>
+          </div>
+        </details>
+
+        <details className="uth">
+          <summary>Under the hood — the pack flywheel: whose scan feeds the pack?</summary>
+          <div className="uth-body">
+            <p>
+              The domain pack is what makes a second scan smarter than the first. It starts thin
+              and grows from evidence you have already reviewed — nothing is invented for it.
+            </p>
+            <ol className="uth-steps">
+              <li>
+                <b>Scan</b> — new terms and tags arrive as <b>pending</b>, attributed to the source
+                that produced them.
+              </li>
+              <li>
+                <b>Review</b> — you approve, reject or fold. Only approvals go further, so the pack
+                inherits your judgement rather than the scanner's guesses.
+              </li>
+              <li>
+                <b>Grow</b> — <code>POST /api/export-pack</code> writes the approved layer back into
+                the pack: abbreviations, category tags, value patterns. It reports conflicts instead
+                of overwriting, because a pack that silently changed meaning would be worse than one
+                that refused.
+              </li>
+              <li>
+                <b>Next scan</b> — reads that pack, so <code>mbr_no</code> is recognised as{' '}
+                <b>Member Number</b> from the start, and the review is shorter.
+              </li>
+            </ol>
+            <p className="uth-note">
+              This is why the first domain takes longest and each one after is quicker — the pack
+              is the accumulated answer, and it is per company, not per source.
+            </p>
+          </div>
+        </details>
         <p className="summary">
           {dict.domain || '—'} · <b>{dict.term_count || 0}</b> terms ({dict.generic_terms || 0} generic,{' '}
           {dict.governed_terms || 0} governed) · <b>{dict.tag_count || 0}</b> tags ({dict.generic_tags || 0} generic,{' '}

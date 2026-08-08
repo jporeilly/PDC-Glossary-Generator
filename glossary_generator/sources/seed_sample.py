@@ -2,6 +2,12 @@
 seed_sample.py - populate a PostgreSQL schema with realistic sample data
 so data-profiling has real values to detect (PII, patterns, cardinality).
 
+TRAINING AND DEMO DATABASES ONLY. This WRITES fabricated rows. It fills empty
+tables by default, which is not the safeguard it sounds like - a production
+estate has empty tables too (a new feature's, an audit table not yet written to,
+a staging table between loads) and they would be filled. The API refuses unless
+the connection is explicitly marked allow_sample_data; keep it that way.
+
 It introspects the live schema (information_schema), orders tables by foreign-key
 dependencies, skips auto-generated keys, references parent PKs for FK columns, and
 generates values by column name + type. By default it only fills EMPTY tables.

@@ -1225,10 +1225,10 @@ def seed(body: dict = Body(default={})):
     if not _truthy(cfg.get("allow_sample_data")):
         return _err(
             "This connection is not marked as safe for sample data, so nothing was "
-            "written. Sample data is for demo and training databases: edit the "
-            "connection and tick 'allow sample data' if this is one. Never tick it "
-            "for a production database — empty tables there would be filled with "
-            "fabricated rows.", 400)
+            "written. Sample data exists for TRAINING AND DEMO DATABASES ONLY: edit "
+            "the connection and tick 'allow sample data' if this is one. Never tick "
+            "it for a production database or any system of record — empty tables "
+            "there would be filled with fabricated rows.", 400)
     try:
         rep = seed_sample.seed(cfg, rows=rows, only_empty=only_empty, schema=cfg.get("schema"))
         return rep

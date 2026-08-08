@@ -1274,7 +1274,7 @@ function ConnectionForm({ editing, onSaved, onCancel }) {
             <input type="checkbox" checked={db.profile} onChange={(e) => setDb({ ...db, profile: e.target.checked })} /> Profile data (sample values)
           </label>
           <label className="check danger-check" style={{ alignSelf: 'end', paddingBottom: '.45rem' }}
-                 title="Lets the Seed data button write fabricated rows into this database's EMPTY tables. For demo and training databases only. A production estate has empty tables too — a new feature's, an audit table not yet written to — and they would be filled.">
+                 title="TRAINING AND DEMO DATABASES ONLY. Lets the Seed data button write fabricated rows into this database's EMPTY tables. A production estate has empty tables too — a new feature's, an audit table not yet written to — and they would be filled.">
             <input type="checkbox" checked={!!db.allow_sample_data}
                    onChange={(e) => setDb({ ...db, allow_sample_data: e.target.checked })} />
             allow sample data <span className="danger-chip">writes</span>
@@ -1377,8 +1377,9 @@ function ConnectionCards({ conns, error, onEdit, onChanged, onDiscoverDb, onDisc
             </dd>
             <dt>Seed data</dt>
             <dd>
-              <b>The one button that writes.</b> Inserts fabricated rows so a demo database has
-              values to profile — confidence and sensitivity are name-based without them.
+              <b>The one button that writes, and it is for training and demo databases only.</b>{' '}
+              It inserts fabricated rows so a lab database has values to profile — confidence and
+              sensitivity are name-based without them. Never point it at a system of record.
               <br />
               It fills <b>empty tables only</b>; anything already holding data is left alone. That
               is thinner protection than it sounds, because a <b>production</b> estate has empty

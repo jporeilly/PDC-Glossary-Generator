@@ -950,6 +950,91 @@ export default function ReviewPage({ onNavigate }) {
 
       <ReviewGuide onNavigate={onNavigate} />
 
+      <details className="uth">
+        <summary>How terms are defined &amp; built</summary>
+        <div className="uth-body">
+          <p>
+            One candidate term per meaningful column, so the job is <b>pruning</b> rather than
+            hunting for what the scan missed. Rows collapse on <b>(category, term)</b> before you
+            see them: sixty <code>customer_id</code> columns across sixty tables arrive as one
+            term carrying sixty sources, which is why the count you review is far smaller than the
+            column count and levels off as an estate grows.
+          </p>
+          <dl className="uth-dl">
+            <dt>Name</dt>
+            <dd>
+              From the column name, expanded through the domain pack's abbreviations —{' '}
+              <code>mbr_no</code> becomes <b>Member Number</b> once the pack knows{' '}
+              <code>mbr</code>.
+            </dd>
+            <dt>Definition</dt>
+            <dd>
+              A database comment where one exists — the best source, because a human wrote it about
+              that column. Otherwise templated from the name, and flagged low confidence so you can
+              see which is which.
+            </dd>
+            <dt>Confidence</dt>
+            <dd>
+              A <i>review signal</i>, not a score of correctness. <b>High</b> means a comment or a
+              key backed it; <b>Low</b> means it was templated from the name alone. Sort by it to
+              spend your attention where the evidence is thinnest.
+            </dd>
+            <dt>Sensitivity &amp; PII</dt>
+            <dd>
+              Computed from the profile — value patterns, signatures, reference lists — never
+              proposed by a model. Two runs over the same data must agree, or the classification
+              cannot be defended in an audit.
+            </dd>
+            <dt>Tags</dt>
+            <dd>
+              Drawn from the governed allow-list on the Dictionary page, never free text. This is
+              what stops <code>PII</code>, <code>pii</code> and <code>PII-Data</code> becoming
+              three labels for one idea.
+            </dd>
+            <dt>CDE</dt>
+            <dd>
+              Inferred from keys, sensitivity and compliance terms — and always the steward's to
+              confirm.
+            </dd>
+          </dl>
+        </div>
+      </details>
+
+      <details className="uth">
+        <summary>Under the hood — this page's calls</summary>
+        <div className="uth-body">
+          <ol className="uth-steps">
+            <li>
+              <code>POST /api/ai-pass</code> — one model call per batch of kept rows, covering
+              definition, purpose, name and governed tags. It proposes; nothing changes until you
+              apply. <b>Deliberately not asked</b> about sensitivity, PII or category — those are
+              deterministic from the scan, and a model that varies per run would make them
+              unauditable.
+            </li>
+            <li>
+              <code>POST /api/similarity</code> and{' '}
+              <code>/api/recommend-resolutions</code> — group rows sharing a term name and
+              recommend <b>Merge</b>, <b>Disambiguate</b> or <b>Keep separate</b>. The rubric is
+              evidence first: matching value patterns and value sets beat matching names, because
+              two columns called <code>status</code> are usually not the same concept.
+            </li>
+            <li>
+              <code>POST /api/pdc/terms/existing</code> — asks PDC which candidates it already
+              holds, and in which glossary, so you reuse rather than re-author.
+            </li>
+            <li>
+              <code>POST /api/enhance-glossary</code> and{' '}
+              <code>/api/load-glossary</code> — open a previous export for review, or enrich this
+              scan against one, which is how a re-scan updates in place instead of starting over.
+            </li>
+          </ol>
+          <p className="uth-note">
+            Only <code>/api/ai-pass</code> leaves this machine, and only when a hosted provider is
+            configured — with Ollama it stays local too. Everything else is computed here.
+          </p>
+        </div>
+      </details>
+
       <section className="card">
         <header>
           <h2>Review grid <span>prune candidate terms</span></h2>

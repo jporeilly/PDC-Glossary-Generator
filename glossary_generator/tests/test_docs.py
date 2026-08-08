@@ -108,7 +108,30 @@ EXPLAINERS = {
         "Under the hood — reading PDC's catalog",
         "Under the hood — what a database scan runs",
     ],
+    "FilesPage.jsx": [
+        "Under the hood — browsing the object store (S3 API)",
+    ],
+    "ReviewPage.jsx": [
+        "How terms are defined &amp; built",
+        "Under the hood — this page's calls",
+    ],
+    "GovernPage.jsx": [
+        "Under the hood — fetching the roster from Keycloak",
+    ],
+    "ApplyPage.jsx": [
+        "Under the hood — generating the JSONL",
+        "Under the hood — the PDC API calls this makes",
+    ],
+    "DictionaryPage.jsx": [
+        "Under the hood — the governed vocabulary API",
+        "Under the hood — the pack flywheel: whose scan feeds the pack?",
+    ],
 }
+
+# The transparency viewer lives in a component rather than a page. It is listed
+# separately because it is the one panel that serves the code itself, and it was
+# orphaned for a full release - live, tested server-side, and called by nothing.
+VIEWER = ("SourceViewer.jsx", "Under the hood — read the source that runs")
 
 
 def test_explainer_panels_are_present():
@@ -123,11 +146,17 @@ def test_explainer_panels_are_present():
             assert title in summaries, f"{page} lost its explainer: {title!r}"
 
 
-# NOT asserted yet, deliberately: /api/source serves 18 whitelisted modules for a
-# transparency viewer ("read exactly what runs"). It is live and server-side
-# tested, but the React app calls it nowhere - it was orphaned when the Jinja UI
-# went at 1.35.0. Wiring a page to it is a separate decision, not something to
-# smuggle in behind a failing test.
+def test_the_source_viewer_is_wired_to_a_page():
+    """/api/source is served and server-side tested. It spent a release orphaned
+       because nothing in the UI called it, so the wiring is pinned too."""
+    import glob
+    comp = os.path.join(REPO, "frontend", "src", "components", VIEWER[0])
+    if not os.path.isfile(comp):
+        return
+    assert VIEWER[1] in _read(comp)
+    assert "/api/source" in _read(comp), "the viewer must actually call the endpoint"
+    pages = glob.glob(os.path.join(REPO, "frontend", "src", "pages", "*.jsx"))
+    assert any("SourceViewer" in _read(p) for p in pages),         "SourceViewer is not rendered by any page - the viewer is orphaned again"
 
 
 def test_readme_reflects_fastapi_port():

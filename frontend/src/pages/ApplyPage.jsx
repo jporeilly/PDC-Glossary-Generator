@@ -115,6 +115,42 @@ export default function ApplyPage({ onNavigate }) {
         </p>
       </div>
 
+      <details className="uth">
+        <summary>Under the hood — generating the JSONL</summary>
+        <div className="uth-body">
+          <p>
+            Entirely local. Nothing is sent anywhere: this turns the reviewed grid into the file
+            PDC's <b>Business Glossary → Import</b> expects, and you can read it before it goes.
+          </p>
+          <ol className="uth-steps">
+            <li>
+              <b>One line per object</b>, in dependency order — a <code>glossary</code> line, then a{' '}
+              <code>category</code> per distinct category, then a <code>term</code> per kept row.
+              Each carries its stewardship, sensitivity, rating and tags.
+            </li>
+            <li>
+              <b>Ids are derived, not requested.</b> Every <code>_id</code> is a{' '}
+              <code>UUID5</code> of the glossary name plus the object's name, so the same inputs
+              produce the same ids on any machine with no PDC round-trip. That is what makes a
+              re-import update in place rather than duplicate.
+            </li>
+            <li>
+              <b>The Registry is written alongside</b> —{' '}
+              <code>registries/registry.&lt;glossary&gt;.json</code>, one row per concept with its
+              term, governed tags, rule-derived sensitivity and category, plus the detection seeds
+              (value patterns, reference lists) and PK/FK facts the Policy Generator reads. The
+              JSONL is the deliverable; the Registry is the asset that keeps the glossary and the
+              identification methods from diverging.
+            </li>
+          </ol>
+          <p className="uth-note">
+            Terms export as <b>Draft</b> — proposals until a Business Steward approves them in PDC.
+            And the import <b>replaces the whole glossary</b>, which is safe precisely because the
+            ids are deterministic: same names in, same ids out.
+          </p>
+        </div>
+      </details>
+
       <details className="card">
         <summary>Why generate &amp; import the glossary <i>before</i> you resolve?</summary>
         <p className="hint-line">

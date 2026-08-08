@@ -1074,6 +1074,41 @@ function KeycloakCard({ onFetch, msg }) {
         instance. PDC fronts Keycloak at <code>&lt;server&gt;/keycloak</code>; list users from
         the <b>pdc</b> realm, get the admin token from the <b>master</b> realm.
       </p>
+
+      <details className="uth">
+        <summary>Under the hood — fetching the roster from Keycloak</summary>
+        <div className="uth-body">
+          <p>
+            Keycloak's Admin REST API, called directly. PDC does not proxy this, which is why the
+            base URL ends <code>/keycloak</code> and not <code>/api</code>.
+          </p>
+          <ol className="uth-steps">
+            <li>
+              <b>Admin token</b> — a password grant against{' '}
+              <code>/realms/{'{admin realm}'}/protocol/openid-connect/token</code>. That realm
+              defaults to <b>master</b>, because that is where the Keycloak admin account lives —
+              a common first failure is authenticating against <code>pdc</code>, where it does not.
+            </li>
+            <li>
+              <b>Users</b> — <code>GET /admin/realms/{'{realm}'}/users</code> against the{' '}
+              <b>target</b> realm (<code>pdc</code>), returning id, username, name and email.
+            </li>
+          </ol>
+          <p>
+            <b>Why fetch rather than type.</b> A Keycloak user id is a UUID minted{' '}
+            <i>per instance</i>. The same person in your lab and in a customer's PDC has different
+            ids, so a roster copied between instances produces stewardship bindings that resolve to
+            nobody — and PDC accepts them without complaint. Pulling from the instance you will
+            apply to is what keeps them valid.
+          </p>
+          <p className="uth-note">
+            Read-only: no user, role or group is created or modified. The admin password is used
+            for the token and is not saved. TLS verification is off by default so a self-signed lab
+            certificate does not block the fetch — the equivalent of <code>curl -k</code>, which is
+            fine on a lab VM and worth tightening against anything else.
+          </p>
+        </div>
+      </details>
       <div className="form-grid gov-kcgrid">
         <label>
           Base URL

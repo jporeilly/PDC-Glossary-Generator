@@ -14,6 +14,53 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.36.13] - 2026-08-08
+
+### Added - the remaining explainers, and the transparency viewer is reachable again
+
+Every panel lost with the Jinja UI at 1.35.0 is back. Eleven were real content;
+the twelfth, *"Review duplicate term names"*, was a section heading for a feature
+the React page already carries in better form (the duplicate advisor, with
+evidence, live probe and AI), so it was not recreated.
+
+- **Files** — browsing the object store (S3 API): `list_objects_v2` with a
+  delimiter, and why the folder tree is really common prefixes.
+- **Review** — how terms are defined & built (why the count you review is far
+  smaller than the column count), and this page's calls.
+- **Govern** — fetching the roster from Keycloak, including why the admin token
+  comes from `master` while users come from `pdc`, and why a copied roster
+  produces bindings that resolve to nobody.
+- **Apply** — generating the JSONL: deterministic `UUID5` ids, which is what
+  makes a re-import update in place rather than duplicate.
+- **Dictionary** — the governed vocabulary API, and the pack flywheel.
+
+**The transparency viewer is wired back in.** `/api/source` has served 18
+whitelisted modules since the Jinja days and stayed server-side tested
+throughout, but nothing called it after that UI went - a whole feature live and
+unreachable for a release. It is now a panel on Home: pick a module, read it
+straight from disk. Runtime state stays off the whitelist and answers 404.
+
+`test_docs.py` pins every panel title per page **and** the viewer's wiring, since
+the way all of this was lost is that nothing failed when it went.
+
+### Changed - seed data is gated, and says what it is for
+
+`/api/seed` is the only endpoint that writes to a connected database. Its whole
+protection was a browser `confirm()` and "only empty tables" - which reads as
+safe and is not: a production estate has empty tables (a new feature's, an audit
+table not yet written to, a staging table between loads) and they would have been
+filled with fabricated rows.
+
+- **`allow_sample_data` on the connection**, off by default and enforced
+  server-side, so a frontend change can never be the only thing in the way.
+- **A read-only dry run** (`seed_sample.plan()`) naming the exact tables. "It
+  only fills empty tables" is a reassurance; "it will insert into `audit_log` and
+  `staging_customers`" is a decision.
+- **Type the database name** to confirm - not something done by reflex on the
+  wrong connection.
+- **TRAINING AND DEMO DATABASES ONLY** now appears in the module docstring, the
+  refusal message, the checkbox and the explainer.
+
 ## [1.36.12] - 2026-08-08
 
 ### Added - the Connect page's four "Under the hood" explainers are back

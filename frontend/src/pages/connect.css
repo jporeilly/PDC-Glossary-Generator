@@ -154,56 +154,6 @@ span.mini i { display: block; height: 100%; background: var(--accent); }
 .bl-opts .check input:disabled { cursor: not-allowed; }
 .bl-opts .check:has(input:disabled) { opacity: .45; }
 
-/* ---------------------------------------------------------------------------
-   "Under the hood" explainers. These are teaching material: the learner should
-   be able to read what the app does to their systems before it does it, and
-   reproduce any call by hand. Collapsed by default so they never crowd the
-   operator who already knows.
-   ------------------------------------------------------------------------ */
-.uth {
-  border: 1px solid var(--gridline);
-  border-radius: 8px;
-  margin-top: .8rem;
-  background: var(--surface-2);
-}
-.uth > summary {
-  cursor: pointer;
-  padding: .55rem .8rem;
-  font-size: .84rem;
-  font-weight: 600;
-  color: var(--text-secondary);
-  list-style-position: inside;
-}
-.uth > summary:hover { color: var(--text-primary); }
-.uth[open] > summary { border-bottom: 1px solid var(--gridline); }
-.uth-body {
-  padding: .7rem .9rem .9rem;
-  font-size: .84rem;
-  line-height: 1.55;
-  color: var(--text-secondary);
-  display: grid;
-  gap: .7rem;
-}
-.uth-body p { margin: 0; }
-.uth-body code {
-  font-size: .92em;
-  background: var(--surface-1);
-  border: 1px solid var(--gridline);
-  border-radius: 4px;
-  padding: .04em .3em;
-  white-space: nowrap;
-}
-.uth-steps { margin: 0; padding-left: 1.1rem; display: grid; gap: .55rem; }
-.uth-steps ul { margin: .3rem 0 0; padding-left: 1rem; }
-.uth-note { color: var(--text-muted); font-size: .8rem; }
-/* term/definition pairs: the label sits in its own column so the descriptions
-   line up as a block rather than stepping in and out */
-.uth-dl { margin: 0; display: grid; grid-template-columns: 9.5rem 1fr; gap: .4rem .9rem; }
-.uth-dl dt { font-weight: 650; color: var(--text-primary); }
-.uth-dl dd { margin: 0; }
-@media (max-width: 46rem) {
-  .uth-dl { grid-template-columns: 1fr; gap: .15rem; }
-  .uth-dl dd { margin-bottom: .5rem; }
   .uth-body code { white-space: normal; }
 }
 
