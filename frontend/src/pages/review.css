@@ -322,3 +322,9 @@ button.rv-aipill:hover { background: color-mix(in srgb, var(--accent) 16%, trans
 }
 @keyframes rv-agentpulse { 50% { opacity: .55; } }
 .rv-agenteta { margin: .15rem 0 0; font-size: .75rem; opacity: .85; }
+
+/* agent descriptions: block "paragraphs" inside a span-only context, so the
+   same desc renders as readable paragraphs in the proposal strip AND in the
+   How-to-review guide without owning either layout */
+.rv-dp { display: block; margin-top: .45rem; }
+.rv-dp:first-child { margin-top: 0; }

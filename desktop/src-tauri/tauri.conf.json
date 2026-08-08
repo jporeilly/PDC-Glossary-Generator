@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2.0.0",
   "productName": "PDC Glossary Generator",
-  "version": "1.36.19",
+  "version": "1.36.20",
   "identifier": "com.pentaho.pdc-glossary",
   "build": {
     "beforeBuildCommand": "npm run fetch:python && npm run stage:app",

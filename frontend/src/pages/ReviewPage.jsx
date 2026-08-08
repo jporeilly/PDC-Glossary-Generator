@@ -174,7 +174,31 @@ const CHUNK = 6
 // the agent's proposal label (matches the toolbar button text).
 const AGENT_DESC = [
   { label: 'AI pass (all fields)',
-    desc: 'ONE model call per BATCH of rows for everything the LLM can decide — Definition, Purpose, a clearer name, governed tags, and a category only when the current one is blank. It is the only agent: Enrich, AI suggest and AI categorize were separate passes over the same rows that overlapped on name / category / tags, so the last one silently overwrote the others — and each restated the guardrails in its own words, so they drifted apart. Same guardrails throughout — tags governed-only, an existing category untouched, the name a suggestion chip, sensitivity and PII deterministic from the scan. It also runs the deterministic work for free: governed tags are re-derived from the Dictionary before the model sees them, and the definition linter stamps the QA ⚠ chip — no extra pass for either. To redo a single row, use AI review on the row itself; to redo a single field, accept only that row’s pill.' },
+    desc: (<>
+      <span className="rv-dp">
+        <b>One model call per batch of kept rows</b>, covering everything the model is
+        allowed to decide: Definition, Purpose, a clearer name, governed tags — and a
+        category only where the current one is blank.
+      </span>
+      <span className="rv-dp">
+        <b>What it may not decide:</b> tags come only from the governed allow-list, an
+        existing category is never changed, a proposed name lands as a suggestion chip
+        rather than being applied, and sensitivity and PII stay deterministic from the
+        scan. Two deterministic jobs ride along free — governed tags are re-derived from
+        the Dictionary before the model looks, and the definition linter stamps the
+        QA chip.
+      </span>
+      <span className="rv-dp">
+        <b>Why one agent:</b> it replaced three (Enrich, AI suggest, AI categorize) that
+        ran over the same rows, silently overwrote each other on name, category and
+        tags, and each restated the guardrails in its own drifting words.
+      </span>
+      <span className="rv-dp">
+        <b>To redo:</b> one row — <i>AI review</i> on that row; one field — accept only
+        that pill.
+      </span>
+    </>) },
+
   { label: 'AI review (this row)',
     desc: 'The same pass, scoped to one row — for when a single term came back weak and you don’t want to spend a full sweep on it. Identical prompt, evidence and guardrails; the proposals land as pills on that row alone.' },
 ]

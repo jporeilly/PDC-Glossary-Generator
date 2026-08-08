@@ -14,6 +14,16 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.36.20] - 2026-08-08
+
+### Changed - the AI pass explains itself in paragraphs
+
+The proposal strip's description was one dense block. Now four short paragraphs
+with a lead each: what one call covers, **what it may not decide** (the
+guardrails), why it replaced three overlapping agents, and how to redo one row
+or one field. Same text serves the "How to review" guide - one source, two
+surfaces, as before.
+
 ## [1.36.19] - 2026-08-08
 
 ### Fixed - a pasted URL in the `host` column no longer fails the ingest
