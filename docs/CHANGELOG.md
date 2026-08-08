@@ -14,6 +14,19 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.36.22] - 2026-08-08
+
+### Added - Review says when the glossary's scope is too wide
+
+"Hopefully the steward will realize the domain needs to be smaller" is a hope,
+not a mechanism. When a review spans more than 20 physical tables, Review now
+says so: a glossary that wide is usually more than one business domain - too
+many categories, no single accountable steward - and the fix is scope, not a
+bigger taxonomy. The notice points at the working practice: one bulk load per
+subject area via `includePatterns`, one glossary per domain with its own
+steward, the cross-glossary check keeping shared concepts reused, and one
+company pack serving every domain.
+
 ## [1.36.21] - 2026-08-08
 
 ### Added - AI categories: an abstract business grouping from the schema

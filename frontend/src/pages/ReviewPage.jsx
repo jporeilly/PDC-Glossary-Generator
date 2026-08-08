@@ -637,6 +637,24 @@ export default function ReviewPage({ onNavigate }) {
     setAdvising(false)
   }
 
+  // The scope check. A steward reviewing hundreds of tables in ONE glossary is
+  // being asked to govern the ungovernable, and hoping they notice is not a
+  // mechanism - the strategy guide's rule is one glossary per accountable
+  // domain, and this is the moment the evidence can say the scope is too wide.
+  const tableCount = useMemo(() => {
+    const t = new Set()
+    for (const r of rows) {
+      const sc = String(r.Source_Column || '').split(';')[0].trim()
+      if (!sc) continue
+      if (sc.includes('/')) t.add(sc.replace(/\/+$/, '').split('/').pop())
+      else {
+        const parts = sc.split('.')
+        t.add(parts.length >= 2 ? parts[parts.length - 2] : parts[0])
+      }
+    }
+    return t.size
+  }, [rows])
+
   /* ---------- AI categories: an abstract grouping from the schema ---------- */
   // The model is shown what the scan PROVED - tables, columns, FK links - and
   // asked for a holistic business grouping: the fewest abstract categories that
@@ -1039,6 +1057,18 @@ You can rename any group afterwards (filter to it → Rename).`)) return
       </div>
 
       <ReviewGuide onNavigate={onNavigate} />
+
+      {tableCount > 20 && (
+        <div className="notice-warn">
+          <b>This glossary spans {tableCount} physical tables.</b> That is usually more
+          than one business domain, and a glossary that wide becomes unmanageable — too
+          many categories, no single accountable steward. Consider splitting by domain:
+          scope each bulk load with <code>includePatterns</code> to one subject area, run
+          a glossary per domain with its own steward, and let the cross-glossary check
+          keep shared concepts reused rather than re-authored. The pack you export still
+          serves every domain of the same company.
+        </div>
+      )}
 
       <details className="uth">
         <summary>How terms are defined &amp; built</summary>
