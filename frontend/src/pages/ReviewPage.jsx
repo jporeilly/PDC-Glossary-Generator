@@ -199,6 +199,8 @@ const AGENT_DESC = [
       </span>
     </>) },
 
+  { label: 'AI categories (schema)',
+    desc: 'One call shown what the scan proved - tables, columns and FK links - proposing an abstract business grouping: the fewest categories that still discriminate, every table placed in one. Each assignment lands as a Category pill for you to accept; tables the model cannot place keep their physical group. Settle the set, rename any group, and Export pack freezes it.' },
   { label: 'AI review (this row)',
     desc: 'The same pass, scoped to one row — for when a single term came back weak and you don’t want to spend a full sweep on it. Identical prompt, evidence and guardrails; the proposals land as pills on that row alone.' },
 ]
@@ -664,34 +666,49 @@ export default function ReviewPage({ onNavigate }) {
   const [catBusy, setCatBusy] = useState(false)
   async function aiCategories() {
     setCatBusy(true)
-    setMsg('Proposing business categories from the schema…')
+    setMsg('Proposing business categories from the schema\u2026')
     try {
       const d = await apiPost('/api/ai-categories', { rows })
       const cats = (d.categories || []).filter((c) => !c.unassigned)
       const un = (d.categories || []).find((c) => c.unassigned)
       if (!d.used_llm || !cats.length) {
         setMsg(d.used_llm
-          ? 'The model proposed nothing usable — set a few categories by hand and re-run.'
-          : 'No model available (or fewer than two tables) — nothing proposed.')
+          ? 'The model proposed nothing usable \u2014 set a few categories by hand and re-run.'
+          : 'No model available (or fewer than two tables) \u2014 nothing proposed.')
         return
       }
-      const summary = cats.map((c) => `${c.name}  ←  ${c.tables.join(', ')}`).join('\n')
-      const tail = un ? `
-
-Not placed (keep their physical group): ${un.tables.join(', ')}` : ''
-      if (!window.confirm(`Apply this business grouping?
-
-${summary}${tail}
-
-You can rename any group afterwards (filter to it → Rename).`)) return
+      // Land as PILLS through the shared proposal machinery, not a bulk
+      // apply: acceptance IS the steward's approval, per pill or Accept all,
+      // exactly like every other thing the model proposes. Nothing changes
+      // a row until it is accepted.
       const a = d.assignments || []
+      const items = {}
       let n = 0
-      setRows(rowsRef.current.map((r, i) => {
-        if (!a[i] || (r.Category || '') === a[i]) return r
+      rowsRef.current.forEach((r, i) => {
+        const cur = String(r.Category || '')
+        if (!a[i] || cur === a[i]) return
         n++
-        return { ...r, Category: a[i] }
-      }))
-      setMsg(`Applied ${cats.length} categories to ${n} row(s)${un ? ` — ${un.tables.length} table(s) kept their physical group` : ''}.`)
+        items[i] = { patch: { Category: a[i] },
+                     display: [{ field: 'Category', from: cur, to: a[i] }] }
+      })
+      if (!n) { setMsg('Every row already carries its proposed category.'); return }
+      setProposals((prev) => {
+        const label = 'AI categories (schema)'
+        const merged = { ...(prev ? prev.items : {}) }
+        for (const [i, it] of Object.entries(items)) {
+          const c = merged[i]
+          merged[i] = c ? { ...c, patch: { ...c.patch, ...it.patch },
+                            display: [...c.display.filter((x) => x.field !== 'Category'), ...it.display] }
+                        : it
+        }
+        const mixed = !!(prev && prev.label !== label)
+        return { label: mixed ? 'AI agents' : label,
+                 desc: mixed ? 'proposals from several agents \u2014 accept per pill, or all at once'
+                             : (AGENT_META[label] || {}).desc || '',
+                 gate: !!(prev && prev.gate), items: merged }
+      })
+      setMsg(`${cats.length} categories proposed on ${n} row(s) \u2014 accept per pill or Accept all` +
+             (un ? ` \u00b7 ${un.tables.length} table(s) kept their physical group` : '') + '.')
     } catch (e) {
       setMsg(`AI categories failed: ${e.message}`)
     } finally {
@@ -1378,7 +1395,7 @@ You can rename any group afterwards (filter to it → Rename).`)) return
               Find similar
             </button>
             <button className="ghost" disabled={catBusy} onClick={aiCategories}
-                    title="Propose an abstract business grouping from the schema the scan proved — tables, columns and FK links. The model decides how many categories best represent the business (the fewest that discriminate), you confirm, and any group can be renamed after. Tables it can't place keep their physical group.">
+                    title="Propose an abstract business grouping from the schema the scan proved — tables, columns and FK links. Assignments land as Category pills: accept per pill or Accept all, rename any group after, and Export pack freezes the settled set. Tables the model can't place keep their physical group.">
               {catBusy ? 'Proposing…' : 'AI categories'}
             </button>
             <span className="rv-grow" />

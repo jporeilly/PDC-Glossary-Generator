@@ -14,6 +14,20 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.36.23] - 2026-08-08
+
+### Changed - AI category assignments land as pills, not a bulk confirm
+
+Acceptance is the steward's approval - the standing rule for everything the
+model proposes - so AI categories now flows through the shared proposal
+machinery: each assignment is a **Category pill** on its row (old value ->
+proposed value), accepted per pill or with Accept all, dismissible like any
+other proposal, and nothing touches a row until accepted. The strip's agent
+description explains the pass; a category is a pure **abstraction** with a
+many-to-one link - *Clients* can hold `customers`, `account_alerts` and
+whatever else serves that subject - and Rename adjusts the label at any time
+before Export pack freezes the set.
+
 ## [1.36.22] - 2026-08-08
 
 ### Added - Review says when the glossary's scope is too wide
