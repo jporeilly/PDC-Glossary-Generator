@@ -11,6 +11,41 @@ or (the default) drop a file named `domain_pack.json` beside `suggester.py`. If
 A pack is read by **three** engines, each picking out its own keys from the same file —
 so a complete pack carries all three sets:
 
+## Choosing the vocabulary — author one thing, grow the rest
+
+The mechanics are below; this is the practice. `packinit` states the reason it
+scaffolds so little, and it is the whole rule in one sentence:
+
+> `table_category / table_terms / terms / tag_rules` left **EMPTY on purpose**.
+> Inventing table names for a database nobody has scanned yet produces rules that
+> never match **and read as if they were curated**.
+
+That last clause is the trap: a hand-authored industry taxonomy looks
+authoritative, matches nothing, and goes unquestioned *because* it looks
+deliberate.
+
+**Author the category list. Nothing else.** It is the only input a person
+reliably knows before scanning, because it comes from how the business talks
+rather than how its data is modelled. Aim for **5–9**, named as the business
+names them — categories that mirror schemas produce a glossary documenting the
+database instead of the business.
+
+**Let the rest accrete.** `packgen` learns `table_category`/`table_terms` from
+real tables, `cat_keywords` from table-name tokens, `abbreviations` from aligned
+column tokens (`mbr_no` + "Member Number" → `mbr: Member`), and vocabulary from
+the **approved** company layer only. The abbreviations earn the most and are the
+least guessable — every organisation shortens words its own way, and that mapping
+is what makes the next scan arrive with `mbr_no` already reading as *Member
+Number*.
+
+**Industry standards are a check, not a seed.** AWWA, FIBO, BIAN and friends are
+worth diffing against *after* a first pass. Seed from one and you import
+vocabulary the company does not use, and end up governing terms nobody says out
+loud.
+
+Fuller rationale, and where this sits in a rollout:
+[docs/GLOSSARY-STRATEGY.md](../../docs/GLOSSARY-STRATEGY.md) §5.
+
 ## Categorization & naming (read by `suggester.py`)
 
 | Key | Purpose |

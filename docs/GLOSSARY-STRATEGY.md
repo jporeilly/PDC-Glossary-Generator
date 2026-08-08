@@ -167,7 +167,82 @@ automatically, stamped with the tags the Registry says they carry.
 
 ---
 
-## 5. Gotchas
+## 5. Building the domain pack
+
+The pack is what makes the second scan visibly better than the first: the
+vocabulary of one company, learned once. The temptation is to sit down and
+author an industry taxonomy before scanning anything. Resist it.
+
+`packinit` — the scaffolder — states the reason plainly, and it is worth quoting
+because it is the whole practice in one sentence:
+
+> `table_category / table_terms / terms / tag_rules` left **EMPTY on purpose**.
+> Inventing table names for a database nobody has scanned yet produces rules that
+> never match **and read as if they were curated**.
+
+That last clause is the trap. A hand-authored taxonomy looks authoritative,
+matches nothing, and goes unquestioned precisely because it looks deliberate.
+
+### Author one thing: the category list
+
+It is the only input a person reliably knows before scanning, because it comes
+from how the business talks rather than how its data is modelled. Everything
+derivable is then derived from it — one keyword per category from its own
+distinctive word (*Water Quality* → `quality`), a slugified governed tag, a
+placeholder definition awaiting the steward.
+
+- **5–9 categories.** Fewer and they stop discriminating; more and no one holds
+  the whole set in their head.
+- **Name them as the business names them**, not as the schema does. Categories
+  that mirror source systems produce a glossary documenting the database rather
+  than the business.
+- **One steward per category** where you can manage it.
+
+### Grow everything else from reviewed rows
+
+`packgen` exports the reviewed state back into pack format, so the pack evolves
+from real company data instead of remaining a guess:
+
+| Learned | From |
+| --- | --- |
+| `table_category` / `table_terms` | the actual tables in the scan |
+| `cat_keywords` | table-name tokens |
+| `abbreviations` | aligned column tokens — `mbr_no` + "Member Number" → `mbr: Member` |
+| `category_tags` / `tag_rules` / `terms` | the **approved** company layer only |
+| `curated_seeds` | induced value patterns and profiled reference lists |
+
+The **abbreviations** earn the most and are the least guessable: every
+organisation shortens words its own way, and that mapping is exactly what makes
+the next scan arrive with `mbr_no` already reading as *Member Number*.
+
+Two rules keep this safe. Only **approved** vocabulary reaches the pack, so it
+inherits the steward's judgement rather than the scanner's guesses. And merges
+**surface conflicts side by side** instead of overwriting — a steward's recorded
+decision beats the machine's newest opinion, while `curated_seeds` prefer the
+fresher scan, because those were machine-derived evidence to begin with.
+
+### Use industry standards as a check, never as a seed
+
+AWWA for water, FIBO or BIAN for financial services, and their equivalents
+elsewhere are useful — **after** your first pass, as a diff. Seeding from one
+imports vocabulary the company does not actually use, and you end up governing
+terms nobody says out loud, which is how a glossary becomes shelfware. Run the
+domain, then compare against the standard to find the gaps that are genuinely
+missing rather than merely absent.
+
+### The sequence
+
+    scaffold (packinit) -> scan -> review -> export pack -> commit
+                                                  |
+                                              next scan starts here
+
+A company with no pack at all is a legitimate start: run **packless**, do one
+full cycle, and the first export *is* your base pack — built entirely from
+evidence someone has already approved.
+
+---
+
+## 6. Gotchas
 
 Verified the hard way. Each of these looks like success while being wrong.
 
@@ -205,7 +280,7 @@ auditable, and an auditable classification is the entire point.
 
 ---
 
-## 6. Anti-patterns
+## 7. Anti-patterns
 
 - **One enterprise glossary.** No owner, unbounded review, and every steward
   editing the same object.
@@ -219,7 +294,7 @@ auditable, and an auditable classification is the entire point.
 
 ---
 
-## 7. What this app does not solve
+## 8. What this app does not solve
 
 Stated plainly, so the plan accounts for it:
 

@@ -14,6 +14,33 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.36.15] - 2026-08-08
+
+### Added - how to build a domain pack, written down
+
+The practice was already encoded in the tools and documented nowhere.
+`domain_packs/README.md` explained the keys and the generator; neither it nor the
+strategy guide said how to *choose* the vocabulary — which is the part people get
+wrong, by sitting down to author an industry taxonomy before scanning anything.
+
+`packinit` already gives the reason, and it is the whole rule in one sentence:
+
+> `table_category / table_terms / terms / tag_rules` left **EMPTY on purpose**.
+> Inventing table names for a database nobody has scanned yet produces rules that
+> never match **and read as if they were curated**.
+
+Now stated in both places:
+
+- **[GLOSSARY-STRATEGY.md](GLOSSARY-STRATEGY.md) §5** — *Building the domain
+  pack*: author the category list and nothing else; grow the rest from reviewed
+  rows; why `abbreviations` earn the most and are the least guessable; and why
+  industry standards (AWWA, FIBO, BIAN) are a **check after** a first pass rather
+  than a seed — seed from one and you govern terms nobody says out loud.
+- **`domain_packs/README.md`** — the same practice, short, at the top where
+  someone editing a pack is already standing, linking to the fuller rationale.
+
+Sections 5–7 of the strategy guide renumber to 6–8.
+
 ## [1.36.14] - 2026-08-08
 
 ### Added - the app now says what it is missing
