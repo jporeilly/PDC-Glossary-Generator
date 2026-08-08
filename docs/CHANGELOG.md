@@ -59,6 +59,16 @@ that fails closed is only as good as the evidence it is shown.
 Measured, forced recreate on the lab: RECREATED -> 21 files/folders -> 53
 columns, all green, no manual step.
 
+### Security - both Dependabot advisories cleared
+
+- **postcss** bumped 8.5.19 -> 8.5.26 (advisory fixed in 8.5.23). Build tooling
+  only - the emitted bundle is byte-identical.
+- **glib** dismissed as *not used*, with the evidence: it is a transitive
+  dependency of tauri 2's **Linux** GTK stack, `cargo tree -i glib` on the
+  Windows host target is empty, the GTK stack pins it below the patched 0.20,
+  and the planned Linux lab edition ships no Tauri shell. Re-evaluate only if a
+  Tauri Linux build is ever added.
+
 ## [1.36.16] - 2026-08-08
 
 ### Fixed - the object-store scan enumerates. It never had.
