@@ -1219,9 +1219,17 @@ export default function ReviewPage({ onNavigate }) {
           <span className="rv-agents" role="group" aria-label="AI agents — they run on kept rows only; they propose, you accept per pill"
                 title="Each agent processes KEPT rows only — untick Keep to exclude a row. Results land as click-to-accept pills right on the grid, batch by batch while the run goes; nothing touches a row until you accept its pill (or Accept all).">
             <span className="rv-agentslbl">AI AGENTS<small>kept rows · propose → you accept</small></span>
+            {/* Ordered as the work is done: categories settle the taxonomy
+                first (one schema-wide call), then the AI pass writes language
+                inside it - definitions against final groups, no pill fights
+                over the Category column. */}
+            <button className="ghost sm" disabled={catBusy} onClick={aiCategories}
+                    title="Run FIRST. One call over the schema the scan proved — tables, columns, FK links — proposing an abstract business grouping. Assignments land as Category pills: accept, rename any group, and only then run the AI pass so definitions are written against the final taxonomy.">
+              {catBusy ? 'Proposing…' : '1 · AI categories'}
+            </button>
             <button className="primary sm" disabled={aiDisabled} onClick={runAiPass}
                     title="One model call per row for every field the LLM can decide — definition, purpose, a clearer name, governed tags and a blank category. Replaces running Enrich + AI suggest + AI categorize separately (three passes over the same rows, each overwriting the last). Proposals only — accept per pill.">
-              AI pass (all fields)
+              2 · AI pass (all fields)
             </button>
             {anySuggestedNames && (
               <button className="ghost sm" disabled={locked} onClick={useAllNames}
@@ -1393,10 +1401,6 @@ export default function ReviewPage({ onNavigate }) {
             <button className="ghost sm" disabled={noRows} onClick={() => (sim ? setSim(null) : findSimilar())}
                     title="Score the shown terms pairwise and suggest same-concept names to merge (e.g. Phone / Customer Phone / Cust Phone No).">
               Find similar
-            </button>
-            <button className="ghost" disabled={catBusy} onClick={aiCategories}
-                    title="Propose an abstract business grouping from the schema the scan proved — tables, columns and FK links. Assignments land as Category pills: accept per pill or Accept all, rename any group after, and Export pack freezes the settled set. Tables the model can't place keep their physical group.">
-              {catBusy ? 'Proposing…' : 'AI categories'}
             </button>
             <span className="rv-grow" />
             <button className="ghost sm" disabled={!snapRef.current || locked} onClick={resetAll}

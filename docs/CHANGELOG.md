@@ -14,6 +14,16 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.36.24] - 2026-08-08
+
+### Changed - AI categories sits before the AI pass, numbered
+
+The buttons now read as the work is done: **1 · AI categories** (settle the
+taxonomy - one schema-wide call), **2 · AI pass** (write the language inside
+it). Previously AI categories sat in the duplicates bar, after tools it should
+precede - the field caught it on first use. Definitions get written against
+final groups, and the two agents never fight over the Category column.
+
 ## [1.36.23] - 2026-08-08
 
 ### Changed - AI category assignments land as pills, not a bulk confirm
