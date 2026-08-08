@@ -402,3 +402,34 @@ button.mini { padding: .18rem .6rem; font-size: .78rem; }
 @media (max-width: 46rem) {
   .uth-dl { grid-template-columns: 1fr; gap: .15rem; }
   .uth-dl dd { margin-bottom: .5rem; }
+
+/* A state that is legal but will quietly produce a worse result — a missing
+   domain pack, terms exported with no steward. Not an error: the run succeeds.
+   Distinct from .error so "you are about to get less than you expect" never
+   reads as "something broke". */
+.notice-warn {
+  border: 1px solid var(--status-warning);
+  border-left-width: 3px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--status-warning) 8%, transparent);
+  color: var(--text-secondary);
+  padding: .7rem .9rem;
+  font-size: .86rem;
+  line-height: 1.55;
+  margin-bottom: 1rem;
+}
+.notice-warn b { color: var(--text-primary); }
+.notice-warn code {
+  font-size: .92em; background: var(--surface-2);
+  border: 1px solid var(--gridline); border-radius: 4px; padding: .04em .3em;
+}
+
+/* An inline action inside a sentence — "Set stewardship on Govern →". A button
+   for the semantics (it navigates within the app, it is not a URL) that reads as
+   a link, so the sentence stays a sentence. */
+.linkish {
+  background: none; border: none; padding: 0; font: inherit; cursor: pointer;
+  color: var(--accent); font-weight: 600; text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.linkish:hover { color: var(--text-primary); }

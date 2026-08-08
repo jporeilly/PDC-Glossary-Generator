@@ -858,6 +858,49 @@ def get_settings():
     """Return the current settings."""
     return _load_settings()
 
+@app.get("/api/readiness")
+def readiness():
+    """What the app is missing that it will not otherwise mention.
+
+    Both of these are OPTIONAL and both degrade SILENTLY, which is the problem:
+
+      domain pack  absent -> the engine returns {} and falls back to generic
+                   vocabulary. `mbr_no` stays "Mbr No" instead of becoming
+                   "Member Number", categories come from generic keywords. The
+                   glossary is valid and bland, and reads as the app
+                   underperforming rather than as a missing input.
+
+      roster       absent -> stewardship exports empty. Nothing gates it, PDC
+                   accepts it, and the governance the glossary exists to
+                   establish is quietly not there.
+
+    Reported so the UI can say so at the point it matters. Never an error: a
+    first scan with neither is a legitimate way to start.
+    """
+    from engine import suggester
+    pack = {}
+    try:
+        pack = suggester._load_domain_pack() or {}
+    except Exception:
+        pack = {}
+    # A pack that resolved but carries no vocabulary is the same experience as no
+    # pack at all, so it is reported the same way.
+    vocab_keys = ("abbreviations", "terms", "cat_keywords", "table_terms",
+                  "table_category", "category_definitions", "category_tags",
+                  "tag_rules", "extra_tags")
+    filled = {k: len(pack.get(k) or []) for k in vocab_keys if pack.get(k)}
+    return {
+        "domain_pack": {
+            "present": bool(filled),
+            "domain": pack.get("domain") or "",
+            "path": paths.domain_pack_path(),
+            "entries": sum(filled.values()),
+            "sections": filled,
+        },
+        "roster": {"people": len(_load_people())},
+        "state_dir": paths.state_dir(),
+    }
+
 def _load_gloss(strict=False):
     """Load the saved-glossary store (maps id -> {name, rows}).
 

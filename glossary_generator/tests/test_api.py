@@ -482,3 +482,55 @@ class TestSeedIsGated:
         assert r.status_code == 200
         assert r.json()["targets"][0]["table"] == "customers"
         assert calls == {"plan": 1, "seed": 0}
+
+
+class TestReadinessReportsWhatIsMissing:
+    """Both inputs are optional and both degrade SILENTLY, which is the whole
+    reason this endpoint exists.
+
+    No domain pack -> the engine returns {} and falls back to generic vocabulary:
+    `mbr_no` stays "Mbr No" instead of becoming "Member Number". No roster ->
+    stewardship exports empty and PDC accepts it. In each case the run succeeds
+    and looks identical to a healthy one, so the UI has to be told.
+    """
+
+    def test_reports_an_absent_pack_and_an_empty_roster(self, client, monkeypatch):
+        import api
+        monkeypatch.setattr(api, "_load_people", lambda: [])
+        from engine import suggester
+        monkeypatch.setattr(suggester, "_load_domain_pack", lambda: {})
+        d = client.get("/api/readiness").json()
+        assert d["domain_pack"]["present"] is False
+        assert d["domain_pack"]["entries"] == 0
+        assert d["roster"]["people"] == 0
+
+    def test_a_pack_with_no_vocabulary_counts_as_absent(self, client, monkeypatch):
+        """A pack carrying only a domain name gives the same bland glossary as no
+           pack at all, so it must not read as configured."""
+        from engine import suggester
+        monkeypatch.setattr(suggester, "_load_domain_pack",
+                            lambda: {"domain": "water_utility", "note": "scaffold"})
+        d = client.get("/api/readiness").json()
+        assert d["domain_pack"]["present"] is False, "empty must not look configured"
+        assert d["domain_pack"]["domain"] == "water_utility"
+
+    def test_vocabulary_makes_it_present(self, client, monkeypatch):
+        from engine import suggester
+        monkeypatch.setattr(suggester, "_load_domain_pack",
+                            lambda: {"domain": "d", "abbreviations": {"mbr": "Member"},
+                                     "cat_keywords": {"Customer": ["member"]}})
+        d = client.get("/api/readiness").json()
+        assert d["domain_pack"]["present"] is True
+        assert d["domain_pack"]["entries"] == 2
+        assert set(d["domain_pack"]["sections"]) == {"abbreviations", "cat_keywords"}
+
+    def test_readiness_never_raises_on_a_broken_pack(self, client, monkeypatch):
+        """It warns; it must never be the thing that stops the app loading."""
+        from engine import suggester
+
+        def boom():
+            raise RuntimeError("unreadable pack")
+
+        monkeypatch.setattr(suggester, "_load_domain_pack", boom)
+        r = client.get("/api/readiness")
+        assert r.status_code == 200 and r.json()["domain_pack"]["present"] is False

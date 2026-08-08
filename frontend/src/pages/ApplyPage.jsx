@@ -188,7 +188,13 @@ export default function ApplyPage({ onNavigate }) {
 /* ---------- step 0: generate the import JSONL (+ Registry) and draft policies ---------- */
 
 function GenerateCard({ rows, glossaryName, governance, settings, onNavigate }) {
-  const kept = rows.filter((r) => truthy(r.Keep)).length
+  const keptRows = rows.filter((r) => truthy(r.Keep))
+  const kept = keptRows.length
+  // Stewardship is optional and nothing gates it: the JSONL exports, PDC accepts
+  // it, and every term arrives owned by nobody. That is the governance the
+  // glossary exists to establish, so its absence is worth a sentence here rather
+  // than a discovery in a review meeting three weeks later.
+  const unowned = keptRows.filter((r) => !String(r.Steward || '').trim()).length
   const [gen, setGen] = useState(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
@@ -361,6 +367,20 @@ function GenerateCard({ rows, glossaryName, governance, settings, onNavigate }) 
         workspace and {governance ? <b>is baked into this export</b> : <>baked in once set —
         none is set yet, so this exports the reviewed grid as-is</>}.
       </p>
+      {unowned > 0 && (
+        <div className="notice-warn">
+          <b>{unowned} of {kept} term(s) will export with no steward.</b> The file imports
+          cleanly and PDC will not object — the terms simply arrive owned by nobody, which is
+          the governance a glossary exists to establish.
+          {' '}
+          <button className="linkish" onClick={() => onNavigate?.('govern')}>
+            Set stewardship on Govern →
+          </button>
+          <br />
+          Fine for a draft you are circulating for comment. Not fine for the version someone
+          will be asked to defend.
+        </div>
+      )}
       {error && <div className="error">{error}</div>}
       <div className="actions">
         <button className="primary" onClick={generate} disabled={busy || kept === 0}

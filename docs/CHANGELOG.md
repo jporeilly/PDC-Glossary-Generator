@@ -14,6 +14,45 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.36.14] - 2026-08-08
+
+### Added - the app now says what it is missing
+
+Two inputs are optional, and both degraded **silently** — the run succeeded and
+looked identical to a healthy one, which is the same failure shape as the
+`profile / discover` default that shipped unticked in 1.36.5.
+
+- **No domain pack** — the engine returns `{}` and falls back to generic
+  vocabulary: `mbr_no` stays *Mbr No* instead of becoming *Member Number*, and
+  categories come from generic keywords. The glossary is valid and **bland**,
+  which reads as the app underperforming rather than as an input nobody supplied.
+  Connect now says so, and points at the fix: scan, review, then export a pack —
+  it grows from rows already approved.
+- **No stewardship** — the JSONL exports and PDC accepts it, with every term
+  owned by nobody. The Generate card now counts them:
+  *"N of M term(s) will export with no steward"*, with a link to Govern.
+  Deliberately not a block: a draft circulated for comment is a legitimate thing
+  to want.
+
+New `GET /api/readiness` reports both. A pack carrying only a domain name counts
+as **absent**, because it produces the same bland glossary as no pack at all and
+must not read as configured. It never raises — a broken pack still answers 200
+with `present: false`, since this warns and must never be the thing that stops
+the app loading.
+
+### Changed - the example roster is genericised
+
+`domain_packs/water_utility.people.json` carried `@azwater.gov` addresses. The
+folder is excluded from the installer and never shipped, but real-looking
+customer identifiers do not belong in the repo either. Now `@example.org`.
+
+### Fixed - .env.example described the removed Flask app
+
+It told people to place the file *"same folder as app.py"*, an entry point
+removed at 1.35.0. The file-locations section now explains that those variables
+**override** the state files — names are not fixed, point them anywhere — and
+that unset they resolve through `core/paths.py`.
+
 ## [1.36.13] - 2026-08-08
 
 ### Added - the remaining explainers, and the transparency viewer is reachable again

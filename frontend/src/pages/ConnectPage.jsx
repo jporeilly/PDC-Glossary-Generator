@@ -179,6 +179,11 @@ function Modal({ title, wide, onClose, children }) {
 
 export default function ConnectPage({ onNavigate }) {
   const ws = useWorkspace()
+  // What the app is missing but would not otherwise mention. A missing domain
+  // pack does not fail — the engine falls back to generic vocabulary and the
+  // glossary comes out bland, which reads as the app underperforming rather
+  // than as an input nobody supplied.
+  const [ready, setReady] = useState(null)
   const [conns, setConns] = useState(null)
   const [connsError, setConnsError] = useState(null)
   // One PDC sign-in shared by the bulk loader, harvest and the glossary check
@@ -210,6 +215,9 @@ export default function ConnectPage({ onNavigate }) {
     apiGet('/api/settings')
       .then((s) => { if (s.pdc_base) setPdc((p) => (p.base ? p : { ...p, base: s.pdc_base })) })
       .catch(() => {})
+    // Best-effort: a readiness check that fails must never keep the page from
+    // loading — the point is to warn, not to gate.
+    apiGet('/api/readiness').then(setReady).catch(() => {})
   }, [])
 
   async function discoverDb(conn) {
@@ -234,6 +242,19 @@ export default function ConnectPage({ onNavigate }) {
 
   return (
     <>
+      {ready && !ready.domain_pack?.present && (
+        <div className="notice-warn">
+          <b>No domain pack.</b> Terms will use generic vocabulary, so{' '}
+          <code>mbr_no</code> stays <i>Mbr No</i> rather than becoming{' '}
+          <i>Member Number</i>, and categories come from generic keywords. The scan still
+          works — the glossary is simply blander than it needs to be.
+          <br />
+          Nothing to do now: scan, review, then <b>export a pack</b> from the Dictionary page.
+          It grows from rows you have already approved, and the next scan of this company
+          starts where this one finished.
+        </div>
+      )}
+
       <div className="page-head">
         <h1>Connect</h1>
         <p className="psub">
