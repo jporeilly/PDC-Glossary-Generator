@@ -172,19 +172,29 @@ class TestFileScanProfilesStructuredFiles:
     """
 
     def test_the_scan_asks_for_a_profile_and_a_header(self):
+        """Defaults, now expressed as arguments rather than a table: PDC defaults
+           withProfile and headerExists to FALSE, and inheriting that catalogues
+           every CSV with no columns."""
+        import inspect
         from pdc_client import bulkload
-        d = bulkload._SCAN_PROFILE_DEFAULTS
-        assert d["withProfile"] is True
-        assert d["headerExists"] is True
+        sig = inspect.signature(bulkload.internal_scan_files)
+        assert sig.parameters["profile_files"].default is True
+        assert sig.parameters["header_row"].default is True
+        assert sig.parameters["doc_metadata"].default is True
 
-    def test_classification_stays_off(self):
-        """It assigns BUSINESS TERMS, which do not exist until this app has built
-           the glossary - from the very profile this scan produces. On a first
-           pass it can only mark everything unclassified."""
+    def test_the_listing_pass_runs_before_the_scan(self):
+        """TEST_CONNECTION is what LISTS the bucket, despite the name; the scan
+           persists what it found via lastTestConnectionId. Without it the scan
+           walks nothing, completes, and reports success over an empty catalog -
+           measured: 0 entities without, 21 files and 53 columns with."""
+        import inspect
         from pdc_client import bulkload
-        d = bulkload._SCAN_PROFILE_DEFAULTS
-        assert d["classification"] is False
-        assert d["addressDetection"] is False
+        src = inspect.getsource(bulkload.bulk_load_one)
+        assert "internal_test_connection(" in src
+        i_tc = src.index("internal_test_connection(")
+        i_scan = src.index("internal_scan_files(")
+        assert i_tc < i_scan, "the listing pass must run FIRST"
+        assert "last_test_connection_id=" in src
 
     def test_the_caller_can_override_both(self):
         from pdc_client import bulkload
@@ -197,7 +207,8 @@ class TestFileScanProfilesStructuredFiles:
         real = bulkload._req
         bulkload._req = fake_req
         try:
-            bulkload.internal_scan_files("https://pdc.example", "t", {"resourceId": "r"},
+            bulkload.internal_scan_files("https://pdc.example", "t",
+                                         {"resourceName": "S", "container": "b"}, "r",
                                          profile_files=False, header_row=False)
         finally:
             bulkload._req = real
@@ -368,7 +379,8 @@ class TestPerRowScanOptions:
         real = bulkload._req
         bulkload._req = fake_req
         try:
-            bulkload.internal_scan_files("https://pdc.example", "t", {"resourceId": "r"},
+            bulkload.internal_scan_files("https://pdc.example", "t",
+                                         {"resourceName": "S", "container": "b"}, "r",
                                          profile_files=True, header_row=True,
                                          doc_metadata=True, skip_recent_days=14)
         finally:
@@ -378,7 +390,12 @@ class TestPerRowScanOptions:
         assert d["withDocMetadata"] is True
         assert d["filesModifiedLaterThanDays"] == 14
         assert d["filesAccessedLaterThanDays"] == 14
-        # ML-dependent options are never switched on from here
-        assert d["classification"] is False
-        assert d["addressDetection"] is False
-        assert d["summarizeDocuments"] is False
+        # ML-dependent options are not sent at all now - the UI sends none of
+        # them and enumerates fine, so absent is stronger than explicitly false.
+        for ml in ("classification", "addressDetection", "summarizeDocuments"):
+            assert ml not in d, f"{ml} must not be sent from here"
+        # nor any credential: PDC looks its own up from resourceId, and echoing
+        # the stored (encrypted) values back is what silenced the scan
+        for cred in ("accessId", "accessKey", "secretKey", "secretAccessKey"):
+            assert cred not in d, f"{cred} must never be sent"
+        assert d["resourceId"] == "r"

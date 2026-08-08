@@ -14,6 +14,50 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.36.16] - 2026-08-08
+
+### Fixed - the object-store scan enumerates. It never had.
+
+A bulk-loaded object store reached PDC with its files catalogued and nothing
+inside them, or with no files at all. Every badge read OK. Two days of flags,
+paths, patterns and `fullRescan` changed nothing, and MinIO's own request trace
+settled why: across four scans PDC issued **zero** S3 calls, while a control
+listing was captured in full.
+
+The request body was wrong underneath, and a capture of the catalog's own
+**Test Connection** call showed it:
+
+| We sent | PDC's UI sends |
+| --- | --- |
+| `accessId`, `accessKey`, `secretKey`, `secretAccessKey` — echoed back from the stored record, **already encrypted** | *nothing* — PDC looks its own up from `resourceId` |
+| `excludePatterns: ["*.md"]` | `excludePatterns: [{"value": "*.md"}]` |
+| `withProfile`, `headerExists`, `containers`, `patternType`, `contentScanType`, `configMethod` | none of them |
+
+Handing the worker ciphertext where it expected a credential is what silenced
+it. Every flag tried before this was tuning on a body that was broken in its
+bones.
+
+**And it is two jobs, in order.** `TEST_CONNECTION` — despite the name — is the
+pass that **lists** the bucket and stores the result; the scan then persists what
+it found, via `lastTestConnectionId`. Skip the first and the second walks
+nothing, completes, and reports success over an empty catalog.
+
+Measured on the lab, same bucket, through the loader itself:
+
+    before   FOLDER/FILE  0    COLUMN  0
+    after    FOLDER/FILE  21   COLUMN  53
+
+`_scan_config_body()` now builds the minimal shape, `internal_test_connection()`
+runs the listing pass, and `bulk_load_one` sequences them. Tests pin the order
+and assert no credential is ever sent.
+
+**A public route exists for the listing pass** —
+`POST /api/public/v2/jobs/execute/test-connection` returns 200, as does the v3
+bulk form — but whether it enumerates is **unproven**: it produced the same
+`SCAN_ROUTER` pipeline with no file list, and confirming needs a data source
+with no entities. Recorded in the code, worth retrying with a clean source. The
+internal path is the one that is measured.
+
 ## [1.36.15] - 2026-08-08
 
 ### Added - how to build a domain pack, written down

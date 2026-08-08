@@ -208,115 +208,6 @@ def build_data_source_body(row):
     return _nonempty(body)
 
 
-# The scan's profiling switches, read off a real job record from PDC's own
-# "Configure Process" dialog (jobType "File System Scan", schemaId
-# "file_system_scan"). PDC defaults withProfile and headerExists to FALSE, and
-# sending no value inherits that - which catalogues every CSV with no columns,
-# or with columns named Column-0..Column-N because the header row was read as
-# data. Both are the wrong answer for a structured file, so both are set here.
-#
-# classification stays FALSE deliberately, and that is not timidity: PDC's
-# classifier assigns BUSINESS TERMS, which do not exist until this app has built
-# the glossary - and it builds it from the very profile this scan produces.
-# Enabling it on a first pass can only mark everything unclassified. Once the
-# glossary is applied, a second deliberate pass with classification on is worth
-# running over UNSTRUCTURED documents, where there are no column names to reason
-# from. Structured files never need it: the app assigns their terms directly.
-_SCAN_PROFILE_DEFAULTS = {
-    "withProfile": True,        # "Profile structured and semi-structured files"
-    "headerExists": True,       # "Treat first row as header"
-    "withChecksum": True,       # "Compute checksum of document content"
-    "withDocMetadata": True,    # owner, page count, paragraph count
-    "classification": False,    # needs business terms that do not exist yet
-    "addressDetection": False,  # same dependency: it tags a term you must supply
-    "summarizeDocuments": False,
-}
-
-
-def internal_scan_files(base_url, token, data_body, verify_tls=True, timeout=30,
-                        profile_files=True, header_row=True, doc_metadata=True,
-                        skip_recent_days=0):
-    """EXPERIMENTAL / UNSUPPORTED: trigger an object-store file scan via PDC's INTERNAL
-       UI endpoint (POST /api/start-job) — the call the web app's "Scan Files" button
-       makes. It is NOT part of the public API: no /public/, no version, undocumented,
-       and it may change or break between PDC releases. Gated behind an explicit toggle.
-       Body shape (from the UI capture): {name:"METADATA_INGEST", type:"START", data:{…}}."""
-    url = clean_base(base_url) + "/api/start-job"
-    data_body = dict(data_body or {})
-    for k, v in _SCAN_PROFILE_DEFAULTS.items():
-        data_body.setdefault(k, v)
-
-    # OPEN BUG - an object-store scan started here enumerates nothing.
-    #
-    # PDC's SCAN_ROUTER creates our METADATA_INGEST as a **METADATA_REINGEST**
-    # pipeline, which looks for CHANGES rather than walking the bucket: the job
-    # reports "Data Discovery: total: 0", COMPLETES, and leaves the Data Canvas
-    # empty. The database path is unaffected - it goes through the public
-    # metadata/ingest job and gets a metadata_ingest pipeline, which works.
-    #
-    # Measured against the lab 2026-08-07, with the bucket holding 16 objects,
-    # MinIO reachable from inside the worker container and the credentials
-    # independently verified. Ruled out: containers, an empty path prefix,
-    # fullRescan=true, and the public metadata/ingest endpoint. What is still
-    # needed is a capture of what PDC's own "Scan Files" button sends, since
-    # that produces a first ingest and this does not.
-    #
-    # The worker enumerates from `containers` (PLURAL); the data-source body
-    # carries `container` (singular). A working scan captured from PDC's UI
-    # carries both, so both are sent - necessary, evidently not sufficient.
-    if not data_body.get("containers") and data_body.get("container"):
-        data_body["containers"] = [data_body["container"]]
-
-    # Values PDC's own Configure Process dialog sends that an API-built body
-    # leaves null. patternType must accompany include/excludePatterns ("*.md" is
-    # a valid glob and an invalid regex); the two day-filters are the dialog's
-    # sliders, default 0 = no age restriction; contentScanType matches a captured
-    # working scan.
-    #
-    # HONEST STATUS (measured against the lab 2026-08-07): setting these makes
-    # the job COMPLETE rather than FAIL, but it still enumerates nothing on an
-    # object store - see the note on METADATA_REINGEST in internal_scan_files.
-    # They are kept because they match a known-good scan, not because they are
-    # known to fix anything.
-    #
-    # Deliberately NOT setting supportedMaxFileSize: the dialog defaults it to
-    # 100MB, but null appears to mean "no ceiling", and silently capping an
-    # estate's large files would be a worse bug than the one being chased.
-    for k, v in (("patternType", "GLOB"),
-                 ("filesModifiedLaterThanDays", 0),
-                 ("filesAccessedLaterThanDays", 0),
-                 ("contentScanType", "SCAN_ONLY")):
-        if data_body.get(k) in (None, ""):
-            data_body[k] = v
-    # Explicit arguments win over the defaults above, so a caller can scan
-    # metadata only, or handle a headerless CSV, without editing this table.
-    #
-    # These are options ON the object store's scan, which is Data Discovery's
-    # pass - not a separate category. A bucket holds both kinds of file:
-    #   withProfile   read the columns of the structured ones (csv/json/parquet)
-    #   headerExists  treat row 1 as their column names
-    #   withDocMetadata  the documents' own properties (owner, page count)
-    data_body["withProfile"] = bool(profile_files)
-    data_body["headerExists"] = bool(header_row)
-    data_body["withDocMetadata"] = bool(doc_metadata)
-    # "Files Modified / Accessed More Than N Day(s) Ago" - the dialog's two
-    # sliders, whose default is 0 = no age restriction. Raise it to skip files
-    # touched recently, e.g. a landing area still being written to.
-    _days = max(0, int(skip_recent_days or 0))
-    data_body["filesModifiedLaterThanDays"] = _days
-    data_body["filesAccessedLaterThanDays"] = _days
-    # NOT exposed, and pinned off: summarizeDocuments, addressDetection and
-    # classification all require ML to be configured, and a switch that silently
-    # does nothing is worse than no switch. classification additionally cannot
-    # work on a first pass - it assigns BUSINESS TERMS that do not exist until
-    # this app's glossary has been applied. Both are a deliberate second pass,
-    # run from PDC's own UI once ML is set up. _SCAN_PROFILE_DEFAULTS holds them
-    # false; nothing here turns them on.
-    body = {"name": "METADATA_INGEST", "type": "START", "data": data_body}
-    out = _req("POST", url, token=token, body=body, verify_tls=verify_tls, timeout=timeout)
-    d = out.get("data", out) if isinstance(out, dict) else {}
-    jid = (d.get("jobId") or d.get("id") or d.get("_id")) if isinstance(d, dict) else None
-    return {"job_id": jid, "raw": out}
 
 
 # 40 pages x 500 = 20,000 entities per source. Generous for a real estate while
@@ -324,6 +215,117 @@ def internal_scan_files(base_url, token, data_body, verify_tls=True, timeout=30,
 # A source that genuinely exceeds it is REPORTED rather than quietly clipped -
 # a short scope that says SUCCESS is the failure mode this whole path already had.
 _ENTITY_MAX_PAGES = 40
+
+
+def _scan_config_body(source, resource_id, include=None, exclude=None):
+    """The MINIMAL body PDC's own UI sends for a scan or a test connection.
+
+    Captured from the catalog's Test Connection button, and the shape matters
+    more than any flag:
+
+      * NO CREDENTIALS. The UI sends none - PDC looks its own up from
+        resourceId. Echoing the stored record back re-sends accessId/secretKey
+        ALREADY ENCRYPTED, and the worker is then handed ciphertext where it
+        expects a credential. That is what silenced the scan: MinIO's request
+        trace showed ZERO S3 calls across four attempts while a control listing
+        was captured in full.
+      * excludePatterns are OBJECTS: [{"value": "*.md"}], not ["*.md"].
+      * Nothing else. No withProfile, headerExists, containers, patternType or
+        contentScanType - the UI sends none of them and enumerates fine.
+
+    Everything we used to add was tuning on a body that was wrong underneath.
+    """
+    def _pat(v):
+        return [{"value": x} for x in _split_list(v)]
+
+    return _nonempty({
+        "resourceId":      resource_id,
+        "resourceName":    source.get("resourceName"),
+        "fqdnId":          source.get("fqdnId"),
+        "databaseType":    source.get("databaseType") or "AWS",
+        "affinityId":      source.get("affinityId") or "DEFAULT",
+        "region":          source.get("region"),
+        "container":       source.get("container"),
+        "endpoint":        source.get("endpoint"),
+        "path":            source.get("path") or "/",
+        "skipSslValidation": bool(source.get("skipSslValidation", False)),
+        "includePatterns": _pat(include if include is not None else source.get("includePatterns")),
+        "excludePatterns": _pat(exclude if exclude is not None else source.get("excludePatterns")),
+        "deleteEmptyFolders": False,
+        "incremental":     False,
+    })
+
+
+def internal_test_connection(base_url, token, source, resource_id,
+                             verify_tls=True, timeout=30, poll_wait=3.0, max_wait=180):
+    """EXPERIMENTAL / UNSUPPORTED: POST /api/start-job {name:"TEST_CONNECTION"}.
+
+    Despite the name this is NOT a health check - it is the pass that LISTS the
+    bucket, and it stores the result. The scan that follows references it by id
+    and persists what this found. Skip it and the scan walks nothing: it
+    completes, reports zero, and leaves the Data Canvas empty.
+
+    Returns the job id, which the caller hands to internal_scan_files as
+    last_test_connection_id.
+    """
+    url = clean_base(base_url) + "/api/start-job"
+    body = {"name": "TEST_CONNECTION", "type": "START",
+            "data": _scan_config_body(source, resource_id)}
+    out = _req("POST", url, token=token, body=body, verify_tls=verify_tls, timeout=timeout)
+    d = out.get("data", out) if isinstance(out, dict) else {}
+    jid = (d.get("jobId") or d.get("id") or d.get("_id")) if isinstance(d, dict) else None
+    if jid:
+        wait_job(base_url, token, jid, "v2", verify_tls, timeout,
+                 poll_wait=poll_wait, max_wait=max_wait)
+    return jid
+
+
+def internal_scan_files(base_url, token, source, resource_id, verify_tls=True, timeout=30,
+                        last_test_connection_id=None, profile_files=True, header_row=True,
+                        doc_metadata=True, skip_recent_days=0):
+    """EXPERIMENTAL / UNSUPPORTED: trigger an object-store file scan via PDC's INTERNAL
+       UI endpoint (POST /api/start-job) - the call the web app's "Scan Files" button
+       makes. NOT part of the public API: no /public/, no version, undocumented, and it
+       may change between PDC releases. Gated behind an explicit toggle.
+
+       TWO JOBS, IN ORDER. TEST_CONNECTION enumerates; this persists what it found,
+       via lastTestConnectionId. Measured on the lab: without it, 0 entities;
+       with it, 21 files/folders and 53 profiled columns from the same bucket.
+
+       There IS a public route for the first step
+       (POST /api/public/v2/jobs/execute/test-connection, which returns 200) but
+       whether it enumerates has NOT been proven - it produced the same
+       SCAN_ROUTER pipeline with no file list, and confirming needs a source with
+       no entities. Worth retrying then; this path is the one that is measured.
+    """
+    url = clean_base(base_url) + "/api/start-job"
+    data_body = _scan_config_body(source, resource_id)
+    if last_test_connection_id:
+        data_body["lastTestConnectionId"] = last_test_connection_id
+
+    # The file options ride on the scan. Structured files inside the bucket get
+    # their columns read (withProfile) with row 1 as names (headerExists);
+    # documents get their own properties. Set explicitly because PDC defaults
+    # withProfile and headerExists to FALSE, which catalogues every CSV with no
+    # columns - or columns named Column-0..Column-N.
+    data_body["withProfile"] = bool(profile_files)
+    data_body["headerExists"] = bool(header_row)
+    data_body["withDocMetadata"] = bool(doc_metadata)
+    # "Files Modified / Accessed More Than N Day(s) Ago" - the dialog's sliders,
+    # default 0 = no age restriction.
+    _days = max(0, int(skip_recent_days or 0))
+    data_body["filesModifiedLaterThanDays"] = _days
+    data_body["filesAccessedLaterThanDays"] = _days
+    # NOT sent, and never turned on from here: summarizeDocuments,
+    # addressDetection and classification all need ML configured, and
+    # classification additionally assigns business terms that do not exist until
+    # this app's glossary has been applied.
+
+    body = {"name": "METADATA_INGEST", "type": "START", "data": data_body}
+    out = _req("POST", url, token=token, body=body, verify_tls=verify_tls, timeout=timeout)
+    d = out.get("data", out) if isinstance(out, dict) else {}
+    jid = (d.get("jobId") or d.get("id") or d.get("_id")) if isinstance(d, dict) else None
+    return {"job_id": jid, "raw": out}
 
 
 def source_entity_ids(base_url, token, resource_name=None, resource_id=None,
@@ -633,14 +635,11 @@ def bulk_load_one(base_url, token, row, version="v2", verify_tls=True, timeout=3
             # PDC's internal /api/start-job (the UI's own Scan Files call) with
             # the same bearer token.
             if internal_scan or _row_discover:
-                # PDC's internal /api/start-job — the UI's Scan Files call.
-                data = dict(body)
-                data["resourceId"] = rec["resourceId"]
+                # The created record's fqdnId, where PDC minted one - it is part
+                # of the config the scan body carries.
                 _fq = (cr.get("record") or {}).get("fqdnId") if isinstance(cr, dict) else None
                 if _fq:
-                    data["fqdnId"] = _fq
-                data.setdefault("deleteEmptyFolders", False)
-                data.setdefault("incremental", False)
+                    body = dict(body, fqdnId=_fq)
                 try:
                     # The scan is what profiles a structured file, so the profile
                     # switch belongs here - not only on the Discovery job after it.
@@ -651,8 +650,17 @@ def bulk_load_one(base_url, token, row, version="v2", verify_tls=True, timeout=3
                     # scoped to *.pdf/*.docx with document metadata - each scanned
                     # the way its own file types deserve. A blank or absent column
                     # means "use the default", never False.
+                    # TWO JOBS, IN ORDER. TEST_CONNECTION is the pass that
+                    # LISTS the bucket despite its name; the scan then persists
+                    # what it found, by id. Skip step one and the scan walks
+                    # nothing, completes, and reports success over an empty
+                    # catalog - which is exactly how this looked for a day.
+                    _tc = internal_test_connection(base_url, token, body, rec["resourceId"],
+                                                   verify_tls, timeout,
+                                                   poll_wait=poll_wait, max_wait=max_wait)
                     jr = internal_scan_files(
-                        base_url, token, data, verify_tls, timeout,
+                        base_url, token, body, rec["resourceId"], verify_tls, timeout,
+                        last_test_connection_id=_tc,
                         profile_files=_row_pfiles,
                         header_row=_row_header,
                         doc_metadata=_row_docmeta,
@@ -661,7 +669,10 @@ def bulk_load_one(base_url, token, row, version="v2", verify_tls=True, timeout=3
                     ingest_ok = True
                     rec["ingest"] = "OK"
                     rec["job"] = "SENT"
-                    rec["note"] = "file scan triggered (PDC internal /api/start-job — the UI's Scan Files call)"
+                    rec["note"] = ("listed the bucket (TEST_CONNECTION), then scanned it "
+                                   "(PDC internal /api/start-job)" if _tc else
+                                   "file scan triggered, but the listing pass returned no id - "
+                                   "the scan may find nothing")
                     if wait and jr["job_id"]:
                         w = wait_job(base_url, token, jr["job_id"], version, verify_tls,
                                      timeout, poll_wait=poll_wait, max_wait=max_wait)
