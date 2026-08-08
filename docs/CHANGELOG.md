@@ -14,6 +14,21 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.36.27] - 2026-08-08
+
+### Fixed - inline edits no longer lose focus after every letter
+
+Typing in Term or Category recomputed the duplicate clusters on each keystroke,
+and the cluster key - which contains the row's own text - was part of the React
+key of the row's subtree. Renaming the key unmounts the subtree, so the input
+was destroyed mid-word and the cursor lost: one letter at a time, as reported
+from the field.
+
+Grouping now works from a snapshot frozen when focus enters the grid and
+regroups when it leaves - the structure holds still while you type, and the
+reshuffle happens at the moment losing the element costs nothing. Everything
+rendered inside still reads the live row; only the KEYS read the snapshot.
+
 ## [1.36.26] - 2026-08-08
 
 ### Fixed - "ph" no longer expands to Phone, because it might mean pH

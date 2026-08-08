@@ -375,19 +375,43 @@ export default function ReviewPage({ onNavigate }) {
     return out
   }, [rows, filters])
 
+  // FROZEN WHILE TYPING. The duplicate clusters key on the row's own text, and
+  // that key ends up in the Fragment key of the row's subtree - so every
+  // keystroke in Term or Category renamed the React key, unmounted the input
+  // mid-word, and the cursor was gone: one letter at a time. Grouping now works
+  // from a snapshot taken when focus enters the grid and regroups on the way
+  // out, when losing the element costs nothing.
+  const [gridEditing, setGridEditing] = useState(false)
+  const frozenRowsRef = useRef(rows)
+  const onGridFocusIn = useCallback((e) => {
+    const t = e.target
+    if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT')) {
+      setGridEditing((was) => {
+        if (!was) frozenRowsRef.current = rowsRef.current
+        return true
+      })
+    }
+  }, [])
+  const onGridFocusOut = useCallback((e) => {
+    if (!e.currentTarget.contains(e.relatedTarget)) setGridEditing(false)
+  }, [])
+  const groupingRows = gridEditing ? frozenRowsRef.current : rows
+
   const clusters = useMemo(() => {
     const active = activeNames(grp)
     const by = {}
     const order = []
     shown.forEach((i) => {
-      const r = rows[i]
+      // grouping reads the SNAPSHOT so keys stay stable mid-edit; everything
+      // rendered inside still reads the live row
+      const r = groupingRows[i] || rows[i]
       if (!r) return
       const k = keyOf(r, i, active)
       if (!by[k]) { by[k] = []; order.push(k) }
       by[k].push(i)
     })
     return { by, order }
-  }, [shown, rows, grp])
+  }, [shown, groupingRows, rows, grp])
 
   const vis = useMemo(() => clusters.order.flatMap((k) => clusters.by[k]), [clusters])
   visRef.current = vis
@@ -1458,7 +1482,7 @@ export default function ReviewPage({ onNavigate }) {
           )}
         </div>
 
-        <div className="rv-tablewrap" ref={tableWrapRef}>
+        <div className="rv-tablewrap" ref={tableWrapRef} onFocus={onGridFocusIn} onBlur={onGridFocusOut}>
           <table className="rv-table">
             <colgroup>
               <col style={{ width: 36 }} /><col style={{ width: 140 }} /><col style={{ width: 190 }} />
