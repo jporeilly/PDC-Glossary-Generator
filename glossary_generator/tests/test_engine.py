@@ -550,7 +550,14 @@ def test_engine_ships_no_categories():
         "a builtin category keyword has crept back into the engine"
     assert not hasattr(suggester, "BUILTIN_CAT_KEYWORDS")
     assert suggester.categorize_column("invoice_total") is None
-    assert suggester.categorize("billing_invoice") == "Uncategorized"
+    # Packless, the fallback is the PHYSICAL name - evidence, not invention.
+    # A wall of "Uncategorized" left stewards guessing; a table's own name gives
+    # them a group to RENAME once instead.
+    assert suggester.categorize("billing_invoice") == "Billing Invoice"
+    assert suggester.humanize_physical("monthly_usage") == "Monthly Usage"
+    assert suggester.humanize_physical("gis/asset_inventory.csv") == "Gis"
+    assert suggester.humanize_physical("inspection_report.docx") == "Inspection Report"
+    assert suggester.humanize_physical("") == "Uncategorized"
 
     # The single documented exception: the engine creates document rows itself,
     # so it must name a category for them - and a pack can rename it.

@@ -909,6 +909,129 @@ def qa_definitions_rows(rows, model=None, compute=None, workers=None):
     return rows, flagged, True
 
 
+# --------------------------------------------------- AI category proposer
+def _row_table(r):
+    """The physical container a row's first source column lives in - a table
+    for a database, the deepest folder for a document. Pure, and shared by the
+    evidence builder and the assignment step so they can never disagree."""
+    sc = str(r.get("Source_Column") or "").split(";")[0].strip()
+    if not sc:
+        return ""
+    if "/" in sc:
+        return sc.rstrip("/").rsplit("/", 1)[-1]
+    parts = sc.split(".")
+    return parts[-2] if len(parts) >= 2 else parts[0]
+
+
+def schema_evidence(rows):
+    """Tables with their columns and FK targets, from the kept rows' own scan
+    facts. This is the ER diagram as data - the model is shown STRUCTURE the
+    scan proved, never asked to imagine one."""
+    tables = {}
+    for r in rows or []:
+        if not isinstance(r, dict):
+            continue
+        if str(r.get("Keep", "Y")).strip().lower() not in ("y", "yes", "true", "1"):
+            continue
+        t = _row_table(r)
+        if not t:
+            continue
+        d = tables.setdefault(t, {"columns": set(), "refs": set()})
+        for sc in str(r.get("Source_Column") or "").split(";"):
+            sc = sc.strip()
+            if sc and "/" not in sc:
+                d["columns"].add(sc.split(".")[-1])
+        for col, k in (r.get("Source_Keys") or {}).items():
+            if isinstance(k, dict) and k.get("ref"):
+                ref = str(k["ref"]).split(".")
+                rt = ref[-2] if len(ref) >= 2 else ref[0]
+                if rt and rt != t:
+                    d["refs"].add(rt)
+    return tables
+
+
+def propose_categories(rows, model=None, compute=None, max_categories=9):
+    """ONE call: propose business categories from the schema's own structure.
+
+    The steward should not have to invent a taxonomy, and the model should not
+    be allowed to imagine one - so the prompt carries exactly what the scan
+    proved: each table, its columns, and which tables it references. FK links
+    are the strongest signal (monthly_usage -> customers says more than any
+    name). Returns (proposal, assignments, used_llm) where proposal is
+    [{name, definition, tables}] and assignments aligns with rows, category or
+    None. PROPOSES ONLY - the caller applies after the steward agrees, the
+    Rename button adjusts, and Export pack freezes the outcome so later scans
+    are deterministic.
+    """
+    rows = [r for r in (rows or []) if isinstance(r, dict)]
+    tables = schema_evidence(rows)
+    if len(tables) < 2 or not status(model)["online"]:
+        return [], [None] * len(rows), False
+    lines_ = []
+    for t, d in sorted(tables.items()):
+        cols = ", ".join(sorted(d["columns"])[:24])
+        refs = ("  (references: " + ", ".join(sorted(d["refs"])) + ")") if d["refs"] else ""
+        lines_.append("- %s: %s%s" % (t, cols or "-", refs))
+    # Adaptive: a handful of tables wants ~5 categories; a 50-table estate
+    # is usually best told in 8-12. The model aims low within the bound -
+    # the fewest categories that still discriminate.
+    hi = 12 if len(tables) >= 20 else max(3, min(int(max_categories), 9))
+    n_cats = hi
+    prompt = (
+        "You are grouping a %sdata estate into business-glossary categories.\n"
+        "Physical tables, their columns, and their foreign-key references:\n\n"
+        "%s\n\n"
+        "Take a HOLISTIC view: decide how many categories best represent this\n"
+        "business (between 3 and %d - the fewest that still discriminate,\n"
+        "typically 5-10), then place EVERY table in exactly one of them.\n"
+        "Category names are business ABSTRACTIONS in the language of the\n"
+        "business - almost never a single table's name. Tables that\n"
+        "reference each other usually serve one business subject.\n\n"
+        'Return JSON: {"categories": [{"name": "1-3 words",\n'
+        '  "definition": "one sentence", "tables": ["..."]}]}'
+    ) % ((COMPANY + " ") if COMPANY else "", "\n".join(lines_), n_cats)
+    num_gpu = 0 if compute == "cpu" else (99 if compute == "gpu" else None)
+    try:
+        _warm(model)
+    except Exception:
+        pass
+    try:
+        res = _complete_json(prompt, model=model, num_gpu=num_gpu, timeout=TIMEOUT * 3)
+    except Exception:
+        # A missing or broken model must degrade to "nothing proposed", never
+        # surface as a 500 - the steward keeps the physical groups and moves on.
+        return [], [None] * len(rows), False
+    cats = (res or {}).get("categories")
+    if not isinstance(cats, list):
+        return [], [None] * len(rows), True
+    known = {t.lower(): t for t in tables}
+    table_cat, proposal = {}, []
+    for c in cats:
+        if not isinstance(c, dict):
+            continue
+        name = str(c.get("name") or "").strip()
+        if not name:
+            continue
+        mine = []
+        for t in (c.get("tables") or []):
+            real = known.get(str(t).strip().lower())
+            if real and real not in table_cat:       # first assignment wins
+                table_cat[real] = name
+                mine.append(real)
+        if mine:
+            proposal.append({"name": name,
+                             "definition": str(c.get("definition") or "").strip(),
+                             "tables": mine})
+    assignments = [table_cat.get(_row_table(r)) for r in rows]
+    # Tables the model left out are REPORTED, never guessed: their rows keep
+    # the physical group the scan gave them, visibly, for the steward.
+    unassigned = sorted(t for t in tables if t not in table_cat)
+    if unassigned:
+        proposal.append({"name": "", "definition": "", "tables": unassigned,
+                         "unassigned": True})
+    return proposal, assignments, True
+
+
 # ------------------------------------------------------------ AI categorizer
 def categorize_rows(rows, categories, model=None, compute=None, workers=None,
                     only_blank=True):

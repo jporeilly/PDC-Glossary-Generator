@@ -470,6 +470,28 @@ export default function ReviewPage({ onNavigate }) {
 
   const toggleExpand = useCallback((index) => { setExpanded((e) => (e === index ? null : index)) }, [])
 
+  // Rename every row of one category in a single decision. This is what makes
+  // the packless fallback workable: a fresh scan groups rows under PHYSICAL
+  // names (Monthly Usage, Gis), and the steward's job is to rename each group
+  // to the business word once - not to assign categories row by row. Stewards
+  // must never be left guessing from a wall of Uncategorized.
+  const renameCategory = useCallback((from) => {
+    const cur = String(from || '').trim()
+    if (!cur) return
+    const to = window.prompt(`Rename category "${cur}" on every row - to:`, cur)
+    if (to == null) return
+    const name = to.trim()
+    if (!name || name === cur) return
+    let n = 0
+    setRows(rowsRef.current.map((x) => {
+      if (String(x.Category || '').trim() !== cur) return x
+      n++
+      return { ...x, Category: name }
+    }))
+    setFilters((f) => (f.cat === cur ? { ...f, cat: name } : f))
+    setMsg(`Renamed "${cur}" to "${name}" on ${n} row(s).`)
+  }, [setFilters])
+
   const useName = useCallback((index) => {
     const r = rowsRef.current[index]
     if (!r || !r.Suggested_Name) return
@@ -613,6 +635,50 @@ export default function ReviewPage({ onNavigate }) {
           : `${probedTxt} — the data settled every one, so no model call was needed.`)
     } catch (e) { setError(e.message) }
     setAdvising(false)
+  }
+
+  /* ---------- AI categories: an abstract grouping from the schema ---------- */
+  // The model is shown what the scan PROVED - tables, columns, FK links - and
+  // asked for a holistic business grouping: the fewest abstract categories that
+  // still discriminate, every table placed in one. Proposals only: the steward
+  // confirms, the Rename button adjusts, Export pack freezes the outcome.
+  // Tables the model leaves out keep their physical group, visibly.
+  const [catBusy, setCatBusy] = useState(false)
+  async function aiCategories() {
+    setCatBusy(true)
+    setMsg('Proposing business categories from the schema…')
+    try {
+      const d = await apiPost('/api/ai-categories', { rows })
+      const cats = (d.categories || []).filter((c) => !c.unassigned)
+      const un = (d.categories || []).find((c) => c.unassigned)
+      if (!d.used_llm || !cats.length) {
+        setMsg(d.used_llm
+          ? 'The model proposed nothing usable — set a few categories by hand and re-run.'
+          : 'No model available (or fewer than two tables) — nothing proposed.')
+        return
+      }
+      const summary = cats.map((c) => `${c.name}  ←  ${c.tables.join(', ')}`).join('\n')
+      const tail = un ? `
+
+Not placed (keep their physical group): ${un.tables.join(', ')}` : ''
+      if (!window.confirm(`Apply this business grouping?
+
+${summary}${tail}
+
+You can rename any group afterwards (filter to it → Rename).`)) return
+      const a = d.assignments || []
+      let n = 0
+      setRows(rowsRef.current.map((r, i) => {
+        if (!a[i] || (r.Category || '') === a[i]) return r
+        n++
+        return { ...r, Category: a[i] }
+      }))
+      setMsg(`Applied ${cats.length} categories to ${n} row(s)${un ? ` — ${un.tables.length} table(s) kept their physical group` : ''}.`)
+    } catch (e) {
+      setMsg(`AI categories failed: ${e.message}`)
+    } finally {
+      setCatBusy(false)
+    }
   }
 
   /* ---------- Find similar (same concept, different names) ---------- */
@@ -985,6 +1051,15 @@ export default function ReviewPage({ onNavigate }) {
             column count and levels off as an estate grows.
           </p>
           <dl className="uth-dl">
+            <dt>Category</dt>
+            <dd>
+              The pack's table map, else the pack's keywords, else the <b>physical name
+              itself</b> — <i>Monthly Usage</i> from <code>monthly_usage</code>, a document's
+              top folder. Evidence, not invention: your job is to <b>rename each group
+              once</b> (filter to a category and use <i>Rename</i>), never to assign
+              categories row by row. Export pack records the mapping, so the next scan
+              arrives categorised.
+            </dd>
             <dt>Name</dt>
             <dd>
               From the column name, expanded through the domain pack's abbreviations —{' '}
@@ -1215,6 +1290,12 @@ export default function ReviewPage({ onNavigate }) {
               <option value="">All categories</option>
               {cats.map((c) => <option key={c}>{c}</option>)}
             </select>
+            {filters.cat && (
+              <button className="ghost sm" onClick={() => renameCategory(filters.cat)}
+                      title="Rename this category on every row that carries it - one decision per group, not one per row.">
+                Rename &quot;{filters.cat}&quot;…
+              </button>
+            )}
             <select value={filters.sev} onChange={(e) => setFilters((f) => ({ ...f, sev: e.target.value }))} aria-label="Sensitivity filter">
               <option value="">All sensitivity</option>
               <option>HIGH</option><option>MEDIUM</option><option>LOW</option>
@@ -1265,6 +1346,10 @@ export default function ReviewPage({ onNavigate }) {
             <button className="ghost sm" disabled={noRows} onClick={() => (sim ? setSim(null) : findSimilar())}
                     title="Score the shown terms pairwise and suggest same-concept names to merge (e.g. Phone / Customer Phone / Cust Phone No).">
               Find similar
+            </button>
+            <button className="ghost" disabled={catBusy} onClick={aiCategories}
+                    title="Propose an abstract business grouping from the schema the scan proved — tables, columns and FK links. The model decides how many categories best represent the business (the fewest that discriminate), you confirm, and any group can be renamed after. Tables it can't place keep their physical group.">
+              {catBusy ? 'Proposing…' : 'AI categories'}
             </button>
             <span className="rv-grow" />
             <button className="ghost sm" disabled={!snapRef.current || locked} onClick={resetAll}

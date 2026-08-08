@@ -185,6 +185,11 @@ matches nothing, and goes unquestioned precisely because it looks deliberate.
 
 ### Author one thing: the category list
 
+(You do not start from a blank wall: a packless scan groups rows under their
+**physical names** — *Monthly Usage* from `monthly_usage`, a document's top
+folder — and the steward renames each group once to the business word. Evidence
+proposes; the steward disposes. Stewards are never left guessing.)
+
 It is the only input a person reliably knows before scanning, because it comes
 from how the business talks rather than how its data is modelled. Everything
 derivable is then derived from it — one keyword per category from its own

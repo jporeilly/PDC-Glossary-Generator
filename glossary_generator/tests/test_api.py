@@ -534,3 +534,46 @@ class TestReadinessReportsWhatIsMissing:
         monkeypatch.setattr(suggester, "_load_domain_pack", boom)
         r = client.get("/api/readiness")
         assert r.status_code == 200 and r.json()["domain_pack"]["present"] is False
+
+
+class TestAiCategoriesProposesFromSchema:
+    """The steward must not guess a taxonomy, and the model must not invent one:
+    it is shown tables, columns and FK links the scan proved, proposes an
+    abstract grouping, and the steward gates it. Tables the model leaves out
+    are reported and keep their physical group - never silently guessed."""
+
+    def test_endpoint_returns_proposal_and_aligned_assignments(self, client, monkeypatch):
+        from ai import llm as _llm
+
+        def fake(rows, model=None, compute=None):
+            return ([{"name": "Customer", "definition": "d", "tables": ["customers"]}],
+                    ["Customer", None], True)
+
+        monkeypatch.setattr(_llm, "propose_categories", fake)
+        r = client.post("/api/ai-categories", json={"rows": [
+            {"Keep": "Y", "Term": "A", "Source_Column": "s.customers.a"},
+            {"Keep": "Y", "Term": "B", "Source_Column": "s.rates.b"}]})
+        assert r.status_code == 200
+        d = r.json()
+        assert d["used_llm"] is True
+        assert d["assignments"] == ["Customer", None]
+        assert d["categories"][0]["tables"] == ["customers"]
+
+    def test_evidence_carries_the_fk_graph(self):
+        from ai import llm
+        rows = [{"Keep": "Y", "Term": "T", "Source_Column": "s.monthly_usage.gallons",
+                 "Source_Keys": {"s.monthly_usage.customer_id":
+                                 {"fk": True, "ref": "customers.customer_id"}}}]
+        ev = llm.schema_evidence(rows)
+        assert ev["monthly_usage"]["refs"] == {"customers"}, \
+            "the FK graph is the strongest grouping signal and must reach the prompt"
+
+    def test_offline_proposes_nothing_rather_than_guessing(self):
+        from ai import llm
+        rows = [{"Keep": "Y", "Term": "A", "Source_Column": "s.t1.a"},
+                {"Keep": "Y", "Term": "B", "Source_Column": "s.t2.b"}]
+        prop, assign, used = llm.propose_categories(rows, model="definitely-not-a-model")
+        # used_llm may be True (server up, bogus model answered nothing) or
+        # False (server down) - the guarantee under test is the same either
+        # way: NOTHING is guessed. No proposal, every assignment None.
+        assert prop == [] and assign == [None, None]

@@ -14,6 +14,48 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.36.21] - 2026-08-08
+
+### Added - AI categories: an abstract business grouping from the schema
+
+The physical fallback gives structure; this gives it business language. The new
+**AI categories** button (Review) shows the model exactly what the scan proved -
+each table, its columns, and its FK references - and asks for a holistic
+grouping: the model decides how many categories best represent the business
+(the fewest that discriminate, typically 5-10, up to 12 on a 20+ table estate),
+places every table in one, and names them as **abstractions**, not table names.
+
+Proven live on the AWC schema: `customers`, `account_alerts` and
+`monthly_usage` - the FK-linked cluster - came back as one *Customer
+Information* category, with water quality separate.
+
+Guardrails, all tested: proposals only (a confirm applies them); tables the
+model cannot place are **reported and keep their physical group**, never
+guessed; offline or with a broken model it degrades to nothing proposed rather
+than an error; and the taxonomy the steward settles is **frozen by Export
+pack** - later scans categorise deterministically, and changing the set again
+is a deliberate act that the pack merge surfaces as conflicts, not drift.
+
+### Changed - packless categories come from the estate, not a wall of Uncategorized
+
+A first scan with no domain pack filed 123 of 123 terms under **Uncategorized**,
+and the AI could not help: it only picks from a known list, and the list was
+empty. The steward was left guessing a taxonomy out of nothing - which is
+exactly what a steward must never be asked to do.
+
+The old behaviour was itself a fix: the engine once leaked an invented
+water-utility taxonomy, and the cure was to assert nothing. Right diagnosis,
+over-corrected. The estate's **physical structure is not invented** - the scan
+proved `monthly_usage` exists. So `categorize()` now falls back to the
+humanised physical name: *Monthly Usage* from the table, *Gis* from a
+document's top folder. Business words are still never asserted.
+
+The steward's job becomes **renaming a group once** - filter to a category and
+the new **Rename "…"** button renames it on every row (the filter follows). Then
+Export pack records the physical → business mapping, and the next scan
+categorises deterministically. Verified live: a packless DDL scan now returns
+*Monthly Usage* and *Water Quality Reports*, zero Uncategorized.
+
 ## [1.36.20] - 2026-08-08
 
 ### Changed - the AI pass explains itself in paragraphs

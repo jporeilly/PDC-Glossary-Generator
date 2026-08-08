@@ -823,23 +823,52 @@ def table_term_rows(tables, col_rows=None):
 # rather than a leak. Renaming them to neutral words would have kept the same
 # flaw - the engine asserting a taxonomy the customer never agreed to.
 #
-# So: no pack, no keyword categorisation. categorize() returns "Uncategorized"
-# and categorize_column() returns None, which is honest and reviewable - the
-# steward assigns categories during review and `Export domain pack` turns those
-# decisions into the pack, so the SECOND scan is categorised from the company's
-# own evidence. Same rule as the removed _CANONICAL_SEEDS: custom, from the
-# profiled scan, never inbuilt.
+# So: no pack, no keyword categorisation - and no INVENTED words. Since
+# 1.36.21 the packless fallback is the PHYSICAL name (humanize_physical below):
+# the table's own name, a document's top folder. That is evidence the scan
+# proved, not a taxonomy the engine asserted, and it spares the steward
+# guessing categories out of a wall of "Uncategorized" - they rename a group
+# once and `Export domain pack` records the mapping, so the SECOND scan is
+# categorised from the company's own evidence. categorize_column() still
+# returns None packless. Same rule as the removed _CANONICAL_SEEDS: custom,
+# from the profiled scan, never inbuilt.
 CAT_KEYWORDS = [tuple(x) for x in _PACK.get("cat_keywords", [])]
 
+def humanize_physical(tname):
+    """A starting category from the estate's own structure, when the pack has
+    no opinion: the table's name for a database, the top folder for a document.
+
+        monthly_usage              -> Monthly Usage
+        gis/asset_inventory.csv    -> Gis
+        inspection_report.docx     -> Inspection Report
+
+    This is NOT the engine asserting a taxonomy - that was the leak the big
+    comment above records, and inventing business words again would repeat it.
+    A physical name is evidence: the scan proved the table exists. The steward's
+    job becomes RENAMING a group once ("Monthly Usage" -> "Usage"), instead of
+    assigning categories row by row out of a wall of Uncategorized - stewards
+    should never be left guessing. Export domain pack then records the renamed
+    mapping, so the next scan categorises deterministically.
+    """
+    t = str(tname or "").strip()
+    if "/" in t:
+        t = t.split("/", 1)[0]          # a document's top folder is its subject
+    else:
+        t = _FILE_EXT.sub("", t)        # a bare file categorises by its stem
+    t = re.sub(r"[_\-]+", " ", t).strip()
+    return " ".join(w.capitalize() for w in t.split()) or "Uncategorized"
+
+
 def categorize(tname):
-    """Map a physical table name to a business glossary category."""
+    """Map a physical table name to a business glossary category: the pack's
+    table map, else the pack's keywords, else the PHYSICAL name itself."""
     if tname in TABLE_CATEGORY:
         return TABLE_CATEGORY[tname]
     t = tname.lower()
     for kw, cat in CAT_KEYWORDS:
         if kw in t:
             return cat
-    return "Uncategorized"
+    return humanize_physical(tname)
 
 
 def categorize_column(cname):

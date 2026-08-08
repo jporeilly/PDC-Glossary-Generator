@@ -1235,6 +1235,18 @@ def _truthy(v):
     return str(v or "").strip().lower() in ("y", "yes", "true", "t", "1", "on")
 
 
+@app.post("/api/ai-categories")
+def ai_categories(body: dict = Body(default={})):
+    """Propose business categories from the schema's own structure - tables,
+       columns and FK links the scan proved. Proposals only: the UI applies
+       after the steward confirms, and Export pack freezes the outcome."""
+    body = body or {}
+    rows = [r for r in (body.get("rows") or []) if isinstance(r, dict)]
+    from ai import llm
+    proposal, assignments, used = llm.propose_categories(
+        rows, model=body.get("model"), compute=body.get("compute"))
+    return {"categories": proposal, "assignments": assignments, "used_llm": used}
+
 @app.post("/api/seed")
 def seed(body: dict = Body(default={})):
     """Seed a PostgreSQL schema with demo data — the ONLY endpoint here that writes
