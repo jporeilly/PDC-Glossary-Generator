@@ -944,7 +944,14 @@ EXPAND = {
     # people / contact
     "cust": "Customer", "acct": "Account", "addr": "Address", "fname": "First Name",
     "lname": "Last Name", "dob": "Date of Birth", "ssn": "SSN", "tel": "Telephone",
-    "ph": "Phone", "phn": "Phone", "email": "Email", "zip": "ZIP",
+    # "ph" is deliberately ABSENT: it is Phone in a CRM and pH in chemistry, and
+    # a global builtin cannot know which. The generic expansion turned a water
+    # utility's ph_level into "Phone Level" - which the PII name-matcher then
+    # read as CONTACT_INFO, stamping privacy tags and MEDIUM sensitivity on a
+    # chemistry measurement. Ambiguous tokens belong to the DOMAIN PACK, where
+    # the company's own review decides (ph -> pH for a utility, Phone for a
+    # call centre) and Export pack records it.
+    "phn": "Phone", "email": "Email", "zip": "ZIP",
     # time
     "dt": "Date", "ts": "Timestamp", "yr": "Year", "mo": "Month", "qtr": "Quarter",
     "wk": "Week", "hr": "Hour",

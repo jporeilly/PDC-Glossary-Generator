@@ -22,7 +22,9 @@ import re
 _ABBREV = {
     "no": "number", "num": "number", "nbr": "number", "qty": "quantity",
     "amt": "amount", "cust": "customer", "acct": "account", "addr": "address",
-    "tel": "telephone", "ph": "phone", "dob": "dateofbirth", "ssn": "ssn",
+    "tel": "telephone", "dob": "dateofbirth", "ssn": "ssn",  # "ph" removed:
+    # ambiguous (pH vs phone) - normalising it here made pH columns cluster
+    # with telephone columns as "the same concept"
     "id": "identifier", "desc": "description", "dt": "date", "ts": "timestamp",
     "pct": "percent", "bal": "balance", "txn": "transaction", "org": "organization",
     "dept": "department", "mgr": "manager", "emp": "employee", "svc": "service",

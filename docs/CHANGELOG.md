@@ -14,6 +14,24 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.36.26] - 2026-08-08
+
+### Fixed - "ph" no longer expands to Phone, because it might mean pH
+
+Field-caught on a GPU review of a water utility: the built-in abbreviation map
+turned `ph_level` into **"Phone Level"** - and the PII name-matcher then read
+the expanded name, stamping CONTACT_INFO, `contact;privacy` tags and MEDIUM
+sensitivity onto a **chemistry measurement**. One wrong generic assumption
+cascaded straight into classification - drift condition Y, caused by our own
+builtin.
+
+`ph` is genuinely ambiguous - Phone in a CRM, pH in a lab - and a global map
+cannot know. It is removed from the builtin expansions and from the duplicate
+matcher's normaliser (where it made pH columns cluster with telephone columns).
+Ambiguous tokens belong to the **domain pack**: rename the term to *pH Level*
+once, Export pack records `ph -> pH` as the company's own abbreviation, and
+every later scan gets it right deterministically. `phn` still expands to Phone.
+
 ## [1.36.25] - 2026-08-08
 
 ### Changed - AI categories is a primary button, and shows that it is working
