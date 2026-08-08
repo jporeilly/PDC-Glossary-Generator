@@ -79,6 +79,16 @@ on classification.
 
 *Recognise it by:* two runs over the same data producing different sensitivity.
 
+> **A live specimen.** A water utility's `ph_level` column was expanded by a
+> generic built-in abbreviation to *"Phone Level"* — and the PII name-matcher
+> then read the expanded name, stamping `CONTACT_INFO`, contact/privacy tags
+> and MEDIUM sensitivity onto a **chemistry measurement**. One wrong generic
+> assumption, three governance fields corrupted, everything looking deliberate.
+> `ph` means Phone in a CRM and pH in a lab; no global rule can know. The cure
+> was not a better guess but **no guess**: the engine now has no opinion on
+> ambiguous tokens, and the company's own pack records the right expansion the
+> first time a steward renames the term.
+
 ### Z — One row read by both the glossary and the identification methods
 
 **Unless the glossary and the detection methods draw from the same row**, they
