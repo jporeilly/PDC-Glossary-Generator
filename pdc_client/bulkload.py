@@ -87,6 +87,23 @@ def _split_list(v):
     return [p.strip() for p in str(v).replace(";", ",").split(",") if p.strip()]
 
 
+def _bare_host(v):
+    """A JDBC host, forgiving of a pasted URL.
+
+    The minio row's `endpoint` IS a URL, so people reasonably write the
+    postgres `host` the same way - and `http://192.168.1.200` then fails the
+    ingest with a bare FAILED, since it resolves as nothing. The intent is
+    unambiguous; strip the scheme, any path and any port tail (the port has its
+    own column) rather than fail a row over punctuation.
+    """
+    h = str(v or "").strip()
+    h = re.sub(r"^[a-z][a-z0-9+.-]*://", "", h, flags=re.I)   # scheme
+    h = h.split("/", 1)[0]                                    # path
+    if h.count(":") == 1:                                     # host:port tail
+        h = h.split(":", 1)[0]
+    return h
+
+
 def build_data_source_body(row):
     """Map a flat row (CSV/dict) to a PDC create-data-source JSON body.
 
@@ -118,14 +135,14 @@ def build_data_source_body(row):
 
     if kind in ("postgres", "postgresql", "pg"):
         body = dict(common, databaseType="POSTGRES",
-                    host=row.get("host"), port=str(row.get("port") or "5432"),
+                    host=_bare_host(row.get("host")), port=str(row.get("port") or "5432"),
                     databaseName=row.get("databaseName") or row.get("database"),
                     userName=row.get("userName") or row.get("username"),
                     password=row.get("password"),
                     schemaNames=_split_list(row.get("schemaNames")))
     elif kind in ("mysql", "mariadb"):
         body = dict(common, databaseType="MYSQL",
-                    host=row.get("host"), port=str(row.get("port") or "3306"),
+                    host=_bare_host(row.get("host")), port=str(row.get("port") or "3306"),
                     databaseName=row.get("databaseName") or row.get("database"),
                     userName=row.get("userName") or row.get("username"),
                     password=row.get("password"))
@@ -156,7 +173,7 @@ def build_data_source_body(row):
         # publish the enum, so verify against a UI-created Oracle source if the
         # create 400s (same discovery path as databaseType="AWS" for object stores).
         body = dict(common, databaseType="ORACLE",
-                    host=row.get("host"), port=str(row.get("port") or "1521"),
+                    host=_bare_host(row.get("host")), port=str(row.get("port") or "1521"),
                     databaseName=row.get("databaseName") or row.get("database")
                         or row.get("serviceName"),
                     userName=row.get("userName") or row.get("username"),

@@ -379,3 +379,25 @@ class TestPerRowScanOptions:
         assert row_int({"skipRecentDays": "soon"}, "skipRecentDays", 7) == 7
         assert row_int({"skipRecentDays": "-5"}, "skipRecentDays", 7) == 7
 
+
+
+class TestHostForgivesAPastedUrl:
+    """The minio endpoint IS a URL, so people write the postgres host the same
+    way - and http://192.0.2.1 then fails the ingest with a bare FAILED. The
+    intent is unambiguous, so the loader absorbs it."""
+
+    def test_scheme_path_and_port_are_stripped(self):
+        from pdc_client.bulkload import _bare_host
+        assert _bare_host("http://192.0.2.1") == "192.0.2.1"
+        assert _bare_host("https://db.example.com/") == "db.example.com"
+        assert _bare_host("192.0.2.1:5433") == "192.0.2.1"
+        assert _bare_host(" 192.0.2.1 ") == "192.0.2.1"
+        assert _bare_host("db.example.com") == "db.example.com"
+
+    def test_the_body_carries_the_bare_host(self):
+        from pdc_client.bulkload import build_data_source_body
+        b = build_data_source_body({"kind": "postgres", "resourceName": "T",
+                                    "host": "http://192.0.2.1", "port": "5433",
+                                    "databaseName": "d", "userName": "u",
+                                    "password": "p"})
+        assert b["host"] == "192.0.2.1"

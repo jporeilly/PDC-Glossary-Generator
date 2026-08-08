@@ -14,6 +14,18 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.36.19] - 2026-08-08
+
+### Fixed - a pasted URL in the `host` column no longer fails the ingest
+
+The minio row's `endpoint` IS a URL, so people reasonably write the postgres
+`host` the same way - and `http://192.168.x.x` then resolves as nothing, the
+ingest job ends `FAILED`, and the row gives no hint that punctuation was the
+whole problem. The intent is unambiguous, so the loader now strips a scheme, a
+path and a `:port` tail (the port has its own column) from `host` for all three
+JDBC kinds. The RECREATED badge in the same run confirmed the 1.36.17
+delete/recreate machinery working in the field.
+
 ## [1.36.18] - 2026-08-08
 
 ### Changed - the explainers now teach the endpoint rule that cost a scan
