@@ -525,7 +525,8 @@ function BulkLoadCard({ pdc, onConnectionsChanged }) {
         data source, triggers a <b>metadata ingest</b> scoped to it and waits for the job, then
         <b> analyses</b> it — Data Profiling over a database's tables, a file scan plus Data
         Discovery over an object store's files. Without that last step PDC lists the tables and
-        files but knows nothing inside them; untick <b>profile / discover</b> to skip it.
+        files but knows nothing inside them; untick <b>profile</b> (databases) or <b>discover</b>
+        (object stores) to skip it.
         Use <code>kind</code> = <code>postgres</code>, <code>mysql</code>, <code>oracle</code>,{' '}
         <code>minio</code>/<code>s3</code> or <code>azure_blob</code>. Secrets are sent to PDC only
         and never saved by the app. A source that already exists shows as{' '}
@@ -537,6 +538,54 @@ function BulkLoadCard({ pdc, onConnectionsChanged }) {
         <code>endpoint</code> and files in the bucket. Scope scans with{' '}
         <code>includePatterns</code>/<code>excludePatterns</code> (semicolon-separated globs).
       </p>
+
+      <details className="uth">
+        <summary>Under the hood — bulk-loading data sources (PDC Public API)</summary>
+        <div className="uth-body">
+          <p>Per CSV row, in order. Everything below is one HTTP call you could make yourself.</p>
+          <ol className="uth-steps">
+            <li>
+              <code>POST /api/public/{'{v}'}/data-sources</code> — create the source. The row's{' '}
+              <code>kind</code> chooses the connector and its <code>databaseType</code>: an object
+              store is created as <code>AWS</code> (not <code>AWS_S3</code>, which leaves PDC's
+              Edit form blank).
+              {' '}<b>Already there?</b> The create is skipped and the existing id reused —{' '}
+              <span className="badge accent">EXISTS</span>. With <b>recreate if exists</b> the
+              create is attempted <i>first</i>: only a name conflict authorises the delete, so a
+              row with a bad body can never destroy a working source.
+            </li>
+            <li>
+              <b>Databases</b> — <code>POST /jobs/execute/metadata/ingest</code> scoped to the new
+              id, then <code>GET /jobs/{'{id}'}/status</code> until it reaches a terminal state.
+            </li>
+            <li>
+              <b>Object stores</b> — the public API exposes no file-scan trigger, so this uses
+              PDC's <i>internal</i> <code>POST /api/start-job</code> with{' '}
+              <code>{'{name:"METADATA_INGEST", type:"START", data:{…}}'}</code> — the same call the
+              catalog's own <b>Scan Files</b> button makes. Undocumented and version-fragile, which
+              is why it is behind the <b>discover</b> switch. The scan carries the file options:{' '}
+              <code>withProfile</code>, <code>headerExists</code>, <code>withDocMetadata</code>.
+              <br />
+              <span className="uth-note">
+                PDC routes its internal API by <b>hostname</b>: on a bare IP this 401s with a
+                perfectly valid token while the public API works, so only the file scan fails.
+              </span>
+            </li>
+            <li>
+              <b>Analysis</b> — <code>POST /api/public/v3/entities/filter</code> to collect the
+              source's entity ids (filtered server-side on <code>resourceIds</code>, cursor
+              followed across pages), then{' '}
+              <code>POST /jobs/execute/data-profiling</code> over a database's <code>TABLE</code>{' '}
+              entities, or <code>data-discovery</code> over an object store's{' '}
+              <code>FOLDER</code>/<code>FILE</code> entities.
+            </li>
+          </ol>
+          <p className="uth-note">
+            Secrets travel to PDC and are never written to the app's own state. A dry run builds
+            every payload and sends nothing — the echo comes back with credentials redacted.
+          </p>
+        </div>
+      </details>
 
       <PdcAuthFields pdc={pdc} />
 
@@ -932,6 +981,46 @@ function HarvestCard({ pdc, onConnectionsChanged, onNavigate, glossaryName }) {
         Terms PDC already governs are flagged so you don't overwrite existing work.
       </p>
 
+      <details className="uth">
+        <summary>Under the hood — reading PDC's catalog</summary>
+        <div className="uth-body">
+          <p>
+            This route touches <b>no</b> database and <b>no</b> object store, and needs no
+            credential for either. Everything comes from what PDC has already catalogued, so it
+            works where the source itself is unreachable from your machine — a warehouse behind a
+            firewall, a bucket you have no keys for.
+          </p>
+          <ol className="uth-steps">
+            <li>
+              <b>List data sources</b> — <code>POST /api/public/{'{v}'}/data-sources/filter</code>,
+              returning each source's id, name and type.
+            </li>
+            <li>
+              <b>Harvest</b> — <code>POST /api/public/v3/entities/filter</code>, paged by cursor,
+              reshaped into what the suggester consumes:
+              <ul>
+                <li>a database's <code>COLUMN</code> entities → tables and columns</li>
+                <li>an object store's <code>FILE</code> entities → document rows</li>
+              </ul>
+              The same pass overlays what PDC <i>already governs</i> — sensitivity, trust score and
+              existing business terms — keyed to each row's source column, which is how governed
+              terms arrive flagged instead of being silently proposed again.
+            </li>
+            <li>
+              <b>Test</b> (read-only) and <b>Save connection</b> reuse the stored source's config
+              via <code>/api/pdc/source-test</code> and{' '}
+              <code>/api/pdc/source-to-connection</code> — the app never sees the secret, so a
+              harvested connection is saved <i>without</i> one and must be completed by hand before
+              it can do a live scan.
+            </li>
+          </ol>
+          <p className="uth-note">
+            What you get is only as good as PDC's own scan: harvest a source PDC ingested but never
+            profiled and you get names and types with no statistics behind them.
+          </p>
+        </div>
+      </details>
+
       <PdcAuthFields pdc={pdc} />
 
       <div className="actions">
@@ -1239,6 +1328,92 @@ function ConnectionCards({ conns, error, onEdit, onChanged, onDiscoverDb, onDisc
         <h2>Saved connections <span>scan · discover · test</span></h2>
       </header>
       {error && <div className="error">{error}</div>}
+
+      <details className="uth">
+        <summary>Connection types &amp; what each button does</summary>
+        <div className="uth-body">
+          <dl className="uth-dl">
+            <dt>Database (live scan)</dt>
+            <dd>
+              Connects to PostgreSQL, MySQL, SQL Server or Oracle with a least-privilege read-only
+              user and introspects schema, keys and comments.
+            </dd>
+            <dt>Object store (MinIO/S3)</dt>
+            <dd>
+              Browses a bucket over the S3 API and treats each file as a document term. Use the
+              host or VM address for the endpoint, never <code>localhost</code> — MinIO needs
+              path-style addressing and <code>localhost</code> resolves inside the wrong container.
+            </dd>
+            <dt>DDL file</dt>
+            <dd>
+              Parses a <code>CREATE TABLE</code> script when the live database is out of reach.
+              Same suggestions, no connection — but no values either, so confidence is name-based.
+            </dd>
+          </dl>
+          <dl className="uth-dl">
+            <dt>Test</dt>
+            <dd>Validates the details before saving. The source stays unusable until it passes.</dd>
+            <dt>Scan</dt>
+            <dd>Reads the source and <b>starts a fresh glossary</b> — replaces the current candidate terms.</dd>
+            <dt>Add to glossary</dt>
+            <dd>
+              Scans another source and <b>merges</b> its terms into the existing glossary. This is
+              how one glossary spans a database <i>and</i> a document store.
+            </dd>
+            <dt>Discover</dt>
+            <dd>
+              Reads values as well as structure, so confidence, sensitivity and data quality rest
+              on evidence rather than column names.
+            </dd>
+            <dt>Seed data</dt>
+            <dd>
+              <b>The one button that writes.</b> Loads a sample dataset into a schema so a demo has
+              something to scan. Everything else on this page is read-only.
+            </dd>
+          </dl>
+        </div>
+      </details>
+
+      <details className="uth">
+        <summary>Under the hood — what a database scan runs</summary>
+        <div className="uth-body">
+          <p>
+            All of it is <code>SELECT</code> against catalog views your account can already read.
+            Nothing is created, altered or dropped.
+          </p>
+          <ol className="uth-steps">
+            <li>
+              <b>Structure</b> — <code>information_schema.columns</code> for names, types,
+              nullability and ordinal position. Oracle uses its own dictionary views
+              (<code>all_tab_columns</code>) since it has no <code>information_schema</code>.
+            </li>
+            <li>
+              <b>Keys</b> — <code>table_constraints</code> joined to{' '}
+              <code>key_column_usage</code> for primary and foreign keys; PostgreSQL reads{' '}
+              <code>pg_index</code> and <code>pg_constraint</code> directly, which is cheaper and
+              catches constraints the standard views omit. Relationships travel to the Registry
+              even for columns pruned from the glossary — a surrogate key is rarely a business
+              term, but the relationship is still a fact worth keeping.
+            </li>
+            <li>
+              <b>Comments</b> — column comments where the platform stores them, used as a first
+              draft of a definition before anything is generated.
+            </li>
+            <li>
+              <b>Discover only</b> — per column, <code>COUNT(*)</code>,{' '}
+              <code>COUNT(DISTINCT col)</code> and a bounded sample of values. From those come
+              uniqueness, density, the induced value pattern and the reference lists that seed the
+              Policy Generator's dictionaries. Sampling is capped, so this reads a slice, not a
+              table.
+            </li>
+          </ol>
+          <p className="uth-note">
+            Values are used to compute statistics and are not stored. What lands in the glossary is
+            the derived pattern and the counts — not the rows.
+          </p>
+        </div>
+      </details>
+
       {conns == null && <p className="loading">Loading…</p>}
       {conns?.length === 0 && (
         <p className="hint-line">No saved connections yet. Add one above — or import the bulk-loader CSV.</p>

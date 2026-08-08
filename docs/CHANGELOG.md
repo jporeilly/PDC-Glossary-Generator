@@ -14,6 +14,47 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.36.12] - 2026-08-08
+
+### Added - the Connect page's four "Under the hood" explainers are back
+
+Removing the legacy Jinja UI at 1.35.0 took **12** explainer panels with it. The
+React app never carried them, nothing referenced them and no test covered them,
+so the loss surfaced only when someone went looking. These are the first four,
+all on Connect:
+
+- **Connection types & what each button does**
+- **Under the hood** — bulk-loading data sources (PDC Public API)
+- **Under the hood** — reading PDC's catalog
+- **Under the hood** — what a database scan runs
+
+**Rewritten against what the code does now, not pasted.** The originals were
+1.34-era and several claims had gone stale - a stale explainer is worse than
+none. Corrections made while porting:
+
+- the old text said *"every call is read-only"*. **Seed data writes**, and now
+  says so. The rest of the page is read-only, verified: the only `CREATE TABLE`
+  in the scan engine is a regex that *parses* DDL.
+- the bulk-load panel documents the internal `POST /api/start-job` call, its
+  `withProfile`/`headerExists`/`withDocMetadata` options, and the hostname
+  routing that 401s it on a bare IP while the public API works - all of which
+  cost an evening to establish and was written down nowhere a user could see.
+- the harvest panel states what it does **not** touch: no database, no object
+  store, no credential for either.
+- the scan panel names the actual catalog views (`information_schema.columns`,
+  `table_constraints`/`key_column_usage`, `pg_index`/`pg_constraint`, Oracle's
+  `all_tab_columns`) and says values are used for statistics and not stored.
+
+`test_docs.py` now pins the expected panel titles per page, because the way
+these were lost is that nothing failed when they went. The list grows as the
+remaining eight are ported.
+
+### Known - the transparency source viewer is orphaned
+
+`/api/source` serves 18 whitelisted modules so a learner can read exactly what
+runs. It is live and server-side tested, and the React app calls it nowhere - it
+lost its UI with the Jinja shell. Recorded rather than quietly wired.
+
 ## [1.36.11] - 2026-08-07
 
 ### Changed - the option rows now split by SOURCE TYPE, as PDC does

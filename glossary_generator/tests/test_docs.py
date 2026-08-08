@@ -92,6 +92,44 @@ def test_build_manifest_versions_agree():
             f"Cargo.toml version {m and m.group(1)} != VERSION {version}"
 
 
+# The "Under the hood" explainers, per page. These are teaching material and the
+# main reason the app is usable in a workshop: the learner reads what it will do
+# to their systems before it does it.
+#
+# They need a test because of HOW they were lost. Removing the legacy Jinja UI at
+# 1.35.0 deleted 12 of them in one commit - nothing referenced them, no test
+# covered them, and the loss surfaced only when someone went looking weeks later.
+# A page can lose its explainer without a single error being raised, so the list
+# is pinned here and grows as the remaining panels are ported back.
+EXPLAINERS = {
+    "ConnectPage.jsx": [
+        "Connection types &amp; what each button does",
+        "Under the hood — bulk-loading data sources (PDC Public API)",
+        "Under the hood — reading PDC's catalog",
+        "Under the hood — what a database scan runs",
+    ],
+}
+
+
+def test_explainer_panels_are_present():
+    import re
+    for page, wanted in EXPLAINERS.items():
+        path = os.path.join(REPO, "frontend", "src", "pages", page)
+        if not os.path.isfile(path):
+            continue           # frontend is optional for a backend-only checkout
+        src = _read(path)
+        summaries = " || ".join(re.findall(r"<summary[^>]*>(.*?)</summary>", src, re.S))
+        for title in wanted:
+            assert title in summaries, f"{page} lost its explainer: {title!r}"
+
+
+# NOT asserted yet, deliberately: /api/source serves 18 whitelisted modules for a
+# transparency viewer ("read exactly what runs"). It is live and server-side
+# tested, but the React app calls it nowhere - it was orphaned when the Jinja UI
+# went at 1.35.0. Wiring a page to it is a separate decision, not something to
+# smuggle in behind a failing test.
+
+
 def test_readme_reflects_fastapi_port():
     """The README must not describe the removed Flask entry point."""
     text = _read(REPO, "README.md")
