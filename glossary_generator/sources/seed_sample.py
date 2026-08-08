@@ -151,6 +151,35 @@ def _topo(tables):
     return order
 
 
+def plan(cfg, only_empty=True, schema=None):
+    """Which tables a seed WOULD write to, without writing anything.
+
+    Read-only: introspect, count rows, apply the same only_empty rule the real
+    run does. Exists so a person can be shown the actual table names before
+    agreeing - "it only fills empty tables" is a reassurance, whereas
+    "it will insert into audit_log and staging_customers" is a decision.
+    """
+    from sources import dbconn
+    schema = schema or cfg.get("schema") or "public"
+    conn = dbconn._connect(cfg)
+    try:
+        with conn.cursor() as cur:
+            tables = _introspect(cur, schema)
+            targets, skipped = [], []
+            for tn in _topo(tables):
+                cur.execute(f'SELECT COUNT(*) FROM "{schema}"."{tn}"')
+                count = cur.fetchone()[0]
+                (skipped if (only_empty and count > 0) else targets).append(
+                    {"table": tn, "existing_rows": count})
+        return {"schema": schema, "targets": targets, "skipped": skipped,
+                "database": cfg.get("database") or cfg.get("db") or ""}
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+
 def seed(cfg, rows=200, only_empty=True, schema=None):
     from sources import dbconn
     schema = schema or cfg.get("schema") or "public"

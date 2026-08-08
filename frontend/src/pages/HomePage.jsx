@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { apiGet, apiDelete } from './../api.js'
 import { openGlossary, useWorkspace } from './../state.js'
 import WorkflowDiagram from './../components/WorkflowDiagram.jsx'
+import SourceViewer from './../components/SourceViewer.jsx'
 import './home.css'
 
 const WORKFLOW = [
@@ -57,6 +58,17 @@ export default function HomePage({ onNavigate }) {
           <li><b>CDE</b> (Critical Data Element) is auto-inferred from keys, sensitivity, and critical/compliance terms — and is always the steward's to confirm.</li>
           <li>UUIDs are <b>per-instance</b> (Keycloak). Fetch the roster from the target instance so bindings resolve.</li>
         </ul>
+      </section>
+
+      <section className="card">
+        <h2>Transparency <span>what the app runs, in its own words</span></h2>
+        <p className="hint-line">
+          Nothing here is a black box. Each page carries an <b>Under the hood</b> panel
+          naming the exact API calls or SQL it makes, and the whole source is readable
+          below — this is a teaching tool, so "trust me" is not an acceptable answer
+          when someone asks what will touch their systems.
+        </p>
+        <SourceViewer />
       </section>
     </>
   )

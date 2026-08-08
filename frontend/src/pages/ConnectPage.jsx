@@ -1145,6 +1145,10 @@ function PdcScanCard({ ps }) {
 const DB_DEFAULTS = {
   engine: 'postgresql', host: '', port: '5432', database: '',
   schema: 'public', user: '', password: '', ssl: false, profile: true,
+  // OFF by default and deliberately so: this is the switch that lets the one
+  // writing operation run. A connection is not seedable until someone says it
+  // is a demo database.
+  allow_sample_data: false,
 }
 const MINIO_DEFAULTS = {
   endpoint: '', bucket: '', access_key: '', secret_key: '',
@@ -1269,6 +1273,12 @@ function ConnectionForm({ editing, onSaved, onCancel }) {
                  title="Sample real column values on scan to determine sensitivity, PII and CDE from the data itself — not just the column name. Slower; needs rows in the tables.">
             <input type="checkbox" checked={db.profile} onChange={(e) => setDb({ ...db, profile: e.target.checked })} /> Profile data (sample values)
           </label>
+          <label className="check danger-check" style={{ alignSelf: 'end', paddingBottom: '.45rem' }}
+                 title="Lets the Seed data button write fabricated rows into this database's EMPTY tables. For demo and training databases only. A production estate has empty tables too — a new feature's, an audit table not yet written to — and they would be filled.">
+            <input type="checkbox" checked={!!db.allow_sample_data}
+                   onChange={(e) => setDb({ ...db, allow_sample_data: e.target.checked })} />
+            allow sample data <span className="danger-chip">writes</span>
+          </label>
         </div>
       )}
 
@@ -1367,8 +1377,17 @@ function ConnectionCards({ conns, error, onEdit, onChanged, onDiscoverDb, onDisc
             </dd>
             <dt>Seed data</dt>
             <dd>
-              <b>The one button that writes.</b> Loads a sample dataset into a schema so a demo has
-              something to scan. Everything else on this page is read-only.
+              <b>The one button that writes.</b> Inserts fabricated rows so a demo database has
+              values to profile — confidence and sensitivity are name-based without them.
+              <br />
+              It fills <b>empty tables only</b>; anything already holding data is left alone. That
+              is thinner protection than it sounds, because a <b>production</b> estate has empty
+              tables too — a new feature's, an audit table not yet written to — and those would be
+              filled. So three things gate it: the connection must be ticked{' '}
+              <b>allow sample data</b> (off by default, enforced server-side), a read-only dry run
+              names the exact tables first, and you type the database name to confirm.
+              <br />
+              Everything else on this page is read-only.
             </dd>
           </dl>
         </div>
@@ -1495,10 +1514,55 @@ function ConnCard({ conn, onEdit, onChanged, onDiscoverDb, onDiscoverDocs, onNav
     }
   }
 
+  // The only operation on this page that writes to a database, so it asks twice
+  // and shows its work in between.
+  //
+  // A plain confirm() was the whole protection here. "Only empty tables" reads as
+  // safe and is not: a production estate has empty tables, and they would be
+  // filled with fabricated rows. So: a read-only dry run names the exact tables,
+  // then the operator types the database name — which cannot be done by reflex on
+  // the wrong connection. The server independently refuses unless the connection
+  // itself is marked allow_sample_data.
   async function seed() {
-    if (!window.confirm('Seed realistic sample data into this database? This writes rows to empty/under-filled tables.')) return
     setBusy(true)
-    say('', 'Seeding sample data…')
+    say('', 'Checking which tables would be written…')
+    let plan
+    try {
+      plan = await apiPost('/api/seed', { conn: c.config, rows: 200, dry_run: true })
+    } catch (err) {
+      setBusy(false)
+      say('bad', `Could not read the schema: ${err.message}`)
+      return
+    }
+    setBusy(false)
+
+    const targets = plan.targets || []
+    if (!targets.length) {
+      say('good', `Nothing to seed — every table in ${plan.schema} already has rows.`)
+      return
+    }
+    const dbName = plan.database || c.config?.database || ''
+    const names = targets.map((t) => t.table)
+    const shown = names.slice(0, 12).join(', ') + (names.length > 12 ? `, +${names.length - 12} more` : '')
+    const typed = window.prompt(
+      `This will INSERT 200 fabricated rows into ${names.length} empty table(s) ` +
+      `in "${dbName}" (schema ${plan.schema}):
+
+${shown}
+
+` +
+      `Tables that already hold data are left alone.
+
+` +
+      `Type the database name to confirm:`, '')
+    if (typed == null) return
+    if (typed.trim() !== dbName) {
+      say('bad', `Not seeded — you typed "${typed.trim()}", the database is "${dbName}".`)
+      return
+    }
+
+    setBusy(true)
+    say('', `Seeding ${names.length} table(s)…`)
     try {
       const d = await apiPost('/api/seed', { conn: c.config, rows: 200 })
       say('good', `Seeded: ${(d.inserted || []).map((x) => `${x.table} +${x.rows}`).join(', ') || 'nothing (already populated)'}.`)

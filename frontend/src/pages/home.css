@@ -33,3 +33,37 @@
 .gloss-table col.c-disc { width: 6.5rem; }
 .gloss-table col.c-saved { width: 11.5rem; }
 .gloss-table col.c-del { width: 3rem; }
+
+/* --------------------------------------------------------------------------
+   Source viewer (components/SourceViewer.jsx) — the transparency panel.
+   A list of whitelisted modules, and the chosen one read straight from disk.
+   ----------------------------------------------------------------------- */
+.srcv { display: grid; gap: .7rem; }
+.srcv-list { list-style: none; margin: 0; padding: 0; display: grid; gap: .25rem; }
+.srcv-item {
+  width: 100%; text-align: left; cursor: pointer;
+  background: var(--surface-1); border: 1px solid var(--gridline);
+  border-radius: 6px; padding: .4rem .6rem;
+  display: flex; gap: .7rem; align-items: baseline; flex-wrap: wrap;
+  color: var(--text-secondary); font: inherit;
+}
+.srcv-item:hover { border-color: var(--accent); color: var(--text-primary); }
+.srcv-item.is-on { border-color: var(--accent); background: var(--surface-2); }
+.srcv-item code { flex: none; font-size: .82rem; color: var(--text-primary); }
+.srcv-note { font-size: .78rem; color: var(--text-muted); }
+.srcv-pane { border: 1px solid var(--gridline); border-radius: 6px; overflow: hidden; }
+.srcv-head {
+  display: flex; gap: .7rem; align-items: center;
+  padding: .4rem .6rem; background: var(--surface-2);
+  border-bottom: 1px solid var(--gridline); font-size: .8rem;
+}
+.srcv-head .ghost { margin-left: auto; }
+/* the file itself: scrolls in BOTH directions inside its own box, so a long
+   line of Python can never push the page sideways */
+.srcv-code {
+  margin: 0; padding: .6rem .7rem;
+  max-height: 26rem; overflow: auto;
+  font-size: .76rem; line-height: 1.5;
+  white-space: pre; tab-size: 4;
+  background: var(--surface-1); color: var(--text-secondary);
+}

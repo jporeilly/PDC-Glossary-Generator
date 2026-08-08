@@ -435,3 +435,50 @@ class TestSourceViewer:
            real install even though it resolves in a checkout."""
         import api
         assert not [k for k in api._SOURCE_WHITELIST if k.startswith("cli/")]
+
+
+class TestSeedIsGated:
+    """/api/seed is the only endpoint that writes to a connected database.
+
+    "Only empty tables" is not the safeguard it sounds like: a production estate
+    has empty tables - a new feature's, an audit table not yet written to, a
+    staging table between loads - and a seed would fill them with fabricated
+    rows. The UI asks twice, but a UI is not a control: the gate is enforced here
+    so a frontend change can never be the only thing in the way.
+    """
+
+    def test_a_connection_must_opt_in_before_anything_is_written(self, client):
+        r = client.post("/api/seed", json={"conn": {"engine": "postgresql",
+                                                    "host": "db", "database": "prod"}})
+        assert r.status_code == 400
+        msg = r.json()["error"]
+        assert "not marked as safe" in msg
+        assert "production" in msg.lower(), "the refusal must say WHY, not just no"
+
+    def test_the_opt_in_is_read_strictly(self):
+        from api import _truthy
+        assert _truthy(True) and _truthy("true") and _truthy("yes") and _truthy("1")
+        for absent in (None, "", "no", "false", "0", "maybe", {}, []):
+            assert not _truthy(absent), absent
+
+    def test_a_dry_run_needs_no_opt_in_and_writes_nothing(self, client, monkeypatch):
+        """The preview must work on a connection that is NOT allowed to be seeded -
+           seeing what would happen is how someone decides whether to allow it."""
+        import api
+        calls = {"plan": 0, "seed": 0}
+
+        def fake_plan(cfg, only_empty=True, schema=None):
+            calls["plan"] += 1
+            return {"schema": "public", "database": "demo",
+                    "targets": [{"table": "customers", "existing_rows": 0}], "skipped": []}
+
+        def fake_seed(*a, **k):
+            calls["seed"] += 1
+            raise AssertionError("a dry run must never reach the writer")
+
+        monkeypatch.setattr(api.seed_sample, "plan", fake_plan)
+        monkeypatch.setattr(api.seed_sample, "seed", fake_seed)
+        r = client.post("/api/seed", json={"conn": {"database": "demo"}, "dry_run": True})
+        assert r.status_code == 200
+        assert r.json()["targets"][0]["table"] == "customers"
+        assert calls == {"plan": 1, "seed": 0}

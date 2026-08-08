@@ -206,3 +206,12 @@ span.mini i { display: block; height: 100%; background: var(--accent); }
   .uth-dl dd { margin-bottom: .5rem; }
   .uth-body code { white-space: normal; }
 }
+
+/* the one control that writes: marked so it reads differently from the
+   read-only options it sits beside */
+.danger-check { color: var(--status-warning); }
+.danger-chip {
+  margin-left: .3rem; font-size: .62rem; font-weight: 700; letter-spacing: .05em;
+  text-transform: uppercase; color: var(--status-warning);
+  border: 1px solid var(--status-warning); border-radius: 4px; padding: 0 .28rem;
+}

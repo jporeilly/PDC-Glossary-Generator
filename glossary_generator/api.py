@@ -1183,13 +1183,52 @@ def enhance_glossary(body: dict = Body(default={})):
         return _err(f"enhance failed: {e}", 400)
     return {"rows": rows2, "stats": _stats(rows2), "report": report}
 
+def _truthy(v):
+    """A checkbox that arrived as JSON true, or as "true"/"yes"/"1" from a form or
+       a hand-edited connections.json. Anything else - including absent - is False,
+       because this gates the one call that writes to a database."""
+    if isinstance(v, bool):
+        return v
+    return str(v or "").strip().lower() in ("y", "yes", "true", "t", "1", "on")
+
+
 @app.post("/api/seed")
 def seed(body: dict = Body(default={})):
-    """Seed the PostgreSQL schema with demo data (optionally only into empty tables)."""
+    """Seed a PostgreSQL schema with demo data — the ONLY endpoint here that writes
+       to a connected database.
+
+       Two gates, because the app cannot tell a demo database from a production
+       one and "only empty tables" is thinner protection than it sounds: a
+       production estate has empty tables (a new feature's, an audit table not yet
+       written to, a staging table between loads), and those would be filled.
+
+         dry_run=True          -> returns the exact tables that WOULD be written,
+                                  touching nothing. The UI shows this list and
+                                  asks the operator to type the database name.
+         allow_sample_data     -> must be set on the CONNECTION, not passed at
+                                  call time by whoever clicks. Enforced here so a
+                                  UI change can never be the only thing standing
+                                  between a live database and 200 fake rows.
+    """
     body = body or {}
     cfg = body.get("conn", {})
     rows = int(body.get("rows", 200))
     only_empty = body.get("only_empty", True)
+    dry_run = bool(body.get("dry_run", False))
+
+    if dry_run:
+        try:
+            return seed_sample.plan(cfg, only_empty=only_empty, schema=cfg.get("schema"))
+        except Exception as e:
+            return _err(f"could not read the schema: {e}", 400)
+
+    if not _truthy(cfg.get("allow_sample_data")):
+        return _err(
+            "This connection is not marked as safe for sample data, so nothing was "
+            "written. Sample data is for demo and training databases: edit the "
+            "connection and tick 'allow sample data' if this is one. Never tick it "
+            "for a production database — empty tables there would be filled with "
+            "fabricated rows.", 400)
     try:
         rep = seed_sample.seed(cfg, rows=rows, only_empty=only_empty, schema=cfg.get("schema"))
         return rep
