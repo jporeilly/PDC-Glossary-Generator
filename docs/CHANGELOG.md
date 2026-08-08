@@ -14,6 +14,17 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.36.25] - 2026-08-08
+
+### Changed - AI categories is a primary button, and shows that it is working
+
+Both field-caught on first GPU use. The button is primary (blue) like the AI
+pass it precedes. And because it is ONE long call, the running state is an
+**indeterminate sweep** with a caption ("one call over the whole schema
+graph… bigger models take up to a minute") rather than an invented percentage
+- honest feedback over fake precision, and `prefers-reduced-motion` gets a
+static bar.
+
 ## [1.36.24] - 2026-08-08
 
 ### Changed - AI categories sits before the AI pass, numbered

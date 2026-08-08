@@ -1223,7 +1223,7 @@ export default function ReviewPage({ onNavigate }) {
                 first (one schema-wide call), then the AI pass writes language
                 inside it - definitions against final groups, no pill fights
                 over the Category column. */}
-            <button className="ghost sm" disabled={catBusy} onClick={aiCategories}
+            <button className="primary sm" disabled={catBusy} onClick={aiCategories}
                     title="Run FIRST. One call over the schema the scan proved — tables, columns, FK links — proposing an abstract business grouping. Assignments land as Category pills: accept, rename any group, and only then run the AI pass so definitions are written against the final taxonomy.">
               {catBusy ? 'Proposing…' : '1 · AI categories'}
             </button>
@@ -1239,6 +1239,16 @@ export default function ReviewPage({ onNavigate }) {
             )}
           </span>
         </div>
+
+        {catBusy && !agent && (
+          <div className="rv-progress">
+            <span className="ep">AI categories — one call over the whole schema graph…</span>
+            <div className="progress-track rv-agenttrack" role="progressbar" aria-label="AI categories running">
+              <div className="progress-bar rv-indet" />
+            </div>
+            <span className="ep muted">bigger models take up to a minute — proposals land as Category pills</span>
+          </div>
+        )}
 
         {agent && (
           <div className="rv-progress">

@@ -328,3 +328,18 @@ button.rv-aipill:hover { background: color-mix(in srgb, var(--accent) 16%, trans
    How-to-review guide without owning either layout */
 .rv-dp { display: block; margin-top: .45rem; }
 .rv-dp:first-child { margin-top: 0; }
+
+/* AI categories is ONE long call - no honest percentage exists, so the bar is
+   indeterminate rather than invented: a sweep that says "working", not "62%" */
+.progress-bar.rv-indet {
+  width: 30%;
+  animation: rv-indet-sweep 1.4s ease-in-out infinite;
+}
+@keyframes rv-indet-sweep {
+  0%   { margin-left: 0; }
+  50%  { margin-left: 70%; }
+  100% { margin-left: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .progress-bar.rv-indet { animation: none; width: 100%; opacity: .45; }
+}
