@@ -1,6 +1,7 @@
 """pdc_api.bulkload — carved from the original pdc_api.py (see package __init__ for the API contract notes). Import surface is the package: `import pdc_api`."""
 import json
 import re
+import time
 import ssl
 import urllib.request
 import urllib.parse
@@ -303,24 +304,18 @@ def internal_scan_files(base_url, token, source, resource_id, verify_tls=True, t
     if last_test_connection_id:
         data_body["lastTestConnectionId"] = last_test_connection_id
 
-    # The file options ride on the scan. Structured files inside the bucket get
-    # their columns read (withProfile) with row 1 as names (headerExists);
-    # documents get their own properties. Set explicitly because PDC defaults
-    # withProfile and headerExists to FALSE, which catalogues every CSV with no
-    # columns - or columns named Column-0..Column-N.
-    data_body["withProfile"] = bool(profile_files)
-    data_body["headerExists"] = bool(header_row)
-    data_body["withDocMetadata"] = bool(doc_metadata)
-    # "Files Modified / Accessed More Than N Day(s) Ago" - the dialog's sliders,
-    # default 0 = no age restriction.
-    _days = max(0, int(skip_recent_days or 0))
-    data_body["filesModifiedLaterThanDays"] = _days
-    data_body["filesAccessedLaterThanDays"] = _days
-    # NOT sent, and never turned on from here: summarizeDocuments,
-    # addressDetection and classification all need ML configured, and
-    # classification additionally assigns business terms that do not exist until
-    # this app's glossary has been applied.
-
+    # NO EXTRA KEYS. Measured, twice, the hard way: adding anything PDC's own UI
+    # does not send makes the scan enumerate NOTHING - it completes, reports
+    # success, and leaves the catalog empty.
+    #
+    #   credentials echoed back  -> 0 entities   (already-encrypted secrets)
+    #   withProfile/headerExists/withDocMetadata/day filters -> 0 entities
+    #   neither                  -> 21 files and folders, immediately
+    #
+    # So the file options CANNOT ride on this call. They live in the PUBLIC
+    # data-discovery job's configs instead (see profile_source) - proven to
+    # produce the columns there. The parameters are accepted here for signature
+    # stability and deliberately not sent; adding them costs the entire scan.
     body = {"name": "METADATA_INGEST", "type": "START", "data": data_body}
     out = _req("POST", url, token=token, body=body, verify_tls=verify_tls, timeout=timeout)
     d = out.get("data", out) if isinstance(out, dict) else {}
@@ -385,7 +380,9 @@ def source_entity_ids(base_url, token, resource_name=None, resource_id=None,
 
 def profile_source(base_url, token, resource_name=None, version="v2", verify_tls=True,
                    timeout=30, wait=False, poll_wait=3.0, max_wait=600, limit=500,
-                   resource_id=None, object_store=False):
+                   resource_id=None, object_store=False,
+                   profile_files=True, header_row=True, doc_metadata=True,
+                   skip_recent_days=0):
     """Run PDC's analysis job over a data source's entities. Both are PUBLIC,
        supported jobs (worker DATA_PROFILE), unlike the object-store file scan:
 
@@ -402,13 +399,41 @@ def profile_source(base_url, token, resource_name=None, version="v2", verify_tls
     ids = source_entity_ids(base_url, token, resource_name, resource_id, kinds=kinds,
                             verify_tls=verify_tls, timeout=timeout, limit=limit,
                             version=version)
+    # The scan reports COMPLETED before its entities are queryable - persistence
+    # and the stats aggregator run on after it. Asking immediately returns
+    # nothing, and the row then reads "no scanned files found to discover" as
+    # though the scan had failed, when it had merely not finished landing.
+    if not ids and wait:
+        _deadline = time.time() + max(20, float(max_wait) / 4)
+        while not ids and time.time() < _deadline:
+            time.sleep(max(1.0, float(poll_wait)))
+            ids = source_entity_ids(base_url, token, resource_name, resource_id,
+                                    kinds=kinds, verify_tls=verify_tls,
+                                    timeout=timeout, limit=limit, version=version)
     if not ids:
         return {"job_id": None, "entities": 0, "ok": False, "activity": job,
                 "error": ("no scanned files found to discover — run the object store's "
                           "Scan Files in PDC first"
                           if object_store else
                           "no ingested tables found to profile — run the metadata ingest first")}
-    jr = run_job(base_url, token, job, {"scope": ids, "configs": {}},
+    # The file options live HERE, in the discovery job's configs - not on the
+    # file scan, where any extra key silences enumeration entirely. Proven on a
+    # fresh source: scan minimal -> 21 files, columns 0; then data-discovery
+    # with these configs -> 53 columns immediately. This is also the PUBLIC,
+    # supported job, so the flags ride the documented surface.
+    configs = {}
+    if object_store:
+        configs = {"withProfile": bool(profile_files),
+                   "headerExists": bool(header_row),
+                   "withDocMetadata": bool(doc_metadata)}
+        # The Configure Process dialog's age sliders. Unproven in configs (the
+        # proven set is the three above), so sent only when explicitly nonzero -
+        # and if a build ignores them the cost is files scanned, not lost.
+        _days = max(0, int(skip_recent_days or 0))
+        if _days:
+            configs["filesModifiedLaterThanDays"] = _days
+            configs["filesAccessedLaterThanDays"] = _days
+    jr = run_job(base_url, token, job, {"scope": ids, "configs": configs},
                  version, verify_tls, timeout)
     rec = {"job_id": jr["job_id"], "entities": len(ids), "ok": bool(jr["job_id"]),
            "activity": job, "error": None, "warning": None}
@@ -428,18 +453,90 @@ def profile_source(base_url, token, resource_name=None, version="v2", verify_tls
     return rec
 
 
-def delete_data_source(base_url, token, ds_id, version="v2", verify_tls=True, timeout=30):
-    """DELETE /data-sources/{id}. Used to recreate a source whose stored config is
-       wrong (e.g. an object store created before the AWS_S3 fix, so it carries no
-       credentials). Returns True on success."""
+def delete_data_source(base_url, token, ds_id, version="v2", verify_tls=True, timeout=30,
+                       fqdn_id=None, wait=True, poll_wait=2.0, max_wait=120):
+    """Delete a data source and everything catalogued under it.
+
+    EXPERIMENTAL / UNSUPPORTED, like the file scan: PDC's INTERNAL
+    POST /api/start-job with {name:"CLEANUP_DATASOURCE"}. There is no public
+    route - DELETE /api/public/{v2,v3}/data-sources/{id} answers 404 on this
+    build, which is what made "recreate if exists" impossible: the delete
+    silently failed, the create then collided with the name still in place, and
+    the row reported a bare 400.
+
+    Body shape captured from the catalog's own Delete button. Note the key is
+    `id`, NOT `resourceId` - passing resourceId returns a 500, which cost an
+    afternoon of guessing.
+
+    Returns True when the cleanup job was accepted (and, with wait, reached a
+    terminal state).
+    """
     if not ds_id:
         return False
-    url = clean_base(base_url) + f"/api/public/{version}/data-sources/{ds_id}"
+    data = {"id": str(ds_id)}
+    if fqdn_id not in (None, ""):
+        data["fqdnId"] = fqdn_id
     try:
-        _req("DELETE", url, token=token, verify_tls=verify_tls, timeout=timeout)
-        return True
+        out = _req("POST", clean_base(base_url) + "/api/start-job", token=token,
+                   body={"name": "CLEANUP_DATASOURCE", "type": "START", "data": data},
+                   verify_tls=verify_tls, timeout=timeout)
     except Exception:
         return False
+    d = out.get("data", out) if isinstance(out, dict) else {}
+    jid = (d.get("jobId") or d.get("id") or d.get("_id")) if isinstance(d, dict) else None
+    # The response carries no reliable job id, so success is confirmed by
+    # polling for the source to disappear (below) rather than by a status.
+    ok = True
+
+    # SECOND CALL, and the delete is incomplete without it. CLEANUP_DATASOURCE
+    # removes the source, but its metadata-rule associations keep the id alive:
+    # the next create with the same name still fails "Duplicate key violation on
+    # the requested collection: Index '_id_'", which reads as though the delete
+    # never happened.
+    #
+    # Different service prefix - rule-api, not /api/public - so it is not part of
+    # the documented surface either.
+    try:
+        _req("POST",
+             clean_base(base_url) + "/rule-api/v1/metadata-rules/cleanUpDeletedDataSourceRuleAssociations",
+             token=token, body={"dataSourceIdList": [str(ds_id)]},
+             verify_tls=verify_tls, timeout=timeout)
+    except Exception:
+        # Best-effort: on a build without rule-api, or where the source carried no
+        # rule associations, the source itself is already gone and the caller
+        # should not be told the delete failed.
+        pass
+
+    if not wait:
+        return ok
+
+    # WAIT FOR THE SOURCE TO ACTUALLY GO, not for a job to report done.
+    #
+    # The cleanup is asynchronous and its response carries no usable job id, so
+    # there is nothing to poll - and it takes ~10s to take effect. Returning
+    # immediately is why a recreate's second create still hit "Duplicate key
+    # violation": the name was still taken by a source mid-deletion. Poll the
+    # outcome instead; it is the thing the caller actually depends on.
+    deadline = time.time() + max(10, float(max_wait))
+    while time.time() < deadline:
+        time.sleep(max(0.5, float(poll_wait)))
+        try:
+            gone = _source_by_id(base_url, token, ds_id, version, verify_tls, timeout) is None
+        except Exception:
+            return ok          # cannot verify: do not claim failure
+        if gone:
+            return True
+    return False
+
+
+def _source_by_id(base_url, token, ds_id, version="v2", verify_tls=True, timeout=20):
+    """The data source with this id, or None. Used to confirm a delete landed."""
+    for r in (list_data_sources(base_url, token, version=version,
+                                verify_tls=verify_tls, timeout=timeout) or []):
+        if isinstance(r, dict) and str(r.get("_id") or r.get("resourceId") or
+                                       r.get("id")) == str(ds_id):
+            return r
+    return None
 
 
 def create_data_source(base_url, token, body, version="v2", verify_tls=True, timeout=30):
@@ -584,15 +681,29 @@ def bulk_load_one(base_url, token, row, version="v2", verify_tls=True, timeout=3
                 # including an unreadable error, keeps the existing source.
                 looks_like_conflict = any(w in m for w in (
                     "already exists", "already in use", "duplicate", "conflict",
-                    "409", "unique"))
+                    "409", "unique", "duplicate key violation"))
                 if not looks_like_conflict:
                     rec["create"] = "FAIL"
                     rec["error"] = ("recreate aborted, existing source kept — the create "
                                     "failed for some reason other than the name being "
                                     "taken: " + str(ce)[:200])
                     return rec
-                delete_data_source(base_url, token, ex_id, version, verify_tls, timeout)
-                cr = create_data_source(base_url, token, body, version, verify_tls, timeout)
+                delete_data_source(base_url, token, ex_id, version, verify_tls, timeout,
+                                   fqdn_id=(existing or {}).get("fqdnId"))
+                # Deletion is asynchronous, and the name leaves the LIST before the
+                # unique index frees - so a create issued the instant the source
+                # disappears can still hit "Duplicate key violation". Retry briefly
+                # rather than fail a row for a race that resolves itself.
+                cr = None
+                for _attempt in range(6):
+                    try:
+                        cr = create_data_source(base_url, token, body, version,
+                                                verify_tls, timeout)
+                        break
+                    except Exception as again:
+                        if "duplicate" not in str(again).lower() or _attempt == 5:
+                            raise
+                        time.sleep(2.0)
                 rec["resourceId"] = cr["resourceId"]
                 create_ok = True
                 rec["create"] = "RECREATED"
@@ -728,7 +839,11 @@ def bulk_load_one(base_url, token, row, version="v2", verify_tls=True, timeout=3
                                     verify_tls, timeout, wait=wait,
                                     poll_wait=poll_wait, max_wait=max_wait,
                                     resource_id=rec["resourceId"],
-                                    object_store=_is_object_store)
+                                    object_store=_is_object_store,
+                                    profile_files=_row_pfiles,
+                                    header_row=_row_header,
+                                    doc_metadata=_row_docmeta,
+                                    skip_recent_days=_row_days)
                 if pr.get("job_id"):
                     rec["profileJobId"] = pr["job_id"]
                     rec["profile"] = "OK" if pr.get("ok") else "FAIL"

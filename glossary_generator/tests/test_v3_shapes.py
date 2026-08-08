@@ -196,7 +196,12 @@ class TestFileScanProfilesStructuredFiles:
         assert i_tc < i_scan, "the listing pass must run FIRST"
         assert "last_test_connection_id=" in src
 
-    def test_the_caller_can_override_both(self):
+    def test_the_scan_body_is_minimal(self):
+        """Measured, twice, the hard way: any key PDC's own UI does not send
+           makes the scan enumerate NOTHING while still reporting success.
+           Credentials echoed back -> 0 entities. The profile/header/day flags
+           -> 0 entities. The minimal shape -> 21 files and folders. So the body
+           must carry ONLY what the captured Test Connection call carries."""
         from pdc_client import bulkload
         sent = {}
 
@@ -208,14 +213,22 @@ class TestFileScanProfilesStructuredFiles:
         bulkload._req = fake_req
         try:
             bulkload.internal_scan_files("https://pdc.example", "t",
-                                         {"resourceName": "S", "container": "b"}, "r",
-                                         profile_files=False, header_row=False)
+                                         {"resourceName": "S", "container": "b",
+                                          "endpoint": "http://m:9000", "region": "r"},
+                                         "rid-1", last_test_connection_id="tc-1",
+                                         profile_files=True, header_row=True,
+                                         doc_metadata=True, skip_recent_days=14)
         finally:
             bulkload._req = real
-        data = sent["data"]
-        assert data["withProfile"] is False, "a metadata-only scan must stay metadata-only"
-        assert data["headerExists"] is False, "a headerless CSV must be scannable"
-        assert sent["name"] == "METADATA_INGEST"
+        d = sent["data"]
+        assert d["resourceId"] == "rid-1"
+        assert d["lastTestConnectionId"] == "tc-1"
+        for banned in ("withProfile", "headerExists", "withDocMetadata",
+                       "filesModifiedLaterThanDays", "filesAccessedLaterThanDays",
+                       "containers", "patternType", "contentScanType",
+                       "classification", "addressDetection", "summarizeDocuments",
+                       "accessId", "accessKey", "secretKey", "secretAccessKey"):
+            assert banned not in d, f"{banned} silences the scan - never send it"
 
 
 class TestHttpErrorsKeepTheirDetail:
@@ -366,36 +379,3 @@ class TestPerRowScanOptions:
         assert row_int({"skipRecentDays": "soon"}, "skipRecentDays", 7) == 7
         assert row_int({"skipRecentDays": "-5"}, "skipRecentDays", 7) == 7
 
-    def test_the_scan_carries_the_object_store_options(self):
-        """Both file kinds share one bucket, so these travel on the SAME scan:
-           the structured files' columns and the documents' properties."""
-        from pdc_client import bulkload
-        sent = {}
-
-        def fake_req(method, url, token=None, body=None, **kw):
-            sent.update(body or {})
-            return {"data": {"jobId": "j1"}}
-
-        real = bulkload._req
-        bulkload._req = fake_req
-        try:
-            bulkload.internal_scan_files("https://pdc.example", "t",
-                                         {"resourceName": "S", "container": "b"}, "r",
-                                         profile_files=True, header_row=True,
-                                         doc_metadata=True, skip_recent_days=14)
-        finally:
-            bulkload._req = real
-        d = sent["data"]
-        assert d["withProfile"] is True and d["headerExists"] is True
-        assert d["withDocMetadata"] is True
-        assert d["filesModifiedLaterThanDays"] == 14
-        assert d["filesAccessedLaterThanDays"] == 14
-        # ML-dependent options are not sent at all now - the UI sends none of
-        # them and enumerates fine, so absent is stronger than explicitly false.
-        for ml in ("classification", "addressDetection", "summarizeDocuments"):
-            assert ml not in d, f"{ml} must not be sent from here"
-        # nor any credential: PDC looks its own up from resourceId, and echoing
-        # the stored (encrypted) values back is what silenced the scan
-        for cred in ("accessId", "accessKey", "secretKey", "secretAccessKey"):
-            assert cred not in d, f"{cred} must never be sent"
-        assert d["resourceId"] == "r"

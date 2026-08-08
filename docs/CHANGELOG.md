@@ -14,6 +14,51 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.36.17] - 2026-08-08
+
+### Fixed - columns profile from the API, and "recreate if exists" works
+
+Completes 1.36.16, with one correction to it: the 53 columns credited to the new
+scan chain **pre-existed from a manual UI scan**. What 1.36.16 actually proved
+was files and folders. Columns are proven now, and they come from somewhere
+better:
+
+**The file options live in the PUBLIC data-discovery job's `configs`** - the job
+`profile_source` already ran, with `configs: {}`. Empty. The whole time. On the
+file scan those same keys silence enumeration entirely; in discovery's configs
+they profile the CSVs:
+
+    scan (minimal body)                          -> 21 files, 0 columns
+    data-discovery configs={withProfile,
+      headerExists, withDocMetadata}             -> 53 columns, immediately
+
+So the pipeline is: TEST_CONNECTION lists -> METADATA_INGEST persists (both
+internal, minimal bodies) -> data-discovery profiles (public, flags in configs).
+The UI's Structured/Unstructured options and the CSV columns now feed the
+configs. The age sliders are sent only when nonzero - unproven in configs, and
+a build that ignores them scans more rather than less.
+
+**And "recreate if exists" works end to end**, three fixes deep:
+
+- `delete_data_source` uses the internal `CLEANUP_DATASOURCE` job (the REST
+  DELETE answers 404 on this build). The key is `id`, **not** `resourceId` -
+  captured from the catalog's own Delete button after resourceId earned a 500.
+- The delete also calls
+  `rule-api/v1/metadata-rules/cleanUpDeletedDataSourceRuleAssociations`,
+  without which the old id lingers in rule associations.
+- Deletion is asynchronous with no usable job id, so the delete **polls for the
+  source to actually disappear** (~10s) and the follow-up create retries briefly
+  on "Duplicate key violation" - the name leaves the list before the unique
+  index frees.
+
+Also raised `_req`'s error-detail cap from 600 to 2000 characters: PDC echoes
+the whole submitted record before the reason, so the cap was cutting off
+"Duplicate key violation" - the very text the recreate guard reads. A guard
+that fails closed is only as good as the evidence it is shown.
+
+Measured, forced recreate on the lab: RECREATED -> 21 files/folders -> 53
+columns, all green, no manual step.
+
 ## [1.36.16] - 2026-08-08
 
 ### Fixed - the object-store scan enumerates. It never had.

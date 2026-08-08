@@ -134,7 +134,13 @@ def _req(method, url, token=None, body=None, headers=None, verify_tls=True,
         # PDC's error text to tell a bad body from a name conflict.
         detail = ""
         try:
-            detail = e.read().decode("utf-8")[:600]
+            # 2000, not 600. PDC echoes the entire submitted record back before
+            # saying what was wrong with it, so a 600-char cap cut the body off
+            # mid-echo and lost the reason - including "Duplicate key violation",
+            # which the bulk loader reads to tell a name conflict from a bad
+            # body. Truncating the part that decides behaviour is worse than a
+            # long message.
+            detail = e.read().decode("utf-8")[:2000]
         except Exception:
             pass
         cf = _cloudflare_code(detail)
