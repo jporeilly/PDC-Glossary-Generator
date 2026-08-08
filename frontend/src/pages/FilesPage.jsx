@@ -133,9 +133,10 @@ export default function FilesPage({ onNavigate }) {
             </ol>
             <p className="uth-note">
               Read-only throughout — nothing on this page writes, deletes or re-tags an object.
-              Use the host or VM address as the endpoint, never <code>localhost</code>: MinIO needs
-              path-style addressing, and <code>localhost</code> resolves inside whichever container
-              asks.
+              Use the VM's <b>IP address</b> as the endpoint — not <code>localhost</code>, and not
+              a hostname. A hostname makes the S3 SDK switch to virtual-hosted addressing and
+              prepend the bucket (<code>bucket.your-host</code>), which resolves nowhere;
+              an IP forces the path-style addressing MinIO needs.
             </p>
           </div>
         </details>

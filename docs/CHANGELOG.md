@@ -14,6 +14,26 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.36.18] - 2026-08-08
+
+### Changed - the explainers now teach the endpoint rule that cost a scan
+
+A laptop bulk load failed its object-store scan with
+`UnknownHostException: awc-documents.pentaho.io`. Two lessons, now stated on the
+Connect and Files panels:
+
+- **Endpoints are reached by PDC's workers, not by the machine running this
+  app.** Only the PDC base URL needs to be reachable from your laptop; the
+  MinIO endpoint is consumed inside the VM, where containers do not inherit the
+  host's hosts file.
+- **Use the VM's IP, never a hostname.** Given a hostname, the S3 SDK switches
+  to virtual-hosted addressing and prepends the bucket (`bucket.your-host`),
+  which resolves nowhere. An IP forces the path-style addressing MinIO needs.
+
+The examples are placeholders - the fresh-install guard rejected the first
+draft for carrying a real lab host into the shipped bundle, which is precisely
+what it exists to do.
+
 ## [1.36.17] - 2026-08-08
 
 ### Fixed - columns profile from the API, and "recreate if exists" works

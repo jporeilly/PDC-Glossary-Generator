@@ -556,7 +556,10 @@ function BulkLoadCard({ pdc, onConnectionsChanged }) {
       <p className="hint-line">
         Ingests that report OK but find nothing: set <code>schemaNames</code> to the schema your
         tables actually live in; object stores need <code>container</code>, a reachable{' '}
-        <code>endpoint</code> and files in the bucket. Scope scans with{' '}
+        <code>endpoint</code> and files in the bucket. <b>Endpoints are reached by PDC's workers,
+        not by this machine</b> — use the VM's IP (<code>http://[VM IP]:9000</code>),
+        never a hostname: the S3 SDK prepends the bucket to a hostname
+        (<code>bucket.host</code>), which resolves nowhere. Scope scans with{' '}
         <code>includePatterns</code>/<code>excludePatterns</code> (semicolon-separated globs).
       </p>
 
