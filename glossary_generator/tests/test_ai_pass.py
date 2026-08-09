@@ -388,3 +388,26 @@ class TestAdviceGuardrails:
                             "rationale": "same concept"},
                            {"name": "Cust ID", "sources": ["a.c.cust_id"]})
         assert adv["action"] == "alias" and adv["target"] == "Customer Identifier"
+
+
+class TestAdvisorRespectsCalculatedMeasures:
+    def test_the_measures_rule_reaches_the_prompt(self, monkeypatch):
+        """It advised retiring "Tier4 To Gallons" as 'a technical calculation
+           rather than a business concept' - but calculated columns are the
+           KPIs the business runs on, and in PDC the formula belongs WITH the
+           term. Pin the rule."""
+        seen = {}
+
+        def capture(prompt, model=None, num_gpu=None, **kw):
+            seen["prompt"] = prompt
+            return {"action": "approve", "target": "", "rationale": "ok"}
+
+        monkeypatch.setattr(llm, "_complete_json", capture)
+        llm._pending_one({"name": "Tier4 To Gallons",
+                          "category": "Billing and Payments",
+                          "definition": "Tier4 To Gallons associated with a tiered rate record.",
+                          "sources": ["public.tiered_rates.tier4_to_gallons"]}, [])
+        p = seen["prompt"]
+        assert "business MEASURES" in p
+        assert "being computed is not a disqualifier" in p
+        assert "The formula belongs IN the definition" in p

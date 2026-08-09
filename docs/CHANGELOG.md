@@ -14,6 +14,17 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.36.44] - 2026-08-09
+
+### Changed - calculated measures are vocabulary, and the formula rides along
+
+The advisor called "Tier4 To Gallons" a technical calculation rather than a
+business concept - but derived columns are frequently the KPIs the business
+runs on: Total Before Tax is how billing reports, a tier-to-gallons factor
+is how a tiered rate bills. The calibration now states it (a Term can carry
+its formula in PDC - the derivation belongs IN the definition; being
+computed is not a disqualifier), test-pinned like the rest of the rule set.
+
 ## [1.36.43] - 2026-08-09
 
 ### Added - deterministic guards around the advisor
