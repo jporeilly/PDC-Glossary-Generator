@@ -14,6 +14,23 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.36.36] - 2026-08-09
+
+### Changed - the pending-review advisor knows operational is not technical
+
+It recommended Retire for "Account Status" and "Active Customers" - the
+exact concepts a business runs on - because its whole calibration was one
+line, and a small model reads "status of a record" as a technical artifact.
+The bar is now explicit: the test is "would someone in the business ask for
+this by name?" (statuses, lifecycle states and operational measures count);
+reject is scoped to structural/file artifacts only (surrogate keys and ids,
+fields of one-off dated snapshot files, names too vague to ask for);
+aliasing a specific concept into a vaguer one is forbidden ("Alert Date"
+into "Date" governs nothing); and - the load-bearing line - rejection is
+DURABLE (never re-proposed) while a wrong approve costs the steward one
+click, so uncertainty resolves to approve. Test-pinned. Advice, as ever,
+is advice: the steward clicks.
+
 ## [1.36.35] - 2026-08-09
 
 ### Fixed - stewardship survives the taxonomy settling

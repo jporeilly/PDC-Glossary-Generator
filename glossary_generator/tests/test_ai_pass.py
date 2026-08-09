@@ -259,3 +259,33 @@ class TestBatchOfOneIsThePerRowPrompt:
             "draft definition travels at 220 chars (was 120 - starved the model)"
         assert "NOT a restatement of the definition" in p
         assert "do NOT reuse sentence" in p, "the anti-template-rhythm instruction"
+
+
+class TestPendingAdvisorCalibration:
+    """The pending-review advisor recommends a DURABLE action (reject is never
+       re-proposed), so its calibration is load-bearing. Field-caught: it
+       retired "Account Status" and "Active Customers" as "technical" - the
+       exact operational concepts a business runs on - because the prompt's
+       whole bar was one thin line. Pin the essentials so they cannot quietly
+       regress: the business-question test, operational != technical, and the
+       uncertainty rule pointing at approve (reversible) not reject (durable)."""
+
+    def test_prompt_carries_the_calibration(self, monkeypatch):
+        seen = {}
+
+        def capture(prompt, model=None, num_gpu=None, **kw):
+            seen["prompt"] = prompt
+            return {"action": "approve", "target": "", "rationale": "ok"}
+
+        monkeypatch.setattr(llm, "_complete_json", capture)
+        llm._pending_one({"name": "Account Status", "category": "Customer Management",
+                          "definition": "Account Status associated with a customer record.",
+                          "sources": ["public.customers.account_status"]},
+                         ["Customer", "Base Charge"])
+        p = seen["prompt"]
+        assert "ask for this by name" in p, "the business-question test is the bar"
+        assert "Operational is NOT the same as technical" in p
+        assert "Rejection is DURABLE" in p
+        assert "When uncertain, approve" in p
+        assert "structural or file artifacts only" in p, \
+            "reject must be scoped to artifacts, not anything technical-sounding"
