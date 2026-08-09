@@ -14,6 +14,24 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.36.33] - 2026-08-09
+
+### Fixed - accepting one field no longer lights the other field's LLM chip
+
+Accept a proposed Definition and the Purpose chip lit too, with its proposal
+still sitting unaccepted (field-caught, screenshot and all). Every accept
+carried the row-level LLM_Enriched flag - a legacy marker from before
+per-field provenance existed - and the chips fall back to it when a
+per-field flag is missing, which is exactly the state of a field you have
+not accepted yet.
+
+Accepts now carry per-field flags only (whole-row accepts strip the legacy
+flag as well), and the fallback is scoped to true legacy rows - ones with NO
+per-field flag at all - so rows already damaged by the old carry heal on
+sight. The LLM-enriched count reads all four flags. Pinned in test_docs so
+the chips stay truthful: they are the steward's record of what the model
+wrote versus what a human did.
+
 ## [1.36.32] - 2026-08-09
 
 ### Fixed - the AI pass can now match AI review, and says how

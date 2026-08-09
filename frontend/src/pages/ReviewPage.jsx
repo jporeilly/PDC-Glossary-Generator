@@ -49,7 +49,7 @@ function computeStats(rows) {
     if (conf[r.Confidence] != null) conf[r.Confidence]++
     if (sev[r.Sensitivity] != null) sev[r.Sensitivity]++
     if (r.PII_Category) pii++
-    if (r.LLM_Enriched === 'Yes') enr++
+    if (rowLLM(r)) enr++
   })
   return { terms: rows.length, categories: cats.size, pii, confidence: conf, sensitivity: sev, enriched: enr }
 }
@@ -212,14 +212,30 @@ const AGENT_DESC = [
 ]
 const AGENT_META = Object.fromEntries(AGENT_DESC.map((a) => [a.label, a]))
 
-// Accepting one proposed field also carries the matching provenance flags so
-// the grid's LLM/QA markers stay truthful.
+// Accepting one proposed field carries ONLY that field's provenance flag
+// (plus the QA clear for Definition). Row-level LLM_Enriched is deliberately
+// absent: it is a legacy flag the chips fall back to when per-field flags are
+// missing, so spreading it on a single-field accept lit the LLM chip on
+// fields never accepted — accept a Definition, Purpose glows. Field-caught.
 const CARRY_FOR = {
-  Definition: ['LLM_Definition', 'LLM_Enriched', 'QA_Issues'],
-  Purpose: ['LLM_Purpose', 'LLM_Enriched'],
+  Definition: ['LLM_Definition', 'QA_Issues'],
+  Purpose: ['LLM_Purpose'],
   Suggested_Name: ['LLM_Name'],
   Term: ['LLM_Name'],
 }
+
+// Chip truth for one field. The per-field flag wins; the row-level fallback
+// exists for LEGACY saves enriched before per-field flags existed — and a
+// legacy row is recognisable because NO per-field flag exists on it. A row
+// carrying any per-field flag is current-format: an absent flag there means
+// "not model-written" (this also heals rows the old accept-carry damaged).
+const LLM_FIELD_FLAGS = ['LLM_Definition', 'LLM_Purpose', 'LLM_Name']
+const llmChip = (r, flag) => r[flag] === 'Yes'
+  || (r.LLM_Enriched === 'Yes' && LLM_FIELD_FLAGS.every((f) => r[f] === undefined))
+
+// "Was any of this row model-written?" — reads all four flags, since current
+// saves stamp per-field only and legacy saves stamp the row.
+const rowLLM = (r) => r.LLM_Enriched === 'Yes' || LLM_FIELD_FLAGS.some((f) => r[f] === 'Yes')
 
 // `names` is the seed-request focus filter (Set of lowercased term names) —
 // only the Policy Generator banner's "Show these terms" sets it.
@@ -935,6 +951,9 @@ export default function ReviewPage({ onNavigate }) {
         ;(CARRY_FOR[field] || []).forEach((c) => { if (c in it.patch) patch[c] = it.patch[c] })
       } else {
         Object.assign(patch, it.patch)
+        // never land the row-level legacy flag: untouched fields' chips would
+        // glow via the fallback — the patch's per-field flags are the record
+        delete patch.LLM_Enriched
       }
       patchRow(index, patch)
     }
@@ -1818,7 +1837,7 @@ const GridRow = memo(function GridRow({ row: r, index, pos, expanded, prop, onAc
                   title={r.Definition ? `${r.Definition}\n\nClick to edit definition & purpose.` : 'Click to add a definition'}
                   aria-label={`Edit definition and purpose for ${r.Term || 'term'}`}>
             <span className={r.Definition ? 'rv-prevtext' : 'rv-prevtext empty'}>{r.Definition || 'add definition…'}</span>
-            {(r.LLM_Definition === 'Yes' || (r.LLM_Definition === undefined && r.LLM_Enriched === 'Yes')) && <span className="rv-enr">LLM</span>}
+            {llmChip(r, 'LLM_Definition') && <span className="rv-enr">LLM</span>}
             {r.QA_Issues ? <span className="rv-qaflag" title={`QA: ${String(r.QA_Issues).split(';').join(' · ')}`}>QA ⚠</span> : null}
             <span className="rv-caret" aria-hidden="true">{expanded ? '▾' : '▸'}</span>
           </button>
@@ -1836,7 +1855,7 @@ const GridRow = memo(function GridRow({ row: r, index, pos, expanded, prop, onAc
                   title={r.Purpose ? `${r.Purpose}\n\nClick to edit definition & purpose.` : 'Click to add a purpose'}
                   aria-label={`Edit purpose for ${r.Term || 'term'}`}>
             <span className={r.Purpose ? 'rv-prevtext' : 'rv-prevtext empty'}>{r.Purpose || 'purpose…'}</span>
-            {(r.LLM_Purpose === 'Yes' || (r.LLM_Purpose === undefined && r.LLM_Enriched === 'Yes')) && <span className="rv-enr">LLM</span>}
+            {llmChip(r, 'LLM_Purpose') && <span className="rv-enr">LLM</span>}
           </button>
           {pfPur !== undefined && (
             <button className="rv-aipill" onClick={() => onAcceptProp(index, 'Purpose')}
@@ -1928,14 +1947,14 @@ function ExpandedRow({ row: r, index, prop, onAcceptProp, onField, onEvidence, o
           <div className="rv-expgrid">
             <label>
               Definition
-              {(r.LLM_Definition === 'Yes' || (r.LLM_Definition === undefined && r.LLM_Enriched === 'Yes')) && <span className="rv-enr">LLM</span>}
+              {llmChip(r, 'LLM_Definition') && <span className="rv-enr">LLM</span>}
               <textarea autoFocus value={r.Definition || ''}
                         onChange={(e) => onField(index, 'Definition', e.target.value)} aria-label="Definition" />
               {pDef !== undefined && propBox('Definition', pDef)}
             </label>
             <label>
               Purpose
-              {(r.LLM_Purpose === 'Yes' || (r.LLM_Purpose === undefined && r.LLM_Enriched === 'Yes')) && <span className="rv-enr">LLM</span>}
+              {llmChip(r, 'LLM_Purpose') && <span className="rv-enr">LLM</span>}
               <textarea value={r.Purpose || ''} placeholder="why the business keeps this data…"
                         onChange={(e) => onField(index, 'Purpose', e.target.value)} aria-label="Purpose" />
               {pPur !== undefined && propBox('Purpose', pPur)}
@@ -2150,7 +2169,7 @@ function EvidenceModal({ row: r, onClose }) {
             {r.PII_Category ? <> · PII <b>{r.PII_Category}</b></> : null}
             {' · '}Sensitivity <b>{r.Sensitivity || '—'}</b>
             {r.Critical_Data_Element === 'Yes' ? <> · <b>CDE</b></> : null}
-            {r.LLM_Enriched === 'Yes' ? <> · LLM-enriched</> : null}
+            {rowLLM(r) ? <> · LLM-enriched</> : null}
           </p>
           {!r.Value_Pattern && !r.Value_Signature && !enums.length && (
             <p className="hint-line">

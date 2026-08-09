@@ -163,3 +163,25 @@ def test_readme_reflects_fastapi_port():
     """The README must not describe the removed Flask entry point."""
     text = _read(REPO, "README.md")
     assert "app.py" not in text, "README still references the removed Flask app.py"
+
+
+def test_llm_chip_provenance_stays_per_field():
+    """Accepting ONE field must not light the other field's LLM chip.
+       Through 1.36.32 every accept carried row-level LLM_Enriched, and the
+       chips' legacy fallback then lit Purpose the moment a Definition was
+       accepted (field-caught). The carry list stays per-field, and the chips
+       go through llmChip, whose fallback is reserved for rows with NO
+       per-field flag at all - true legacy saves."""
+    import re
+    path = os.path.join(REPO, "frontend", "src", "pages", "ReviewPage.jsx")
+    if not os.path.isfile(path):
+        return                     # frontend is optional for a backend-only checkout
+    src = _read(path)
+    m = re.search(r"const CARRY_FOR = \{(.*?)\n\}", src, re.S)
+    assert m, "CARRY_FOR must exist - it is how accepts carry provenance"
+    assert "LLM_Enriched" not in m.group(1), \
+        "row-level LLM_Enriched in CARRY_FOR lights chips on unaccepted fields"
+    assert "llmChip(r, 'LLM_Definition')" in src and "llmChip(r, 'LLM_Purpose')" in src, \
+        "field chips must go through llmChip so the legacy fallback stays scoped"
+    assert "delete patch.LLM_Enriched" in src, \
+        "the whole-row accept must strip the legacy flag too"
