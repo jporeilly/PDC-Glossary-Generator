@@ -341,3 +341,50 @@ class TestAdvisorRespectsBreadthAndNames:
         assert "Breadth is evidence FOR the vocabulary" in p
         assert "steward's" in p and "merge decision" in p
         assert "a name is precisely how the business asks" in p
+
+
+class TestAdviceGuardrails:
+    """Deterministic guards AROUND the advisor - prompts reduce misfires,
+       guards eliminate classes of them. Advice must never point at the
+       durable action against evidence the app itself holds."""
+
+    def _advise(self, monkeypatch, reply, item, governed=("Customer Identifier",)):
+        monkeypatch.setattr(llm, "_complete_json", lambda *a, **k: dict(reply))
+        monkeypatch.setattr(llm, "status", lambda m=None: {"online": True})
+        monkeypatch.setattr(llm, "_warm", lambda m=None: None)
+        out, used = llm.review_pending_terms([item], list(governed), workers=1)
+        assert used
+        return out[item["name"]]
+
+    def test_breadth_guard_downgrades_reject_on_multi_source_terms(self, monkeypatch):
+        adv = self._advise(monkeypatch,
+                           {"action": "reject", "rationale": "technical component"},
+                           {"name": "System Name",
+                            "sources": ["a.t1.system_name", "a.t2.system_name",
+                                        "a.t3.system_name", "a.t4.system_name"]})
+        assert adv["action"] == "approve"
+        assert "breadth guard" in adv["reason"] and "4 source columns" in adv["reason"]
+        assert "technical component" in adv["reason"], "the model's argument stays visible"
+
+    def test_pattern_guard_downgrades_reject_on_coded_identifiers(self, monkeypatch):
+        adv = self._advise(monkeypatch,
+                           {"action": "reject", "rationale": "just an id"},
+                           {"name": "Meter ID", "sources": ["a.meters.meter_id"],
+                            "pattern": r"^MTR-\d{6}$"})
+        assert adv["action"] == "approve"
+        assert "pattern guard" in adv["reason"]
+
+    def test_alias_guard_blocks_specific_into_vague(self, monkeypatch):
+        adv = self._advise(monkeypatch,
+                           {"action": "alias", "target": "Date", "rationale": "fold it"},
+                           {"name": "Alert Date", "sources": ["a.alerts.alert_date"]},
+                           governed=("Date",))
+        assert adv["action"] == "approve" and not adv["target"]
+        assert "alias guard" in adv["reason"]
+
+    def test_abbreviation_alias_passes_untouched(self, monkeypatch):
+        adv = self._advise(monkeypatch,
+                           {"action": "alias", "target": "Customer Identifier",
+                            "rationale": "same concept"},
+                           {"name": "Cust ID", "sources": ["a.c.cust_id"]})
+        assert adv["action"] == "alias" and adv["target"] == "Customer Identifier"

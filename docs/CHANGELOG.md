@@ -14,6 +14,25 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.36.43] - 2026-08-09
+
+### Added - deterministic guards around the advisor
+
+Prompts reduce misfires; guards eliminate classes of them ("seems as
+though the guardrails could be improved" - yes). Three now post-process
+every piece of advice, each naming itself in the reason and keeping the
+model's argument visible, and none of them touches the steward's own
+buttons - sovereignty stays with the click:
+
+- BREADTH GUARD: a model "reject" on a term seen in 3+ source columns
+  downgrades to approve - a cross-cutting concept, very often the
+  steward's own Merge (the System Name case, deterministically closed).
+- PATTERN GUARD: a model "reject" on a term whose values carry a
+  distinctive coded format downgrades - the scan proved people quote it.
+- ALIAS GUARD: folding a specific concept into a vaguer one ("Alert
+  Date" into "Date") is blocked by word-subset check; abbreviation folds
+  ("Cust ID" into "Customer Identifier") pass untouched.
+
 ## [1.36.42] - 2026-08-09
 
 ### Changed - the advisor respects breadth and names

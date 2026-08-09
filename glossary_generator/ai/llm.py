@@ -1221,6 +1221,45 @@ def review_pending_terms(pending, governed, model=None, compute=None, workers=No
         why = str(res.get("rationale") or "").strip()[:200]
         if not _mostly_english(why):
             why = ""
+        # Deterministic BREADTH GUARD around the model: advice must never
+        # recommend the durable action against a term the estate keeps
+        # vouching for. A candidate seen in 3+ source columns is a
+        # cross-cutting concept — very often the steward's own Merge — so a
+        # model "reject" downgrades to approve with the guard named
+        # (field-caught: it advised retiring "System Name", a five-source
+        # steward merge, as "a technical infrastructure component"). The
+        # steward can still retire by hand; sovereignty stays with the click.
+        n_src = len(item.get("sources") or ())
+        if action == "reject" and n_src >= 3:
+            action = "approve"
+            why = ("breadth guard: seen in %d source columns — a "
+                   "cross-cutting concept (possibly your own merge); retire "
+                   "only by deliberate choice. The model argued: %s"
+                   % (n_src, why or "reject"))[:200]
+        elif action == "reject" and (item.get("pattern") or "").strip():
+            # the scan proved a distinctive value format — identifiers people
+            # quote are vocabulary by our own rule, so advice may not call
+            # them noise. The steward can still disagree by hand.
+            action = "approve"
+            why = ("pattern guard: values carry the distinctive format %s — "
+                   "quoted identifiers are vocabulary; retire only by "
+                   "deliberate choice. The model argued: %s"
+                   % (item.get("pattern"), why or "reject"))[:200]
+        if action == "alias" and target:
+            # folding a SPECIFIC concept into a VAGUER one governs nothing
+            # ("Alert Date" into "Date") — the prompt asks the model not to,
+            # this guarantees it: a target whose words are a strict subset of
+            # the candidate's is the vaguer generalization. Abbreviation folds
+            # ("Cust ID" into "Customer Identifier") share no word set and
+            # pass untouched.
+            cand_w = {w for w in re.split(r"[^a-z0-9]+", item["name"].lower()) if w}
+            tgt_w = {w for w in re.split(r"[^a-z0-9]+", target.lower()) if w}
+            if tgt_w and tgt_w < cand_w:
+                why = ("alias guard: \"%s\" is broader than the candidate — "
+                       "folding specific into vague governs nothing. The "
+                       "model argued: %s" % (target, why or "alias"))[:200]
+                action = "approve"
+                target = ""
         out[item["name"]] = {"action": action, "target": target,
                              "reason": ("AI: " + why) if why else "AI review"}
     return out, True
