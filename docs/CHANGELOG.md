@@ -14,6 +14,21 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.36.42] - 2026-08-09
+
+### Changed - the advisor respects breadth and names
+
+It recommended retiring "System Name" - a five-source steward MERGE - as
+"a technical infrastructure component rather than a business concept"
+(field-caught; advice-not-action is what kept it from being a durable
+disaster). Two rules join the calibration, pinned by test: breadth is
+evidence FOR the vocabulary, never against it - a candidate seen across
+many tables is a cross-cutting concept, and a consolidated one may embody
+the steward's own merge decision; and names of operational things ARE
+business vocabulary, because asking for something by name is the test and
+a name is precisely how the business asks. The prompt also now receives
+the FULL source count instead of a silent first-three truncation.
+
 ## [1.36.41] - 2026-08-09
 
 ### Added - the id-vs-key evidence reaches the decision point

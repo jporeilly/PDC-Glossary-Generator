@@ -1116,7 +1116,10 @@ def _pending_one(item, governed, model=None, num_gpu=None):
     if item.get("definition"):
         bits.append("definition: %s" % str(item["definition"])[:200])
     if item.get("sources"):
-        bits.append("seen in: %s" % "; ".join(item["sources"][:3]))
+        srcs = item["sources"]
+        bits.append("seen in %d source column(s): %s%s"
+                    % (len(srcs), "; ".join(srcs[:3]),
+                       (" (+%d more)" % (len(srcs) - 3)) if len(srcs) > 3 else ""))
     if item.get("sensitivity"):
         bits.append("sensitivity: %s" % item["sensitivity"])
     if item.get("pattern"):
@@ -1143,6 +1146,14 @@ def _pending_one(item, governed, model=None, num_gpu=None):
         "- reject: structural or file artifacts only - surrogate keys and "
         "ids, fragments, a field of a one-off dated snapshot file, or a name "
         "too vague for anyone to ever ask for (\"Data\", \"Value\").\n\n"
+        "Breadth is evidence FOR the vocabulary, never against it: a candidate "
+        "seen across MANY tables or files is a cross-cutting business concept, "
+        "and one consolidated from several sources may embody the steward's "
+        "own merge decision - never advise retiring it as 'too technical'.\n"
+        "Names and labels of operational things (System Name, Site Name) ARE "
+        "business vocabulary: the test is asking for something by name, and a "
+        "name is precisely how the business asks. That the named thing is "
+        "infrastructure does not make its name technical.\n"
         "For id / identifier candidates the tell is the VALUE SHAPE: a "
         "distinctive coded format (a profiled value pattern in the evidence, "
         "like a prefixed code) means people quote it - business vocabulary, "

@@ -311,3 +311,33 @@ class TestAdvisorSeesTheValueShape:
         assert r"profiled value pattern: ^MTR-\d{6}$" in p
         assert "the tell is the VALUE SHAPE" in p
         assert "surrogate key" in p
+
+
+class TestAdvisorRespectsBreadthAndNames:
+    def test_source_count_and_both_rules_reach_the_prompt(self, monkeypatch):
+        """It advised retiring "System Name" - a five-source steward MERGE -
+           as 'a technical infrastructure component' (field-caught; would have
+           been a durable disaster if advice were action). Pin the fixes: the
+           FULL source count reaches the prompt, breadth is stated as evidence
+           FOR the vocabulary, and names of operational things are vocabulary
+           by definition."""
+        seen = {}
+
+        def capture(prompt, model=None, num_gpu=None, **kw):
+            seen["prompt"] = prompt
+            return {"action": "approve", "target": "", "rationale": "ok"}
+
+        monkeypatch.setattr(llm, "_complete_json", capture)
+        llm._pending_one({"name": "System Name", "category": "Operations & Alerts",
+                          "definition": "The name of the system or infrastructure component.",
+                          "sources": ["public.system_usage_conservation.system_name",
+                                      "public.water_systems.system_name",
+                                      "public.system_water_quality_status.system_name",
+                                      "public.customer_billing_summary.system_name",
+                                      "public.pipe_network_segments.csv.system_name"]},
+                         ["Customer"])
+        p = seen["prompt"]
+        assert "seen in 5 source column(s)" in p and "(+2 more)" in p
+        assert "Breadth is evidence FOR the vocabulary" in p
+        assert "steward's" in p and "merge decision" in p
+        assert "a name is precisely how the business asks" in p
