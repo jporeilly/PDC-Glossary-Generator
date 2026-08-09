@@ -194,6 +194,12 @@ const AGENT_DESC = [
         definition, category or tags.
       </span>
       <span className="rv-dp">
+        <b>Quality dial:</b> Settings → Batch size. At <b>1</b>, every row gets its own
+        call and the model&apos;s full attention — the exact prompt <i>AI review</i> uses;
+        higher batches answer faster but share one reply across rows, so wording
+        flattens toward templates.
+      </span>
+      <span className="rv-dp">
         <b>To redo:</b> one row — <i>AI review</i> on that row; one field — accept only
         that pill.
       </span>
@@ -1975,7 +1981,7 @@ function ExpandedRow({ row: r, index, prop, onAcceptProp, onField, onEvidence, o
             </span>
             <span className="rv-grow" />
             <button className="primary sm" disabled={aiBusy} onClick={() => onAiReview(index)}
-                    title="Run the AI pass on this row alone — same prompt, same evidence, same guardrails as the full sweep. Proposals land as pills on this row; nothing changes until you accept one.">
+                    title="Run the pass on this row alone — richest evidence, and the model's whole attention on one term. The full sweep uses this exact prompt when Settings → Batch size is 1. Proposals land as pills on this row; nothing changes until you accept one.">
               {aiBusy ? 'AI running…' : 'AI review'}
             </button>
             <button className="ghost sm" onClick={() => onEvidence(index)}

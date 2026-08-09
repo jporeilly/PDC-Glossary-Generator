@@ -88,19 +88,24 @@ class TestAiPass:
 
     def test_linter_flag_reaches_the_prompt_as_a_rewrite_order(self, monkeypatch):
         """A QA flag must become the model's instruction — a flag the steward
-           can't act on is noise (and the judge that used to rewrite is gone)."""
+           can't act on is noise (and the judge that used to rewrite is gone).
+           TWO rows, so this exercises the BATCH prompt's wording — a single
+           row now routes to the rich per-row prompt, whose flag handling is
+           covered by test_per_row_fallback_states_the_flag_once."""
         seen = {}
 
         def capture(prompt, **kw):
             seen["prompt"] = prompt
-            return {"items": [{"n": 1, "definition": "A specific, useful sentence."}]}
+            return {"items": [{"n": 1, "definition": "A specific, useful sentence."},
+                              {"n": 2, "definition": "A customer's contact address."}]}
 
         monkeypatch.setattr(llm, "_complete_json", capture)
         monkeypatch.setattr(llm, "status", lambda m=None: {"online": True})
         monkeypatch.setattr(llm, "_warm", lambda m=None: None)
         rows = [make_row("Severity", "public.account_alerts.severity",
                          Definition="Severity associated with a account alert record.",
-                         QA_Issues="generic;echoes the term")]
+                         QA_Issues="generic;echoes the term"),
+                make_row("Email", "public.customers.email", Definition="")]
         out, _, _ = llm.ai_pass_rows(rows, allow_tags=[], categories=[], workers=1)
         assert "REWRITE REQUIRED" in seen["prompt"]
         assert "generic, echoes the term" in seen["prompt"]
@@ -206,3 +211,51 @@ class TestAiPassEndpoint:
         body = r.json()
         assert body["rows"][0]["Definition"] == "A customer's email address."
         assert body["updated"]["definitions"] == 1
+
+
+class TestBatchOfOneIsThePerRowPrompt:
+    """Settings' batch size 1 is a quality dial, not a smaller batch: a
+       single-row batch must take the RICH per-row prompt (_ai_pass_one) with
+       its full evidence and instructions, never the compressed pipe-format.
+       That routing is the guarantee behind "AI review quality, sweep-wide" -
+       field-caught when batched definitions flattened to templates while
+       AI review on the same rows wrote real ones."""
+
+    def test_single_row_batch_routes_to_the_rich_prompt(self, monkeypatch):
+        captured = []
+
+        def capture(prompt, model=None, num_gpu=None, **kw):
+            captured.append(prompt)
+            return {"definition": "A precise thing."}
+
+        monkeypatch.setattr(llm, "_complete_json", capture)
+        row = make_row("Gis", "awc-documents/gis/asset_inventory.csv",
+                       Definition="Object 'asset_inventory.csv'",
+                       Purpose="Holds Gis data", Category="", Suggested_Tags="")
+        out = llm._ai_pass_batch([row], ["customer"], ["Infrastructure"])
+        assert len(out) == 1 and out[0]["definition"] == "A precise thing."
+        p = captured[0]
+        assert "For ONE database column" in p, "one row must take the per-row prompt"
+        assert "not a restatement of the definition" in p
+        assert "For EACH numbered column" not in p
+
+    def test_multi_row_batch_carries_full_drafts_and_anti_echo(self, monkeypatch):
+        captured = []
+
+        def capture(prompt, model=None, num_gpu=None, **kw):
+            captured.append(prompt)
+            return {"items": [{"n": 1, "definition": "A."},
+                              {"n": 2, "definition": "B."}]}
+
+        monkeypatch.setattr(llm, "_complete_json", capture)
+        rows = [make_row("A", "t.a", Definition="d" * 300, Purpose="",
+                         Category="", Suggested_Tags=""),
+                make_row("B", "t.b", Definition="", Purpose="",
+                         Category="", Suggested_Tags="")]
+        llm._ai_pass_batch(rows, [], [])
+        p = captured[0]
+        assert "For EACH numbered column" in p
+        assert "d" * 220 in p and "d" * 221 not in p, \
+            "draft definition travels at 220 chars (was 120 - starved the model)"
+        assert "NOT a restatement of the definition" in p
+        assert "do NOT reuse sentence" in p, "the anti-template-rhythm instruction"

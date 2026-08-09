@@ -502,6 +502,15 @@ def _ai_pass_batch(rows, allow_tags, categories, model=None, num_gpu=None):
     rows = list(rows)
     if not rows:
         return []
+    # A batch of ONE is not a smaller batch - it is the per-row path. The
+    # compressed pipe-format below exists to fit many rows into one call;
+    # sending it for a single row trades quality for nothing. This routing is
+    # what makes Settings' batch size 1 literally the AI-review prompt,
+    # sweep-wide: full evidence, full instructions, the model's whole output
+    # budget on one term.
+    if len(rows) == 1:
+        return [_ai_pass_one(rows[0], allow_tags, categories,
+                             model=model, num_gpu=num_gpu)]
     lines = []
     for i, r in enumerate(rows, 1):
         ev = []
@@ -511,7 +520,7 @@ def _ai_pass_batch(rows, allow_tags, categories, model=None, num_gpu=None):
             ev.append("regex %s" % r["Value_Pattern"])
         enum_vals = (r.get("Enum_Values") or "").strip()
         if enum_vals:
-            ev.append("values %s" % enum_vals[:90])
+            ev.append("values %s" % enum_vals[:200])
         if r.get("PII_Category"):
             ev.append("PII %s" % r["PII_Category"])
         # why the scan proposed this term/tags in the first place. The batched
@@ -520,12 +529,12 @@ def _ai_pass_batch(rows, allow_tags, categories, model=None, num_gpu=None):
         # replaced it never saw on the path it actually runs.
         reason = _scan_reason(r)
         if reason:
-            ev.append("scan reasoning %s" % reason[:120])
+            ev.append("scan reasoning %s" % reason[:160])
         lines.append(
             f'{i}. Term: {r.get("Term","")} | Category: {r.get("Category","") or "(blank)"} | '
             f'Source: {r.get("Source_Column","")} | Tags: {r.get("Suggested_Tags","") or "(none)"} | '
-            f'Draft definition: {(r.get("Definition") or "")[:120]} | '
-            f'Draft purpose: {(r.get("Purpose") or "")[:120]}'
+            f'Draft definition: {(r.get("Definition") or "")[:220]} | '
+            f'Draft purpose: {(r.get("Purpose") or "")[:220]}'
             + (f' | Evidence: {"; ".join(ev)}' if ev else "")
             + (f' | REWRITE REQUIRED - flagged: {(r.get("QA_Issues") or "").replace(";", ", ")}'
                if r.get("QA_Issues") else ""))
@@ -539,10 +548,13 @@ def _ai_pass_batch(rows, allow_tags, categories, model=None, num_gpu=None):
         "\"rationale\":\"...\"}, ...]} with one entry per column, keeping the numbering.\n"
         "  name: a clearer business term ONLY if the current one is cryptic or abbreviated "
         "(cust_acct_no -> Customer Account Number); otherwise repeat it UNCHANGED.\n"
-        "  definition: one sentence, max 25 words, business-facing, what it is.\n"
-        "  purpose: one sentence, max 25 words, why the business keeps it.\n"
+        "  definition: one sentence, max 25 words, precise, business-facing, what it is.\n"
+        "  purpose: one sentence, max 25 words, why it matters or how the business "
+        "uses it — NOT a restatement of the definition.\n"
         "  category: one from the list (only useful where the current category is blank).\n"
         "  tags: 2-5, ONLY from the allow-list.\n"
+        "Write each entry from its own evidence alone — do NOT reuse sentence "
+        "templates or phrasing across entries.\n"
         "Do NOT return sensitivity or PII — those are deterministic from the scan.\n\n"
     ) % (
         (" at " + COMPANY) if COMPANY else "",

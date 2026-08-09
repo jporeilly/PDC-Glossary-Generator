@@ -14,6 +14,30 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.36.32] - 2026-08-09
+
+### Fixed - the AI pass can now match AI review, and says how
+
+AI review kept writing real definitions while the sweep left templates - on
+the same rows, supposedly with "the same prompt". It wasn't the same prompt.
+The batched path compressed everything the single-row path sends rich:
+reference values cut at 90 chars (vs 200), scan reasoning at 120 (vs 160),
+the drafts at 120 (vs 220) - and its instructions dropped the one line that
+does the most work ("purpose: why it matters - NOT a restatement of the
+definition"). On top of that, N rows sharing one completion pushes the model
+into template rhythm, echoing its own phrasing row after row.
+
+Three changes close the gap. A batch of ONE now routes to the rich per-row
+prompt - so Settings' Batch size at 1 literally runs the AI-review prompt,
+sweep-wide. Multi-row batches carry the full evidence truncations and the
+missing instructions, plus an explicit "do not reuse sentence templates or
+phrasing across entries". And the Settings hint, the pass description and
+the AI-review tooltip now tell the truth about the trade: batch size is the
+quality dial - 1 for depth, higher for speed. Field-caught on the GPU box:
+the Gis folder term went from "Holds Gis data for reference" to "Geographic
+Information System data representing physical infrastructure assets" the
+moment the row got a call of its own.
+
 ## [1.36.31] - 2026-08-09
 
 ### Changed - Dictionary joins the workflow, between Review and Govern

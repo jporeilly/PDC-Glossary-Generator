@@ -425,8 +425,12 @@ function LlmCard({ settings, saveField }) {
       </div>
       <p className="hint-line">
         These override <code>GLOSSARY_COMPANY</code>, <code>LLM_WORKERS</code> and{' '}
-        <code>LLM_BATCH</code> at runtime. Higher workers/batch = faster enrichment but
-        heavier on the GPU.
+        <code>LLM_BATCH</code> at runtime. Batch size is the AI pass&apos;s{' '}
+        <b>quality dial</b>: at <b>1</b> every row gets its own call and the model&apos;s
+        full attention — the exact prompt <i>AI review</i> uses — while higher batches
+        trade that depth for speed (rows share one reply, so definitions flatten
+        toward templates). Higher workers/batch = faster enrichment but heavier on
+        the GPU.
       </p>
     </section>
   )
