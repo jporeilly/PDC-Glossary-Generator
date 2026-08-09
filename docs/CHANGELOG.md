@@ -14,6 +14,32 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.36.45] - 2026-08-09
+
+### Fixed - folds are never blind, and never lie about succeeding
+
+The governed table's Fold was a free-text prompt whose target hit an
+EXACT-KEY, case-sensitive lookup that silently no-opped on a miss - while
+the toast reported the fold as done. Now: the typed target resolves
+case-insensitively against the actual governed vocabulary, a miss says so
+out loud (retired names cannot resolve - tombstones are not targets), and
+a confirm states exactly what happens before it does: what folds, into
+what, and how many mapped columns move. The backend resolves
+case-insensitively too, test-pinned both ways (resolution and the
+full-no-op guarantee on a miss).
+
+### Changed - the governed table says what it is
+
+"Why am I going through the Term list again?" - because nothing said this
+is the settled REGISTRY rather than another review. It now does: approval
+happened in the pending queue, merges happened on Review; Fold and Retire
+here are maintenance - cross-scan twins the fold advisor surfaces (drift
+no single review can see; a freshly reviewed glossary usually has none,
+and that silence is the Review doing its job) and undoing a decision that
+turned out wrong. Stale AI advice is also dropped the moment its item
+leaves the pending queue, so recommendations never outlive what they
+recommended about.
+
 ## [1.36.44] - 2026-08-09
 
 ### Changed - calculated measures are vocabulary, and the formula rides along

@@ -661,8 +661,15 @@ def review(kind, names, action="approve", target=None):
             if not meta or meta.get("layer") == "generic":
                 continue
             if action == "alias" and kind == "term":
-                tgt = d.get("terms", {}).get(target or "")
-                if not tgt or nm == target:
+                # resolve the target case-insensitively — an exact-key miss
+                # used to silently no-op while the UI reported success, which
+                # is the worst possible outcome for a durable operation
+                tname = str(target or "")
+                if tname and tname not in d.get("terms", {}):
+                    low = {k.lower(): k for k in d.get("terms", {})}
+                    tname = low.get(tname.lower(), tname)
+                tgt = d.get("terms", {}).get(tname)
+                if not tgt or nm == tname:
                     continue
                 als = tgt.setdefault("aliases", [])
                 if nm not in als:

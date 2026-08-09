@@ -129,6 +129,10 @@ export default function DictionaryPage({ onNavigate }) {
         kind, names, action, target, actor: actor.trim(),
       })
       setDict(d)
+      // advice must never outlive its item: drop entries whose term is no
+      // longer pending (retired, approved or folded since the AI review ran)
+      setAdvice((a) => Object.fromEntries(Object.entries(a).filter(([k]) =>
+        (d.terms || []).some((t) => t.term === k && t.status === 'pending'))))
       apiGet('/api/tagdict/pending-health').then(setStale).catch(() => {})
       loadAudit()
       if (doneMsg) setMsg(doneMsg)
@@ -160,11 +164,29 @@ export default function DictionaryPage({ onNavigate }) {
   }
 
   function termFold(t) {
-    const target = window.prompt(
+    // A fold must never be blind: the typed target resolves case-insensitively
+    // against the ACTUAL governed vocabulary, a miss says so out loud (the
+    // backend used to silently no-op while the toast claimed success), and a
+    // confirm states exactly what is about to happen — what folds, into what,
+    // and what moves. Retired names are not in the vocabulary, so a tombstoned
+    // target fails the resolution rather than half-working.
+    const governed = (dict.terms || []).filter((x) =>
+      (x.status === 'approved' || x.layer === 'generic') && x.term !== t.term)
+    const typed = window.prompt(
       `Fold "${t.term}" into which governed term?\n\n"${t.term}" becomes an ALIAS of the target — ` +
       'future scans map its columns there automatically. Durable across reseeds.', '')
-    if (!target || !target.trim()) return
-    alias(t.term, target.trim())
+    if (!typed || !typed.trim()) return
+    const hit = governed.find((x) => x.term.toLowerCase() === typed.trim().toLowerCase())
+    if (!hit) {
+      setMsg(`No governed term named "${typed.trim()}" — nothing was folded. A fold target must already be governed (retired names cannot be targets).`)
+      return
+    }
+    if (!window.confirm(
+      `Fold "${t.term}" → "${hit.term}"?\n\n` +
+      `· "${t.term}" becomes an alias of "${hit.term}"\n` +
+      `· its ${t.count || 0} mapped column(s) resolve to "${hit.term}"\n` +
+      '· future scans map the old name there automatically (durable across reseeds)')) return
+    alias(t.term, hit.term)
   }
 
   function termRetire(t) {
@@ -746,12 +768,18 @@ export default function DictionaryPage({ onNavigate }) {
         <h3 className="subhead">
           1 · Terms — canonical business terms; aliases resolve divergent names to one term
         </h3>
+        <p className="hint-line">
+          This is the settled registry, <b>not another review</b>: approval happened in the
+          pending queue, merges and splits happened on Review. <b>⤵ Fold</b> and{' '}
+          <b>✕ Retire</b> here are maintenance — cross-scan twins the fold advisor surfaces,
+          and undoing a decision that turned out wrong — never a second pass through the list.
+        </p>
         <div className="actions" style={{ marginTop: 0, marginBottom: '.6rem' }}>
           <button className="primary" onClick={foldAdvisor} disabled={foldBusy}
                   title="Advise alias folds across the governed vocabulary: names are expanded through the pack's abbreviations (mbr → Member) and compared by similarity — identical expansions are near-certain twins; close matches are flagged for review. The unabbreviated spelling is proposed as the canonical. Advice only — you click each fold.">
             {foldBusy ? 'Analyzing…' : '⤵ AI fold advisor'}
           </button>
-          <span className="hint-inline">spots twin terms (mbr / Member) in the governed vocabulary and advises folds — you click each</span>
+          <span className="hint-inline">spots twin terms (mbr / Member) that arrive from DIFFERENT scans over time — cross-glossary drift no single review can see. A freshly reviewed glossary usually has none: that silence is the Review doing its job</span>
         </div>
         <div className="vocab-box" style={boxStyle}>
           <table>

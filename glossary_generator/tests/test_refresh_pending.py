@@ -194,3 +194,28 @@ class TestValuePatternTravelsWithTheEntry:
         tagdict.accrete([make_row("Report ID", "public.water_quality_reports.report_id")])
         assert _pending_meta(tagdict, "Report ID")["pattern"] == "", \
             "absence of a pattern IS the surrogate-key signal - never invent one"
+
+
+class TestFoldTargetsResolveHonestly:
+    """A fold is durable, so its target resolution must be honest: typed
+       targets resolve case-insensitively, and a miss is a full no-op - the
+       old exact-key lookup silently did nothing while the UI toasted
+       success (field-caught: 'you don't know what you're folding into')."""
+
+    def test_alias_target_resolves_case_insensitively(self, fresh_dict):
+        tagdict = fresh_dict
+        tagdict.accrete([make_row("pH Level", "a.w.ph_level"),
+                         make_row("Ph Reading", "a.s.ph_reading")])
+        tagdict.review("term", ["pH Level"], "approve")
+        tagdict.review("term", ["Ph Reading"], "alias", target="ph level")
+        d = tagdict.load()["terms"]
+        assert "Ph Reading" not in d, "folded away"
+        assert "Ph Reading" in d["pH Level"]["aliases"]
+
+    def test_unknown_target_is_a_full_noop(self, fresh_dict):
+        tagdict = fresh_dict
+        tagdict.accrete([make_row("Ph Reading", "a.s.ph_reading")])
+        tagdict.review("term", ["Ph Reading"], "alias", target="No Such Term")
+        d = tagdict.load()["terms"]
+        assert "Ph Reading" in d, "a target miss must change nothing"
+        assert "Ph Reading" not in tagdict.load().get("retired", {}).get("terms", [])
