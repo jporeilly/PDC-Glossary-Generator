@@ -2047,6 +2047,31 @@ def api_tagdict_save(body: dict = Body(default={})):
                  warnings=len(warnings))
     return out
 
+@app.get("/api/tagdict/pending-health")
+def api_tagdict_pending_health():
+    """Which PENDING entries still have evidence anywhere? The universe is
+    every SAVED glossary's rows (the loaded workspace autosaves into the same
+    store), so vocabulary from another domain's scan is never flagged. An
+    entry whose sources, name and aliases appear nowhere is a fossil — it came
+    from a scan whose rows no longer exist, nothing can ever refresh it, and
+    it pollutes the steward's queue. Names only; retiring stays a steward
+    action through /api/tagdict/review."""
+    sources, terms_l, tags_l = set(), set(), set()
+    for v in _load_gloss().values():
+        for r in v.get("rows", []):
+            t = str(r.get("Term") or "").strip().lower()
+            if t:
+                terms_l.add(t)
+            for c in str(r.get("Source_Column") or "").split(";"):
+                c = c.strip().lower()
+                if c:
+                    sources.add(c)
+            for tg in str(r.get("Suggested_Tags") or "").split(";"):
+                tg = tg.strip().lower()
+                if tg:
+                    tags_l.add(tg)
+    return tagdict.stale_pending(sources=sources, terms=terms_l, tags=tags_l)
+
 @app.post("/api/tagdict/review")
 def api_tagdict_review(body: dict = Body(default={})):
     """Steward approve/reject of pending accreted items. Body: {kind:'tag'|'term',

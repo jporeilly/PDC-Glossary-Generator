@@ -130,3 +130,44 @@ class TestAutoPrunedKeysStayOut:
         assert "System ID" in tagdict.load()["retired"]["terms"], "tombstoned - durable"
         assert _pending_meta(tagdict, "Correspondence") is not None, \
             "steward-dropped without Prune_Reason stays pending"
+
+
+class TestStalePendingDetection:
+    """The Dictionary is a stage-gate in the workflow now (Review -> Dictionary
+       -> Govern), so its pending queue must hold only questions the current
+       estate actually raises. Entries whose sources, name and aliases appear
+       in NO saved glossary are fossils from scans whose rows are gone -
+       refresh_pending can only carry improvements from rows that exist, so
+       nothing can ever fix them (field-caught: "Flow", category Uncategorized,
+       from a May snapshot file, matching zero rows in the review)."""
+
+    def test_fossils_are_reported_and_live_entries_are_not(self, fresh_dict):
+        tagdict = fresh_dict
+        tagdict.accrete([
+            make_row("Flow", "public.pinal_valley_pressure_2026-05-14.json.export_metadata.units.flow",
+                     Suggested_Tags="uncategorized"),
+            make_row("Base Charge", "awc_operations.monthly_usage.base_charge",
+                     Suggested_Tags="financial"),
+        ])
+        health = tagdict.stale_pending(
+            sources={"awc_operations.monthly_usage.base_charge"},
+            terms={"base charge"}, tags={"financial"})
+        assert "Flow" in health["terms"]
+        assert "Base Charge" not in health["terms"]
+        assert "uncategorized" in health["tags"]
+        assert "financial" not in health["tags"]
+
+    def test_name_match_keeps_an_entry_alive_when_sources_moved(self, fresh_dict):
+        tagdict = fresh_dict
+        tagdict.accrete([make_row("Ph Level", "old_scan.water.ph_level")])
+        health = tagdict.stale_pending(sources=set(), terms={"ph level"}, tags=set())
+        assert "Ph Level" not in health["terms"], \
+            "a name still carried by any glossary is evidence enough"
+
+    def test_governed_entries_are_never_reported(self, fresh_dict):
+        tagdict = fresh_dict
+        tagdict.accrete([make_row("Meter Size", "public.meters.meter_size")])
+        tagdict.review("term", ["Meter Size"], "approve")
+        health = tagdict.stale_pending(sources=set(), terms=set(), tags=set())
+        assert "Meter Size" not in health["terms"], \
+            "approved vocabulary is the steward's decision, not debris"

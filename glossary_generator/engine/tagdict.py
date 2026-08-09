@@ -958,6 +958,44 @@ def refresh_pending(rows, persist=True):
     return changed
 
 
+def stale_pending(*, sources, terms, tags):
+    """PENDING entries with no current evidence anywhere: their sources, name
+    and aliases match nothing in the given row universe (built from every
+    SAVED glossary, not just the loaded one — cross-domain vocabulary stays
+    safe). These are fossils from scans whose rows are gone: refresh_pending
+    can only carry improvements from rows that exist, so nothing can ever fix
+    them, and they sit in the steward's queue as arbitrary debris (the "Flow /
+    category Uncategorized from a May snapshot file" case, field-caught).
+    Returns {"terms": [names], "tags": [names]} — names only; the steward's
+    Retire stays the acting hand. Governed/generic entries are never reported."""
+    d = load()
+    src = {str(s).strip().lower() for s in (sources or ()) if str(s).strip()}
+    tnames = {str(t).strip().lower() for t in (terms or ()) if str(t).strip()}
+    tag_l = {str(t).strip().lower() for t in (tags or ()) if str(t).strip()}
+    stale_terms = []
+    for name, meta in (d.get("terms") or {}).items():
+        if not isinstance(meta, dict) or meta.get("layer") == "generic":
+            continue
+        if meta.get("status", "approved") != "pending":
+            continue
+        names = {name.lower()} | {str(a).strip().lower()
+                                  for a in (meta.get("aliases") or ())}
+        entry_src = {str(s).strip().lower() for s in (meta.get("sources") or ())}
+        if (names & tnames) or (entry_src & src):
+            continue
+        stale_terms.append(name)
+    stale_tags = []
+    for t, meta in (d.get("tags") or {}).items():
+        if not isinstance(meta, dict) or meta.get("layer") == "generic":
+            continue
+        if meta.get("status", "approved") != "pending":
+            continue
+        if str(t).strip().lower() in tag_l:
+            continue
+        stale_tags.append(t)
+    return {"terms": sorted(stale_terms), "tags": sorted(stale_tags)}
+
+
 def _facet_norm(s):
     return re.sub(r"[^a-z0-9]", "", str(s).lower())
 

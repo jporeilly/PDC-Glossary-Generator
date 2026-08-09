@@ -14,6 +14,23 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.36.38] - 2026-08-09
+
+### Added - the pending queue proves its evidence is current
+
+The Dictionary became a stage-gate when it joined the workflow (Review ->
+Dictionary -> Govern), and a gate full of debris makes the steward regress:
+re-litigating settled decisions and dead scans instead of ruling on new
+vocabulary. Pending entries whose sources, name and aliases appear in NO
+saved glossary are now detected server-side (/api/tagdict/pending-health -
+the universe is EVERY saved glossary, so cross-domain vocabulary is never
+flagged), badged "stale" in the queue with the reason on hover, and
+retirable in one click per section ("Retire stale (N)"). Durable and safe:
+a real concept re-proposes itself with evidence on a future scan. Together
+with 1.36.37 (keys never enter, case renames flow, fossils detectable) the
+queue now holds exactly one thing - questions the current estate actually
+raises.
+
 ## [1.36.37] - 2026-08-09
 
 ### Fixed - the pending queue respects decisions already made

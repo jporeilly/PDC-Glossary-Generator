@@ -82,9 +82,15 @@ export default function DictionaryPage({ onNavigate }) {
     try { localStorage.setItem('gg_steward', a) } catch { /* private mode */ }
   }
 
+  // Pending entries with no current evidence in ANY saved glossary — fossils
+  // from scans whose rows are gone. Server-computed (/api/tagdict/pending-
+  // health) so the check spans every glossary, not just the loaded one.
+  const [stale, setStale] = useState({ terms: [], tags: [] })
+
   const load = () => {
     setLoadErr(null)
     apiGet('/api/tagdict').then(setDict).catch((e) => setLoadErr(e.message))
+    apiGet('/api/tagdict/pending-health').then(setStale).catch(() => {})
   }
   const loadAudit = () => {
     apiGet('/api/audit?n=100')
@@ -112,6 +118,7 @@ export default function DictionaryPage({ onNavigate }) {
         kind, names, action, target, actor: actor.trim(),
       })
       setDict(d)
+      apiGet('/api/tagdict/pending-health').then(setStale).catch(() => {})
       loadAudit()
       if (doneMsg) setMsg(doneMsg)
       return d
@@ -411,6 +418,8 @@ export default function DictionaryPage({ onNavigate }) {
 
   const pendingTerms = (dict.terms || []).filter((t) => t.status === 'pending')
   const pendingTags = (dict.tags || []).filter((t) => t.status === 'pending')
+  const staleTerms = (stale.terms || []).filter((n) => pendingTerms.some((p) => p.term === n))
+  const staleTags = (stale.tags || []).filter((n) => pendingTags.some((p) => p.tag === n))
   const packVal = (x) => {
     const s = typeof x === 'string' ? x : JSON.stringify(x)
     return s.length > 80 ? `${s.slice(0, 77)}…` : s
@@ -605,6 +614,16 @@ export default function DictionaryPage({ onNavigate }) {
                         title="Approve every pending term at once — a confirm lists the consequences first.">
                   ✓ Approve all
                 </button>{' '}
+                {staleTerms.length > 0 && (
+                  <>
+                    <button className="ghost mini"
+                            onClick={() => review('term', staleTerms, 'reject', undefined,
+                              `Retired ${staleTerms.length} stale term(s) — no current evidence in any saved glossary.`)}
+                            title="Retire every pending term whose sources, name and aliases appear in NO saved glossary — fossils from scans whose rows are gone, which nothing can ever refresh. Durable, and safe: a real concept re-proposes itself with evidence on a future scan.">
+                      ✕ Retire stale ({staleTerms.length})
+                    </button>{' '}
+                  </>
+                )}
                 <span className="notes">approve only what belongs in the company vocabulary — retire scan noise</span>
                 {/* honor the card's "show N rows" setting here too — pending items are
                     ~2 lines tall, so scale the scroll window accordingly */}
@@ -619,6 +638,12 @@ export default function DictionaryPage({ onNavigate }) {
                     <div className="pending-item" key={t.term}>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <b>{t.term}</b>
+                        {staleTerms.includes(t.term) && (
+                          <span className="badge warning"
+                                title="No saved glossary carries this entry's sources, name or aliases — it came from a scan whose rows no longer exist, so nothing can ever refresh it. Retire unless you know the concept is real; a real one re-proposes with evidence.">
+                            stale
+                          </span>
+                        )}
                         <span className="meta">
                           {[t.category ? `category ${t.category}` : '',
                             t.sensitivity ? `sensitivity ${t.sensitivity}` : '',
@@ -664,11 +689,22 @@ export default function DictionaryPage({ onNavigate }) {
                 <button className="ghost mini" onClick={() => approveAll('tag')}
                         title="Approve every pending tag at once — a confirm lists the consequences first.">
                   ✓ Approve all
-                </button>
+                </button>{' '}
+                {staleTags.length > 0 && (
+                  <button className="ghost mini"
+                          onClick={() => review('tag', staleTags, 'reject', undefined,
+                            `Retired ${staleTags.length} stale tag(s) — carried by no current row.`)}
+                          title="Retire every pending tag that no row in any saved glossary carries — leftovers from earlier scans and unsettled categories.">
+                    ✕ Retire stale ({staleTags.length})
+                  </button>
+                )}
                 <div>
                   {pendingTags.map((t) => (
                     <span className="chip" key={t.tag}>
                       {t.tag}
+                      {staleTags.includes(t.tag) && (
+                        <span className="badge warning" title="No row in any saved glossary carries this tag — a leftover from an earlier scan or an unsettled category.">stale</span>
+                      )}
                       <button className="ghost mini act" aria-label={`Approve tag ${t.tag}`}
                               title="Approve — joins the governed tag allow-list that tagging and search facets draw from."
                               onClick={() => review('tag', [t.tag], 'approve', undefined, `Approved tag "${t.tag}".`)}>
