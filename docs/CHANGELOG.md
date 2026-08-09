@@ -14,6 +14,21 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.36.30] - 2026-08-09
+
+### Added - Detection's Auto vs Mapping-only, explained where terms are explained
+
+The DETECTION toggle in a row's expanded editor carried a one-line tooltip
+about Mapping-only and said nothing about Auto - the default whose behaviour
+actually branches. "How terms are defined & built" now carries a Detection
+entry alongside Category, Name and the rest: Auto answers "can this term be
+recognised by the look of its values?" from evidence (a profiled value shape
+seeds a detection method in the exported Registry; no shape leaves the
+question open, and the Policy Generator asks the steward for a seed), while
+Mapping-only closes the question deliberately - term-link governance only,
+no detection method expected, and it wins even over existing seeds. The
+toggle's tooltip now states both halves and points at the panel.
+
 ## [1.36.29] - 2026-08-09
 
 ### Changed - the AI categories busy indicator is dots, not a beam

@@ -1166,6 +1166,19 @@ export default function ReviewPage({ onNavigate }) {
               Inferred from keys, sensitivity and compliance terms — and always the steward's to
               confirm.
             </dd>
+            <dt>Detection — Auto vs Mapping-only</dt>
+            <dd>
+              Every term answers one question for the Policy Generator: <b>can this term be
+              recognised in data by the look of its values?</b> <b>Auto</b> (the default) answers
+              from evidence — a profiled value shape (pattern, signature, reference values) seeds
+              a detection method in the exported Registry; no shape leaves the question <i>open</i>,
+              and Policy will ask the steward for a seed. <b>Mapping-only</b> closes the question
+              deliberately: this term is governed purely by the term→column links Apply makes —
+              there is no value shape to recognise (conceptual and table-level terms, surrogate
+              keys, free text) — so Policy stops expecting a detection method at all. Mapping-only
+              always wins, even over existing seeds. Set it in a row&apos;s expanded editor
+              (DETECTION toggle); the choice travels in the exported Registry, nowhere else.
+            </dd>
           </dl>
         </div>
       </details>
@@ -1940,7 +1953,7 @@ function ExpandedRow({ row: r, index, prop, onAcceptProp, onField, onEvidence, o
             )}
             {!srcs.length && !hasEvidence(r) && <span className="rv-msg">table-level (conceptual) term — no profiled evidence</span>}
             <span className="rv-detseg"
-                  title="Mapping-only = governed by term links (Apply), no value shape exists — Policy stops expecting a detection method.">
+                  title="Auto = detectable by value shape: with profiled evidence the Registry seeds a detection method, with none Policy asks for a seed. Mapping-only = governed by term links (Apply) alone, no value shape exists — Policy stops expecting a detection method. Full note: How terms are defined & built.">
               <span className="rv-expevk">DETECTION</span>
               <span className="seg" role="group" aria-label="Detection intent">
                 <button className={r.Detection_Intent !== 'mapping_only' ? 'on' : ''}
