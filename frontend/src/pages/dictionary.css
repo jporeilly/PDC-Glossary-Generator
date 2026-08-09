@@ -17,6 +17,13 @@
 .vocab-box table { font-size: .85rem; }
 .vocab-box td { vertical-align: top; }
 .vocab-actions { float: right; white-space: nowrap; display: inline-flex; gap: .25rem; }
+/* The settled registry must not read as a wall of change-suggestions: the
+   per-row maintenance actions (Fold / Retire) reveal only on the row's hover
+   or keyboard focus (field-caught three ways in one minute: "lots of fold and
+   retire suggestions", "it's marked approved, why would i want to change it"). */
+.vocab-box tbody tr .vocab-actions { visibility: hidden; }
+.vocab-box tbody tr:hover .vocab-actions,
+.vocab-box tbody tr:focus-within .vocab-actions { visibility: visible; }
 
 /* pending steward review panel */
 .pending-wrap {

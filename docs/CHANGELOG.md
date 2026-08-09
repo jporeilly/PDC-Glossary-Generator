@@ -14,6 +14,22 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.36.46] - 2026-08-09
+
+### Fixed - retired tags disappear everywhere, and the registry stops shouting
+
+Retiring a tag removed it from the allow-list while every term that ever
+carried it kept displaying it - "uncategorized" sat on half the governed
+vocabulary after its tag was long retired. A tag retire now strips the tag
+from every term entry, and the tombstone beats a stale Suggested_Tags
+string on rescan, so a durably retired tag can never ride back in on a
+row. Both test-pinned.
+
+The governed tables also stop reading as a wall of suggestions: the
+per-row Fold / Retire maintenance actions reveal only on the row's hover
+or keyboard focus. Approved means settled - the actions are there when
+you come looking, invisible when you are not.
+
 ## [1.36.45] - 2026-08-09
 
 ### Fixed - folds are never blind, and never lie about succeeding

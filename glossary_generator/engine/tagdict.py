@@ -687,6 +687,13 @@ def review(kind, names, action="approve", target=None):
                 # stay "distinct CURRENT terms carrying the tag"
                 if kind == "tag":
                     (d.get("usage") or {}).pop(nm, None)
+                    # a retired tag disappears EVERYWHERE: term entries keep
+                    # their own tags lists, so without this the allow-list
+                    # forgot the tag while every term still displayed it (the
+                    # "uncategorized on everything" case, field-caught)
+                    for tmeta in (d.get("terms") or {}).values():
+                        if isinstance(tmeta, dict) and nm in (tmeta.get("tags") or []):
+                            tmeta["tags"] = [t for t in tmeta["tags"] if t != nm]
                 else:
                     dropped_terms.append(nm)
                 # tombstone: an explicit steward retire is DURABLE — the load-
@@ -765,6 +772,11 @@ def accrete(rows, source=None, persist=True):
                 continue
             term = (r.get("Term") or "").strip()
             row_tags = _norm_tag_list(str(r.get("Suggested_Tags") or "").split(";"))
+            # a durably retired tag never rides back in on a row: the steward's
+            # tombstone beats the scan's stale Suggested_Tags string
+            retired_t = set((d.get("retired") or {}).get("tags") or [])
+            if retired_t:
+                row_tags = [t for t in row_tags if t not in retired_t]
             canon = idx.get(term.lower(), term) if term else ""
             # term identity for the usage sets: canonical, junk excluded
             tkey = str(canon).strip().lower() if (term and not _JUNK_TERM.match(term)) else ""

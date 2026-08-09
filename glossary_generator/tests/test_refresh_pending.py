@@ -219,3 +219,30 @@ class TestFoldTargetsResolveHonestly:
         d = tagdict.load()["terms"]
         assert "Ph Reading" in d, "a target miss must change nothing"
         assert "Ph Reading" not in tagdict.load().get("retired", {}).get("terms", [])
+
+
+class TestRetiredTagsDisappearEverywhere:
+    """Retiring a tag removed it from the allow-list while every term that
+       ever carried it kept displaying it - "uncategorized on everything",
+       field-caught. A retire must strip the tag from all term entries, and
+       the tombstone must beat a stale Suggested_Tags string on rescan."""
+
+    def test_reject_strips_the_tag_from_every_term(self, fresh_dict):
+        tagdict = fresh_dict
+        tagdict.accrete([make_row("Contaminant Level", "a.w.contaminant_level",
+                                  Suggested_Tags="uncategorized;operational")])
+        assert "uncategorized" in tagdict.load()["terms"]["Contaminant Level"]["tags"]
+        tagdict.review("tag", ["uncategorized"], "reject")
+        d = tagdict.load()
+        assert "uncategorized" not in d.get("tags", {})
+        assert d["terms"]["Contaminant Level"]["tags"] == ["operational"]
+
+    def test_tombstoned_tag_never_rides_back_in(self, fresh_dict):
+        tagdict = fresh_dict
+        tagdict.accrete([make_row("Seed", "a.t.seed", Suggested_Tags="uncategorized")])
+        tagdict.review("tag", ["uncategorized"], "reject")
+        tagdict.accrete([make_row("Copper Ppm", "a.w.copper_ppm",
+                                  Suggested_Tags="uncategorized;operational")])
+        d = tagdict.load()
+        assert "uncategorized" not in d.get("tags", {}), "the tombstone holds"
+        assert "uncategorized" not in (d["terms"]["Copper Ppm"].get("tags") or [])
