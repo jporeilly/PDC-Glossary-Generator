@@ -329,17 +329,21 @@ button.rv-aipill:hover { background: color-mix(in srgb, var(--accent) 16%, trans
 .rv-dp { display: block; margin-top: .45rem; }
 .rv-dp:first-child { margin-top: 0; }
 
-/* AI categories is ONE long call - no honest percentage exists, so the bar is
-   indeterminate rather than invented: a sweep that says "working", not "62%" */
-.progress-bar.rv-indet {
-  width: 30%;
-  animation: rv-indet-sweep 1.4s ease-in-out infinite;
+/* AI categories is ONE long call - no honest percentage exists, so no bar at
+   all: a track invites reading progress into it. Three dots pulsing opacity
+   (the app's one "working" idiom - status dots, Dictionary chip, agent batch)
+   act as a living ellipsis on the label. */
+.rv-thinking {
+  display: inline-flex; gap: .28rem; margin-left: .45rem; vertical-align: middle;
 }
-@keyframes rv-indet-sweep {
-  0%   { margin-left: 0; }
-  50%  { margin-left: 70%; }
-  100% { margin-left: 0; }
+.rv-thinking i {
+  width: .38rem; height: .38rem; border-radius: 50%;
+  background: var(--accent); opacity: .3;
+  animation: rv-think 1.2s ease-in-out infinite;
 }
+.rv-thinking i:nth-child(2) { animation-delay: .2s; }
+.rv-thinking i:nth-child(3) { animation-delay: .4s; }
+@keyframes rv-think { 50% { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) {
-  .progress-bar.rv-indet { animation: none; width: 100%; opacity: .45; }
+  .rv-thinking i { animation: none; opacity: .55; }
 }

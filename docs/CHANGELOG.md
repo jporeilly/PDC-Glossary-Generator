@@ -14,6 +14,18 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.36.29] - 2026-08-09
+
+### Changed - the AI categories busy indicator is dots, not a beam
+
+The indeterminate sweep read as a stray cursor beam, and it was the only
+lateral motion in an app whose one "working" idiom is an opacity pulse (the
+status dots, the Dictionary review chip, the agent in-flight batch). The
+progress track is gone entirely - a track invites reading progress into it,
+and none exists for one long call - replaced by three accent dots pulsing in
+staggered phase, a living ellipsis on the label. Reduced-motion gets static
+dots, same as everywhere else.
+
 ## [1.36.28] - 2026-08-08
 
 ### Fixed - run.sh installs pdc_client itself

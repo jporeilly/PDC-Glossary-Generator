@@ -1266,10 +1266,10 @@ export default function ReviewPage({ onNavigate }) {
 
         {catBusy && !agent && (
           <div className="rv-progress">
-            <span className="ep">AI categories — one call over the whole schema graph…</span>
-            <div className="progress-track rv-agenttrack" role="progressbar" aria-label="AI categories running">
-              <div className="progress-bar rv-indet" />
-            </div>
+            <span className="ep">
+              AI categories — one call over the whole schema graph
+              <span className="rv-thinking" role="status" aria-label="AI categories running"><i /><i /><i /></span>
+            </span>
             <span className="ep muted">bigger models take up to a minute — proposals land as Category pills</span>
           </div>
         )}
