@@ -8,7 +8,7 @@
 // apply-stewardship-to-rows and the read-only governance summary. The built
 // governance object lives in the shared workspace (state.js) and is baked
 // into the JSONL by the Apply page's Generate card.
-import { useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 import { apiGet, apiPost } from './../api.js'
 import { setGlossaryMeta, setGovernance, setRows, useWorkspace } from './../state.js'
 import './govern.css'
@@ -343,6 +343,13 @@ export default function GovernPage({ onNavigate }) {
   const [rosterDirty, setRosterDirty] = useState(false)
   const [defaults, setDefaults] = useState(null)
   const [overrides, setOverrides] = useState({})
+  // Saved per-category overrides whose category no longer exists on kept rows
+  // — renamed or folded on Review AFTER stewardship was assigned. Preserved
+  // across bakes and surfaced below instead of being silently destroyed on
+  // the next visit (which is what used to happen): stewardship feeds the
+  // JSONL and resolve, so a steward decision must never evaporate because
+  // the taxonomy settled around it.
+  const [orphans, setOrphans] = useState({})
   const [autoInfo, setAutoInfo] = useState({})
   const [openCats, setOpenCats] = useState({})
   const [autoFallback, setAutoFallback] = useState(true)
@@ -454,6 +461,22 @@ export default function GovernPage({ onNavigate }) {
       for (const c of cats) {
         next[c] = prev[c] || overrideFromSaved(saved[c])
           || emptyOverride(prefillFor(rows, people, c).id)
+      }
+      return next
+    })
+    // collect saved overrides whose category is gone from kept rows — and
+    // release any orphan whose category came back (rename reverted, rows
+    // restored): the restore loop above picks it up again from `saved`.
+    const saved = (ws.governance && ws.governance.categories) || {}
+    const hasContent = (sc) => !!(sc && (sc.businessSteward || sc.owner || sc.custodian
+      || sc.status || sc.rating || sc.reviewedAt || (sc.stakeholders || []).length))
+    setOrphans((prev) => {
+      const next = { ...prev }
+      for (const [c, sc] of Object.entries(saved)) {
+        if (!cats.includes(c) && hasContent(sc)) next[c] = sc
+      }
+      for (const c of Object.keys(next)) {
+        if (cats.includes(c)) delete next[c]
       }
       return next
     })
@@ -783,6 +806,12 @@ export default function GovernPage({ onNavigate }) {
       }
       if (Object.keys(ov).length) categories[cat] = ov
     }
+    // Orphaned overrides ride along in the baked governance rather than being
+    // destroyed — they match no rows at generate time so they cost nothing,
+    // and they stay recoverable until reassigned or discarded.
+    for (const [c, sc] of Object.entries(orphans)) {
+      if (!categories[c]) categories[c] = sc
+    }
     return {
       status: defaults.status,
       domain: defaults.domain || '',
@@ -803,7 +832,7 @@ export default function GovernPage({ onNavigate }) {
   useEffect(() => {
     if (!people || !defaults) return
     setGovernance(buildGovernance())
-  }, [people, defaults, overrides, cats, rows]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [people, defaults, overrides, orphans, cats, rows]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Stamp each term's effective steward / owner / custodian (default +
   // category override) onto the workspace rows — they persist with the
@@ -999,6 +1028,21 @@ export default function GovernPage({ onNavigate }) {
                 <button className="nav" onClick={() => onNavigate('review')}>Review</button>{' '}
                 first (<b>1 · AI categories</b>, or filter and <b>Rename</b>), then set
                 stewardship over the settled set.
+              </div>
+            )}
+            {Object.keys(orphans).length > 0 && (
+              <div className="notice-warn">
+                Stewardship is still recorded for{' '}
+                {Object.keys(orphans).map((c, i) => (
+                  <Fragment key={c}>{i > 0 && ' · '}<b>{c}</b></Fragment>
+                ))}{' '}
+                — categories renamed or folded on Review after assignment. These
+                decisions are kept (they are not baked, as no rows carry those
+                names) — reassign them on the live categories above, then{' '}
+                <button className="nav" onClick={() => setOrphans({})}
+                        title="Remove the orphaned per-category overrides from the saved governance. The defaults and live categories are unaffected.">
+                  discard the orphans
+                </button>.
               </div>
             )}
             {cats.map((cat) => (

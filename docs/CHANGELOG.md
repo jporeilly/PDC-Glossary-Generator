@@ -14,6 +14,31 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.36.35] - 2026-08-09
+
+### Fixed - stewardship survives the taxonomy settling
+
+Per-category stewardship is keyed by category NAME and baked into the JSONL
+the Policy Generator and resolve depend on - but the name was a loose
+pointer. Renaming a category on Review left its override behind, and
+Govern's next visit rebuilt its cards from live categories only and
+re-baked, silently destroying the steward's decision. Now Review's Rename
+migrates the override with the category (on collision the destination's
+filled slots win - both are steward decisions, the surviving name is the
+deliberate one - and its blanks inherit). Overrides orphaned by FOLDS (many
+groups into one business category) are preserved in the baked governance -
+they match no rows at generate time, so they cost nothing - and Govern
+surfaces them by name with a discard button, instead of vanishing them.
+
+### Fixed - Apply's "no steward" warning reads the governance that bakes
+
+Govern reported "stamped 114 of 114" and Apply immediately warned that all
+114 would export with no steward. The preflight read r.Steward - a field
+nothing in the codebase writes - so it warned always, about everything,
+regardless of what the steward had done. It now mirrors the actual bake:
+category override, then default steward, then the stamped row fields - and
+only counts a term unowned when all three come up empty.
+
 ## [1.36.34] - 2026-08-09
 
 ### Added - Govern shows dots and locks the roster while expertise generates

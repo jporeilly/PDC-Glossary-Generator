@@ -194,7 +194,17 @@ function GenerateCard({ rows, glossaryName, governance, settings, onNavigate }) 
   // it, and every term arrives owned by nobody. That is the governance the
   // glossary exists to establish, so its absence is worth a sentence here rather
   // than a discovery in a review meeting three weeks later.
-  const unowned = keptRows.filter((r) => !String(r.Steward || '').trim()).length
+  // A term exports UNOWNED only if the governance that actually bakes the
+  // JSONL (category override → default steward) yields nobody for it, and no
+  // stamped row-level steward exists either. The old check read r.Steward —
+  // a field nothing writes — so it warned on all 114 terms seconds after
+  // Govern stamped all 114 (field-caught).
+  const gDef = String((governance && governance.default && governance.default.businessSteward) || '').trim()
+  const gCats = (governance && governance.categories) || {}
+  const unowned = keptRows.filter((r) =>
+    !gDef
+    && !String(((gCats[r.Category] || {}).businessSteward) || '').trim()
+    && !String(r.Business_Steward_ID || r.Business_Steward || '').trim()).length
   const [gen, setGen] = useState(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)

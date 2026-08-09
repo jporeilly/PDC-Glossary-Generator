@@ -12,7 +12,7 @@
 // applies the selected ones — nothing mutates the grid behind your back.
 import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { apiGet, apiPost } from './../api.js'
-import { useWorkspace, usePersistentState, getUi, setUi, setRows, patchRow, setGlossaryMeta, save } from './../state.js'
+import { useWorkspace, usePersistentState, getUi, setUi, setRows, patchRow, setGlossaryMeta, setGovernance, save } from './../state.js'
 import './review.css'
 
 /* ---------- row helpers (ported from the old UI's core) ---------- */
@@ -537,7 +537,22 @@ export default function ReviewPage({ onNavigate }) {
       return { ...x, Category: name }
     }))
     setFilters((f) => (f.cat === cur ? { ...f, cat: name } : f))
-    setMsg(`Renamed "${cur}" to "${name}" on ${n} row(s).`)
+    // Stewardship travels with the rename. Per-category overrides are keyed
+    // by NAME in the workspace governance and baked into the JSONL at
+    // generate time — leaving the old key behind silently dropped the
+    // steward's decision the moment the taxonomy settled. On collision the
+    // destination's filled slots win (both are steward decisions; the name
+    // being kept is the deliberate one) and its blanks inherit.
+    const g = ws.governance
+    const moved = g && g.categories && g.categories[cur]
+    if (moved) {
+      const gcats = { ...g.categories }
+      delete gcats[cur]
+      gcats[name] = gcats[name] ? { ...moved, ...gcats[name] } : moved
+      setGovernance({ ...g, categories: gcats })
+    }
+    setMsg(`Renamed "${cur}" to "${name}" on ${n} row(s).`
+      + (moved ? ' Its stewardship override moved with it.' : ''))
   }, [setFilters])
 
   const useName = useCallback((index) => {
