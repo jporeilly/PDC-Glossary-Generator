@@ -577,3 +577,28 @@ class TestAiCategoriesProposesFromSchema:
         # False (server down) - the guarantee under test is the same either
         # way: NOTHING is guessed. No proposal, every assignment None.
         assert prop == [] and assign == [None, None]
+
+
+class TestDictionarySyncOnEntry:
+    def test_sync_adjudicates_live_rows_without_a_save(self, client, fresh_dict):
+        """The save-path sync only fires when an edit triggers a save, so the
+           Dictionary page adjudicated a pre-edit queue (field-caught: "pH
+           Level" fixed on Review, still pending as "Ph Level"). The page now
+           POSTS the live rows on entry - same one-way rules, and the response
+           is the refreshed summary the page renders directly."""
+        tagdict = fresh_dict
+        tagdict.accrete([_row("Ph Level", "awc.water_quality_reports.ph_level")],
+                        persist=True)
+        d = client.post("/api/tagdict/sync", json={"rows": [
+            _row("pH Level", "awc.water_quality_reports.ph_level",
+                 Definition="The acidity or alkalinity of water samples."),
+        ]}).json()
+        assert d.get("pending_refreshed", 0) >= 1
+        names = {t["term"] for t in d.get("terms", []) if t.get("status") == "pending"}
+        assert "pH Level" in names and "Ph Level" not in names, \
+            "the gate must show the steward's casing without waiting for a save"
+
+    def test_sync_without_rows_is_a_plain_read(self, client):
+        d = client.post("/api/tagdict/sync", json={}).json()
+        assert d.get("pending_refreshed") == 0
+        assert "terms" in d and "tags" in d

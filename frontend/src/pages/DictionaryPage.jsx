@@ -89,8 +89,19 @@ export default function DictionaryPage({ onNavigate }) {
 
   const load = () => {
     setLoadErr(null)
-    apiGet('/api/tagdict').then(setDict).catch((e) => setLoadErr(e.message))
-    apiGet('/api/tagdict/pending-health').then(setStale).catch(() => {})
+    // Sync-on-entry: the save-path sync only fires when an edit triggers a
+    // save, so arriving here without touching the grid showed a pre-edit
+    // queue. Posting the live rows makes this stage-gate adjudicate current
+    // state every time (accepted edits, case renames, key retro-retires) —
+    // same one-way rules, governed entries never change. Health is fetched
+    // AFTER the sync lands so its stale list reflects the synced queue.
+    const fetchDict = (ws.rows || []).length
+      ? apiPost('/api/tagdict/sync', { rows: ws.rows, actor: actor.trim() })
+      : apiGet('/api/tagdict')
+    fetchDict.then((d) => {
+      setDict(d)
+      apiGet('/api/tagdict/pending-health').then(setStale).catch(() => {})
+    }).catch((e) => setLoadErr(e.message))
   }
   const loadAudit = () => {
     apiGet('/api/audit?n=100')
@@ -555,6 +566,10 @@ export default function DictionaryPage({ onNavigate }) {
               </div>
               {pendingTerms.length > 0 && (
                 <span className="pending-ai">
+                  <button className="ghost mini" onClick={load} disabled={reviewing}
+                          title="Pull the latest Review-grid state into this queue now: accepted edits refresh pending entries, corrected casings adopt, auto-pruned keys retire. The page already syncs itself on every visit — use this after editing on Review mid-session, and before AI review so the advice targets current entries.">
+                    ⟳ Sync from Review
+                  </button>
                   <button className="primary mini" onClick={aiReview} disabled={reviewing}
                           title="Advise per candidate: a deterministic near-duplicate check against the governed vocabulary, then the local AI judges the rest from the captured context (category, definition, sources). Advice only — you still click.">
                     {reviewing ? 'Reviewing…' : 'AI review pending…'}

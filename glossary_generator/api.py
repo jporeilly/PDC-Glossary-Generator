@@ -2029,6 +2029,32 @@ def api_tagdict_get():
        into the Registry and the Policy Generator."""
     return tagdict.summary()
 
+@app.post("/api/tagdict/sync")
+def api_tagdict_sync(body: dict = Body(default={})):
+    """One-way Review → Dictionary sync ON DEMAND. The save-path sync only
+    fires when an edit triggers a save, so walking to the Dictionary without
+    touching the grid adjudicated a pre-edit queue (field-caught: a term
+    renamed to "pH Level" still pending as "Ph Level"). The Dictionary page
+    posts the live rows on entry, so the stage-gate always sees current
+    state — accepted edits refresh pending entries, case renames adopt the
+    steward's casing, auto-pruned keys retro-retire. Same one-way rules as
+    the save path: pending only, governed entries never change. Returns the
+    refreshed summary (the GET shape) plus pending_refreshed."""
+    body = body or {}
+    rows = body.get("rows") or []
+    refreshed = 0
+    if rows:
+        try:
+            refreshed = tagdict.refresh_pending(rows)
+        except Exception:
+            refreshed = 0
+        if refreshed:
+            audit.record("dictionary.refresh_pending", actor=body.get("actor"),
+                         via="dictionary-page", refreshed=refreshed)
+    out = tagdict.summary()
+    out["pending_refreshed"] = refreshed
+    return out
+
 @app.post("/api/tagdict")
 def api_tagdict_save(body: dict = Body(default={})):
     """Steward save of the whole dictionary (terms/tags/rules). Guard-railed:

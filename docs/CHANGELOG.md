@@ -14,6 +14,25 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.36.40] - 2026-08-09
+
+### Fixed - the Dictionary adjudicates the Review you actually have
+
+The Review -> Dictionary sync rode the glossary SAVE, and a save only fires
+on an edit - so installing a build with sync fixes and walking straight to
+the Dictionary showed a pre-edit queue (field-caught: "pH Level" corrected
+on Review, still pending as "Ph Level"; "there's a gap between the changes
+made in the Review and whats picked up by the Dictionary" - exactly right).
+
+Two closures. The page now SYNCS ITSELF ON ENTRY: it posts the live rows to
+the new /api/tagdict/sync (same one-way rules - pending only, governed
+entries never change; accepted edits refresh, corrected casings adopt,
+auto-pruned keys retro-retire) and renders the refreshed summary, fetching
+stale-health only after the sync lands. And a "Sync from Review" button
+sits beside AI review for mid-session refreshes - so the advice always
+targets current entries, never a stale queue. API-tested both ways
+(sync adjudicates without a save; an empty sync is a plain read).
+
 ## [1.36.39] - 2026-08-09
 
 ### Changed - upgrading says "Upgrade", and does it in one pass
