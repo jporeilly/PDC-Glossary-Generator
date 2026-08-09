@@ -31,13 +31,19 @@ function Ico({ id }) {
   return <svg className="nav-ico" viewBox="0 0 24 24">{ICONS[id]}</svg>
 }
 
-// The persistent workflow stepper — same stages as the old UI's #flow bar
-// (Dictionary sits in the nav; it gates Govern but isn't its own stage here).
+// The persistent workflow stepper — the stages in working order. Dictionary
+// used to sit apart in a one-item Governance group, but approval stopped being
+// an occasional side-trip once Review began streaming accepted edits into the
+// pending vocabulary and category pills made approval a per-run gate — the
+// launcher banner and the Review guide taught Review → Dictionary → Govern
+// before the nav did.
 const STEPS = [
   { id: 'connect', label: 'Connect', hint: 'add sources & scan',
     tip: 'Add a connection per source — database, MinIO/S3 store or DDL file — then scan to suggest candidate terms.' },
   { id: 'review', label: 'Review', hint: 'prune candidate terms',
     tip: 'Every column becomes one candidate term. Edit definitions, sensitivity and tags inline, and prune the noise.' },
+  { id: 'dictionary', label: 'Dictionary', hint: 'approve pending vocabulary',
+    tip: 'The governed Term & Tag dictionary — approve the pending vocabulary your review streamed in, export the domain pack.' },
   { id: 'govern', label: 'Govern', hint: 'stewardship & ratings',
     tip: 'Set steward, owner, custodian, status and rating — saved with the workspace and baked into the JSONL at generate time.' },
   { id: 'apply', label: 'Apply', hint: 'generate, resolve & write',
@@ -75,7 +81,7 @@ const CRUMBS = {
   review: ['Workflow', 'Review'],
   govern: ['Workflow', 'Govern'],
   apply: ['Workflow', 'Apply'],
-  dictionary: ['Governance', 'Dictionary'],
+  dictionary: ['Workflow', 'Dictionary'],
   settings: ['Configure', 'Settings'],
 }
 
@@ -172,13 +178,6 @@ export default function App() {
               ))}
             </Fragment>
           ))}
-          <div className="nav-label">Governance</div>
-          <button className={`nav-item${page === 'dictionary' ? ' active' : ''}`}
-                  title="The governed Term & Tag dictionary — approve pending vocabulary, export the domain pack"
-                  onClick={() => setPage('dictionary')}
-                  aria-current={page === 'dictionary' ? 'page' : undefined}>
-            <Ico id="dictionary" />Dictionary
-          </button>
           <div className="nav-label">Configure</div>
           <button className={`nav-item${page === 'settings' ? ' active' : ''}`}
                   title="Local LLM, hardware, backups and appearance"

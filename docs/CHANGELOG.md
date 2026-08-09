@@ -14,6 +14,29 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.36.31] - 2026-08-09
+
+### Changed - Dictionary joins the workflow, between Review and Govern
+
+The launcher banner and the Review guide have taught Connect -> Review ->
+Dictionary -> Govern all along; only the sidebar disagreed, exiling
+Dictionary to a one-item Governance group. Approval stopped being a
+side-trip when Review began streaming accepted edits into the pending
+vocabulary and category pills made it a per-run gate - so the nav, the
+breadcrumb, the header stepper (five stages now) and the Home workflow map
+all place Dictionary in the pipeline, with a dotted back-edge on the map
+for the flywheel: the approved vocabulary governs what the agents may
+propose next. Review's forward button is now "Approve vocabulary ->" and
+the Dictionary page gained "Set stewardship ->".
+
+### Changed - the AI pass explains itself without its own changelog
+
+"Why one agent: it replaced three (Enrich, AI suggest, AI categorize)..."
+was refactoring history, not guidance (user's call). The pass now gives the
+reason a steward actually needs: every field is proposed together, from the
+same evidence and the same guardrails, so a proposed name never contradicts
+its own definition, category or tags.
+
 ## [1.36.30] - 2026-08-09
 
 ### Added - Detection's Auto vs Mapping-only, explained where terms are explained

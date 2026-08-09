@@ -189,9 +189,9 @@ const AGENT_DESC = [
         QA chip.
       </span>
       <span className="rv-dp">
-        <b>Why one agent:</b> it replaced three (Enrich, AI suggest, AI categorize) that
-        ran over the same rows, silently overwrote each other on name, category and
-        tags, and each restated the guardrails in its own drifting words.
+        <b>Why one call:</b> every field is proposed together, from the same evidence
+        and the same guardrails — so a proposed name never contradicts its own
+        definition, category or tags.
       </span>
       <span className="rv-dp">
         <b>To redo:</b> one row — <i>AI review</i> on that row; one field — accept only
@@ -1558,12 +1558,12 @@ export default function ReviewPage({ onNavigate }) {
         </div>
 
         <div className="actions">
-          <span className="rv-msg">{msg || 'Reviewed and pruned? Set stewardship next — it saves with the workspace and bakes into the JSONL you generate on Apply.'}</span>
+          <span className="rv-msg">{msg || 'Reviewed and pruned? Approve the pending vocabulary next — it already carries your accepted edits — then set stewardship on Govern.'}</span>
           <span className="rv-grow" />
           <button className="ghost" onClick={() => onNavigate('connect')}>← Connect a source</button>
-          <button className="primary" disabled={kept === 0} onClick={() => onNavigate('govern')}
-                  title={kept ? 'Set stewardship, then generate on the Govern page' : 'Keep at least one term first (tick a Keep box, or use Keep High+Med conf)'}>
-            Set stewardship →
+          <button className="primary" disabled={kept === 0} onClick={() => onNavigate('dictionary')}
+                  title={kept ? 'Approve or retire the pending vocabulary on the Dictionary page — it already carries your accepted edits — then set stewardship on Govern' : 'Keep at least one term first (tick a Keep box, or use Keep High+Med conf)'}>
+            Approve vocabulary →
           </button>
         </div>
       </section>
@@ -1704,7 +1704,7 @@ function ReviewGuide({ onNavigate }) {
       <ol className="workcycle">
         <li><b>Prune.</b> Every scanned column is a candidate — untick <b>Keep</b> on noise (or use <b>Keep High+Med conf</b>) rather than hunting for gaps; table-level terms always stay. <b>Structural keys arrive already pruned</b> (the <b>KEY</b> badge): a surrogate PK / FK reference-id isn&apos;t a business term — its PK/FK relationship still travels to the Registry&apos;s physical model, and ticking Keep restores it.</li>
         <li><b>Name the glossary</b> (top right of the grid) — autosave keeps your review <b>and</b> streams every accepted improvement into the Dictionary&apos;s <i>pending</i> vocabulary, so the two never drift. The flow is one-way: Review edits refresh pending entries; nothing in the Dictionary is approved without you.</li>
-        <li><b>Run the AI pass.</b> <b>AI pass (all fields)</b> covers definition, purpose, a clearer name, governed tags and a blank category in <b>one model call per batch of rows</b> — it replaced three passes that overlapped on those fields and overwrote each other, and it folds in the free deterministic work (governed tags re-derived from the Dictionary, the definition linter's QA ⚠ chip). To redo one row, expand it and use <b>AI review</b>; to redo one field, accept only that field's pill. Agents never edit the grid: as each batch returns, click-to-accept pills light up on the affected cells — accept them one by one, or <b>Accept all</b> from the strip above the grid. The grid's <b>LLM</b> pills appear only after a proposal is accepted. The governed tags it can propose come from the <i>approved</i> allow-list, so tags you approve on the Dictionary enrich the next run: the flywheel.</li>
+        <li><b>Run the AI pass.</b> <b>AI pass (all fields)</b> covers definition, purpose, a clearer name, governed tags and a blank category in <b>one model call per batch of rows</b> — every field proposed together from the same evidence, so none contradicts another — and it folds in the free deterministic work (governed tags re-derived from the Dictionary, the definition linter's QA ⚠ chip). To redo one row, expand it and use <b>AI review</b>; to redo one field, accept only that field's pill. Agents never edit the grid: as each batch returns, click-to-accept pills light up on the affected cells — accept them one by one, or <b>Accept all</b> from the strip above the grid. The grid's <b>LLM</b> pills appear only after a proposal is accepted. The governed tags it can propose come from the <i>approved</i> allow-list, so tags you approve on the Dictionary enrich the next run: the flywheel.</li>
         <li><b>Resolve duplicates — with final names and real definitions in hand.</b> The <b>AI pass</b> runs first on purpose: it finalizes names, dissolving false duplicates before you judge them (a rename <i>is</i> disambiguation), and real definitions make the remaining same-name calls easy. Same-named <i>kept</i> terms get a header bar: <b>Merge</b> into one term linked to all its columns, <b>Disambiguate</b> into unique names, or keep separate. Each header already carries a recommendation <i>and its reason</i>, derived from the scan evidence the moment the glossary loads — no button, no model. <b>AI advise</b> only escalates the groups that reason marks <b>(check)</b>: the ones with no profiled value sets to compare, where it probes live values over your database connection and lets the model adjudicate what is left. Auto-pruned keys sit outside duplicate resolution.</li>
         <li><b>Approve the pending vocabulary — once, at the end.</b> When you&apos;re happy with the review, hop to the <b>Dictionary</b> (click the box above): its pending terms and tags already carry your accepted definitions and corrected names (a fixed name folds the scan&apos;s raw misread in as an alias, so rescans don&apos;t re-propose it). Approve or retire, then <b>Set stewardship →</b> on the Govern page.</li>
       </ol>

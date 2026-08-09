@@ -962,6 +962,15 @@ export default function DictionaryPage({ onNavigate }) {
 
       <FacetCard dict={dict} onRetireEmpty={retireEmpty} />
       <AuditCard audit={audit} auditErr={auditErr} onRefresh={loadAudit} />
+
+      <div className="actions">
+        <span className="rv-grow" />
+        <button className="ghost" onClick={() => onNavigate('review')}>← Review</button>
+        <button className="primary" onClick={() => onNavigate('govern')}
+                title="Set steward, owner, custodian, status and rating — saved with the workspace and baked into the JSONL at generate time.">
+          Set stewardship →
+        </button>
+      </div>
     </>
   )
 }
