@@ -748,6 +748,14 @@ def accrete(rows, source=None, persist=True):
         for r in rows or []:
             if not isinstance(r, dict):
                 continue
+            # Auto-pruned structural keys (Prune_Reason, arriving unkept) never
+            # enter the pending queue: the scan itself already answered them —
+            # a surrogate PK/FK id is not vocabulary, and its tags shouldn't
+            # seed the allow-list either. Entries absorbed before this guard
+            # existed are retro-retired by refresh_pending.
+            if (str(r.get("Prune_Reason") or "").strip()
+                    and str(r.get("Keep", "Y")).strip().lower() in ("n", "no", "false", "0")):
+                continue
             term = (r.get("Term") or "").strip()
             row_tags = _norm_tag_list(str(r.get("Suggested_Tags") or "").split(";"))
             canon = idx.get(term.lower(), term) if term else ""
@@ -825,8 +833,10 @@ def refresh_pending(rows, persist=True):
     Level' → 'pH Level' case). If the corrected name already belongs to
     ANOTHER entry, the stale pending duplicate folds into it as an alias.
     Returns the number of pending entries updated/folded."""
+    global _COMPILED, _COMPILED_KEY
     d = load()
     changed = 0
+    auto_retired = []
     with _LOCK:
         terms = d.setdefault("terms", {})
         tusage = d.setdefault("term_usage", {})
@@ -860,11 +870,50 @@ def refresh_pending(rows, persist=True):
             term = (r.get("Term") or "").strip()
             if not term or _JUNK_TERM.match(term):
                 continue
+            # Retro-retire: an auto-pruned key (Prune_Reason, unkept) was
+            # answered by the scan itself — asking the steward AGAIN in the
+            # pending queue is double work, so its pending entry retires the
+            # way a steward click would (popped + tombstoned; accrete no
+            # longer absorbs them). Rows the steward merely unticked WITHOUT
+            # a Prune_Reason are deliberately left alone: dropped from one
+            # glossary is not retired from the company vocabulary.
+            if (str(r.get("Prune_Reason") or "").strip()
+                    and str(r.get("Keep", "Y")).strip().lower() in ("n", "no", "false", "0")):
+                nm = idx.get(term.lower())
+                if nm and is_pending(nm) and nm.lower() == term.lower():
+                    terms.pop(nm, None)
+                    auto_retired.append(nm)
+                    rl = d.setdefault("retired", {}).setdefault("terms", [])
+                    if nm not in rl:
+                        rl.append(nm)
+                    changed += 1
+                continue
             srcs = [c.strip().lower() for c in str(r.get("Source_Column") or "").split(";") if c.strip()]
             canon = idx.get(term.lower())
             if canon is not None:
                 if is_pending(canon):
                     changed += apply_row(terms[canon], r)
+                    # A CASE-ONLY correction ("Ph Level" → "pH Level") lands
+                    # HERE, not on the rename path below: the case-folded
+                    # index matches, content refreshes, and the stored name
+                    # kept the scan's casing forever. When the row's term IS
+                    # this entry's own name modulo case (never an alias hit),
+                    # adopt the steward's casing and keep the old spelling as
+                    # an alias so rescans fold instead of re-proposing.
+                    if term != canon and term.lower() == canon.lower():
+                        meta = terms.pop(canon)
+                        aliases = meta.setdefault("aliases", [])
+                        if canon not in aliases:
+                            aliases.append(canon)
+                        terms[term] = meta
+                        if canon in tusage:
+                            tusage[term] = sorted(set(tusage.pop(canon)) | set(tusage.get(term) or []))
+                        idx[term.lower()] = term
+                        for s in list(by_src):
+                            if by_src[s] == canon:
+                                by_src[s] = term
+                        canon = term
+                        changed += 1
                 # a stale pending twin of this entry (same source, old scan
                 # misread) folds in as an alias instead of lingering pending
                 stale = next((by_src[s] for s in srcs
@@ -901,6 +950,9 @@ def refresh_pending(rows, persist=True):
                 if by_src[s] == old:
                     by_src[s] = term
             changed += 1
+        if auto_retired:
+            _remap_usage(d, drop=auto_retired)
+            _COMPILED = _COMPILED_KEY = None
         if changed and persist:
             _save_locked()
     return changed

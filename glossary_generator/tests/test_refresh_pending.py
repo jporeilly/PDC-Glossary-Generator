@@ -76,3 +76,57 @@ class TestRefreshPending:
         assert r.status_code == 200
         assert r.json()["pending_refreshed"] == 1
         assert _pending_meta(tagdict, "Alert Type")["definition"].startswith("Steward-accepted")
+
+
+class TestCaseOnlyRename:
+    def test_case_correction_adopts_stewards_casing(self, fresh_dict):
+        """"Ph Level" -> "pH Level" never reached the rename path: the
+           case-folded index matched, the definition refreshed, and the stored
+           name kept the scan's casing forever (field-caught - the steward
+           fixed the term and the pending queue kept showing "Ph Level")."""
+        tagdict = fresh_dict
+        tagdict.accrete([make_row("Ph Level", "awc_operations.water_quality_reports.ph_level",
+                                  Definition="Ph Level associated with a water quality report record.")])
+        n = tagdict.refresh_pending([make_row(
+            "pH Level", "awc_operations.water_quality_reports.ph_level",
+            Definition="The acidity or alkalinity level of water samples.")])
+        assert n >= 1
+        assert _pending_meta(tagdict, "Ph Level") is None
+        m = _pending_meta(tagdict, "pH Level")
+        assert m is not None and m["status"] == "pending"
+        assert "Ph Level" in m["aliases"], "raw casing folds - rescans don't re-propose"
+        assert m["definition"].startswith("The acidity")
+
+
+class TestAutoPrunedKeysStayOut:
+    def test_pruned_keys_never_enter_pending(self, fresh_dict):
+        """The scan already answered a surrogate key - the pending queue must
+           not ask the steward again (field-caught: System ID, Alert ID and
+           friends piled into a 135-item review)."""
+        tagdict = fresh_dict
+        tagdict.accrete([make_row("System ID", "public.water_systems.system_id",
+                                  Keep="No", Prune_Reason="surrogate PK/FK reference id",
+                                  Suggested_Tags="identifier")])
+        assert _pending_meta(tagdict, "System ID") is None
+        assert "identifier" not in tagdict.load()["tags"] or \
+            tagdict.load()["tags"]["identifier"].get("layer") == "generic", \
+            "a pruned key's tags must not seed the allow-list"
+
+    def test_legacy_pending_keys_retro_retire_on_save(self, fresh_dict):
+        """Entries absorbed before the accrete guard existed retire on the
+           next glossary save - popped and tombstoned like a steward click -
+           while a row merely UNTICKED by the steward (no Prune_Reason) is
+           left alone: dropped from one glossary is not retired company-wide."""
+        tagdict = fresh_dict
+        tagdict.accrete([make_row("System ID", "public.water_systems.system_id"),
+                         make_row("Correspondence", "awc-documents/correspondence")])
+        n = tagdict.refresh_pending([
+            make_row("System ID", "public.water_systems.system_id",
+                     Keep="No", Prune_Reason="surrogate PK/FK reference id"),
+            make_row("Correspondence", "awc-documents/correspondence", Keep="No"),
+        ])
+        assert n >= 1
+        assert _pending_meta(tagdict, "System ID") is None
+        assert "System ID" in tagdict.load()["retired"]["terms"], "tombstoned - durable"
+        assert _pending_meta(tagdict, "Correspondence") is not None, \
+            "steward-dropped without Prune_Reason stays pending"

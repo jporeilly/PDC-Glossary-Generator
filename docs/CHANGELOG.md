@@ -14,6 +14,25 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.36.37] - 2026-08-09
+
+### Fixed - the pending queue respects decisions already made
+
+Two field-caught leaks in the Review -> Dictionary flow. A CASE-ONLY term
+correction ("Ph Level" -> "pH Level") refreshed the pending entry's
+definition but never its name: the case-folded index matched, so the rename
+path - built for exactly this family of fixes - was unreachable for it. The
+entry now adopts the steward's casing and keeps the scan's spelling as an
+alias, so rescans fold instead of re-proposing.
+
+And auto-pruned structural keys (System ID, Alert ID...) piled into the
+pending queue asking the steward a question the scan itself had already
+answered. They no longer enter it at accrete time (nor seed tags), and
+entries absorbed before the guard retire on the next glossary save - popped
+and tombstoned exactly like a steward click. Rows merely unticked WITHOUT a
+Prune_Reason are deliberately untouched: dropped from one glossary is not
+retired from the company vocabulary.
+
 ## [1.36.36] - 2026-08-09
 
 ### Changed - the pending-review advisor knows operational is not technical
