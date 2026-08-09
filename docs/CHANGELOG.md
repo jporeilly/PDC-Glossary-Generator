@@ -14,6 +14,22 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.36.39] - 2026-08-09
+
+### Changed - upgrading says "Upgrade", and does it in one pass
+
+The maintenance page offered two generic radio choices, neither of which
+said Upgrade, and preselected the one that chains the OLD version's
+uninstaller wizard into the middle of the install - the messy details
+screen a field upgrade hit. The page now leads with what matters ("your
+glossaries, dictionary, roster and settings are never touched - only
+application files change"), labels both paths truthfully, and preselects
+"Upgrade in place (recommended)": one clean pass, which this installer
+makes safe by design because the vendored python tree is replaced
+wholesale rather than overlaid. The uninstall-first path stays available
+for a deliberate clean sweep; same-version and downgrade flows are
+unchanged.
+
 ## [1.36.38] - 2026-08-09
 
 ### Added - the pending queue proves its evidence is current

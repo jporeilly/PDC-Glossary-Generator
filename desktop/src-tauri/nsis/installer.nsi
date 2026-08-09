@@ -217,12 +217,18 @@ Function PageReinstall
     StrCpy $R2 "$(addOrReinstall)"
     StrCpy $R3 "$(uninstallApp)"
     !insertmacro MUI_HEADER_TEXT "$(alreadyInstalled)" "$(chooseMaintenanceOption)"
-  ; Upgrading
+  ; Upgrading — say "Upgrade", say what is kept, and recommend the one-pass
+  ; in-place path: this template replaces the vendored python tree wholesale
+  ; on install, so nothing stale can linger, and the uninstall-first choice
+  ; chains the OLD version's uninstaller wizard mid-install (the "messy
+  ; details screen" a field upgrade reported). Radio meaning is positional
+  ; (first = uninstall first, second = proceed in place) - labels tell the
+  ; truth about each, the default below picks the second.
   ${ElseIf} $R0 = 1
-    StrCpy $R1 "$(olderOrUnknownVersionInstalled)"
-    StrCpy $R2 "$(uninstallBeforeInstalling)"
-    StrCpy $R3 "$(dontUninstall)"
-    !insertmacro MUI_HEADER_TEXT "$(alreadyInstalled)" "$(choowHowToInstall)"
+    StrCpy $R1 "An older version is installed. Upgrading replaces the application files only - your glossaries, dictionary, roster and settings live in your user profile and are never touched."
+    StrCpy $R2 "Clean upgrade - remove the old version first (opens its uninstaller)"
+    StrCpy $R3 "Upgrade in place (recommended) - one pass, application files only"
+    !insertmacro MUI_HEADER_TEXT "Upgrade ${PRODUCTNAME}" "Your data is kept - only application files change"
   ; Downgrading
   ${ElseIf} $R0 = -1
     StrCpy $R1 "$(newerVersionInstalled)"
@@ -265,13 +271,19 @@ Function PageReinstall
     !endif
     ${NSD_OnClick} $R3 PageReinstallUpdateSelection
 
-    ; Check the first radio button if this the first time
-    ; we enter this page or if the second button wasn't
-    ; selected the last time we were on this page
-    ${If} $ReinstallPageCheck <> 2
-      SendMessage $R2 ${BM_SETCHECK} ${BST_CHECKED} 0
-    ${Else}
+    ; Restore the user's last selection when returning to this page; on FIRST
+    ; entry, an UPGRADE preselects the in-place path (second radio) - one
+    ; clean pass, no uninstaller wizard chained mid-install - while
+    ; same-version and downgrade keep the original first-radio default.
+    ${If} $ReinstallPageCheck = 2
       SendMessage $R3 ${BM_SETCHECK} ${BST_CHECKED} 0
+    ${ElseIf} $ReinstallPageCheck = 1
+      SendMessage $R2 ${BM_SETCHECK} ${BST_CHECKED} 0
+    ${ElseIf} $R0 = 1
+      SendMessage $R3 ${BM_SETCHECK} ${BST_CHECKED} 0
+      StrCpy $ReinstallPageCheck 2
+    ${Else}
+      SendMessage $R2 ${BM_SETCHECK} ${BST_CHECKED} 0
     ${EndIf}
 
     ${NSD_SetFocus} $R2
