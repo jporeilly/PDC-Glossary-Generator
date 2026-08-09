@@ -14,6 +14,33 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.36.34] - 2026-08-09
+
+### Added - Govern shows dots and locks the roster while expertise generates
+
+The user started clicking buttons because nothing said "busy" (field-caught):
+expertise generation ran behind a line of grey text. Worse than cosmetic -
+the completion merge maps over the roster AS CAPTURED AT CALL TIME, so any
+edit made mid-run (a function toggle, typed expertise, a Remove) was
+silently thrown away when results landed. The pulsing dots now ride the
+status line, the Suggest button reads "Generating...", and the roster's
+mutating surface - function chips, expertise fields, Remove, Add, Save
+roster - locks until the merge lands, from every entry point (the roster
+button, the Keycloak fetch's auto-fill, the one-click macro). The dots CSS
+moved to index.css: it is the app-wide busy idiom now, not a Review detail.
+
+### Added - stewardship flags categories that are still physical groups
+
+After a fresh table scan, Govern listed 14 "categories" as equals - six the
+steward had settled and eight that were humanized table/folder names
+(Monthly Usage, Tiered Rates...), the review's evidence fallback awaiting
+categorization. Assigning stewards to those keys governance to names about
+to be renamed or folded. Each such card now carries a "physical group"
+badge (detected by slug: every kept member's source contains the category's
+own name as a table/folder segment) and a notice above the list counts them
+and links back to Review - finish 1 - AI categories or Rename, then set
+stewardship over the settled set.
+
 ## [1.36.33] - 2026-08-09
 
 ### Fixed - accepting one field no longer lights the other field's LLM chip

@@ -272,6 +272,25 @@ button.version-pill:hover { background: var(--gridline); }
 .dot.checking { background: var(--status-warning); animation: dot-pulse 1s ease-in-out infinite; }
 @keyframes dot-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
 
+/* Three-dot "AI working" indicator — the app's one busy idiom (opacity pulse),
+   shared wherever a single long model call runs (Review's AI categories,
+   Govern's expertise generation). Deliberately NOT a progress bar: a track
+   invites reading a percentage into it, and none exists for one call. */
+.rv-thinking {
+  display: inline-flex; gap: .28rem; margin-left: .45rem; vertical-align: middle;
+}
+.rv-thinking i {
+  width: .38rem; height: .38rem; border-radius: 50%;
+  background: var(--accent); opacity: .3;
+  animation: rv-think 1.2s ease-in-out infinite;
+}
+.rv-thinking i:nth-child(2) { animation-delay: .2s; }
+.rv-thinking i:nth-child(3) { animation-delay: .4s; }
+@keyframes rv-think { 50% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .rv-thinking i { animation: none; opacity: .55; }
+}
+
 .main { min-width: 0; display: flex; flex-direction: column; }
 .topbar {
   display: flex; align-items: center; gap: 1rem; padding: .7rem 1.5rem;

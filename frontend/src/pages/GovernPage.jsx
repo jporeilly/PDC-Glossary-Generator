@@ -351,6 +351,12 @@ export default function GovernPage({ onNavigate }) {
   const [kMsg, setKMsg] = useState('')
   const [rosterMsg, setRosterMsg] = useState('')
   const [expMsg, setExpMsg] = useState('')
+  // TRUE while /api/suggest-expertise is in flight — from any entry point (the
+  // roster button, the Keycloak fetch's auto-fill, the one-click macro). The
+  // completion merge maps over the roster AS CAPTURED AT CALL TIME, so edits
+  // made mid-run would be silently thrown away: the roster locks while this
+  // is true, and the dots say why.
+  const [expBusy, setExpBusy] = useState(false)
   const [defMsg, setDefMsg] = useState('')
   const [autoMsg, setAutoMsg] = useState('Keyword match on role + expertise — deterministic and offline. Won’t overwrite slots you set by hand.')
   const [applyMsg, setApplyMsg] = useState('')
@@ -358,6 +364,28 @@ export default function GovernPage({ onNavigate }) {
 
   const cats = useMemo(
     () => [...new Set(rows.filter(isKept).map((r) => r.Category).filter(Boolean))], [rows])
+
+  // Categories that are still the scan's EVIDENCE FALLBACK — the category is
+  // just the humanized physical name of its own table or folder (categorize()
+  // falls back to it so stewards are never left guessing). Stewardship set on
+  // one is keyed to a name the review is about to rename or fold, so flag it
+  // rather than presenting it as a settled business category. Detected by
+  // slug: every kept member's source carries the category's own slug as a
+  // path/table segment (monthly_usage → "Monthly Usage", gis/ → "Gis").
+  const unsettled = useMemo(() => {
+    const bad = new Set()
+    for (const cat of cats) {
+      const slug = cat.trim().toLowerCase().replace(/\s+/g, '_')
+      if (!slug) continue
+      const members = rows.filter((r) => isKept(r) && (r.Category || '') === cat)
+      const withSrc = members.filter((r) => String(r.Source_Column || '').trim())
+      if (withSrc.length && withSrc.every((r) =>
+        String(r.Source_Column).toLowerCase().split(/[;,]/).every((src) =>
+          !src.trim() || src.split(/[./\\]/).map((s) => s.trim()).includes(slug))))
+        bad.add(cat)
+    }
+    return bad
+  }, [rows, cats])
   const accounts = useMemo(
     () => (people || []).filter((p) => p.id), [people])
   const pools = useMemo(() => ({
@@ -517,7 +545,8 @@ export default function GovernPage({ onNavigate }) {
       return P
     }
     const ecats = [...new Set(rows.map((r) => r.Category).filter(Boolean))]
-    setExpMsg(`Generating expertise from roles, responsibilities${ecats.length ? ' and scanned categories' : ''}…`)
+    setExpMsg(`Generating expertise from roles, responsibilities${ecats.length ? ' and scanned categories' : ''}`)
+    setExpBusy(true)
     try {
       const d = await apiPost('/api/suggest-expertise', { people: P, categories: ecats, overwrite: !!overwrite })
       const by = {}
@@ -541,6 +570,8 @@ export default function GovernPage({ onNavigate }) {
     } catch (err) {
       setExpMsg(`Suggest failed: ${err.message}`)
       return P
+    } finally {
+      setExpBusy(false)
     }
   }
 
@@ -832,7 +863,7 @@ export default function GovernPage({ onNavigate }) {
       <KeycloakCard onFetch={fetchKeycloak} msg={kMsg} />
 
       <RosterCard people={people} rosterDirty={rosterDirty} rosterMsg={rosterMsg}
-                  expMsg={expMsg} onToggleFn={toggleFn} onExpertise={setExpertise}
+                  expMsg={expMsg} expBusy={expBusy} onToggleFn={toggleFn} onExpertise={setExpertise}
                   onRemove={rmPerson} onAdd={addPerson} onSave={saveRoster}
                   onSuggest={suggestExpertise} />
 
@@ -959,9 +990,21 @@ export default function GovernPage({ onNavigate }) {
               </label>
             </div>
             <p className="summary">{autoMsg}</p>
+            {unsettled.size > 0 && (
+              <div className="notice-warn">
+                <b>{unsettled.size} of {cats.length}</b> categories are still <b>physical
+                table/folder groups</b> from the scan — the review hasn&apos;t folded them
+                into your business categories yet, so stewardship set on them would be
+                keyed to names likely to change. Finish on{' '}
+                <button className="nav" onClick={() => onNavigate('review')}>Review</button>{' '}
+                first (<b>1 · AI categories</b>, or filter and <b>Rename</b>), then set
+                stewardship over the settled set.
+              </div>
+            )}
             {cats.map((cat) => (
               <CatCard key={cat} cat={cat} ov={overrides[cat] || emptyOverride()}
                        picks={autoInfo[cat]} open={!!openCats[cat]}
+                       unsettled={unsettled.has(cat)}
                        onToggle={() => setOpenCats((o) => ({ ...o, [cat]: !o[cat] }))}
                        pools={pools} accounts={accounts}
                        bits={summaryBits(cat, overrides[cat] || emptyOverride())}
@@ -1166,7 +1209,7 @@ function KeycloakCard({ onFetch, msg }) {
 
 /* ---------- roster ---------- */
 
-function RosterCard({ people, rosterDirty, rosterMsg, expMsg, onToggleFn,
+function RosterCard({ people, rosterDirty, rosterMsg, expMsg, expBusy, onToggleFn,
                       onExpertise, onRemove, onAdd, onSave, onSuggest }) {
   const [q, setQ] = useState('')
   const [overwrite, setOverwrite] = useState(false)
@@ -1197,15 +1240,20 @@ function RosterCard({ people, rosterDirty, rosterMsg, expMsg, onToggleFn,
       <div className="actions" style={{ marginTop: 0, marginBottom: '.8rem' }}>
         <input type="text" className="text" placeholder="Filter roster (name, email, expertise)…"
                value={q} onChange={(e) => setQ(e.target.value)} style={{ minWidth: '240px' }} />
-        <button className="ghost" onClick={() => onSuggest(overwrite)}
+        <button className="ghost" disabled={expBusy} onClick={() => onSuggest(overwrite)}
                 title="Use the local LLM to generate expertise keywords for each person from their role, responsibilities and the scanned categories. Keywords drive auto-assign. Empty people only, unless overwrite is ticked.">
-          ⚡ Suggest expertise (LLM)
+          {expBusy ? 'Generating…' : '⚡ Suggest expertise (LLM)'}
         </button>
         <label className="check">
-          <input type="checkbox" checked={overwrite} onChange={(e) => setOverwrite(e.target.checked)} />
+          <input type="checkbox" disabled={expBusy} checked={overwrite} onChange={(e) => setOverwrite(e.target.checked)} />
           overwrite existing
         </label>
-        {expMsg && <span className="summary">{expMsg}</span>}
+        {expMsg && (
+          <span className="summary">
+            {expMsg}
+            {expBusy && <span className="rv-thinking" role="status" aria-label="Generating expertise"><i /><i /><i /></span>}
+          </span>
+        )}
       </div>
       <div className="table-scroll">
         <table>
@@ -1245,7 +1293,7 @@ function RosterCard({ people, rosterDirty, rosterMsg, expMsg, onToggleFn,
                               : 'not held — no mapped Keycloak role')
                         return (
                           <button key={k} className={`gov-fnbtn${held ? ' on' : ' off'}`}
-                                  aria-pressed={held}
+                                  aria-pressed={held} disabled={expBusy}
                                   onClick={() => onToggleFn(i, k)}
                                   title={`${l}: ${held ? 'HELD' : 'not held'} — ${src}. Click to toggle the override; it persists with Save roster and the stewardship pools draw from it.`}>
                             {held ? '✓ ' : ''}{l}
@@ -1259,9 +1307,10 @@ function RosterCard({ people, rosterDirty, rosterMsg, expMsg, onToggleFn,
                   <td><code>{p.id || '(none)'}</code></td>
                   <td>
                     <input type="text" className="gov-exp" placeholder="add expertise…"
+                           disabled={expBusy}
                            value={p.expertise || ''} onChange={(e) => onExpertise(i, e.target.value)} />
                   </td>
-                  <td><button className="ghost" onClick={() => onRemove(i)}>Remove</button></td>
+                  <td><button className="ghost" disabled={expBusy} onClick={() => onRemove(i)}>Remove</button></td>
                 </tr>
               )
             })}
@@ -1299,8 +1348,11 @@ function RosterCard({ people, rosterDirty, rosterMsg, expMsg, onToggleFn,
         </label>
       </div>
       <div className="actions">
-        <button className="ghost" onClick={add} disabled={!(uuidOk && emOk)}>Add</button>
-        <button className="primary" onClick={onSave}>Save roster</button>
+        <button className="ghost" onClick={add} disabled={expBusy || !(uuidOk && emOk)}>Add</button>
+        <button className="primary" disabled={expBusy} onClick={onSave}
+                title={expBusy ? 'Wait for expertise generation to finish — saving now would persist the pre-generation roster' : undefined}>
+          Save roster
+        </button>
         {rosterMsg && <span className="summary">{rosterMsg}</span>}
       </div>
       <p className="hint-line">
@@ -1313,11 +1365,17 @@ function RosterCard({ people, rosterDirty, rosterMsg, expMsg, onToggleFn,
 
 /* ---------- one collapsible per-category override card ---------- */
 
-function CatCard({ cat, ov, picks, open, onToggle, pools, accounts, bits, onField, onPlain }) {
+function CatCard({ cat, ov, picks, open, onToggle, pools, accounts, bits, onField, onPlain, unsettled }) {
   return (
     <div className={`gov-catcard${open ? ' open' : ''}`}>
       <button type="button" className="gov-cchead" onClick={onToggle} aria-expanded={open}>
         <span className="gov-ccname">{cat}</span>
+        {unsettled && (
+          <span className="badge warning"
+                title="This category is the humanized physical name of its own table or folder — the scan's evidence fallback, not a steward decision. Fold it into a business category on Review (1 · AI categories, or Rename) before assigning stewards here.">
+            physical group
+          </span>
+        )}
         <span className="gov-ccsum">
           {bits.length ? <><span className="ov">Overrides:</span> {bits.join(' · ')}</> : 'Using defaults'}
           {picks && <span className="gov-ccauto-tag">⚡ auto</span>}
