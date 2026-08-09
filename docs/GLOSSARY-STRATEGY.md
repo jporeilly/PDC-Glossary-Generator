@@ -213,6 +213,19 @@ placeholder definition awaiting the steward.
   than the business.
 - **One steward per category** where you can manage it.
 
+> **A live specimen — the same folder, twice.** Two runs of the AI categoriser
+> over the same water-utility scan filed the `correspondence` document folder
+> first under **Records & Documents** — the records-management lens: what kind
+> of artifact this is, where retention lives — and then under **Communications
+> & Outreach** — the function lens: what the business does with it. Same
+> evidence, same schema; two defensible taxonomies. Neither is wrong:
+> abstraction has degrees of freedom, and every run samples one. Ask the same
+> consultant twice, get two org charts. That is category drift in its purest
+> form, and the cure is not a better model — it is a **decision that sticks**:
+> proposals land as pills, the steward picks a lens once, and Export pack
+> freezes the choice so every later run proposes against a settled baseline
+> instead of renaming it.
+
 ### Grow everything else from reviewed rows
 
 `packgen` exports the reviewed state back into pack format, so the pack evolves
