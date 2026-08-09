@@ -663,6 +663,11 @@ export default function DictionaryPage({ onNavigate }) {
                           {[t.category ? `category ${t.category}` : '',
                             t.sensitivity ? `sensitivity ${t.sensitivity}` : '',
                             t.confidence ? `conf ${t.confidence}` : '',
+                            // the id discriminator, shown where the decision is
+                            // made: a coded pattern = quoted identifier
+                            // (approve); an id with NO pattern = surrogate key
+                            t.pattern ? `value pattern ${t.pattern}`
+                              : (/\bid\b/i.test(t.term) ? 'no value pattern — bare id, likely a join key' : ''),
                             t.tags?.length ? `tags ${t.tags.join('; ')}` : '',
                             t.sources?.length ? `seen in ${t.sources.join('; ')}` : '',
                           ].filter(Boolean).join(' · ')}

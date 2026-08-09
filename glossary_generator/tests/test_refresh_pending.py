@@ -171,3 +171,26 @@ class TestStalePendingDetection:
         health = tagdict.stale_pending(sources=set(), terms=set(), tags=set())
         assert "Meter Size" not in health["terms"], \
             "approved vocabulary is the steward's decision, not debris"
+
+
+class TestValuePatternTravelsWithTheEntry:
+    """For *_id candidates the induced value pattern is THE discriminator
+       between a quoted business identifier (Meter ID - coded format) and a
+       surrogate key (bare integer). The steward and the advisor both need it
+       at the decision point - field-caught twice (Meter ID, Report ID)."""
+
+    def test_accrete_captures_and_refresh_updates(self, fresh_dict):
+        tagdict = fresh_dict
+        tagdict.accrete([make_row("Meter ID", "public.meters.meter_id",
+                                  Value_Pattern=r"^MTR-\d{6}$")])
+        m = _pending_meta(tagdict, "Meter ID")
+        assert m["pattern"] == r"^MTR-\d{6}$"
+        tagdict.refresh_pending([make_row("Meter ID", "public.meters.meter_id",
+                                          Value_Pattern=r"^MTR-\d{7}$")])
+        assert _pending_meta(tagdict, "Meter ID")["pattern"] == r"^MTR-\d{7}$"
+
+    def test_bare_id_stays_patternless(self, fresh_dict):
+        tagdict = fresh_dict
+        tagdict.accrete([make_row("Report ID", "public.water_quality_reports.report_id")])
+        assert _pending_meta(tagdict, "Report ID")["pattern"] == "", \
+            "absence of a pattern IS the surrogate-key signal - never invent one"

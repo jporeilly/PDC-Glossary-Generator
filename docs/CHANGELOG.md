@@ -14,6 +14,23 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.36.41] - 2026-08-09
+
+### Added - the id-vs-key evidence reaches the decision point
+
+"Is Report ID an identifier or a key?" is a judgment call stewards face
+over and over, and an inexperienced one will miss it (field-caught - Meter
+ID needed a return trip). The scan already holds the discriminator: an
+identifier the business QUOTES almost always carries a distinctive coded
+value pattern (Meter ID is read off the hardware), while a surrogate key is
+a bare unpatterned integer that only joins tables. That evidence now
+travels: accrete captures the induced value pattern onto the pending entry,
+the Review sync keeps it current, the pending queue SHOWS it in the meta
+line ("value pattern ^MTR-\d{6}$" - or, for a patternless *ID* term, "no
+value pattern - bare id, likely a join key"), and the AI advisor receives
+it with the rule spelled out. The steward still clicks; now every level of
+experience sees the tell.
+
 ## [1.36.40] - 2026-08-09
 
 ### Fixed - the Dictionary adjudicates the Review you actually have

@@ -1119,6 +1119,8 @@ def _pending_one(item, governed, model=None, num_gpu=None):
         bits.append("seen in: %s" % "; ".join(item["sources"][:3]))
     if item.get("sensitivity"):
         bits.append("sensitivity: %s" % item["sensitivity"])
+    if item.get("pattern"):
+        bits.append("profiled value pattern: %s" % item["pattern"])
     if item.get("tags"):
         bits.append("tags: %s" % "; ".join(item["tags"][:5]))
     prompt = (
@@ -1141,6 +1143,12 @@ def _pending_one(item, governed, model=None, num_gpu=None):
         "- reject: structural or file artifacts only - surrogate keys and "
         "ids, fragments, a field of a one-off dated snapshot file, or a name "
         "too vague for anyone to ever ask for (\"Data\", \"Value\").\n\n"
+        "For id / identifier candidates the tell is the VALUE SHAPE: a "
+        "distinctive coded format (a profiled value pattern in the evidence, "
+        "like a prefixed code) means people quote it - business vocabulary, "
+        "approve (a Meter ID is read off the hardware). No pattern - a bare "
+        "sequential integer that only joins tables - is a surrogate key: "
+        "reject.\n"
         "Rejection is DURABLE: a rejected term is never proposed again, while "
         "a wrong approve costs the steward one click later. When uncertain, "
         "approve - and let the rationale say why you hesitated.\n"

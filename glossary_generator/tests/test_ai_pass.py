@@ -289,3 +289,25 @@ class TestPendingAdvisorCalibration:
         assert "When uncertain, approve" in p
         assert "structural or file artifacts only" in p, \
             "reject must be scoped to artifacts, not anything technical-sounding"
+
+
+class TestAdvisorSeesTheValueShape:
+    def test_pattern_reaches_the_prompt_with_the_id_rule(self, monkeypatch):
+        """The id-vs-key call needs the evidence: a coded value pattern means
+           people quote the identifier (approve); a bare integer is a join key
+           (reject). Pin both the evidence line and the rule."""
+        seen = {}
+
+        def capture(prompt, model=None, num_gpu=None, **kw):
+            seen["prompt"] = prompt
+            return {"action": "approve", "target": "", "rationale": "ok"}
+
+        monkeypatch.setattr(llm, "_complete_json", capture)
+        llm._pending_one({"name": "Meter ID", "category": "Infrastructure & Assets",
+                          "definition": "Unique identifier for a metering point.",
+                          "sources": ["public.meters.meter_id"],
+                          "pattern": r"^MTR-\d{6}$"}, ["Customer"])
+        p = seen["prompt"]
+        assert r"profiled value pattern: ^MTR-\d{6}$" in p
+        assert "the tell is the VALUE SHAPE" in p
+        assert "surrogate key" in p

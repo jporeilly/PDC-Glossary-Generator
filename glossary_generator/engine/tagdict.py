@@ -784,11 +784,17 @@ def accrete(rows, source=None, persist=True):
                         seen.append(c)
                 seen.sort()
                 if canon not in terms:
+                    # the induced value pattern travels with the entry: for
+                    # *_id candidates it is THE discriminator between a quoted
+                    # business identifier (coded format) and a surrogate key
+                    # (bare integer, no pattern) - the steward and the advisor
+                    # both need it at the decision point
                     terms[canon] = {"aliases": [], "sensitivity": r.get("Sensitivity", "LOW"),
                                     "tags": row_tags[:4], "layer": "company", "status": "pending",
                                     "category": (r.get("Category") or "").strip(),
                                     "definition": str(r.get("Definition") or "").strip()[:200],
                                     "confidence": (r.get("Confidence") or "").strip(),
+                                    "pattern": (r.get("Value_Pattern") or "").strip(),
                                     "sources": srcs[:3]}
                     idx[canon.lower()] = canon
                 else:
@@ -803,6 +809,8 @@ def accrete(rows, source=None, persist=True):
                         cur["definition"] = str(r.get("Definition") or "").strip()[:200]
                     if not cur.get("confidence"):
                         cur["confidence"] = (r.get("Confidence") or "").strip()
+                    if not cur.get("pattern") and (r.get("Value_Pattern") or "").strip():
+                        cur["pattern"] = (r.get("Value_Pattern") or "").strip()
                     have = cur.setdefault("sources", [])
                     for c in srcs:
                         if c not in have and len(have) < 5:
@@ -862,6 +870,9 @@ def refresh_pending(rows, persist=True):
             category = (r.get("Category") or "").strip()
             if category and category != meta.get("category"):
                 meta["category"] = category; hit = 1
+            pattern = (r.get("Value_Pattern") or "").strip()
+            if pattern and pattern != meta.get("pattern"):
+                meta["pattern"] = pattern; hit = 1
             return hit
 
         for r in rows or []:
@@ -1071,6 +1082,7 @@ def summary():
                       "sensitivity": meta.get("sensitivity", "LOW"), "tags": meta.get("tags", []),
                       "category": meta.get("category", ""), "definition": meta.get("definition", ""),
                       "confidence": meta.get("confidence", ""), "sources": meta.get("sources", []),
+                      "pattern": meta.get("pattern", ""),
                       "count": len(tusage.get(n) or ())})
     pend = pending()
     return {"schema": d.get("schema", SCHEMA), "domain": d.get("domain"),

@@ -2174,6 +2174,7 @@ def api_tagdict_ai_review(body: dict = Body(default={})):
                             "definition": m.get("definition", ""),
                             "sources": m.get("sources", []),
                             "sensitivity": m.get("sensitivity", ""),
+                            "pattern": m.get("pattern", ""),
                             "tags": m.get("tags", [])})
     names = body.get("names")
     if isinstance(names, list) and names:
