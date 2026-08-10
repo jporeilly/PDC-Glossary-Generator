@@ -19,6 +19,10 @@ const ws = {
   discovery: null,   // data-discovery profile captured with the glossary
   governance: null,  // Govern page's buildGovernance() output (stewardship,
                      // ratings, per-category overrides) — legacy `governance` key
+  categoriesConfirmed: null,  // the KEYSTONE: {at, categories} once the steward
+                              // approves the settled taxonomy on Review
+  reviewCompleted: null,      // {at} once the steward marks the Review stage done
+                              // (saved + Dictionary synced at that moment)
   dirty: false,
   saving: false,
   savedAt: null,
@@ -117,6 +121,19 @@ export function setGlossaryMeta({ name, glossaryName } = {}) {
   markDirty()
 }
 
+export function setCategoriesConfirmed(v) {
+  // The keystone survives with the workspace: {at, categories} — or null to
+  // withdraw it. Downstream pages read it instead of guessing whether the
+  // taxonomy has settled.
+  ws.categoriesConfirmed = v || null
+  markDirty()
+}
+
+export function setReviewCompleted(v) {
+  ws.reviewCompleted = v || null
+  markDirty()
+}
+
 export function setDiscovery(discovery) {
   ws.discovery = discovery
   markDirty()
@@ -153,6 +170,7 @@ export function setPdcSession(session) {
 export function clearWorkspace() {
   ws.id = null; ws.name = ''; ws.glossaryName = ''
   ws.rows = []; ws.discovery = null; ws.governance = null
+  ws.categoriesConfirmed = null; ws.reviewCompleted = null
   ws.dirty = false; ws.savedAt = null; ws.saveError = null
   clearUi('review.')
   emit()
@@ -178,6 +196,8 @@ export async function openGlossary(id) {
   ws.rows = g.rows || []
   ws.discovery = g.discovery || null
   ws.governance = g.governance || null
+  ws.categoriesConfirmed = g.categories_confirmed || null
+  ws.reviewCompleted = g.review_completed || null
   ws.dirty = false
   ws.savedAt = g.savedAt || null
   ws.saveError = null
@@ -199,6 +219,8 @@ export async function save() {
       rows: ws.rows,
       governance: ws.governance || undefined,
       discovery: ws.discovery || undefined,
+      categories_confirmed: ws.categoriesConfirmed || undefined,
+      review_completed: ws.reviewCompleted || undefined,
     })
     ws.id = r.id
     ws.savedAt = r.savedAt
@@ -251,6 +273,8 @@ window.addEventListener('pagehide', () => {
     rows: ws.rows,
     governance: ws.governance || undefined,
     discovery: ws.discovery || undefined,
+    categories_confirmed: ws.categoriesConfirmed || undefined,
+    review_completed: ws.reviewCompleted || undefined,
   })], { type: 'application/json' })
   if (navigator.sendBeacon('/api/glossaries', body)) ws.dirty = false
 })

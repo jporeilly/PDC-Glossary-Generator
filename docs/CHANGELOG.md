@@ -14,6 +14,25 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.36.52] - 2026-08-10
+
+### Added - the Review lifecycle: approve the keystone, then complete
+
+The taxonomy's settling was implicit and everything downstream guessed.
+The strip now reads as the work is done: 1 - AI categories proposes,
+"2 - Approve categories" is the KEYSTONE (product owner's word - the app's
+verb is Approve), 3 - AI pass writes language inside the settled taxonomy.
+Approving stores {at, categories} with the workspace, syncs the Dictionary
+immediately, warns first if a kept category still looks like a physical
+table/folder group, and reverts to actionable if the set drifts - visible,
+never silent. Govern consults the keystone instead of only guessing.
+
+And the stage now CLOSES deliberately: "Review complete -> Dictionary"
+saves the glossary, syncs the Dictionary to the exact grid, records the
+completion with the workspace, and moves on - warning (never blocking)
+when the keystone is missing or AI pills are still pending. One moment
+where everything is in sync, by construction. Wiring pinned in test_docs.
+
 ## [1.36.51] - 2026-08-10
 
 ### Changed - the same-source heal went behind the scenes

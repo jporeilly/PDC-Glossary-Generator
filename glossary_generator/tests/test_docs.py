@@ -210,3 +210,26 @@ def test_row_identity_is_evidence_not_labels():
         "Review must heal old-key damage behind the scenes"
     assert "Fold same-source rows" not in rv, \
         "the heal is never exposed to the steward as a decision"
+
+
+def test_the_keystone_is_wired_through_the_workspace():
+    """"Confirm categories" is the steward's explicit "the taxonomy is
+       settled" - the keystone everything downstream keys off (Dictionary
+       syncs at confirm, Govern reads it instead of guessing, drift makes the
+       button actionable again). Pin the wiring: the state carries it through
+       save/load, Review offers it, Govern consults it."""
+    base = os.path.join(REPO, "frontend", "src")
+    if not os.path.isdir(base):
+        return                  # backend-only checkout
+    st = _read(os.path.join(base, "state.js"))
+    assert "setCategoriesConfirmed" in st
+    assert st.count("categories_confirmed") >= 3, \
+        "the keystone must survive save, sendBeacon-save and load"
+    rv = _read(os.path.join(base, "pages", "ReviewPage.jsx"))
+    assert "Approve categories" in rv and "setCategoriesConfirmed" in rv
+    assert "/api/tagdict/sync" in rv, "approving must sync the Dictionary immediately"
+    assert "Review complete" in rv and "setReviewCompleted" in rv,         "the Review stage must close with one deliberate, syncing act"
+    assert st.count("review_completed") >= 3,         "review completion must survive save, sendBeacon-save and load"
+    gv = _read(os.path.join(base, "pages", "GovernPage.jsx"))
+    assert "categoriesConfirmed" in gv, \
+        "Govern must consult the keystone instead of guessing"

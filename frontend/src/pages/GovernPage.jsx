@@ -1019,6 +1019,14 @@ export default function GovernPage({ onNavigate }) {
               </label>
             </div>
             <p className="summary">{autoMsg}</p>
+            {cats.length > 0 && !ws.categoriesConfirmed && (
+              <div className="notice-warn">
+                The categories haven&apos;t been <b>confirmed</b> on Review — the taxonomy
+                may still move, and stewardship set now would key to names that can
+                change. Settle and <b>2 · Approve categories</b> there first (the
+                keystone), then assign stewards over the settled set.
+              </div>
+            )}
             {unsettled.size > 0 && (
               <div className="notice-warn">
                 <b>{unsettled.size} of {cats.length}</b> categories are still <b>physical

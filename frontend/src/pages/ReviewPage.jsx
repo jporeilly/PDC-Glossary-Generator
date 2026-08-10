@@ -12,7 +12,7 @@
 // applies the selected ones — nothing mutates the grid behind your back.
 import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { apiGet, apiPost } from './../api.js'
-import { useWorkspace, usePersistentState, getUi, setUi, setRows, patchRow, setGlossaryMeta, setGovernance, save } from './../state.js'
+import { useWorkspace, usePersistentState, getUi, setUi, setRows, patchRow, setGlossaryMeta, setGovernance, setCategoriesConfirmed, setReviewCompleted, save } from './../state.js'
 import { sameSourceCount, selfFold } from './../rowmerge.js'
 import './review.css'
 
@@ -473,9 +473,67 @@ export default function ReviewPage({ onNavigate }) {
   }, [rows])
   const kept = useMemo(() => rows.reduce((n, r) => n + (truthy(r.Keep) ? 1 : 0), 0), [rows])
   // rows sharing a source column with an earlier row — damage from the old
-  // label-keyed merge (re-ingestion after the taxonomy settled); powers the
-  // repair button in the DUPLICATES group
+  // label-keyed merge (re-ingestion after the taxonomy settled); heals
+  // silently below
   const dupSources = useMemo(() => sameSourceCount(rows), [rows])
+
+  // THE KEYSTONE — the steward's explicit "the taxonomy is settled". Stored
+  // with the workspace ({at, categories}); everything downstream keys off it
+  // (Dictionary syncs at confirm, Govern reads it instead of guessing). If
+  // the kept category set drifts from the confirmed list, the button reverts
+  // to actionable — drift is visible, never silent.
+  const catsConfirmedCurrent = useMemo(() => {
+    const c = ws.categoriesConfirmed
+    if (!c || !Array.isArray(c.categories)) return false
+    return JSON.stringify(c.categories) === JSON.stringify(cats.kept)
+  }, [ws.categoriesConfirmed, cats])
+  // kept categories that are still just the humanized physical name of their
+  // own table/folder — same slug rule Govern badges with
+  const physicalLooking = useMemo(() => cats.kept.filter((cat) => {
+    const slug = cat.trim().toLowerCase().replace(/\s+/g, '_')
+    if (!slug) return false
+    const withSrc = rows.filter((r) => truthy(r.Keep) && (r.Category || '') === cat
+      && String(r.Source_Column || '').trim())
+    return withSrc.length && withSrc.every((r) =>
+      String(r.Source_Column).toLowerCase().split(/[;,]/).every((src) =>
+        !src.trim() || src.split(/[./\\]/).map((x) => x.trim()).includes(slug)))
+  }), [rows, cats])
+
+  // Close the Review stage: everything in sync at one deliberate moment —
+  // the glossary saves, the Dictionary syncs to this exact grid, and the
+  // completion is recorded with the workspace. Warns (never blocks) when the
+  // keystone is missing or pills are still pending: the steward stays
+  // sovereign, the gate just refuses to be passed accidentally.
+  async function completeReview() {
+    if (!catsConfirmedCurrent && !window.confirm(
+      'Categories have not been approved (2 · Approve categories) — the taxonomy may still move.\n\nComplete the review anyway?')) return
+    if (proposals && !window.confirm(
+      'There are unaccepted AI pills — they are proposals only and will not travel.\n\nComplete the review anyway?')) return
+    setReviewCompleted({ at: new Date().toISOString() })
+    try { await save() } catch { /* the autosave banner reports save errors */ }
+    try { await apiPost('/api/tagdict/sync', { rows: rowsRef.current }) } catch { /* the Dictionary self-syncs on entry */ }
+    onNavigate('dictionary')
+  }
+
+  async function confirmCategories() {
+    const list = cats.kept
+    if (!list.length) return
+    if (physicalLooking.length && !window.confirm(
+      `${physicalLooking.length} categor${physicalLooking.length === 1 ? 'y still looks' : 'ies still look'} like physical table/folder groups:\n\n`
+      + physicalLooking.join(' · ')
+      + '\n\nConfirm anyway? Settling them first (1 · AI categories, or filter + Rename) is usually the better order — they will flow to the Dictionary and Govern as-is.')) return
+    setCategoriesConfirmed({ at: new Date().toISOString(), categories: list })
+    let synced = ''
+    try {
+      const d = await apiPost('/api/tagdict/sync', { rows: rowsRef.current })
+      synced = d.pending_refreshed
+        ? ` Dictionary synced — ${d.pending_refreshed} pending entr${d.pending_refreshed === 1 ? 'y' : 'ies'} refreshed.`
+        : ' Dictionary synced.'
+    } catch {
+      synced = ' (The Dictionary will sync itself when you open it.)'
+    }
+    setMsg(`✓ Keystone set: ${list.length} categories confirmed.${synced} Export pack freezes the mapping for future scans.`)
+  }
   // SILENT auto-heal. Same-source duplication is DAMAGE, never intent — no
   // steward action can create two rows carrying the same source column; only
   // the old label-keyed merge could (fixed in rowmerge.js). Damage the
@@ -1349,9 +1407,14 @@ export default function ReviewPage({ onNavigate }) {
                     title="Run FIRST. One call over the schema the scan proved — tables, columns, FK links — proposing an abstract business grouping. Assignments land as Category pills: accept, rename any group, and only then run the AI pass so definitions are written against the final taxonomy.">
               {catBusy ? 'Proposing…' : '1 · AI categories'}
             </button>
+            <button className={`ghost sm${catsConfirmedCurrent ? ' applied' : ''}`}
+                    disabled={catBusy || !cats.kept.length} onClick={confirmCategories}
+                    title="The KEYSTONE. Declare the category set settled: the Dictionary syncs immediately so its queue reflects this taxonomy, Govern keys stewardship to settled names, and Export pack freezes the mapping for future scans. If you change categories afterwards, this asks to be approved again — the drift is visible, never silent.">
+              {catsConfirmedCurrent ? '✓ 2 · Categories approved' : '2 · Approve categories'}
+            </button>
             <button className="primary sm" disabled={aiDisabled} onClick={runAiPass}
                     title="One model call per row for every field the LLM can decide — definition, purpose, a clearer name, governed tags and a blank category. Replaces running Enrich + AI suggest + AI categorize separately (three passes over the same rows, each overwriting the last). Proposals only — accept per pill.">
-              2 · AI pass (all fields)
+              3 · AI pass (all fields)
             </button>
             {anySuggestedNames && (
               <button className="ghost sm" disabled={locked} onClick={useAllNames}
@@ -1656,9 +1719,9 @@ export default function ReviewPage({ onNavigate }) {
           <span className="rv-msg">{msg || 'Reviewed and pruned? Approve the pending vocabulary next — it already carries your accepted edits — then set stewardship on Govern.'}</span>
           <span className="rv-grow" />
           <button className="ghost" onClick={() => onNavigate('connect')}>← Connect a source</button>
-          <button className="primary" disabled={kept === 0} onClick={() => onNavigate('dictionary')}
-                  title={kept ? 'Approve or retire the pending vocabulary on the Dictionary page — it already carries your accepted edits — then set stewardship on Govern' : 'Keep at least one term first (tick a Keep box, or use Keep High+Med conf)'}>
-            Approve vocabulary →
+          <button className="primary" disabled={kept === 0} onClick={completeReview}
+                  title={kept ? 'Close the Review stage: the glossary saves, the Dictionary syncs to this exact grid, and the completion is recorded with the workspace — then approve the vocabulary there and set stewardship on Govern.' : 'Keep at least one term first (tick a Keep box, or use Keep High+Med conf)'}>
+            ✓ Review complete → Dictionary
           </button>
         </div>
       </section>
@@ -1774,7 +1837,7 @@ function ReviewGuide({ onNavigate }) {
             <text className="rv-wfglbl" x={14} y={101}>③ AI PASS — KEPT ROWS · ONE CALL PER BATCH · PROPOSE → YOU APPLY</text>
           </g>
           <RvNode chip role="button" className="rv-wfnode rv-wfchip" x={14} y={108} w={230} h={32}
-                  title="1 · AI pass (all fields)" onActivate={flashAgents}
+                  title="3 · AI pass (all fields)" onActivate={flashAgents}
                   aria="Run the combined AI pass — definition, purpose, name, tags and a blank category in one call per batch of kept rows" />
           <text className="rv-wfglbl" x={252} y={129}>or</text>
           <RvNode chip x={274} y={108} w={286} h={32}
