@@ -1122,14 +1122,14 @@ Section Uninstall
     SetShellVarContext current
     RmDir /r "$APPDATA\${BUNDLEID}"
     RmDir /r "$LOCALAPPDATA\${BUNDLEID}"
-    ; The checkbox promises "delete app data" - honor it for the BACKEND's
-    ; state too. Glossaries, dictionary, roster and settings live in
-    ; %APPDATA%\PDC-Glossary (core/paths.py), a different folder name from
-    ; the bundle-id dirs above, and silently SURVIVED the purge - so a
-    ; fresh install still needed a manual wipe (field-caught: "doesnt the
-    ; delete data option wipe the appdata?" - it didn't). Still gated by
-    ; the same default-unchecked checkbox and the never-during-update
-    ; guard above.
+    ; The bundle-id dirs above ARE the packaged app's real state - the shell
+    ; passes app_data_dir as GLOSSARY_STATE_DIR (server.rs), so glossaries,
+    ; dictionary, roster and settings all live there and the checkbox has
+    ; always honored its label for installed builds. This extra line covers
+    ; the BARE-launcher fallback dir (core/paths.py uses %APPDATA%\
+    ; PDC-Glossary when run.ps1/run.sh finds a read-only app dir) so a user
+    ; who ran the bare launcher before installing gets a complete purge too.
+    ; Same default-unchecked checkbox, same never-during-update guard.
     RmDir /r "$APPDATA\PDC-Glossary"
   ${EndIf}
 
