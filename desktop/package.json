@@ -10,7 +10,9 @@
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build",
     "check": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/check-environment.ps1",
-    "seed": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/seed-company.ps1"
+    "seed": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/seed-company.ps1",
+    "collect": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/collect-installer.ps1",
+    "dist": "npm run stage:app && npm run tauri:build && npm run collect"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.0.0"

@@ -17,6 +17,10 @@ Thumbs.db
 # Word/Office lock files
 ~$*
 
+# collected build artifacts (installers copied here by desktop's collect
+# script for one short path) - 47MB binaries never belong in git
+/dist/
+
 # scenario-installed runtime bulk-load CSV
 glossary_generator/datasources.csv
 

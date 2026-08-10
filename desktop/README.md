@@ -29,7 +29,7 @@ cd ..\desktop; npm install
 npm run tauri:build                    # fetch:python + stage:app run automatically
 ```
 
-The installer lands in `src-tauri/target/release/bundle/nsis/`.
+The installer lands in `src-tauri/target/release/bundle/nsis/` and is copied to the repo root's `dist/` by `npm run collect` — `npm run dist` chains stage → build → collect, so the artifact is always at `C:\Projects\PDC-Glossary\dist\`.
 
 `npm run tauri:dev` runs against the checkout instead — no staging, no vendored
 runtime, `python` from PATH. Edit Python, reload the window, done.
