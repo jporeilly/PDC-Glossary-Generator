@@ -1122,6 +1122,15 @@ Section Uninstall
     SetShellVarContext current
     RmDir /r "$APPDATA\${BUNDLEID}"
     RmDir /r "$LOCALAPPDATA\${BUNDLEID}"
+    ; The checkbox promises "delete app data" - honor it for the BACKEND's
+    ; state too. Glossaries, dictionary, roster and settings live in
+    ; %APPDATA%\PDC-Glossary (core/paths.py), a different folder name from
+    ; the bundle-id dirs above, and silently SURVIVED the purge - so a
+    ; fresh install still needed a manual wipe (field-caught: "doesnt the
+    ; delete data option wipe the appdata?" - it didn't). Still gated by
+    ; the same default-unchecked checkbox and the never-during-update
+    ; guard above.
+    RmDir /r "$APPDATA\PDC-Glossary"
   ${EndIf}
 
   !ifmacrodef NSIS_HOOK_POSTUNINSTALL
