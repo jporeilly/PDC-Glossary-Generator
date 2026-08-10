@@ -476,12 +476,20 @@ export default function ReviewPage({ onNavigate }) {
   // label-keyed merge (re-ingestion after the taxonomy settled); powers the
   // repair button in the DUPLICATES group
   const dupSources = useMemo(() => sameSourceCount(rows), [rows])
-  const foldSameSource = useCallback(() => {
-    const { rows: out, folded } = selfFold(rowsRef.current)
-    if (!folded) return
-    setRows(out)
-    setMsg(`Folded ${folded} same-source duplicate row(s) into their settled owners — evidence absorbed, your edits kept.`)
-  }, [])
+  // SILENT auto-heal. Same-source duplication is DAMAGE, never intent — no
+  // steward action can create two rows carrying the same source column; only
+  // the old label-keyed merge could (fixed in rowmerge.js). Damage the
+  // steward never caused is repaired behind the scenes and never exposed as
+  // a decision: no button, no toast — the grid is simply correct ("this
+  // should happen behind the scenes"). Deferred while proposals or agents
+  // are in flight, because folding re-indexes rows and pills key by row
+  // index; the deps re-fire the heal the moment the grid goes quiet.
+  useEffect(() => {
+    if (dupSources > 0 && !proposals && !agent && !catBusy) {
+      const { rows: out, folded } = selfFold(rowsRef.current)
+      if (folded) setRows(out)
+    }
+  }, [dupSources, proposals, agent, catBusy]) // eslint-disable-line react-hooks/exhaustive-deps
   const prunedKeys = useMemo(() => rows.reduce((n, r) => n + (r?.Prune_Reason && !truthy(r.Keep) ? 1 : 0), 0), [rows])
   const keptShown = useMemo(() => vis.reduce((n, i) => n + (truthy(rows[i]?.Keep) ? 1 : 0), 0), [vis, rows])
   const anySuggestedNames = useMemo(() => rows.some((r) => r.Suggested_Name && r.Suggested_Name !== r.Term), [rows])
@@ -1516,12 +1524,6 @@ export default function ReviewPage({ onNavigate }) {
             </button>
             <span className="rv-sep" aria-hidden="true" />
             <span className="lbl">DUPLICATES</span>
-            {dupSources > 0 && (
-              <button className="ghost sm" onClick={foldSameSource}
-                      title={`${dupSources} row(s) share a source column with an earlier row — the signature of a re-ingestion appending under old labels (identity now follows sources, so this cannot recur). Folding absorbs each duplicate's evidence into the earlier, steward-settled row and removes it; your edits always win.`}>
-                ⚠ Fold same-source rows ({dupSources})
-              </button>
-            )}
             <button className={`ghost sm${bulk.merge ? ' applied' : ''}`} disabled={locked}
                     onClick={() => bulkResolve('merge', 'merge', 'Merged', 'Reverted merge.', 'No duplicate term names to merge.')}
                     title="Collapse same-named terms into one term linked to all their columns — PDC's one-term-many-data-elements model. Click again to revert.">

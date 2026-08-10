@@ -206,5 +206,7 @@ def test_row_identity_is_evidence_not_labels():
     assert "mergeBySource" in cp, "Connect's workspace merge must use source identity"
     assert "rowKey" not in cp, "the Category|Term row key must not survive"
     rv = _read(os.path.join(base, "pages", "ReviewPage.jsx"))
-    assert "Fold same-source rows" in rv and "selfFold" in rv, \
-        "Review must carry the repair for grids the old key already damaged"
+    assert "selfFold" in rv and "SILENT auto-heal" in rv, \
+        "Review must heal old-key damage behind the scenes"
+    assert "Fold same-source rows" not in rv, \
+        "the heal is never exposed to the steward as a decision"

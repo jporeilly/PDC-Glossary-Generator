@@ -14,6 +14,20 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.36.51] - 2026-08-10
+
+### Changed - the same-source heal went behind the scenes
+
+1.36.50 shipped the repair as a button; the product owner's correction
+landed minutes later: "the steward shouldn't have to decide or do anything
+- the categories have been set." Same-source duplication is damage, never
+intent - no steward action can create two rows carrying one source column,
+only the old label-keyed merge could - and a condition that is always
+damage is not a decision. The heal now runs silently whenever the grid is
+quiet (deferred while proposals or agents are in flight, since folding
+re-indexes rows): no button, no toast, the grid is simply correct. Pinned
+inverted in test_docs: the button text must NOT exist.
+
 ## [1.36.50] - 2026-08-10
 
 ### Fixed - row identity is evidence, not labels
