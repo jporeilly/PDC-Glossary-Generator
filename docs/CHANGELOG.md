@@ -14,6 +14,19 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.36.48] - 2026-08-10
+
+### Fixed - the filter dropdowns follow the settled taxonomy
+
+After AI categorize, the category filter kept offering the physical groups
+- because DROPPED rows keep their scan-era categories forever (the agents
+deliberately run on kept rows only), and the dropdown listed every row's
+category as equals. Kept rows' categories now lead the list; values that
+survive only on dropped rows sit under an explicit "- only on dropped rows
+-" group, still reachable because filtering is also how a pruned key gets
+found and restored. Same split for the tags filter, and the "Categories N"
+chip now counts the glossary being exported (kept rows), not the residue.
+
 ## [1.36.47] - 2026-08-10
 
 ### Fixed - state writes self-heal when the directory vanishes

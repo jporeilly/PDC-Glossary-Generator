@@ -45,7 +45,9 @@ function computeStats(rows) {
   let pii = 0
   let enr = 0
   rows.forEach((r) => {
-    cats.add(r.Category)
+    // the chip counts the categories of the glossary being EXPORTED — dropped
+    // rows' scan-era categories would inflate it after the taxonomy settles
+    if (r.Category && truthy(r.Keep)) cats.add(r.Category)
     if (conf[r.Confidence] != null) conf[r.Confidence]++
     if (sev[r.Sensitivity] != null) sev[r.Sensitivity]++
     if (r.PII_Category) pii++
@@ -440,10 +442,34 @@ export default function ReviewPage({ onNavigate }) {
   const posOf = useMemo(() => { const m = new Map(); vis.forEach((i, p) => m.set(i, p)); return m }, [vis])
 
   const stats = useMemo(() => computeStats(rows), [rows])
-  const cats = useMemo(() => [...new Set(rows.map((r) => r.Category).filter(Boolean))].sort(), [rows])
-  const tags = useMemo(
-    () => [...new Set(rows.flatMap((r) => splitList(r.Suggested_Tags)))].sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase())),
-    [rows])
+  // Filter options split by liveliness. Dropped rows keep their scan-era
+  // categories and tags forever (the AI agents deliberately run on KEPT rows
+  // only), so a flat list kept offering the physical groups after the
+  // taxonomy settled — "the dropdown doesn't update after AI categorize"
+  // (field-caught on the fresh-install run). Kept values lead; residue that
+  // exists only on dropped rows stays reachable in a labelled group, because
+  // filtering is also how a pruned key gets found and restored.
+  const cats = useMemo(() => {
+    const kept = new Set(); const all = new Set()
+    rows.forEach((r) => {
+      const c = r.Category
+      if (!c) return
+      all.add(c)
+      if (truthy(r.Keep)) kept.add(c)
+    })
+    return { kept: [...kept].sort(),
+             droppedOnly: [...all].filter((c) => !kept.has(c)).sort() }
+  }, [rows])
+  const tags = useMemo(() => {
+    const kept = new Set(); const all = new Set()
+    rows.forEach((r) => splitList(r.Suggested_Tags).forEach((t) => {
+      all.add(t)
+      if (truthy(r.Keep)) kept.add(t)
+    }))
+    const cmp = (a, b) => a.toLowerCase().localeCompare(b.toLowerCase())
+    return { kept: [...kept].sort(cmp),
+             droppedOnly: [...all].filter((t) => !kept.has(t)).sort(cmp) }
+  }, [rows])
   const kept = useMemo(() => rows.reduce((n, r) => n + (truthy(r.Keep) ? 1 : 0), 0), [rows])
   const prunedKeys = useMemo(() => rows.reduce((n, r) => n + (r?.Prune_Reason && !truthy(r.Keep) ? 1 : 0), 0), [rows])
   const keptShown = useMemo(() => vis.reduce((n, i) => n + (truthy(rows[i]?.Keep) ? 1 : 0), 0), [vis, rows])
@@ -1430,7 +1456,12 @@ export default function ReviewPage({ onNavigate }) {
                    onChange={(e) => setFilters((f) => ({ ...f, q: e.target.value }))} />
             <select value={filters.cat} onChange={(e) => setFilters((f) => ({ ...f, cat: e.target.value }))} aria-label="Category filter">
               <option value="">All categories</option>
-              {cats.map((c) => <option key={c}>{c}</option>)}
+              {cats.kept.map((c) => <option key={c}>{c}</option>)}
+              {cats.droppedOnly.length > 0 && (
+                <optgroup label="— only on dropped rows —">
+                  {cats.droppedOnly.map((c) => <option key={c}>{c}</option>)}
+                </optgroup>
+              )}
             </select>
             {filters.cat && (
               <button className="ghost sm" onClick={() => renameCategory(filters.cat)}
@@ -1448,7 +1479,12 @@ export default function ReviewPage({ onNavigate }) {
             </select>
             <select value={filters.tag} onChange={(e) => setFilters((f) => ({ ...f, tag: e.target.value }))} aria-label="Tag filter">
               <option value="">All tags</option>
-              {tags.map((t) => <option key={t}>{t}</option>)}
+              {tags.kept.map((t) => <option key={t}>{t}</option>)}
+              {tags.droppedOnly.length > 0 && (
+                <optgroup label="— only on dropped rows —">
+                  {tags.droppedOnly.map((t) => <option key={t}>{t}</option>)}
+                </optgroup>
+              )}
             </select>
             <label className="rv-cbx"><input type="checkbox" checked={filters.pii} onChange={(e) => setFilters((f) => ({ ...f, pii: e.target.checked }))} /> PII only</label>
             <label className="rv-cbx"><input type="checkbox" checked={filters.kept} onChange={(e) => setFilters((f) => ({ ...f, kept: e.target.checked }))} /> Kept only</label>
