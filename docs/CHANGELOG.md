@@ -14,6 +14,20 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.36.53] - 2026-08-10
+
+### Fixed - the Review page rendered blank on .52
+
+The silent-heal effect read catBusy in its dependency array, and that
+state was declared ~300 lines below it. Dependency arrays evaluate during
+render, so the reference hit the temporal dead zone and the whole page
+unmounted to white - a class of crash neither the bundler nor a bundle
+grep can catch, which is exactly how it escaped (field-caught seconds
+into the .52 clean install). The declaration moved up beside its sibling
+agent states with a comment explaining why it must stay there, and the
+fix was verified by RENDERING the page, not by grepping the bundle - the
+lesson as much as the fix.
+
 ## [1.36.52] - 2026-08-10
 
 ### Added - the Review lifecycle: approve the keystone, then complete

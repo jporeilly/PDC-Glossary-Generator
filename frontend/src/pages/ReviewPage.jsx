@@ -312,6 +312,11 @@ export default function ReviewPage({ onNavigate }) {
   const [advising, setAdvising] = useState(false)
   const [agent, setAgent] = useState(null)         // {label, done, total, proposed, cancelling}
   const [proposals, setProposals] = useState(null) // {label, note, items:{rowIndex:{patch, display, issues?}}} — inline pills
+  // declared HERE, with its sibling agent states: the silent-heal effect far
+  // below reads it in a dependency array, which evaluates during render — a
+  // later declaration is a temporal-dead-zone crash that blanks the page
+  // (field-caught on the .52 clean install; bundlers cannot catch TDZ)
+  const [catBusy, setCatBusy] = useState(false)
   const [evidence, setEvidence] = useState(null)   // row index | null
   const [busy, setBusy] = useState(null)           // 'load' | 'enhance' | 'save'
   const [saveName, setSaveName] = useState('')
@@ -827,7 +832,6 @@ export default function ReviewPage({ onNavigate }) {
   // still discriminate, every table placed in one. Proposals only: the steward
   // confirms, the Rename button adjusts, Export pack freezes the outcome.
   // Tables the model leaves out keep their physical group, visibly.
-  const [catBusy, setCatBusy] = useState(false)
   async function aiCategories() {
     setCatBusy(true)
     setMsg('Proposing business categories from the schema\u2026')
