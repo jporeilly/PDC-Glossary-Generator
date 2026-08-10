@@ -38,6 +38,9 @@ def _load():
 
 
 def _save(entries):
+    # self-healing: recreate the state directory if it vanished under a
+    # running server (same field case as api._write_json)
+    os.makedirs(os.path.dirname(os.path.abspath(AUDIT_FILE)) or ".", exist_ok=True)
     tmp = AUDIT_FILE + ".tmp"
     with open(tmp, "w", encoding="utf-8") as f:
         json.dump(entries, f, indent=2)

@@ -14,6 +14,21 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.36.47] - 2026-08-10
+
+### Fixed - state writes self-heal when the directory vanishes
+
+The fresh-install exam's first finding: wipe the state directory AFTER the
+app has launched (the natural order - install, launch, remember the wipe)
+and every write endpoint answered 500 Internal Server Error while reads
+kept working. Import-into-app-connections and Harvest both died on virgin
+soil: the atomic writers (api._write_json, the dictionary's _save_locked,
+the audit trail's _save) created their temp files in a directory they
+assumed still existed. All three now recreate it first - losing state to a
+deliberate wipe is acceptable, a half-dead server is not. Reproduced,
+fixed, and pinned by a test that deletes the state dir under a running
+TestClient. Workaround on ≤.46: restart the app.
+
 ## [1.36.46] - 2026-08-09
 
 ### Fixed - retired tags disappear everywhere, and the registry stops shouting

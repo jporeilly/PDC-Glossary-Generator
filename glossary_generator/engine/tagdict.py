@@ -395,6 +395,9 @@ def load():
 def _save_locked():
     if _DICT is None:
         return
+    # self-healing: recreate the state directory if it vanished under a
+    # running server (same field case as api._write_json)
+    os.makedirs(os.path.dirname(os.path.abspath(DICT_FILE)) or ".", exist_ok=True)
     tmp = DICT_FILE + ".tmp"
     with open(tmp, "w", encoding="utf-8") as f:
         json.dump(_DICT, f, indent=2)

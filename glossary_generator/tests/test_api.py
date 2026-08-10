@@ -602,3 +602,24 @@ class TestDictionarySyncOnEntry:
         d = client.post("/api/tagdict/sync", json={}).json()
         assert d.get("pending_refreshed") == 0
         assert "terms" in d and "tags" in d
+
+
+class TestWritesSurviveAVanishedStateDir:
+    def test_write_recreates_the_directory(self, client, fresh_dict):
+        """Delete the state dir under a RUNNING server (the fresh-install wipe
+           done after launch) and every write endpoint 500'd with
+           FileNotFoundError while reads kept working - import connections and
+           Harvest both died on virgin soil (field-caught). Writers now
+           recreate the directory: state loss is acceptable on a deliberate
+           wipe, a dead server is not."""
+        import os, shutil
+        from core import paths
+        csv = ("resourceName,kind,host,port,databaseName,userName,password,schemaNames\n"
+               "AWO,postgres,h,5433,db,u,p,s\n")
+        r = client.post("/api/connections/import-csv", json={"csv": csv, "only": ["AWO"]})
+        assert r.status_code == 200
+        shutil.rmtree(paths.state_dir())                      # the mid-life wipe
+        assert not os.path.isdir(paths.state_dir())
+        r2 = client.post("/api/connections/import-csv", json={"csv": csv, "only": ["AWO"]})
+        assert r2.status_code == 200, "writes must self-heal, not 500"
+        assert os.path.isdir(paths.state_dir())

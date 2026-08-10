@@ -173,6 +173,11 @@ def _write_json(path, data):
     import tempfile, time
     d = os.path.dirname(os.path.abspath(path)) or "."
     with _WRITE_JSON_LOCK:
+        # SELF-HEALING: recreate the state directory if it vanished under a
+        # running server (field-caught on a fresh install - the user wiped
+        # %APPDATA%\com.pentaho.pdc-glossary after launch, and every write
+        # endpoint 500'd with FileNotFoundError while reads kept working)
+        os.makedirs(d, exist_ok=True)
         fd, tmp = tempfile.mkstemp(dir=d, prefix=".tmp-", suffix=".json")
         try:
             with os.fdopen(fd, "w", encoding="utf-8") as f:
