@@ -86,6 +86,12 @@ export default function DictionaryPage({ onNavigate }) {
   // from scans whose rows are gone. Server-computed (/api/tagdict/pending-
   // health) so the check spans every glossary, not just the loaded one.
   const [stale, setStale] = useState({ terms: [], tags: [] })
+  // Sync status for the steward's eyes: 'checking' while the one-way sync
+  // runs, {ok, refreshed} when the queue reflects the live Review grid,
+  // {ok:false, msg} when the sync failed (page falls back to an unsynced
+  // read so it still renders). Field-caught: the Sync button worked but
+  // said nothing, so nobody could tell.
+  const [syncState, setSyncState] = useState(null)
 
   const load = () => {
     setLoadErr(null)
@@ -95,8 +101,18 @@ export default function DictionaryPage({ onNavigate }) {
     // state every time (accepted edits, case renames, key retro-retires) —
     // same one-way rules, governed entries never change. Health is fetched
     // AFTER the sync lands so its stale list reflects the synced queue.
-    const fetchDict = (ws.rows || []).length
+    const hasRows = (ws.rows || []).length > 0
+    if (hasRows) setSyncState('checking')
+    const fetchDict = hasRows
       ? apiPost('/api/tagdict/sync', { rows: ws.rows, actor: actor.trim() })
+          .then((d) => {
+            setSyncState({ ok: true, refreshed: d.pending_refreshed || 0 })
+            return d
+          })
+          .catch((e) => {
+            setSyncState({ ok: false, msg: e.message })
+            return apiGet('/api/tagdict')      // unsynced, but the page renders
+          })
       : apiGet('/api/tagdict')
     fetchDict.then((d) => {
       setDict(d)
@@ -588,10 +604,29 @@ export default function DictionaryPage({ onNavigate }) {
               </div>
               {pendingTerms.length > 0 && (
                 <span className="pending-ai">
-                  <button className="ghost mini" onClick={load} disabled={reviewing}
-                          title="Pull the latest Review-grid state into this queue now: accepted edits refresh pending entries, corrected casings adopt, auto-pruned keys retire. The page already syncs itself on every visit — use this after editing on Review mid-session, and before AI review so the advice targets current entries.">
+                  <button className="ghost mini" onClick={load}
+                          disabled={reviewing || syncState === 'checking' || !(ws.rows || []).length}
+                          title={(ws.rows || []).length
+                            ? 'Pull the latest Review-grid state into this queue now: accepted edits refresh pending entries, corrected casings adopt, auto-pruned keys retire. The page already syncs itself on every visit — use this after editing on Review mid-session, and before AI review so the advice targets current entries.'
+                            : 'No glossary is loaded on Review — there is nothing to sync from.'}>
                     ⟳ Sync from Review
                   </button>
+                  {syncState === 'checking' && (
+                    <span className="conn"><span className="dot checking" /> syncing…</span>
+                  )}
+                  {syncState && syncState.ok && (
+                    <span className="conn"
+                          title="This queue reflects the Review grid as of the last sync (the page also syncs itself on every visit).">
+                      <span className="dot ok" />
+                      {syncState.refreshed ? `synced · ${syncState.refreshed} refreshed` : 'in sync with Review'}
+                    </span>
+                  )}
+                  {syncState && syncState.ok === false && (
+                    <span className="conn" title={syncState.msg}>
+                      <span className="dot" style={{ background: 'var(--status-critical)' }} />
+                      not synced — showing the last saved state
+                    </span>
+                  )}
                   <button className="primary mini" onClick={aiReview} disabled={reviewing}
                           title="Advise per candidate: a deterministic near-duplicate check against the governed vocabulary, then the local AI judges the rest from the captured context (category, definition, sources). Advice only — you still click.">
                     {reviewing ? 'Reviewing…' : 'AI review pending…'}

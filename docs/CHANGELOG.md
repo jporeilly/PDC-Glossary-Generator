@@ -14,6 +14,19 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.36.49] - 2026-08-10
+
+### Added - the Sync button says whether you are synced
+
+It worked silently, which reads as not working ("not sure if the sync from
+review button does anything" - fair). It now speaks the app's status-dot
+language: a pulsing dot while the one-way sync runs, green "in sync with
+Review · N refreshed" when the queue reflects the live grid, and red "not
+synced - showing the last saved state" when the sync failed (the page
+falls back to an unsynced read rather than dying). The button also
+disables itself when no glossary is loaded on Review - there is nothing
+to sync from, and a button that no-ops teaches distrust.
+
 ## [1.36.48] - 2026-08-10
 
 ### Fixed - the filter dropdowns follow the settled taxonomy
