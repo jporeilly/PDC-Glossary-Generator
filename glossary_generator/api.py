@@ -3163,6 +3163,38 @@ def pdc_terms_existing(body: dict = Body(default={})):
     return {"found": found, "checked": len(names), "hits": len(found)}
 
 
+@app.post("/api/pdc/glossary-tree-check")
+def pdc_glossary_tree_check(body: dict = Body(default={})):
+    """The import-side sibling of "re-profiling is additive": a PDC import
+    updates matching terms in place (deterministic UUID5 ids) but never
+    REMOVES categories from previous imports, so the glossary tree
+    accumulates eras (field-caught: three naming generations in one tree).
+    Given the glossary name and the export's category list, report what PDC
+    currently holds that the export no longer carries - the folders that
+    will linger after import unless deleted in PDC first."""
+    from sources import pdc_api
+    body = body or {}
+    base = (body.get("base_url") or "").strip()
+    version = body.get("version") or "v2"
+    verify = bool(body.get("verify_tls", False))
+    glossary = (body.get("glossary") or "").strip()
+    cats = [str(c).strip() for c in (body.get("categories") or []) if str(c).strip()]
+    if not base or not glossary:
+        return _err("PDC base URL and glossary name are required", 400)
+    try:
+        token, _ = _pdc_token_and_reauth(body, base, version, verify)
+        res = pdc_api.glossary_categories(base, token, glossary,
+                                          version=version, verify_tls=verify)
+    except Exception as e:
+        return _err(str(e)[:300], 502)
+    if not res.get("exists"):
+        return {"exists": False, "pdc_categories": [], "lingering": [],
+                "partial": False}
+    export_l = {c.lower() for c in cats}
+    lingering = [c for c in res.get("categories") or [] if c.lower() not in export_l]
+    return {"exists": True, "pdc_categories": res.get("categories") or [],
+            "lingering": lingering, "partial": bool(res.get("partial"))}
+
 @app.post("/api/pdc/source-config")
 def pdc_source_config(body: dict = Body(default={})):
     """Return the raw stored config of a PDC data source (secrets redacted) so you can

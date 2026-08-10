@@ -171,7 +171,7 @@ export default function ApplyPage({ onNavigate }) {
       </details>
 
       <GenerateCard rows={ws.rows} glossaryName={glossaryName} governance={ws.governance}
-                    settings={settings} onNavigate={onNavigate} />
+                    settings={settings} onNavigate={onNavigate} authBody={authBody} />
       <ConnectionCard conn={conn} setConn={setConn} saveConn={saveConn} />
       <DataElementsCard rows={ws.rows} glossaryName={glossaryName} de={de} setDe={setDe} />
       <ResolveCard de={de} setDe={setDe} authBody={authBody} glossaryName={glossaryName}
@@ -187,7 +187,7 @@ export default function ApplyPage({ onNavigate }) {
 
 /* ---------- step 0: generate the import JSONL (+ Registry) and draft policies ---------- */
 
-function GenerateCard({ rows, glossaryName, governance, settings, onNavigate }) {
+function GenerateCard({ rows, glossaryName, governance, settings, onNavigate, authBody }) {
   const keptRows = rows.filter((r) => truthy(r.Keep))
   const kept = keptRows.length
   // Stewardship is optional and nothing gates it: the JSONL exports, PDC accepts
@@ -208,6 +208,27 @@ function GenerateCard({ rows, glossaryName, governance, settings, onNavigate }) 
   const [gen, setGen] = useState(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
+  // PDC-tree preflight: what does PDC hold under this glossary that the
+  // export no longer carries? Imports update terms in place but never REMOVE
+  // categories, so earlier eras linger in the tree unless deleted first
+  // (field-caught: three naming generations in one glossary).
+  const [tree, setTree] = useState(null)
+  const [treeBusy, setTreeBusy] = useState(false)
+
+  async function checkTree() {
+    setTreeBusy(true)
+    setTree(null)
+    try {
+      const cats = [...new Set(keptRows.map((r) => r.Category).filter(Boolean))]
+      setTree(await apiPost('/api/pdc/glossary-tree-check', {
+        ...authBody(), glossary: glossaryName.trim(), categories: cats,
+      }))
+    } catch (e) {
+      setError(e.message)
+    } finally {
+      setTreeBusy(false)
+    }
+  }
   const [draft, setDraft] = useState(null)
   const [draftBusy, setDraftBusy] = useState(false)
   const [draftAi, setDraftAi] = useState(true)
@@ -389,6 +410,29 @@ function GenerateCard({ rows, glossaryName, governance, settings, onNavigate }) 
           <br />
           Fine for a draft you are circulating for comment. Not fine for the version someone
           will be asked to defend.
+        </div>
+      )}
+      <div className="actions" style={{ marginTop: 0 }}>
+        <button className="ghost" disabled={treeBusy || !glossaryName.trim() || !authBody}
+                onClick={checkTree}
+                title="Read the categories PDC currently holds under this glossary and compare them with this export. Imports update terms in place but never REMOVE categories, so folders from earlier imports linger unless deleted in PDC first. Uses the PDC connection card below.">
+          {treeBusy ? 'Checking PDC tree…' : 'Check PDC tree for lingering categories'}
+        </button>
+        {tree && !tree.exists && (
+          <span className="notes">glossary “{glossaryName.trim()}” is not in PDC yet — the first import creates it clean.</span>
+        )}
+        {tree && tree.exists && tree.lingering.length === 0 && (
+          <span className="notes">✓ PDC&apos;s tree matches this export{tree.partial ? ' (large tree — the scan may be partial)' : ''}.</span>
+        )}
+      </div>
+      {tree && tree.exists && tree.lingering.length > 0 && (
+        <div className="notice-warn">
+          <b>{tree.lingering.length} categor{tree.lingering.length === 1 ? 'y' : 'ies'} in PDC
+          that this export no longer carries:</b> {tree.lingering.join(' · ')}.
+          Import updates terms in place but never removes categories — these folders will
+          linger in PDC&apos;s tree. Delete them (or the whole glossary) in PDC before
+          importing, or accept the residue deliberately.
+          {tree.partial ? ' Large tree — the scan may be partial.' : ''}
         </div>
       )}
       {error && <div className="error">{error}</div>}

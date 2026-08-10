@@ -362,6 +362,52 @@ def glossary_exists(base_url, token, name, version="v2", verify_tls=True, timeou
             "matches": matches}
 
 
+def glossary_categories(base_url, token, glossary_name, version="v2",
+                        verify_tls=True, timeout=30, max_pages=12):
+    """Names of the category folders PDC currently holds under ONE business
+    glossary. There is no public list-glossary endpoint (see resolve_terms'
+    contract note), so: resolve the glossary root via search, then try
+    server-side type filters a glossary tree may use, falling back to an
+    unfiltered page-walk scoped by _under_root. `partial` goes True when the
+    page cap may have truncated the walk - the caller must say so rather than
+    report a clean tree it only half-saw.
+    Returns {"exists", "id", "name", "categories": [names], "partial"}."""
+    g = glossary_exists(base_url, token, glossary_name, version=version,
+                        verify_tls=verify_tls, timeout=timeout)
+    if not g.get("id"):
+        return {"exists": False, "id": None, "name": None,
+                "categories": [], "partial": False}
+    gid, gname = g["id"], g.get("name")
+
+    def _cat_like(e):
+        t = str(e.get("type") or e.get("originalType") or "").lower()
+        return "categ" in t and "term" not in t
+
+    def _collect(filters):
+        try:
+            ents = filter_entities(base_url, token, filters, version=version,
+                                   verify_tls=verify_tls, timeout=timeout,
+                                   max_pages=max_pages)
+        except Exception:
+            return [], False
+        names = sorted({str(e.get("name") or "").strip() for e in ents
+                        if e.get("name") and _cat_like(e)
+                        and _under_root(e, gid, gname)})
+        return names, len(ents) >= 500 * max_pages
+
+    # cheap paths first: a matching server-side type filter returns only the
+    # tree; an unknown type value may be ignored by PDC and return everything,
+    # which _cat_like + _under_root still reduce correctly
+    for tname in ("CATEGORY", "GLOSSARY_CATEGORY", "BUSINESS_GLOSSARY_CATEGORY"):
+        names, capped = _collect({"types": [tname]})
+        if names:
+            return {"exists": True, "id": gid, "name": gname,
+                    "categories": names, "partial": capped}
+    names, capped = _collect({})
+    return {"exists": True, "id": gid, "name": gname,
+            "categories": names, "partial": capped}
+
+
 def _resolve_object_entity(base_url, token, rec, version="v2", verify_tls=True, timeout=30):
     """Resolve an object-store record (bucket=schemaName, folder=tableName,
        file=columnName, type OBJECT/FILE) to its PDC FILE/OBJECT entity.

@@ -14,6 +14,35 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.36.50] - 2026-08-10
+
+### Fixed - row identity is evidence, not labels
+
+The fresh-install exam's big one: 133 kept terms became 248, with 96 names
+repeating across categories. Rows merged into the workspace on the old
+Category|Term key - and Category and Term are precisely the fields a review
+SETTLES, so after renaming, every re-ingestion (re-scan, harvest) matched
+nothing and appended the whole estate again. Identity now comes from the
+source columns a row carries - the one thing steward edits never change -
+in a shared rowmerge module (Connect's merge delegates to it; the fold
+preserves steward work by construction: owner's edits and Keep stand, only
+evidence is absorbed). For grids the old key already damaged, Review's
+DUPLICATES group grows a repair - "Fold same-source rows (N)", shown only
+when damage exists - that folds each duplicate into its settled owner and
+removes it. Shape pinned in test_docs, including "no Category|Term row key
+survives".
+
+### Added - Apply preflight: what will linger in PDC's tree
+
+A PDC import updates terms in place (deterministic ids) but never REMOVES
+categories, so the glossary tree accumulates eras - three naming
+generations were visible in one tree (field-caught). "Check PDC tree for
+lingering categories" on the Generate card reads what PDC currently holds
+under the glossary (search-resolved root + entities/filter, honest
+`partial` flag when pagination may truncate - PDC has no list endpoint)
+and names the folders this export no longer carries, so deleting them
+first is a decision, not a surprise.
+
 ## [1.36.49] - 2026-08-10
 
 ### Added - the Sync button says whether you are synced

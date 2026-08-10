@@ -185,3 +185,26 @@ def test_llm_chip_provenance_stays_per_field():
         "field chips must go through llmChip so the legacy fallback stays scoped"
     assert "delete patch.LLM_Enriched" in src, \
         "the whole-row accept must strip the legacy flag too"
+
+
+def test_row_identity_is_evidence_not_labels():
+    """133 kept became 248: rows merged on the Category|Term key, the steward
+       renamed exactly those fields, and a re-ingestion appended the whole
+       estate again (field-caught on the fresh-install exam). Identity must
+       come from source columns - the one thing steward edits never change.
+       Pin the shape: the shared merge module exists, Connect delegates to it,
+       Review carries the repair, and no Category|Term row key survives."""
+    base = os.path.join(REPO, "frontend", "src")
+    if not os.path.isfile(os.path.join(base, "rowmerge.js")):
+        if not os.path.isdir(base):
+            return              # backend-only checkout
+        raise AssertionError("rowmerge.js must exist - row identity lives there")
+    rm = _read(os.path.join(base, "rowmerge.js"))
+    assert "IDENTITY IS EVIDENCE, NOT LABELS" in rm
+    assert "mergeBySource" in rm and "selfFold" in rm and "sameSourceCount" in rm
+    cp = _read(os.path.join(base, "pages", "ConnectPage.jsx"))
+    assert "mergeBySource" in cp, "Connect's workspace merge must use source identity"
+    assert "rowKey" not in cp, "the Category|Term row key must not survive"
+    rv = _read(os.path.join(base, "pages", "ReviewPage.jsx"))
+    assert "Fold same-source rows" in rv and "selfFold" in rv, \
+        "Review must carry the repair for grids the old key already damaged"

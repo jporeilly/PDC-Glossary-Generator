@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { apiGet, apiPost, apiDelete, runJob } from './../api.js'
 import { getWorkspace, setRows, setDiscovery, setPdcSession, useWorkspace, usePersistentState } from './../state.js'
+import { mergeBySource } from './../rowmerge.js'
 import './connect.css'
 
 // Connect page — the React port of the old UI's Connections page: the PDC
@@ -42,74 +43,16 @@ const splitKey = (key) => {
   return i >= 0 ? [key.slice(0, i + 1), key.slice(i + 1)] : ['', key || '']
 }
 
-const rowKey = (r) => `${r.Category}|${String(r.Term || '').toLowerCase()}`
-
 const splitCols = (s) => String(s || '').split(';').map((t) => t.trim()).filter(Boolean)
 
-// One Category|Term collision: fold the new row's source linkage + scan
-// evidence into the existing row (immutably). Mirrors the backend's own
-// within-scan dedupe (suggester.py, "dedup by (Category, Term)"): the kept
-// row's edits win, but it gains the new source's column path(s), per-source
-// ratings / keys / DQ dims, the max rating, and any evidence it was missing.
-function foldSources(base, nr) {
-  const next = { ...base }
-  const seen = new Set(splitCols(base.Source_Column))
-  const cols = [...seen]
-  splitCols(nr.Source_Column).forEach((s) => { if (!seen.has(s)) { seen.add(s); cols.push(s) } })
-  next.Source_Column = cols.join('; ')
-  for (const f of ['Source_Ratings', 'Source_Keys', 'Source_Quality_Dims']) {
-    if (nr[f] && Object.keys(nr[f]).length) next[f] = { ...(base[f] || {}), ...nr[f] }
-  }
-  const rating = Math.max(parseInt(base.Suggested_Rating || 0, 10) || 0,
-                          parseInt(nr.Suggested_Rating || 0, 10) || 0)
-  if (rating || base.Suggested_Rating != null) next.Suggested_Rating = rating
-  // Suggested_Quality was missing here, so a colliding row kept its
-  // Source_Quality_Dims (merged just above) and lost the score derived from
-  // them. Re-scanning an object store with content profiling ON therefore
-  // reported "5 existing term(s) gained this source's evidence" and left every
-  // Data Quality blank — the evidence arrived, the number did not, and the
-  // Apply step had nothing to write. Highest wins, matching the rating above.
-  // Only set when non-zero: an unprofilable row (pdf/docx) must stay WITHOUT a
-  // score rather than acquire a 0, which would assert measured-and-terrible.
-  const quality = Math.max(parseInt(base.Suggested_Quality || 0, 10) || 0,
-                           parseInt(nr.Suggested_Quality || 0, 10) || 0)
-  if (quality) next.Suggested_Quality = quality
-  for (const f of ['Value_Signature', 'Value_Pattern', 'Enum_Values']) {
-    if (!next[f] && nr[f]) next[f] = nr[f]
-  }
-  return next
-}
-
-// Merge scanned/harvested rows into the shared workspace on the old UI's
-// Category|Term key (static/js/05-connections.js scanConn). The legacy add
-// path SKIPPED a colliding row outright, which silently threw away the new
-// source's columns and evidence — scan the same schema from a second source
-// and "Add to glossary" reported them all as dups with nothing to show.
-// Collisions now merge instead (matching the backend's within-scan dedupe):
-// distinct terms append, same-key terms absorb the new sources/evidence.
+// Merge scanned/harvested rows into the shared workspace BY SOURCE IDENTITY
+// (rowmerge.js). The old Category|Term key broke the moment the steward
+// settled the taxonomy — renamed categories changed every key, so a
+// re-ingestion appended the whole estate again (133 kept became 248,
+// field-caught). A row is its source columns; labels are the steward's.
 function mergeIntoWorkspace(newRows) {
-  const cur = getWorkspace().rows
-  if (!cur.length) {
-    setRows(newRows)
-    return { added: newRows.length, dup: 0 }
-  }
-  const out = [...cur]
-  const at = new Map(out.map((r, i) => [rowKey(r), i]))
-  let added = 0
-  let dup = 0
-  for (const nr of newRows) {
-    const k = rowKey(nr)
-    if (at.has(k)) {
-      const i = at.get(k)
-      out[i] = foldSources(out[i], nr)
-      dup++
-      continue
-    }
-    at.set(k, out.length)
-    out.push(nr)
-    added++
-  }
-  setRows(out)
+  const { rows, added, dup } = mergeBySource(getWorkspace().rows, newRows)
+  setRows(rows)
   return { added, dup }
 }
 
