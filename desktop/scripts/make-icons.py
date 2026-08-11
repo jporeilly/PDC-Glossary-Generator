@@ -23,6 +23,12 @@ parser.add_argument("--title", default="PDC Glossary Generator",
 parser.add_argument("--strapline", default="Build a governed business glossary",
                     help="one line under the product title on the sidebar")
 parser.add_argument("--nsis-only", action="store_true", help="only regenerate the NSIS bitmaps")
+# The per-app badge on the app icon. The suite shares the red swirl; the badge
+# is what tells the three taskbar pins apart at 24 px: Glossary = a governed
+# term TAG, Insights = a bar CHART, Policy = a SHIELD with a check.
+parser.add_argument("--badge", default="tag", choices=["tag", "chart", "shield", "none"])
+parser.add_argument("--badge-color", default="#16A34A",
+                    help="badge circle colour (this app: glossary green)")
 args = parser.parse_args()
 
 repo = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -55,6 +61,65 @@ def colorize(alpha, color, scale):
     out.putalpha(a)
     return out
 
+# ---------------- per-app badge glyphs -------------------------
+def draw_badge(img, S, kind, color_hex):
+    """A coloured circle in the lower-right with a simple white glyph.
+
+    Pure shapes, no text: the badge must read at 16-24 px, where a letter is
+    mush. A white ring separates the circle from the red field behind it."""
+    if kind == "none":
+        return
+    c = tuple(int(color_hex.lstrip("#")[i:i + 2], 16) for i in (0, 2, 4))
+    cx, cy, r = int(S * 0.735), int(S * 0.735), int(S * 0.205)
+    ring = int(S * 0.024)
+    d = ImageDraw.Draw(img)
+    d.ellipse([cx - r - ring, cy - r - ring, cx + r + ring, cy + r + ring],
+              fill=(255, 255, 255, 255))
+    d.ellipse([cx - r, cy - r, cx + r, cy + r], fill=c + (255,))
+
+    if kind == "chart":
+        # Four bars, the app's own sidebar mark: heights 10/13/7/9.
+        heights = [10, 13, 7, 9]
+        unit = (r * 1.24) / 13
+        bw = int(r * 0.24)
+        gap = int(r * 0.13)
+        total_w = 4 * bw + 3 * gap
+        x = cx - total_w // 2
+        base = cy + int(r * 0.62)
+        for h in heights:
+            top = base - int(h * unit)
+            d.rounded_rectangle([x, top, x + bw, base], radius=bw // 3,
+                                fill=(255, 255, 255, 255))
+            x += bw + gap
+    elif kind == "shield":
+        # Shield outline as a polygon (curves approximated), check inside.
+        w, h = r * 1.30, r * 1.46
+        pts = [(0.0, -0.50), (0.30, -0.42), (0.46, -0.38), (0.46, -0.02),
+               (0.40, 0.18), (0.24, 0.36), (0.0, 0.50), (-0.24, 0.36),
+               (-0.40, 0.18), (-0.46, -0.02), (-0.46, -0.38), (-0.30, -0.42)]
+        d.polygon([(cx + px * w, cy + py * h) for px, py in pts],
+                  fill=(255, 255, 255, 255))
+        lw = int(r * 0.16)
+        chk = [(cx - w * 0.22, cy + h * 0.00), (cx - w * 0.05, cy + h * 0.16),
+               (cx + w * 0.26, cy - h * 0.18)]
+        d.line(chk, fill=c + (255,), width=lw, joint="curve")
+        for px, py in (chk[0], chk[2]):
+            d.ellipse([px - lw / 2, py - lw / 2, px + lw / 2, py + lw / 2], fill=c + (255,))
+    else:  # tag
+        # A governed-term tag: rounded square rotated 45 deg, hole punched in
+        # the badge colour. Drawn on its own layer so the rotation stays crisp.
+        side = int(r * 1.18)
+        layer = Image.new("RGBA", (side * 2, side * 2), (0, 0, 0, 0))
+        ld = ImageDraw.Draw(layer)
+        ld.rounded_rectangle([side // 2, side // 2, side // 2 + side, side // 2 + side],
+                             radius=side // 5, fill=(255, 255, 255, 255))
+        layer = layer.rotate(45, resample=Image.BICUBIC, expand=False)
+        img.alpha_composite(layer, (cx - side, cy - side))
+        hole = int(r * 0.14)
+        hx, hy = cx, cy - int(r * 0.46)
+        d.ellipse([hx - hole, hy - hole, hx + hole, hy + hole], fill=c + (255,))
+
+
 # ---------------- 1024 icon (always Pentaho red) ----------------
 if not args.nsis_only:
     S = 2048
@@ -70,7 +135,10 @@ if not args.nsis_only:
     img.paste(bg, (0, 0), mask)
 
     sw = colorize(swirl_a, WHITE, (S * 0.72) / swirl_a.width)
-    img.alpha_composite(sw, (int((S - sw.width) / 2), int((S - sw.height) / 2)))
+    # Nudged up-left so the badge owns the lower-right corner.
+    img.alpha_composite(sw, (int((S - sw.width) / 2 - S * 0.03),
+                             int((S - sw.height) / 2 - S * 0.03)))
+    draw_badge(img, S, args.badge, args.badge_color)
     img = img.resize((1024, 1024), Image.LANCZOS)
     img.save(os.path.join(icons, "icon-source.png"))
 
