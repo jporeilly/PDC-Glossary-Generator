@@ -14,6 +14,22 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.36.56] - 2026-08-11
+
+### Changed - one grid writer, in the working order
+
+After 1.36.55 made non-empty grids always merge, Scan and Add to glossary
+were the same behavior wearing two names - and the replace-flavored one
+had already wiped a grid, while Discover's name suggested it might add
+rows (it never has; it profiles). The product owner's collapse, shipped:
+the connection card now reads Test -> Discover -> Add to glossary, and
+"Add to glossary" is THE one action that writes the review grid - the
+first source starts the glossary, later sources join it, and scanning one
+source never touches another's rows. The separate Scan button is gone;
+tooltips and the "what each button does" explainer state each button's
+whole truth, including "profiles ONLY - it never adds rows" on Discover
+(the misread that cost half an hour this morning).
+
 ## [1.36.55] - 2026-08-11
 
 ### Fixed - scanning one source never deletes another's rows

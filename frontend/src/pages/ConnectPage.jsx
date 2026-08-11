@@ -1330,17 +1330,19 @@ function ConnectionCards({ conns, error, onEdit, onChanged, onDiscoverDb, onDisc
           <dl className="uth-dl">
             <dt>Test</dt>
             <dd>Validates the details before saving. The source stays unusable until it passes.</dd>
-            <dt>Scan</dt>
-            <dd>Reads the source and <b>starts a fresh glossary</b> — replaces the current candidate terms.</dd>
-            <dt>Add to glossary</dt>
-            <dd>
-              Scans another source and <b>merges</b> its terms into the existing glossary. This is
-              how one glossary spans a database <i>and</i> a document store.
-            </dd>
             <dt>Discover</dt>
             <dd>
               Reads values as well as structure, so confidence, sensitivity and data quality rest
-              on evidence rather than column names.
+              on evidence rather than column names. <b>Profiles only</b> — it never adds rows to
+              the review grid.
+            </dd>
+            <dt>Add to glossary</dt>
+            <dd>
+              <b>The one action that writes the review grid.</b> Scans this source and merges its
+              terms in by source identity — the first source starts the glossary, later sources
+              join it, and scanning one source never touches another&apos;s rows. This is how one
+              glossary spans a database <i>and</i> a document store. Working order:
+              Test → Discover → Add.
             </dd>
             <dt>Seed data</dt>
             <dd>
@@ -1572,24 +1574,30 @@ ${shown}
         {exportOnly && <span className="badge neutral" title={exportOnlyWhy}>export only</span>}
       </div>
       <div className="conn-det">{connDetail(c)}</div>
+      {/* ONE grid writer, buttons in the working order: Test → Discover →
+          Add to glossary. The separate "Scan" button is gone — after 1.36.55
+          made non-empty grids always merge, Scan and Add were the same
+          behavior wearing two names, and the replace-flavored one had already
+          wiped a grid ("surely the order would be Scan → Discover → Add, so
+          nothing interferes with adding to Glossary" — the product owner's
+          collapse, shipped). */}
       <div className="acts">
-        <button className="primary connect-sm" disabled={busy || exportOnly} onClick={() => scan('replace')}
-                title={exportOnly ? exportOnlyWhy
-                  : "Reads the source and starts a fresh glossary from it (replaces the current candidate terms)."}>Scan</button>
-        <button className="ghost connect-sm" disabled={busy || exportOnly} onClick={() => scan('add')}
-                title={exportOnly ? exportOnlyWhy
-                  : "Scans this source and merges its terms into the existing glossary."}>Add to glossary</button>
+        <button className="ghost connect-sm" disabled={busy} onClick={test}
+                title="Validate the connection details — read-only, touches nothing.">Test</button>
         {c.type !== 'ddl' && (
           <button className="ghost connect-sm" disabled={busy || exportOnly} onClick={discover}
-                  title={exportOnly ? exportOnlyWhy : c.type === 'minio'
-                    ? 'Profile the bucket: file counts, sizes, types and folders.'
-                    : 'Deeper profiling (distribution, uniqueness, patterns) so confidence and Data Quality are evidence-based.'}>Discover</button>
+                  title={exportOnly ? exportOnlyWhy : (c.type === 'minio'
+                    ? 'Profile the bucket: file counts, sizes, types and folders. '
+                    : 'Deeper profiling (distribution, uniqueness, patterns) so confidence and Data Quality are evidence-based. ')
+                    + 'Profiles ONLY — it never adds rows; Add to glossary is the one action that writes the grid.'}>Discover</button>
         )}
+        <button className="primary connect-sm" disabled={busy || exportOnly} onClick={() => scan('add')}
+                title={exportOnly ? exportOnlyWhy
+                  : 'The ONE action that writes the review grid: scans this source and merges its terms in — the first source starts the glossary, later sources join it, and no source ever touches another source\'s rows. Working order: Test → Discover → Add.'}>Add to glossary</button>
         {c.type === 'db' && (
           <button className="ghost connect-sm" disabled={busy} onClick={seed}
                   title="Populate empty/all tables with realistic sample data (writes rows).">Seed data</button>
         )}
-        <button className="ghost connect-sm" disabled={busy} onClick={test}>Test</button>
         <button className="ghost connect-sm" onClick={() => onEdit(c)}>Edit</button>
         <button className="ghost connect-sm" onClick={remove}>Delete</button>
       </div>
