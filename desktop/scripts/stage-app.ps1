@@ -63,7 +63,7 @@ $excludeFiles = @(
     "connections.json", "people.json", "audit_log.json", "tag_dictionary.json",
     "domain_pack.json", "datasources.csv"
 )
-$excludeDirs = @(".venv", "__pycache__", ".pytest_cache", "registries", "tests",
+$excludeDirs = @(".venv", "venv", "__pycache__", ".pytest_cache", "registries", "tests",
                  # 1.4 MB of documentation artwork. Referenced by docs/GUIDE.md
                  # and REFERENCE.md, so it stays in the REPO - but the app never
                  # serves it, and an installer is not where documentation images
@@ -123,8 +123,9 @@ $srcClient = Join-Path $repoRoot "pdc_client"
 if (-not (Test-Path -LiteralPath (Join-Path $srcClient "__init__.py"))) {
     throw "pdc_client\__init__.py not found at $srcClient"
 }
+# /XD names relative here too, for the same reason as above.
 & robocopy $srcClient (Join-Path $stageDir "pdc_client") "/E" "/NFL" "/NDL" "/NJH" "/NJS" "/NP" `
-    "/XD" (Join-Path $srcClient "__pycache__") | Out-Null
+    "/XD" "__pycache__" ".venv" "venv" | Out-Null
 if ($LASTEXITCODE -ge 8) { throw "robocopy failed staging pdc_client (exit $LASTEXITCODE)" }
 
 # Belt and braces: prove nothing sensitive slipped through. A rename or a new
@@ -134,6 +135,17 @@ $leaked = Get-ChildItem -LiteralPath $stageDir -Recurse -File |
 if ($leaked) {
     $leaked | ForEach-Object { Warn ("leaked: " + $_.FullName) }
     throw "state or secret files reached the staging tree - fix the exclude list"
+}
+
+# Same guard for dev virtualenvs. The staged tree runs on the VENDORED
+# runtime, so a bundled venv is a second, wrong Python - PDC-Policy shipped
+# one in every installer until someone listed the exe (934f61c there). The
+# excludes above prevent it; this proves it, for every tree staged above.
+$venvs = Get-ChildItem -LiteralPath $stageDir -Recurse -Directory |
+    Where-Object { $_.Name -eq ".venv" -or $_.Name -eq "venv" }
+if ($venvs) {
+    $venvs | ForEach-Object { Warn ("venv: " + $_.FullName) }
+    throw "a dev virtualenv reached the staging tree - fix the exclude list"
 }
 
 # The three paths the shell and the server actually depend on. Assert them here,
