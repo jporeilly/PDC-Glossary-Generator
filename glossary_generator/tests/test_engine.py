@@ -10,6 +10,7 @@ from ai import llm
 from engine import packgen
 from engine import policy_draft
 from engine import similarity
+from engine import suggester
 
 from conftest import make_row as _row
 
@@ -304,6 +305,43 @@ class TestPolicyDraft:
         blob = json.dumps(mn["rule"])
         assert "([bad" not in blob and "rogue-tag" not in blob and '"pii"' in blob, \
             "AI hints guard-railed"
+
+    def test_small_reference_tables_still_profile_as_enums(self):
+        """A flat n >= 10 floor starved exactly the most reference-y tables
+           there are: 8 water systems' counties and types carried NO enum
+           while a busy billing table's status did (field: "a pattern or
+           values must be available?"). The floor is now relative — each
+           value seen about twice — and the key-prune guard (near-unique
+           stays out) is untouched."""
+        vals = ["Maricopa", "Pima", "Maricopa", "Pinal", "Pima",
+                "Maricopa", "Pinal", "Maricopa"]           # 8 rows, 3 distinct
+        prof = suggester._profile_values("county", vals, len(vals))
+        assert prof.get("kind") == "enum", prof
+        assert set(prof["enum"]) == {"Maricopa", "Pima", "Pinal"}
+        ids = [f"ID{i}" for i in range(10)]                 # 10 rows, all distinct
+        prof2 = suggester._profile_values("code", ids, len(ids))
+        assert prof2.get("kind") != "enum", \
+            "near-unique values must never read as reference data"
+        # NULLs must not starve the gate: 8 sampled rows, 3 null — the 5
+        # non-null values are Compliant×3 / Warning×2, reference data by any
+        # honest reading (live-caught on system_water_quality_status)
+        vals3 = [None, "Compliant", None, "Warning", "Compliant",
+                 None, "Warning", "Compliant"]
+        prof3 = suggester._profile_values("compliance_status", vals3, len(vals3))
+        assert prof3.get("kind") == "enum", prof3
+        assert set(prof3["enum"]) == {"Compliant", "Warning"}
+
+    def test_skip_reason_tells_profiled_from_unprofiled(self):
+        """"no profiled evidence — re-scan with profiling on" was wrong
+           advice for rows profiling DID touch (numeric content induces no
+           shape). The reason now says which case the steward is in."""
+        rows = [_row("Ph Level", "awc.quality.ph_level",
+                     Suggested_Reason="Profiled"),
+                _row("Mystery Field", "awc.quality.mystery_field")]
+        art = policy_draft.draft_from_rows(rows, prefix="AWC")
+        why = {s["term"]: s["why"] for s in art["skipped"]}
+        assert why["Ph Level"].startswith("profiled, but"), why
+        assert why["Mystery Field"].startswith("no profiled evidence"), why
 
     def test_draft_zips_into_import_bundle(self):
         import io

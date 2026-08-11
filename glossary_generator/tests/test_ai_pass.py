@@ -434,6 +434,25 @@ class TestCategoriesTimeoutIsVisible:
             "the categories call needs at least 2x the AI-pass floor"
 
 
+class TestPolicyHintsNarrate:
+    def test_progress_fires_per_concept_with_the_term(self, monkeypatch):
+        """One model call per rule, previously in total silence — the
+           progress callback must fire once per concept with done/total and
+           the term just polished, so the job (and the steward) can watch."""
+        monkeypatch.setattr(llm, "status", lambda m=None: {"online": True})
+        monkeypatch.setattr(llm, "_warm", lambda m=None: None)
+        monkeypatch.setattr(llm, "_policy_hint_one",
+                            lambda c, allow, model=None, num_gpu=None:
+                            {"column_regex": ".*", "tags": []})
+        seen = []
+        concepts = [{"term": "Meter Size", "columns": "c", "evidence": "e"},
+                    {"term": "Zone Code", "columns": "c", "evidence": "e"}]
+        llm.policy_hints_rows(concepts, workers=1, progress=seen.append)
+        assert [e["done"] for e in seen] == [1, 2]
+        assert all(e["total"] == 2 and e["phase"] == "polish" for e in seen)
+        assert {e["term"] for e in seen} == {"Meter Size", "Zone Code"}
+
+
 class TestCategoriesPromptDemandsConsolidation:
     def _capture(self, monkeypatch):
         seen = {}

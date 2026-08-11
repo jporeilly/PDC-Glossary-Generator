@@ -561,8 +561,15 @@ def _profile_values(name, vals, sample_n):
                 "reason": "Profiled: phone-format values", "kind": "phone", "valid": round(frac(RX_PHONE), 3)}
     # an enum is a SMALL SET OF REPEATED CODES — require actual repetition
     # (uniq <= .5): a tiny demo table's 10 distinct ids otherwise profiles as
-    # an "enum", which reads as reference data and blocks the key prune
-    if distinct <= 12 and n >= 10 and uniq <= 0.5:
+    # an "enum", which reads as reference data and blocks the key prune.
+    # The floor is RELATIVE (each value seen ~twice), not a flat row count:
+    # a flat n >= 10 starved exactly the most reference-y tables there are —
+    # small lookups (8 water systems' counties/types carried NO enum while a
+    # busy billing table's status did; field-caught: "a pattern or values
+    # must be available?"). The flat part of the floor is 5, not 6: NULLs
+    # shrink the non-null sample, and a status column that is Compliant×3 /
+    # Warning×2 with 3 nulls is reference data by any honest reading.
+    if distinct <= 12 and n >= max(5, 2 * distinct) and uniq <= 0.5:
         return {**base, "confidence": "Medium", "kind": "enum",
                 "reason": f"Profiled: low cardinality ({distinct} distinct - reference-data candidate)",
                 "enum": sorted(set(strs))[:12]}
@@ -1315,6 +1322,42 @@ def document_path_prune(column):
     return None
 
 
+# Column-level scan noise the review should retire on sight (field-caught:
+# "some of these Terms should have been retired: Length Feet, Total Revenue
+# May 2026, Description"). Two CRISP signatures prune deterministically —
+# restorable, reason on the row; judgment calls stay with the AI advisor.
+_MONTH_RX = (r"(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|"
+             r"jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t|tember)?|oct(?:ober)?|"
+             r"nov(?:ember)?|dec(?:ember)?)")
+# a period stamp at the END of a column name: total_revenue_may_2026,
+# revenue_2026q1, budget_2026 — the stamp names WHEN, not what
+_COL_PERIOD = re.compile(
+    r"[._-](?:(?:19|20)\d{2}(?:[-_]?(?:%s|q[1-4]|h[12]|\d{2}))?"
+    r"|%s[-_]?(?:19|20)\d{2})$" % (_MONTH_RX, _MONTH_RX), re.I)
+# a BARE structural column — describes its table's rows, names no concept
+_STRUCTURAL_GENERIC = re.compile(
+    r"^(?:description|descr|desc|notes?|comments?|remarks?|memo)$", re.I)
+
+
+def column_noise_prune(column):
+    """Why this column name is scan noise that should start un-kept, or None.
+    Engine-agnostic (database and document columns alike): a period-stamped
+    snapshot column mints a NEW term per export period, and a bare
+    'description'/'notes' column is structure, not vocabulary."""
+    name = str(column or "").split("/")[-1].split(".")[-1].strip().lower()
+    if not name:
+        return None
+    if _STRUCTURAL_GENERIC.match(name):
+        return ("structural column name (%s) — describes its table's rows, "
+                "not a business concept; restore it if it names a real "
+                "concept here" % name)
+    if _COL_PERIOD.search(name):
+        return ("period-stamped snapshot column — the stamp names WHEN the "
+                "extract was cut, not what the data is; each new period "
+                "would mint another term")
+    return None
+
+
 def _pdc_stat(stats, *names):
     """First present, numeric value among `names` in a PDC profilingInfo.stats
        block. PDC has spelled these differently across versions, and the compare
@@ -1491,12 +1534,15 @@ def suggest(tables, schema=None):
             # Discovery walked a nested file. Those are structure, not concepts —
             # prune them the same way, with the reason on the row.
             _doc_prune = None if _structural else document_path_prune(c["column"])
-            _pruned = bool(_structural or _doc_prune)
+            # Column-name noise: period-stamped snapshots and bare structural
+            # columns (description/notes) — deterministic, restorable
+            _col_noise = None if (_structural or _doc_prune) else column_noise_prune(c["column"])
+            _pruned = bool(_structural or _doc_prune or _col_noise)
             rows.append({"Keep": ("N" if _pruned else "Y"),
                          "Prune_Reason": (("structural key — surrogate %s, tagged via the "
                                            "term↔column link, not a business term"
                                            % ("PK" if c["pk"] else "FK reference"))
-                                          if _structural else (_doc_prune or "")),
+                                          if _structural else (_doc_prune or _col_noise or "")),
                          "Category": row_category, "Term": name,
                          "Source_Column": src,
                          "Definition": define(c), "Purpose": purpose(c, row_category, name, pii),

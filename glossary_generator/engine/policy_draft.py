@@ -330,6 +330,10 @@ def draft_from_rows(rows, glossary_name="Business Glossary", prefix=None,
             elif not sig and not (r.get("Enum_Values") or "").strip():
                 if _no_value_shape(_cols_of(r)):
                     skipped.append({"term": term, "why": "tagged via the term↔column link, not a value pattern — a surrogate id / date / name / amount has no value shape to detect (expected)"})
+                elif str(r.get("Suggested_Reason") or "").startswith("Profiled"):
+                    # the row WAS profiled — telling the steward to re-scan
+                    # is wrong advice; the values simply induce no shape
+                    skipped.append({"term": term, "why": "profiled, but the values induce no shape (numeric or free-form content) — add a curated seed for this term to the domain pack if it should be detectable"})
                 else:
                     skipped.append({"term": term, "why": "no profiled evidence on the row — re-scan the live source with value profiling on to induce a custom pattern, or add a curated seed for this term to the domain pack"})
                 continue

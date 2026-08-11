@@ -604,6 +604,35 @@ class TestDictionarySyncOnEntry:
         assert "terms" in d and "tags" in d
 
 
+class TestDraftPoliciesJob:
+    def test_job_narrates_and_serves_the_bundle(self, client, fresh_dict):
+        """The AI polish ran for minutes behind a silent "Drafting…" (field:
+           "could do with some feedback"). The job twin narrates phases and
+           keeps the finished zip on the job — and the poll must NEVER leak
+           the raw bytes (underscore keys stay server-side)."""
+        import time
+        rows = [_row("Meter Size", "awc.meters.meter_size",
+                     Value_Pattern="^[0-9]{2}$")]
+        job = client.post("/api/jobs/draft-policies",
+                          json={"rows": rows, "glossary_name": "G"}).json()["job"]
+        for _ in range(100):
+            j = client.get(f"/api/jobs/{job}").json()
+            if j["status"] != "running":
+                break
+            time.sleep(0.05)
+        assert j["status"] == "done", j.get("detail")
+        assert "_zip" not in j, "underscore keys must not travel in the poll"
+        r = j["result"]
+        assert {"patterns", "dictionaries", "quality", "skipped"} <= set(r)
+        z = client.get(f"/api/jobs/{job}/zip")
+        assert z.status_code == 200
+        assert z.content[:2] == b"PK", "the stored bundle must be a real zip"
+
+    def test_zip_404s_for_jobs_without_a_bundle(self, client):
+        r = client.get("/api/jobs/nonexistent/zip")
+        assert r.status_code == 404
+
+
 class TestGlossaryTreeCheckWiring:
     def test_route_reaches_the_network_not_an_attribute_error(self, client):
         """glossary_categories lives in pdc_client.entities but was never

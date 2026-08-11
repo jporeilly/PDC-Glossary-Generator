@@ -14,6 +14,47 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.36.64] - 2026-08-11
+
+### Added - drafting narrates, and the bundle keeps its polish
+
+"Could do with some feedback when generating the draft policies" - the
+AI polish is one model call per rule and ran for minutes behind a silent
+"Drafting…". Draft policies now runs as a background job with a live
+line under the button: collecting detection seeds → AI polish · rule
+n of m — <term> → assembling rules & bundle (live-verified at rule 21 of
+36 on the estate). The finished zip is kept on the job and downloads
+from it, fixing a quiet fidelity gap: the old download re-drafted
+deterministically and silently dropped the AI hints the panel had just
+shown.
+
+### Fixed - small reference tables profile as the reference data they are
+
+The enum gate's flat floor (10+ sampled rows) starved exactly the most
+reference-y tables there are - 8 water systems' counties and types
+carried NO evidence while a busy billing table's status did ("a pattern
+or values must be available?"). The floor is now relative - each value
+seen about twice, minimum 5 non-null - so NULLs no longer starve it
+either (Compliant×3/Warning×2 with 3 nulls is reference data by any
+honest reading). Near-unique values still never read as enums: the
+key-prune guard is untouched. Live result: 30 rows carry reference
+lists where a handful did, and the drafter mints dictionaries for them.
+The skip reasons also now tell the truth: "profiled, but the values
+induce no shape" is distinct from "no profiled evidence - re-scan with
+profiling on", which was wrong advice for rows profiling DID touch.
+
+### Fixed - period-stamped and structural columns start un-kept
+
+"Some of these Terms should have been retired: Total Revenue May 2026,
+Description" - both have crisp deterministic signatures and now join
+the structural-key prune family, un-kept with the reason on the row:
+a period-stamped column (may_2026, 2026q1, _2026) names WHEN the
+extract was cut and would mint a new term per period; a bare
+description/notes/comments column describes its table's rows, not a
+business concept. Qualified names (asset_description) and stampless
+concepts (install_year) are untouched, and restoring is one tick.
+Judgment calls (Length Feet) stay with the AI advisor.
+
 ## [1.36.63] - 2026-08-11
 
 ### Fixed - the PDC tree check reaches PDC

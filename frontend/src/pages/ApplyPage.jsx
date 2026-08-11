@@ -231,6 +231,8 @@ function GenerateCard({ rows, glossaryName, governance, settings, onNavigate, au
   }
   const [draft, setDraft] = useState(null)
   const [draftBusy, setDraftBusy] = useState(false)
+  // live narration while the draft job runs — {phase, done, total, detail}
+  const [draftProg, setDraftProg] = useState(null)
   const [draftAi, setDraftAi] = useState(true)
   // "Send to lab": upload the artifact to the lab MinIO over a saved connection
   const [labConns, setLabConns] = useState([])
@@ -276,12 +278,16 @@ function GenerateCard({ rows, glossaryName, governance, settings, onNavigate, au
           text: gen.jsonl, content_type: 'application/x-ndjson',
         }
       } else {
-        // the policies bundle is binary — regenerate the zip, then base64 it over
-        const res = await fetch('/api/draft-policies', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ rows, glossary_name: glossaryName, format: 'zip' }),
-        })
+        // the policies bundle is binary — stream it from the draft job when
+        // one ran (it carries the AI polish; re-drafting here would lose it),
+        // else regenerate deterministically, then base64 it over
+        const res = draft?._job
+          ? await fetch(`/api/jobs/${draft._job}/zip`)
+          : await fetch('/api/draft-policies', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ rows, glossary_name: glossaryName, format: 'zip' }),
+            })
         if (!res.ok) throw new Error(res.statusText)
         const buf = new Uint8Array(await res.arrayBuffer())
         let bin = ''
@@ -361,27 +367,39 @@ function GenerateCard({ rows, glossaryName, governance, settings, onNavigate, au
   async function draftPolicies() {
     setDraftBusy(true)
     setError(null)
+    setDraftProg({ phase: 'starting', done: 0, total: 0, detail: '' })
     try {
-      setDraft(await apiPost('/api/draft-policies', {
+      // Job twin, not the sync route: the AI polish is one model call per
+      // rule and used to run for minutes behind a silent "Drafting…" —
+      // the job narrates seeds → polish (n of m · term) → assemble. The job
+      // id rides along so the bundle downloads from the job WITH the polish.
+      let jobId = null
+      const result = await runJob('draft-policies', {
         rows, glossary_name: glossaryName, ai: draftAi,
         model: settings?.model || null, compute: settings?.compute,
-      }))
+      }, (j) => { jobId = j.id || jobId; setDraftProg(j) })
+      setDraft({ ...result, _job: jobId })
     } catch (e) {
       setError(e.message)
     } finally {
       setDraftBusy(false)
+      setDraftProg(null)
     }
   }
 
-  // the zip bundle is binary, so this one download bypasses the JSON wrapper
+  // the zip bundle is binary, so this one download bypasses the JSON wrapper.
+  // A job-drafted bundle streams from the job — it carries the AI polish;
+  // re-POSTing would re-draft deterministically and silently lose the hints.
   async function downloadDraftZip() {
     setError(null)
     try {
-      const res = await fetch('/api/draft-policies', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ rows, glossary_name: glossaryName, format: 'zip' }),
-      })
+      const res = draft?._job
+        ? await fetch(`/api/jobs/${draft._job}/zip`)
+        : await fetch('/api/draft-policies', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ rows, glossary_name: glossaryName, format: 'zip' }),
+          })
       if (!res.ok) throw new Error(res.statusText)
       downloadBlob(await res.blob(), 'drafted-policies.zip', 'application/zip')
     } catch (e) {
@@ -472,6 +490,16 @@ function GenerateCard({ rows, glossaryName, governance, settings, onNavigate, au
           <input type="checkbox" checked={draftAi} onChange={(e) => setDraftAi(e.target.checked)} />
           AI polish (local LLM)
         </label>
+        {draftProg && (
+          <span className="notes" aria-live="polite">
+            {draftProg.phase === 'polish'
+              ? <>AI polish · rule <b>{draftProg.done}</b> of <b>{draftProg.total}</b>
+                  {draftProg.detail ? <> — {draftProg.detail}</> : null}</>
+              : draftProg.phase === 'seeds' ? 'collecting detection seeds…'
+              : draftProg.phase === 'assemble' ? 'assembling rules & bundle…'
+              : 'starting…'}
+          </span>
+        )}
         {draft && (
           <button className="ghost" onClick={downloadDraftZip}>⬇ Download bundle (zip)</button>
         )}

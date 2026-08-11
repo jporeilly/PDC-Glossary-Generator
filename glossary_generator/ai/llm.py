@@ -811,11 +811,15 @@ def _policy_hint_one(concept, allow_tags, model=None, num_gpu=None):
     return _complete_json(prompt, model=model, num_gpu=num_gpu)
 
 
-def policy_hints_rows(concepts, allow_tags=None, model=None, compute=None, workers=None):
+def policy_hints_rows(concepts, allow_tags=None, model=None, compute=None,
+                      workers=None, progress=None):
     """AI polish pass for the policy drafter. concepts: [{term, columns,
        evidence}]. Returns ({term: {column_regex, tags}}, used_llm). Guardrails
        live in policy_draft.draft_from_rows (regex must compile, tags must stay
-       governed) — this only proposes."""
+       governed) — this only proposes. `progress`, when given, is called per
+       completed concept with {phase, done, total, term} — the polish is one
+       model call per rule and ran in SILENCE for minutes (field: "could do
+       with some feedback when generating the draft policies")."""
     concepts = [c for c in (concepts or []) if isinstance(c, dict) and c.get("term")]
     if not concepts or not status(model)["online"]:
         return {}, False
@@ -835,11 +839,26 @@ def policy_hints_rows(concepts, allow_tags=None, model=None, compute=None, worke
         except Exception:
             return c, None
 
+    def _note(i, c):
+        if progress:
+            try:
+                progress({"phase": "polish", "done": i, "total": len(concepts),
+                          "term": c.get("term", "")})
+            except Exception:
+                pass  # progress is narration, never a failure path
+
     if workers == 1 or len(concepts) <= 1:
-        results = [_do(c) for c in concepts]
+        results = []
+        for i, c in enumerate(concepts, 1):
+            results.append(_do(c))
+            _note(i, c)
     else:
+        results = []
         with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as ex:
-            results = list(ex.map(_do, concepts))
+            futs = {ex.submit(_do, c): c for c in concepts}
+            for i, f in enumerate(concurrent.futures.as_completed(futs), 1):
+                results.append(f.result())
+                _note(i, futs[f])
     out = {}
     for c, res in results:
         if isinstance(res, dict):

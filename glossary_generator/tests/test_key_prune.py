@@ -18,6 +18,43 @@ class TestEnumNeedsRepetition:
         assert prof.get("enum") == ["Active", "Closed", "Suspended"]
 
 
+class TestColumnNoisePrune:
+    """Field: "some of these Terms should have been retired: Length Feet,
+       Total Revenue May 2026, Description". The two CRISP signatures prune
+       deterministically with the reason on the row; judgment calls (Length
+       Feet) stay with the AI advisor."""
+
+    def _col(self, name):
+        return {"table": "reports", "column": name, "type": "text",
+                "ordinal": 1, "notnull": False, "unique": False,
+                "pk": False, "fk": False, "comment": "", "profile": {}}
+
+    def test_period_stamped_and_structural_columns_start_unkept(self):
+        rows = suggester.suggest({"reports": [
+            self._col("total_revenue_may_2026"),
+            self._col("revenue_2026q1"),
+            self._col("description"),
+            self._col("notes"),
+            self._col("county")]}, schema="awc_operations")
+        by = {r["Source_Column"].split(".")[-1]: r for r in rows
+              if r["Source_Column"]}
+        assert by["total_revenue_may_2026"]["Keep"] == "N"
+        assert "period-stamped" in by["total_revenue_may_2026"]["Prune_Reason"]
+        assert by["revenue_2026q1"]["Keep"] == "N"
+        assert by["description"]["Keep"] == "N"
+        assert "structural column name" in by["description"]["Prune_Reason"]
+        assert by["notes"]["Keep"] == "N"
+        assert by["county"]["Keep"] == "Y", "real vocabulary is untouched"
+
+    def test_qualified_and_yearless_names_are_not_noise(self):
+        rows = suggester.suggest({"reports": [
+            self._col("asset_description"),     # qualified — a real concept
+            self._col("install_year"),          # names a concept, no stamp
+            self._col("tier1_gallons")]}, schema="awc_operations")
+        assert all(r["Keep"] == "Y" for r in rows if r["Source_Column"]), \
+            [r["Prune_Reason"] for r in rows if r["Source_Column"]]
+
+
 class TestKeyPrune:
     def _col(self, name, pk=False, fk=False, profile=None):
         return {"table": "customers", "column": name, "type": "integer",

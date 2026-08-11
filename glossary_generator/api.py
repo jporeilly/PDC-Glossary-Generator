@@ -2002,21 +2002,18 @@ def api_recommend_resolutions(body: dict = Body(default={})):
     return {"groups": out, "probed": probed, "used_llm": used_llm,
             "ambiguous": still_ambiguous}
 
-@app.post("/api/draft-policies")
-def api_draft_policies(body: dict = Body(default={})):
-    """The Policy Generator's first mile: draft PDC Data Identification rules from
-    the scan's detection seeds — an induced value regex becomes a Data Pattern,
-    a profiled reference list becomes a Dictionary (+ values CSV), in the exact
-    JSON shapes the Technical Track teaches. Deterministic core; with ai=true the
-    LLM agent polishes each rule's column-name regex and tag pick (guard-railed:
-    regex must compile, tags stay governed). format=zip streams the bundle.
-    Body: {rows, glossary_name?, prefix?, ai?, model?, compute?, format?}."""
+def _draft_policies_run(body, progress=None):
+    """The drafting pipeline, shared by the sync route and the job twin.
+    Returns (draft, summary_json). `progress` narrates: seeds → polish (one
+    model call per rule — the slow stretch) → assemble."""
     body = body or {}
     rows = body.get("rows") or []
     gname = body.get("glossary_name") or "Business Glossary"
     gov = sorted(tagdict.governed_tags())
     hints, used_llm = {}, False
     if body.get("ai"):
+        if progress:
+            progress({"phase": "seeds", "detail": "collecting detection seeds"})
         concepts = []
         for r in rows:
             if not isinstance(r, dict):
@@ -2031,7 +2028,9 @@ def api_draft_policies(body: dict = Body(default={})):
         if concepts:
             hints, used_llm = llm.policy_hints_rows(
                 concepts, allow_tags=gov, model=body.get("model"),
-                compute=body.get("compute"))
+                compute=body.get("compute"), progress=progress)
+    if progress:
+        progress({"phase": "assemble", "detail": "assembling rules & bundle"})
     draft = policy_draft.draft_from_rows(rows, glossary_name=gname,
                                          prefix=body.get("prefix"),
                                          hints=hints, governed_tags=gov)
@@ -2039,22 +2038,39 @@ def api_draft_policies(body: dict = Body(default={})):
     # / profiled baselines re-expressed as conformance checks (custom-only).
     draft["quality"] = policy_draft.dq_rules_from_rows(rows, glossary_name=gname,
                                                        prefix=body.get("prefix"))
+    summary = {"patterns": [{"filename": p["filename"], "term": p["term"],
+                             "seed": p.get("seed", "profiled"),
+                             "name": p["rule"][0]["name"]} for p in draft["patterns"]],
+               "dictionaries": [{"filename": d["filename"], "term": d["term"],
+                                 "seed": d.get("seed", "profiled"),
+                                 "name": d["rule"][0]["name"],
+                                 "values": d["values_filename"]} for d in draft["dictionaries"]],
+               "quality": [{"filename": q["filename"], "term": q["term"],
+                            "name": q["rule"]["name"], "checks": q["checks"]}
+                           for q in draft["quality"]],
+               "skipped": draft["skipped"], "used_llm": used_llm}
+    return draft, summary
+
+
+@app.post("/api/draft-policies")
+def api_draft_policies(body: dict = Body(default={})):
+    """The Policy Generator's first mile: draft PDC Data Identification rules from
+    the scan's detection seeds — an induced value regex becomes a Data Pattern,
+    a profiled reference list becomes a Dictionary (+ values CSV), in the exact
+    JSON shapes the Technical Track teaches. Deterministic core; with ai=true the
+    LLM agent polishes each rule's column-name regex and tag pick (guard-railed:
+    regex must compile, tags stay governed). format=zip streams the bundle.
+    Body: {rows, glossary_name?, prefix?, ai?, model?, compute?, format?}.
+    For ai=true prefer the job twin /api/jobs/draft-policies — same work with
+    live progress instead of minutes of silence."""
+    body = body or {}
+    draft, summary = _draft_policies_run(body)
     if (body.get("format") or "").lower() == "zip":
         data = policy_draft.to_zip_bytes(draft)
         return Response(data, media_type="application/zip",
                         headers={"Content-Disposition":
                                  "attachment; filename=drafted-policies.zip"})
-    return {"patterns": [{"filename": p["filename"], "term": p["term"],
-                          "seed": p.get("seed", "profiled"),
-                          "name": p["rule"][0]["name"]} for p in draft["patterns"]],
-            "dictionaries": [{"filename": d["filename"], "term": d["term"],
-                              "seed": d.get("seed", "profiled"),
-                              "name": d["rule"][0]["name"],
-                              "values": d["values_filename"]} for d in draft["dictionaries"]],
-            "quality": [{"filename": q["filename"], "term": q["term"],
-                         "name": q["rule"]["name"], "checks": q["checks"]}
-                        for q in draft["quality"]],
-            "skipped": draft["skipped"], "used_llm": used_llm}
+    return summary
 
 @app.post("/api/qa-definitions")
 def api_qa_definitions(body: dict = Body(default={})):
@@ -3538,11 +3554,13 @@ def _job_progress(job):
 @app.get("/api/jobs/{job_id}")
 def api_job_poll(job_id: str):
     """Poll a background job started via /api/jobs/*. Returns the live job dict:
-       {status: running|done|error, done, total, phase, detail, events, result}."""
+       {status: running|done|error, done, total, phase, detail, events, result}.
+       Underscore keys are server-side payloads (a stored zip is bytes — not
+       JSON) and never travel in the poll."""
     job = _JOBS.get(job_id)
     if job is None:
         return _err("unknown job", 404)
-    return job
+    return {k: v for k, v in job.items() if not k.startswith("_")}
 
 @app.post("/api/jobs/resolve-terms")
 def api_job_resolve_terms(body: dict = Body(default={})):
@@ -3585,6 +3603,44 @@ def api_job_bulk_load(body: dict = Body(default={})):
                 job["status"] = "error"
                 job["detail"] = ev.get("message", "")
     return _start_job("bulk-load", _runner)
+
+@app.post("/api/jobs/draft-policies")
+def api_job_draft_policies(body: dict = Body(default={})):
+    """Job twin of /api/draft-policies: the AI polish is one model call per
+       rule and ran for minutes in total silence (field: "could do with some
+       feedback when generating the draft policies"). Poll /api/jobs/{id} —
+       phase walks seeds → polish (done/total + the term just polished, via
+       events) → assemble; `result` is the same summary the sync route
+       returns. The full draft is kept on the job so the bundle downloads
+       from /api/jobs/{id}/zip WITH the polish baked in — the old zip path
+       re-drafted without the hints the panel had just shown."""
+    body = body or {}
+    def _runner(job):
+        cb = _job_progress(job)
+        def _p(ev):
+            if isinstance(ev, dict) and ev.get("detail"):
+                job["detail"] = ev["detail"]
+            if isinstance(ev, dict) and ev.get("term"):
+                job["detail"] = ev["term"]
+            cb(ev)
+        draft, summary = _draft_policies_run(body, progress=_p)
+        job["_zip"] = policy_draft.to_zip_bytes(draft)
+        job["result"] = summary
+    return _start_job("draft-policies", _runner)
+
+@app.get("/api/jobs/{job_id}/zip")
+def api_job_zip(job_id: str):
+    """Stream the bundle a finished job stored (draft-policies keeps its zip
+       on the job so downloads carry the AI polish instead of re-drafting)."""
+    job = _JOBS.get(job_id)
+    if job is None:
+        return _err("unknown job", 404)
+    data = job.get("_zip")
+    if not data:
+        return _err("this job holds no bundle", 404)
+    return Response(data, media_type="application/zip",
+                    headers={"Content-Disposition":
+                             "attachment; filename=drafted-policies.zip"})
 
 @app.post("/api/jobs/pull-model")
 def api_job_pull_model(body: dict = Body(default={})):
