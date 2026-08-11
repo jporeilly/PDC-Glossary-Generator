@@ -604,6 +604,29 @@ class TestDictionarySyncOnEntry:
         assert "terms" in d and "tags" in d
 
 
+class TestClientLogIsTheBlackBox:
+    def test_client_errors_reach_app_log(self, client):
+        """A field crash left NOTHING to read - no Windows event, no WebView
+           dump, no log. The frontend beacons uncaught errors here and they
+           must land in app.log in the state dir, so the NEXT vanishing
+           window leaves a record."""
+        r = client.post("/api/client-log", json={
+            "kind": "error", "message": "boom at ReviewPage",
+            "stack": "Error: boom\n  at aiCategories", "url": "#review"})
+        assert r.status_code == 200 and r.json().get("ok") is True
+        import logging
+        for h in logging.getLogger("client").handlers:
+            try:
+                h.flush()
+            except Exception:
+                pass
+        log = os.path.join(os.environ["GLOSSARY_STATE_DIR"], "app.log")
+        assert os.path.exists(log), "app.log must exist in the state dir"
+        with open(log, encoding="utf-8") as f:
+            text = f.read()
+        assert "boom at ReviewPage" in text and "#review" in text
+
+
 class TestPendingHealthSeesTheLiveGrid:
     def test_first_run_unsaved_rows_are_not_fossils(self, client, fresh_dict):
         """The stale universe was SAVED glossaries only, and the autosave only

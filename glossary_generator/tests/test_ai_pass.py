@@ -421,7 +421,7 @@ class TestCategoriesTimeoutIsVisible:
            (field-caught: gemma3:27b 'no pills and weird categories')."""
         seen = {}
 
-        def capture(prompt, model=None, num_gpu=None, timeout=None):
+        def capture(prompt, model=None, num_gpu=None, timeout=None, options=None):
             seen["timeout"] = timeout
             return {"categories": [{"name": "Operations", "tables": ["t1", "t2"]}]}
 
@@ -435,24 +435,182 @@ class TestCategoriesTimeoutIsVisible:
 
 
 class TestCategoriesPromptDemandsConsolidation:
-    def test_prompt_states_the_job_is_fewer_groups(self, monkeypatch):
-        """Field: 11 physical groups became 15 proposed categories. The
-           prompt must state the job outright - CONSOLIDATION, clearly FEWER
-           categories than tables, near-duplicates MERGED - so a wide model
-           does not mint four flavours of 'Customer' and call it a taxonomy.
-           (The UI's delta line is the steward-side guard; this is the
-           model-side one.)"""
+    def _capture(self, monkeypatch):
         seen = {}
 
-        def capture(prompt, model=None, num_gpu=None, timeout=None):
+        def capture(prompt, model=None, num_gpu=None, timeout=None, options=None):
             seen["prompt"] = prompt
             return {"categories": []}
 
         monkeypatch.setattr(llm, "_complete_json", capture)
         monkeypatch.setattr(llm, "status", lambda m=None: {"online": True})
         monkeypatch.setattr(llm, "_warm", lambda m=None: None)
+        return seen
+
+    def test_prompt_states_the_job_is_subjects_not_renames(self, monkeypatch):
+        """Field, twice: 11 physical groups became 15 categories, then a
+           rerun became 11 renamed ones - zero consolidation either way. The
+           prompt must state the job outright: categories are broad business
+           SUBJECTS (almost always 3-6), a one-table category is a RENAME to
+           fold away, overlapping candidates are MERGED. (The UI's delta and
+           singleton lines are the steward-side guard; this is the
+           model-side one.)"""
+        seen = self._capture(monkeypatch)
         rows = [make_row("A", "s.t1.a"), make_row("B", "s.t2.b")]
         llm.propose_categories(rows)
         p = seen.get("prompt") or ""
-        assert "CONSOLIDATION" in p and "FEWER" in p and "MERGE" in p, \
-            "the consolidation contract must reach the model verbatim"
+        for token in ("CONSOLIDATION", "SUBJECT", "RENAME", "MERGE", "3-6"):
+            assert token in p, f"the consolidation contract lost '{token}'"
+
+    def test_fk_links_reach_the_model_as_named_clusters(self, monkeypatch):
+        """The model themes per-table when it sees a flat list - the FK graph
+           must arrive as explicit named clusters, not stay implicit in
+           per-table reference notes."""
+        seen = self._capture(monkeypatch)
+        rows = [
+            make_row("Gallons", "s.monthly_usage.gallons",
+                     Source_Keys={"s.monthly_usage.customer_id":
+                                  {"fk": True, "ref": "customers.customer_id"}}),
+            make_row("Name", "s.customers.name"),
+            make_row("Site", "s.sites.site_name"),
+        ]
+        llm.propose_categories(rows)
+        p = seen.get("prompt") or ""
+        assert "clusters these tables" in p, "the cluster hint block is missing"
+        # cluster lines carry names only (no colon) — the schema listing
+        # lines above them always have one ("- table: cols")
+        line = next((ln for ln in p.splitlines()
+                     if ln.startswith("- ") and ":" not in ln
+                     and "monthly_usage" in ln and "customers" in ln), None)
+        assert line, "FK-joined tables must share one hint line"
+        assert "sites" not in line, "unrelated tables must not join the cluster"
+
+    def test_file_tables_cluster_by_their_folder(self, monkeypatch):
+        """Path-named document 'tables' carry no FKs - their folder is the
+           estate's own grouping and must cluster them the same way."""
+        seen = self._capture(monkeypatch)
+        rows = [make_row("Asset", "bucket.gis/assets.csv.asset_id"),
+                make_row("Zone", "bucket.gis/zones.csv.zone"),
+                make_row("Pump", "bucket.scada/pumps.csv.pump_id")]
+        llm.propose_categories(rows)
+        p = seen.get("prompt") or ""
+        line = next((ln for ln in p.splitlines()
+                     if ln.startswith("- ") and ":" not in ln
+                     and "gis/assets.csv" in ln), None)
+        assert line and "gis/zones.csv" in line, \
+            "same-folder files must share one hint line"
+        assert "scada/pumps.csv" not in line, \
+            "a different folder is a different cluster"
+
+    def test_unplaced_tables_inherit_their_clusters_category(self, monkeypatch):
+        """Field: the model proposed 5 good subjects but placed a fraction of
+           the tables - 30 kept physical groups and the grid GREW to 16.
+           Completion is bookkeeping, not model work: an unplaced table
+           follows the category the majority of its FK/folder cluster-mates
+           got. Whole-cluster-unplaced still reports as unassigned - this is
+           inference from proven structure, never a guess."""
+        def answer(prompt, model=None, num_gpu=None, timeout=None, options=None):
+            return {"categories": [{"name": "Customer Operations",
+                                    "definition": "d.",
+                                    "tables": ["monthly_usage"]}]}
+        monkeypatch.setattr(llm, "_complete_json", answer)
+        monkeypatch.setattr(llm, "status", lambda m=None: {"online": True})
+        monkeypatch.setattr(llm, "_warm", lambda m=None: None)
+        rows = [
+            make_row("Gallons", "s.monthly_usage.gallons",
+                     Source_Keys={"s.monthly_usage.customer_id":
+                                  {"fk": True, "ref": "customers.customer_id"}}),
+            make_row("Name", "s.customers.name"),          # unplaced FK-mate
+            make_row("Lone", "s.island_table.x"),          # no cluster at all
+        ]
+        proposal, assignments, used = llm.propose_categories(rows)
+        cat = {p["name"]: p for p in proposal if p.get("name")}
+        assert "customers" in cat["Customer Operations"]["tables"], \
+            "the FK-mate must inherit its cluster's category"
+        assert assignments[1] == "Customer Operations"
+        un = next((p for p in proposal if p.get("unassigned")), None)
+        assert un and "island_table" in un["tables"], \
+            "a clusterless table stays honestly unassigned"
+
+    def test_islands_get_a_guardrailed_second_placement_call(self, monkeypatch):
+        """A cluster-island the schema-wide call skips keeps a physical group
+           alive - 4 proposed subjects still left a 13-category grid (field).
+           A small second call places ONLY the leftovers, constrained to the
+           model's own category list: verbatim names land, unknown tables and
+           invented categories are ignored, and the choice still arrives as a
+           pill the steward approves."""
+        calls = []
+
+        def answer(prompt, model=None, num_gpu=None, timeout=None, options=None):
+            calls.append(prompt)
+            if len(calls) == 1:
+                return {"categories": [{"name": "Customer Operations",
+                                        "definition": "d.",
+                                        "tables": ["monthly_usage"]}]}
+            return {"placements": {"island_table": "Customer Operations",
+                                   "ghost_table": "Customer Operations",
+                                   "monthly_usage": "Invented Category"}}
+        monkeypatch.setattr(llm, "_complete_json", answer)
+        monkeypatch.setattr(llm, "status", lambda m=None: {"online": True})
+        monkeypatch.setattr(llm, "_warm", lambda m=None: None)
+        rows = [make_row("Gallons", "s.monthly_usage.gallons"),
+                make_row("Lone", "s.island_table.x")]
+        proposal, assignments, used = llm.propose_categories(rows)
+        assert len(calls) == 2 and "island_table" in calls[1], \
+            "the second call must target only the leftovers"
+        assert assignments[1] == "Customer Operations", \
+            "a valid placement lands as an assignment (pill)"
+        cat = {p["name"]: p for p in proposal if p.get("name")}
+        assert "island_table" in cat["Customer Operations"]["tables"]
+        assert not any(p.get("unassigned") for p in proposal), \
+            "nothing is left unassigned once every real table is placed"
+
+    def test_record_terms_follow_their_table_into_its_subject(self, monkeypatch):
+        """Conceptual table-level rows carry no Source_Column, so _row_table
+           returned '' and they could NEVER follow their table - their old
+           groups survived every categorize (field: 2 proposed subjects still
+           left a 10-category grid; the survivors were record terms). They
+           name their table via Source_Table; that is the container."""
+        def answer(prompt, model=None, num_gpu=None, timeout=None, options=None):
+            return {"categories": [{"name": "Customer Operations",
+                                    "definition": "d.",
+                                    "tables": ["customers"]}]}
+        monkeypatch.setattr(llm, "_complete_json", answer)
+        monkeypatch.setattr(llm, "status", lambda m=None: {"online": True})
+        monkeypatch.setattr(llm, "_warm", lambda m=None: None)
+        rows = [make_row("Name", "s.customers.name"),
+                {"Keep": "Y", "Term": "Customer Record", "Source_Column": "",
+                 "Source_Table": "customers", "Category": "Customer"},
+                make_row("Site", "s.sites.site_name")]
+        proposal, assignments, used = llm.propose_categories(rows)
+        assert assignments[1] == "Customer Operations", \
+            "the record term must follow its table into the subject"
+
+    def test_categorize_calls_are_deterministic(self, monkeypatch):
+        """5 subjects one run, 2 the next - same estate, same model. Both
+           categorize calls pin temperature 0 and a fixed seed so the SAME
+           estate proposes the SAME taxonomy."""
+        seen = []
+
+        def capture(prompt, model=None, num_gpu=None, timeout=None, options=None):
+            seen.append(options)
+            return {"categories": [{"name": "Ops", "definition": "d.",
+                                    "tables": ["t1"]}]}
+        monkeypatch.setattr(llm, "_complete_json", capture)
+        monkeypatch.setattr(llm, "status", lambda m=None: {"online": True})
+        monkeypatch.setattr(llm, "_warm", lambda m=None: None)
+        rows = [make_row("A", "s.t1.a"), make_row("B", "s.island.b")]
+        llm.propose_categories(rows)
+        assert seen and all(o and o.get("temperature") == 0 and "seed" in o
+                            for o in seen), \
+            "every categorize call must pass temperature 0 + a seed"
+
+    def test_ceiling_is_a_handful_even_for_big_estates(self, monkeypatch):
+        """The old ceiling (12 for 20+ tables) invited the 11-15 sprawl. A
+           category is a business subject; the ceiling stays a handful."""
+        seen = self._capture(monkeypatch)
+        rows = [make_row(f"T{i}", f"s.table_{i:02d}.col") for i in range(25)]
+        llm.propose_categories(rows)
+        p = seen.get("prompt") or ""
+        assert "between 3 and 8" in p, \
+            "a 20+-table estate must still cap at 8 subjects"

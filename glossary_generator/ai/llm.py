@@ -177,11 +177,16 @@ def reset_call_failures():
 def call_failures():
     return dict(_CALL_FAILURES)
 
-def _complete_json(prompt, model=None, num_gpu=None, timeout=None):
+def _complete_json(prompt, model=None, num_gpu=None, timeout=None,
+                   options=None):
     """Single completion in JSON mode. Returns a parsed dict, or None on any
        failure. Used to get definition + purpose from ONE round trip per row.
        `timeout` overrides the configured budget for calls with a bigger prompt
-       (the combined AI pass) that legitimately take longer on a large model."""
+       (the combined AI pass) that legitimately take longer on a large model.
+       `options` overlays the Ollama sampling defaults - the categorize calls
+       pass temperature 0 + a fixed seed so the SAME estate proposes the SAME
+       taxonomy (field-caught: 5 subjects one run, 2 the next). Local models
+       only; hosted providers keep their own defaults."""
     model = model or MODEL
     if not llm_providers.is_local():
         # Hosted models honour a JSON response format but may still wrap the
@@ -189,7 +194,9 @@ def _complete_json(prompt, model=None, num_gpu=None, timeout=None):
         return llm_providers.parse_json(
             llm_providers.complete(prompt, SYSTEM, json_mode=True,
                                    model=model, timeout=TIMEOUT))
-    options = {"temperature": 0.2}
+    opts = {"temperature": 0.2}
+    opts.update(options or {})
+    options = opts
     if num_gpu is not None:
         options["num_gpu"] = num_gpu
     try:
@@ -922,15 +929,34 @@ def qa_definitions_rows(rows, model=None, compute=None, workers=None):
 
 
 # --------------------------------------------------- AI category proposer
+# The same extension alphabet the suggester scans with - a dot AFTER one of
+# these inside a slashed source is a column ("...file.csv.asset_id"), a dot
+# BEFORE the first slash is the bucket ("bucket.gis/...").
+_DOC_EXT_RX = re.compile(r"\.(csv|tsv|psv|json|jsonl|xml|txt|parquet|avro|"
+                         r"ya?ml|pdf|docx?|xlsx?|pptx?)(?=\.|$)", re.I)
+
+
 def _row_table(r):
     """The physical container a row's first source column lives in - a table
-    for a database, the deepest folder for a document. Pure, and shared by the
-    evidence builder and the assignment step so they can never disagree."""
+    for a database, the FILE (bucket-relative path) for a document. Pure, and
+    shared by the evidence builder and the assignment step so they can never
+    disagree. Field-caught: the old slash branch kept everything after the
+    LAST slash, so a document column ("bucket.gis/assets.csv.asset_id")
+    minted its own one-column 'table' - the categorize prompt then listed
+    dozens of meaningless tables the model rightly refused to place."""
     sc = str(r.get("Source_Column") or "").split(";")[0].strip()
     if not sc:
-        return ""
+        # conceptual table-level rows (record terms) carry no source column,
+        # but they NAME their table - without this they can never follow it
+        # into its category, and their old groups survive every categorize
+        return str(r.get("Source_Table") or "").strip()
     if "/" in sc:
-        return sc.rstrip("/").rsplit("/", 1)[-1]
+        head = sc.split("/", 1)[0]
+        s = sc.split(".", 1)[1] if "." in head else sc.split("/", 1)[1]
+        m = _DOC_EXT_RX.search(s)
+        if m:
+            s = s[:m.end()]          # drop the trailing ".column" (if any)
+        return s.rstrip("/")
     parts = sc.split(".")
     return parts[-2] if len(parts) >= 2 else parts[0]
 
@@ -953,6 +979,14 @@ def schema_evidence(rows):
             sc = sc.strip()
             if sc and "/" not in sc:
                 d["columns"].add(sc.split(".")[-1])
+            elif sc:
+                # document source: the column is whatever follows the file
+                # extension ("...assets.csv.asset_id" -> asset_id; a JSONL
+                # leaf keeps its dotted path). Without this, file tables
+                # showed "-" for columns and gave the model nothing to hold.
+                m = _DOC_EXT_RX.search(sc)
+                if m and m.end() < len(sc):
+                    d["columns"].add(sc[m.end():].lstrip("."))
         for col, k in (r.get("Source_Keys") or {}).items():
             if isinstance(k, dict) and k.get("ref"):
                 ref = str(k["ref"]).split(".")
@@ -984,30 +1018,75 @@ def propose_categories(rows, model=None, compute=None, max_categories=9):
         cols = ", ".join(sorted(d["columns"])[:24])
         refs = ("  (references: " + ", ".join(sorted(d["refs"])) + ")") if d["refs"] else ""
         lines_.append("- %s: %s%s" % (t, cols or "-", refs))
-    # Adaptive: a handful of tables wants ~5 categories; a 50-table estate
-    # is usually best told in 8-12. The model aims low within the bound -
-    # the fewest categories that still discriminate.
-    hi = 12 if len(tables) >= 20 else max(3, min(int(max_categories), 9))
+    # Structural cluster evidence, computed - not imagined. Tables joined by
+    # FK references form one subject; path-named file "tables" cluster by
+    # their top folder (the estate's own layout). Without this the model sees
+    # a flat list and themes per-table - the field run turned 11 physical
+    # groups into 11 renamed categories, zero consolidation.
+    adj = {t: set() for t in tables}
+    for t, d in tables.items():
+        for r in d.get("refs", ()):
+            if r in adj:
+                adj[t].add(r)
+                adj[r].add(t)
+    for t in tables:
+        m = re.match(r"([^/\\]+)[/\\]", t)
+        if m:
+            fam = "folder:" + m.group(1).lower()
+            adj.setdefault(fam, set()).add(t)
+            adj[t].add(fam)
+    comps, seen_t = [], set()
+    for t in sorted(adj):
+        if t in seen_t:
+            continue
+        comp, stack = set(), [t]
+        while stack:
+            x = stack.pop()
+            if x in seen_t:
+                continue
+            seen_t.add(x)
+            comp.add(x)
+            stack.extend(adj.get(x, ()))
+        real = sorted(x for x in comp if not x.startswith("folder:"))
+        if len(real) > 1:
+            comps.append(real)
+    cluster_hint = ""
+    if comps:
+        cluster_hint = (
+            "The schema's own structure already clusters these tables\n"
+            "(foreign-key links; shared folders):\n"
+            + "\n".join("- " + ", ".join(c) for c in comps)
+            + "\nTables clustered together belong in ONE category. Do not"
+            " split a cluster\nacross categories without a strong business"
+            " reason.\n\n"
+        )
+    # Adaptive ceiling, biased low: categories are business SUBJECTS, and
+    # even a large estate rarely has more than a handful of those.
+    hi = 8 if len(tables) >= 20 else max(3, min(int(max_categories), 6))
     n_cats = hi
     prompt = (
         "You are grouping a %sdata estate into business-glossary categories.\n"
         "Physical tables, their columns, and their foreign-key references:\n\n"
         "%s\n\n"
-        "Take a HOLISTIC view: decide how many categories best represent this\n"
-        "business (between 3 and %d - the fewest that still discriminate,\n"
-        "typically 5-10), then place EVERY table in exactly one of them.\n"
+        "%s"
+        "Take a HOLISTIC view: a category is a broad business SUBJECT (the\n"
+        "handful of things this business runs on - e.g. its customers, its\n"
+        "operations, its infrastructure, its compliance), NOT a theme per\n"
+        "table. Decide how many subjects best tell this business's story\n"
+        "(between 3 and %d - almost always 3-6), then place EVERY table in\n"
+        "exactly one of them. Each category should hold SEVERAL tables.\n"
         "Your job is CONSOLIDATION: the estate above already has one physical\n"
-        "group per table, so returning as many categories as tables adds\n"
-        "nothing. Aim for clearly FEWER categories than tables. Before you\n"
-        "answer, check your own list: if two candidate categories overlap\n"
-        "(singular/plural, 'X' vs 'X Data', 'X' vs 'X Management'), MERGE\n"
-        "them into the broader one.\n"
+        "group per table, so returning one category per table adds nothing.\n"
+        "Before you answer, check your own list:\n"
+        "- a category holding exactly ONE table is a RENAME, not an\n"
+        "  abstraction - fold that table into the subject it serves;\n"
+        "- if two candidate categories overlap (singular/plural, 'X' vs\n"
+        "  'X Data', 'X' vs 'X Management'), MERGE them into the broader one.\n"
         "Category names are business ABSTRACTIONS in the language of the\n"
-        "business - almost never a single table's name. Tables that\n"
-        "reference each other usually serve one business subject.\n\n"
+        "business - almost never a single table's name.\n\n"
         'Return JSON: {"categories": [{"name": "1-3 words",\n'
         '  "definition": "one sentence", "tables": ["..."]}]}'
-    ) % ((COMPANY + " ") if COMPANY else "", "\n".join(lines_), n_cats)
+    ) % ((COMPANY + " ") if COMPANY else "", "\n".join(lines_), cluster_hint, n_cats)
     num_gpu = 0 if compute == "cpu" else (99 if compute == "gpu" else None)
     try:
         _warm(model)
@@ -1020,7 +1099,8 @@ def propose_categories(rows, model=None, compute=None, max_categories=9):
         # nothing usable'" - which reads as model quality when it is a clock
         # (field-caught: gemma3:27b "no pills and weird categories").
         res = _complete_json(prompt, model=model, num_gpu=num_gpu,
-                             timeout=max(TIMEOUT * 3, AI_PASS_TIMEOUT * 2))
+                             timeout=max(TIMEOUT * 3, AI_PASS_TIMEOUT * 2),
+                             options={"temperature": 0, "seed": 42})
     except Exception:
         # A missing or broken model must degrade to "nothing proposed", never
         # surface as a 500 - the steward keeps the physical groups and moves on.
@@ -1046,9 +1126,65 @@ def propose_categories(rows, model=None, compute=None, max_categories=9):
             proposal.append({"name": name,
                              "definition": str(c.get("definition") or "").strip(),
                              "tables": mine})
+    # Mechanical completion over PROVEN structure: the model's job is naming
+    # the subjects and seeding each cluster - finishing the placement is
+    # bookkeeping the code does. An unplaced table inherits the category the
+    # majority of its cluster-mates (FK links, shared folders) were given.
+    # Field-caught: on a 35-table estate the model placed a fraction and 30
+    # tables kept physical groups, so 5 proposed subjects still yielded a
+    # 16-category grid. This is inference from evidence, not guessing: a
+    # table follows its own cluster or stays put.
+    for comp in comps:
+        placed = sorted(table_cat[t] for t in comp if t in table_cat)
+        if not placed:
+            continue                      # whole cluster unplaced - reported below
+        win = max(sorted(set(placed)), key=placed.count)
+        for t in comp:
+            if t not in table_cat:
+                table_cat[t] = win
+                entry = next((p for p in proposal if p["name"] == win), None)
+                if entry:
+                    entry["tables"] = sorted(set(entry["tables"]) | {t})
+    # Cluster-islands (a folder with one file, an FK-isolated table) can never
+    # inherit, and the field walk showed the schema-wide call skips a handful
+    # of them - each skip keeps a physical group alive, so 4 proposed subjects
+    # still left a 13-category grid. One small SECOND call places just the
+    # leftovers, guardrailed to the model's OWN category list: the choice is
+    # constrained, it lands as pills the steward approves, and a table the
+    # model still refuses stays honestly physical.
+    leftover = sorted(t for t in tables if t not in table_cat)
+    if leftover and proposal:
+        by_name = {p["name"].lower(): p["name"] for p in proposal if p["name"]}
+        cat_lines = "\n".join("- %s: %s" % (p["name"], p["definition"] or "-")
+                              for p in proposal if p["name"])
+        tbl_lines = "\n".join("- %s: %s" % (
+            t, ", ".join(sorted(tables[t]["columns"])[:12]) or "-")
+            for t in leftover)
+        p2 = (
+            "These business-glossary categories are settled:\n%s\n\n"
+            "Place EACH remaining table into exactly ONE of those categories\n"
+            "(use the category names verbatim; every table gets a placement):\n"
+            "%s\n\n"
+            'Return JSON: {"placements": {"table name": "category name"}}'
+        ) % (cat_lines, tbl_lines)
+        try:
+            res2 = _complete_json(p2, model=model, num_gpu=num_gpu,
+                                  timeout=max(TIMEOUT * 2, AI_PASS_TIMEOUT),
+                                  options={"temperature": 0, "seed": 42})
+        except Exception:
+            res2 = None
+        for t, cname in ((res2 or {}).get("placements") or {}).items():
+            real = known.get(str(t).strip().lower())
+            win = by_name.get(str(cname).strip().lower())
+            if real and win and real not in table_cat:
+                table_cat[real] = win
+                entry = next((p for p in proposal if p["name"] == win), None)
+                if entry:
+                    entry["tables"] = sorted(set(entry["tables"]) | {real})
     assignments = [table_cat.get(_row_table(r)) for r in rows]
-    # Tables the model left out are REPORTED, never guessed: their rows keep
-    # the physical group the scan gave them, visibly, for the steward.
+    # Tables the model left out twice AND whose whole cluster went unplaced
+    # are REPORTED, never guessed: their rows keep the physical group the
+    # scan gave them, visibly, for the steward.
     unassigned = sorted(t for t in tables if t not in table_cat)
     if unassigned:
         proposal.append({"name": "", "definition": "", "tables": unassigned,

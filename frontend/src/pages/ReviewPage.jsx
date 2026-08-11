@@ -541,6 +541,23 @@ export default function ReviewPage({ onNavigate }) {
       + physicalLooking.join(' · ')
       + '\n\nConfirm anyway? Settling them first (1 · AI categories, or filter + Rename) is usually the better order — they will flow to the Dictionary and Govern as-is.')) return
     setCategoriesConfirmed({ at: new Date().toISOString(), categories: list })
+    // A settled taxonomy deserves a durable workspace: the autosave only runs
+    // once the glossary has a NAME, and two field losses (a window crash and
+    // a page reload) each wiped a full unsaved session. If the steward has
+    // not named it by the keystone, name it for them — visibly, renameable —
+    // and save, so everything after this moment survives a dead window.
+    let named = ''
+    if (!ws.name && !ws.id) {
+      let company = ''
+      try { company = ((await apiGet('/api/settings')).company || '').trim() } catch { /* fallback below */ }
+      const auto = `${company || 'Glossary'} review — ${new Date().toISOString().slice(0, 10)}`
+      setGlossaryMeta({ name: auto })
+      setSaveName(auto)
+      try {
+        await save()
+        named = ` Saved as “${auto}” (rename any time) so this work survives a closed window.`
+      } catch { /* the autosave banner reports save errors */ }
+    }
     let synced = ''
     try {
       const d = await apiPost('/api/tagdict/sync', { rows: rowsRef.current })
@@ -550,7 +567,7 @@ export default function ReviewPage({ onNavigate }) {
     } catch {
       synced = ' (The Dictionary will sync itself when you open it.)'
     }
-    setMsg(`✓ Keystone set: ${list.length} categories confirmed.${synced} Export pack freezes the mapping for future scans.`)
+    setMsg(`✓ Keystone set: ${list.length} categories confirmed.${named}${synced} Export pack freezes the mapping for future scans.`)
   }
   // SILENT auto-heal. Same-source duplication is DAMAGE, never intent — no
   // steward action can create two rows carrying the same source column; only
@@ -877,7 +894,19 @@ export default function ReviewPage({ onNavigate }) {
       if (!n) { setCatRan(true); setMsg('Every row already carries its proposed category.'); return }
       setProposals((prev) => {
         const label = 'AI categories (schema)'
-        const merged = { ...(prev ? prev.items : {}) }
+        // A fresh categorize run REPLACES the previous one's Category pills
+        // everywhere — merging them interleaves two taxonomies (field: rerun
+        // after a disappointing proposal left stale pills on rows the new
+        // run did not re-pill, and the union sprawled). Other agents' field
+        // pills are untouched.
+        const merged = {}
+        for (const [i, c] of Object.entries(prev ? prev.items : {})) {
+          const display = c.display.filter((x) => x.field !== 'Category')
+          if (!display.length) continue
+          const patch = { ...c.patch }
+          delete patch.Category
+          merged[i] = { ...c, patch, display }
+        }
         for (const [i, it] of Object.entries(items)) {
           const c = merged[i]
           merged[i] = c ? { ...c, patch: { ...c.patch, ...it.patch },
@@ -902,10 +931,14 @@ export default function ReviewPage({ onNavigate }) {
         .filter(Boolean)).size
       const before = keptCats((r) => r.Category)
       const after = keptCats((r, i) => a[i] || r.Category)
+      // one-table categories are renames wearing a category name \u2014 count
+      // them separately so the steward sees WHY the number failed to shrink
+      const singles = cats.filter((c) => (c.tables || []).length === 1).length
       setMsg(`${cats.length} categories proposed on ${n} row(s) \u2014 accepting every pill would take the grid from ${before} to ${after} categories` +
              (after >= before
                ? ' \u00b7 NOT a consolidation \u2014 reject or edit near-duplicate pills before approving'
                : '') +
+             (singles > 0 ? ` \u00b7 ${singles} propose a single table \u2014 renames, not groupings` : '') +
              (un ? ` \u00b7 ${un.tables.length} table(s) kept their physical group` : '') + '.')
     } catch (e) {
       setMsg(`AI categories failed: ${e.message}`)

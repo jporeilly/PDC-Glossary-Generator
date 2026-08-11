@@ -14,6 +14,65 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.36.62] - 2026-08-11
+
+### Changed - categorize consolidates: subjects, clusters, completion
+
+"No consolidation, just a name change" - the schema-wide call turned 11
+physical groups into 11 renamed categories, then a rerun proposed 15,
+then 2. Root causes, each fixed and pinned:
+
+- **The evidence was wrong.** A document column ("bucket.gis/assets.csv
+  .asset_id") minted its own one-column "table" after the last slash, so
+  the model stared at dozens of meaningless tables and rightly refused
+  to place them. The container is now the FILE; conceptual table-level
+  record terms (no source column) follow their Source_Table - before
+  this they could never follow their table anywhere.
+- **The structure stayed implicit.** FK-joined tables and same-folder
+  files now arrive in the prompt as explicit named clusters, computed
+  from the scan's own facts. The prompt frames categories as broad
+  business SUBJECTS (almost always 3-6, ceiling 8 even at 20+ tables),
+  bans one-table rename-categories, and orders overlap merges.
+- **Placement is finished by code, not hope.** An unplaced table
+  inherits the category the majority of its cluster-mates were given
+  ("the tables are then sync'd behind the scenes"); cluster-islands get
+  one small second call constrained to the model's OWN category list;
+  a table the model still refuses stays honestly physical.
+- **Same estate, same taxonomy.** Both categorize calls run at
+  temperature 0 with a fixed seed - the field saw 5 subjects one run
+  and 2 the next; the walk now reproduces the identical 5 twice.
+- **Reruns replace, never interleave.** A fresh AI-categories run
+  replaces the previous run's Category pills everywhere - merging them
+  mixed two taxonomies (the likely source of the original 11-to-15
+  sprawl). The completion line also counts one-table proposals
+  ("renames, not groupings").
+
+Live result on the Arizona Water estate (157/180 kept, DB + documents):
+"5 categories proposed on 180 row(s) - accepting every pill would take
+the grid from 11 to 5 categories." Reproduced identically on a second
+fresh walk.
+
+### Added - the keystone saves the work
+
+Two field losses in one day - a window crash and a page reload - each
+wiped a full unsaved session, because the autosave only runs once the
+glossary has a NAME. Approve categories now names an unnamed glossary
+for the steward ("<company> review - <date>", renameable, said out
+loud in the keystone message) and saves immediately: everything after
+the settle moment survives a dead window.
+
+### Added - crash forensics that survive the crash
+
+The vanished-window crash left NOTHING to read: no Windows event, no
+WebView dump, and the packaged shell buffers backend output in memory
+only. Now app.log in the state dir is the durable record - backend
+exceptions and lifecycle lines land there (rotating, 1 MB x 3), and the
+frontend beacons every uncaught error and unhandled rejection to
+POST /api/client-log (sendBeacon survives page teardown - exactly the
+moment worth recording; rate-capped). The handler opens-writes-closes
+per record so the log never holds the state dir hostage - the
+fresh-install wipe still works under a running server (test-pinned).
+
 ## [1.36.61] - 2026-08-11
 
 ### Changed - the category count is visible before it is approved

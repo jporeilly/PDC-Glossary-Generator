@@ -104,6 +104,74 @@ def _err(message, status_code):
        (the UI checks data.error — never FastAPI's default {'detail': ...})."""
     return JSONResponse({"error": message}, status_code=status_code)
 
+
+# ---- crash forensics -------------------------------------------------------
+# A field crash ("the window closed itself" on AI categorize) left NOTHING to
+# read: the packaged shell buffers backend stdout in memory only, and the
+# WebView wrote no dump. app.log in the state dir is the durable record -
+# backend exceptions land here via logging, and the frontend beacons its
+# uncaught errors to /api/client-log below. Rotating and small: 1 MB x 3.
+import logging
+import logging.handlers
+
+class _ForensicsHandler(logging.handlers.RotatingFileHandler):
+    """Open-write-close per record. The log must never hold the state dir
+    hostage: the fresh-install wipe deletes that dir under a RUNNING server
+    (test-pinned), and Windows cannot delete a directory containing an open
+    file. Volume is low (errors + lifecycle lines), so per-record reopen is
+    cheap - and _open self-heals the directory like every other writer."""
+    def emit(self, record):
+        try:
+            super().emit(record)
+        finally:
+            self.close()
+
+    def _open(self):
+        try:
+            os.makedirs(os.path.dirname(self.baseFilename), exist_ok=True)
+        except OSError:
+            pass
+        return super()._open()
+
+
+def _setup_file_log():
+    try:
+        path = os.path.join(paths.state_dir(), "app.log")
+        h = _ForensicsHandler(
+            path, maxBytes=1_000_000, backupCount=2, encoding="utf-8", delay=True)
+        h.setFormatter(logging.Formatter(
+            "%(asctime)s %(levelname)s %(name)s %(message)s"))
+        h.setLevel(logging.INFO)
+        for name in ("", "uvicorn", "uvicorn.error", "client"):
+            lg = logging.getLogger(name)
+            if not any(isinstance(x, logging.handlers.RotatingFileHandler)
+                       and getattr(x, "baseFilename", "") == h.baseFilename
+                       for x in lg.handlers):
+                lg.addHandler(h)
+            if lg.level in (logging.NOTSET, logging.WARNING):
+                lg.setLevel(logging.INFO)
+    except Exception:
+        pass  # forensics must never block startup
+
+_setup_file_log()
+
+
+@app.post("/api/client-log")
+def api_client_log(body: dict = Body(default={})):
+    """The frontend's black box: window.onerror / unhandledrejection beacon
+    here (sendBeacon survives page teardown - exactly the moment worth
+    recording). Appends to app.log; truncated and never fails the caller."""
+    try:
+        kind = str(body.get("kind") or "error")[:32]
+        msg = str(body.get("message") or "")[:2000]
+        stack = str(body.get("stack") or "")[:4000]
+        url = str(body.get("url") or "")[:200]
+        logging.getLogger("client").error(
+            "%s %s %s%s", kind, url, msg, ("\n" + stack) if stack else "")
+    except Exception:
+        pass
+    return {"ok": True}
+
 # No default path: /mnt/user-data/uploads/... was the authoring machine's
 # layout and means nothing on a customer install. Unset is honest; the DDL
 # field asks for a path when one is needed.
