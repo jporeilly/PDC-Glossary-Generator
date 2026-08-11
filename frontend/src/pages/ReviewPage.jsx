@@ -891,7 +891,21 @@ export default function ReviewPage({ onNavigate }) {
                  gate: !!(prev && prev.gate), items: merged }
       })
       setCatRan(true)
-      setMsg(`${cats.length} categories proposed on ${n} row(s) \u2014 accept per pill or Accept all` +
+      // The delta is the trap-catcher (field: 11 groups quietly became 15):
+      // categorization exists to CONSOLIDATE, so show what accepting every
+      // pill would do to the kept grid's distinct-category count \u2014 and say
+      // so plainly when the number would not shrink. Same accounting as the
+      // keystone (kept rows only), so the numbers agree with the Approve
+      // button.
+      const keptCats = (pick) => new Set(rowsRef.current
+        .map((r, i) => (truthy(r.Keep) ? String(pick(r, i) || '').trim() : ''))
+        .filter(Boolean)).size
+      const before = keptCats((r) => r.Category)
+      const after = keptCats((r, i) => a[i] || r.Category)
+      setMsg(`${cats.length} categories proposed on ${n} row(s) \u2014 accepting every pill would take the grid from ${before} to ${after} categories` +
+             (after >= before
+               ? ' \u00b7 NOT a consolidation \u2014 reject or edit near-duplicate pills before approving'
+               : '') +
              (un ? ` \u00b7 ${un.tables.length} table(s) kept their physical group` : '') + '.')
     } catch (e) {
       setMsg(`AI categories failed: ${e.message}`)
@@ -1430,7 +1444,11 @@ export default function ReviewPage({ onNavigate }) {
             <button className={`${agentStep === 2 ? 'primary' : 'ghost'} sm${catsConfirmedCurrent ? ' applied' : ''}`}
                     disabled={catBusy || !cats.kept.length} onClick={confirmCategories}
                     title="The KEYSTONE. Declare the category set settled: the Dictionary syncs immediately so its queue reflects this taxonomy, Govern keys stewardship to settled names, and Export pack freezes the mapping for future scans. If you change categories afterwards, this asks to be approved again — the drift is visible, never silent.">
-              {catsConfirmedCurrent ? '✓ 2 · Categories approved' : '2 · Approve categories'}
+              {/* the count is on the button so the number being approved is
+                  read BEFORE the click — field: 11 groups quietly became 15 */}
+              {catsConfirmedCurrent
+                ? `✓ 2 · Categories approved (${cats.kept.length})`
+                : `2 · Approve categories (${cats.kept.length})`}
             </button>
             <button className={`${agentStep === 3 ? 'primary' : 'ghost'} sm`} disabled={aiDisabled} onClick={runAiPass}
                     title="One model call per row for every field the LLM can decide — definition, purpose, a clearer name, governed tags and a blank category. Replaces running Enrich + AI suggest + AI categorize separately (three passes over the same rows, each overwriting the last). Proposals only — accept per pill.">

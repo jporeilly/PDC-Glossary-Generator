@@ -14,6 +14,23 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.36.61] - 2026-08-11
+
+### Changed - the category count is visible before it is approved
+
+Categorization exists to CONSOLIDATE, but the field run went from 11
+groups to 15 categories and nothing said so until the keystone was
+already set. Now the number is in the steward's face at both moments:
+the AI-categories completion line reports the delta ("accepting every
+pill would take the grid from 11 to 15 categories - NOT a consolidation:
+reject or edit near-duplicate pills before approving"), and the Approve
+button itself carries the live count ("2 - Approve categories (15)") so
+the number being approved is read BEFORE the click. Model-side, the
+prompt now states the job outright - consolidation, clearly FEWER
+categories than tables, near-duplicate candidates merged before
+answering - with a test pinning the contract. Counts use the keystone's
+own accounting (kept rows), so every number on the strip agrees.
+
 ## [1.36.60] - 2026-08-11
 
 ### Fixed - a first run is not a fossil field

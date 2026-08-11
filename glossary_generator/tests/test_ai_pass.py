@@ -432,3 +432,27 @@ class TestCategoriesTimeoutIsVisible:
         llm.propose_categories(rows)
         assert (seen.get("timeout") or 0) >= 360, \
             "the categories call needs at least 2x the AI-pass floor"
+
+
+class TestCategoriesPromptDemandsConsolidation:
+    def test_prompt_states_the_job_is_fewer_groups(self, monkeypatch):
+        """Field: 11 physical groups became 15 proposed categories. The
+           prompt must state the job outright - CONSOLIDATION, clearly FEWER
+           categories than tables, near-duplicates MERGED - so a wide model
+           does not mint four flavours of 'Customer' and call it a taxonomy.
+           (The UI's delta line is the steward-side guard; this is the
+           model-side one.)"""
+        seen = {}
+
+        def capture(prompt, model=None, num_gpu=None, timeout=None):
+            seen["prompt"] = prompt
+            return {"categories": []}
+
+        monkeypatch.setattr(llm, "_complete_json", capture)
+        monkeypatch.setattr(llm, "status", lambda m=None: {"online": True})
+        monkeypatch.setattr(llm, "_warm", lambda m=None: None)
+        rows = [make_row("A", "s.t1.a"), make_row("B", "s.t2.b")]
+        llm.propose_categories(rows)
+        p = seen.get("prompt") or ""
+        assert "CONSOLIDATION" in p and "FEWER" in p and "MERGE" in p, \
+            "the consolidation contract must reach the model verbatim"
