@@ -1448,9 +1448,15 @@ function ConnCard({ conn, onEdit, onChanged, onDiscoverDb, onDiscoverDocs, onNav
     say('', adding ? 'Scanning to add…' : 'Scanning…')
     try {
       const d = await apiPost('/api/scan', scanBody(c))
-      if (adding) {
+      if (adding || getWorkspace().rows.length > 0) {
+        // Scanning source X must NEVER delete source Y's rows: the plain Scan
+        // used to REPLACE the whole workspace, so "JDBC added, then Scan on
+        // Documents" silently wiped the JDBC cohort before Add was ever
+        // clicked (field-caught). A non-empty grid always merges — identity
+        // is source-based so rescans refresh evidence instead of duplicating
+        // — and a from-scratch grid is what Reset all is for.
         const { added, dup } = mergeIntoWorkspace(d.rows || [])
-        say('good', `Added ${added} term(s)${dup ? ` · ${dup} existing term(s) gained this source's columns & evidence` : ''}.`)
+        say('good', `${adding ? 'Added' : 'Merged'} ${added} term(s)${dup ? ` · ${dup} existing term(s) gained this source's columns & evidence` : ''} — other sources' rows are untouched (Reset all first for a from-scratch grid).`)
         setCheck(null)
       } else {
         setRows(d.rows || [])

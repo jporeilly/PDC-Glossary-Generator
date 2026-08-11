@@ -14,6 +14,20 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.36.55] - 2026-08-11
+
+### Fixed - scanning one source never deletes another's rows
+
+The plain Scan button REPLACED the whole workspace unless "Add to
+glossary" was the click - so "JDBC added, then Scan on Documents" silently
+wiped the JDBC cohort before Add was ever pressed, and the Review showed
+only documents (field-caught on the day-4 rebuild; the same trap almost
+certainly explains older "the JDBC scan didn't add its terms" reports). A
+non-empty grid now ALWAYS merges - row identity is source-based, so a
+rescan refreshes evidence instead of duplicating - and the message says so
+("other sources' rows are untouched"). A from-scratch grid is what Reset
+all is for: explicit, never a side effect of previewing a second source.
+
 ## [1.36.54] - 2026-08-11
 
 ### Fixed - the auto-prune badge says WHY
