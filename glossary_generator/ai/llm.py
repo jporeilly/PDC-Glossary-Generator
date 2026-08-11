@@ -194,7 +194,13 @@ def _complete_json(prompt, model=None, num_gpu=None, timeout=None,
         return llm_providers.parse_json(
             llm_providers.complete(prompt, SYSTEM, json_mode=True,
                                    model=model, timeout=TIMEOUT))
-    opts = {"temperature": 0.2}
+    # num_ctx 8192: the model may DECLARE a huge context (a 12b declaring
+    # 256K), and Ollama sizes the KV-cache reservation from the runtime
+    # context - unbounded, that reservation outgrows one GPU and the model
+    # gets SPLIT across cards (or spilled to CPU), paying a PCIe hop per
+    # token. Field-caught: an empty 12GB card sat idle while the schema call
+    # ran split at 7+ minutes. Our prompts are bounded; so is the cache.
+    opts = {"temperature": 0.2, "num_ctx": 8192}
     opts.update(options or {})
     options = opts
     if num_gpu is not None:
@@ -1117,9 +1123,14 @@ def propose_categories(rows, model=None, compute=None, max_categories=9):
         # completion. Too short and the symptom is "no pills + 'proposed
         # nothing usable'" - which reads as model quality when it is a clock
         # (field-caught: gemma3:27b "no pills and weird categories").
+        # Floor 900s: the field measured 7:25 for this call on a real estate
+        # (temp-0 full completion on a 12b) - the 360s floor cut it TWICE.
+        # The timeout exists to catch dead models, not slow ones; the UI
+        # narrates elapsed time while it runs.
         res = _complete_json(prompt, model=model, num_gpu=num_gpu,
-                             timeout=max(TIMEOUT * 3, AI_PASS_TIMEOUT * 2),
-                             options={"temperature": 0, "seed": 42})
+                             timeout=max(TIMEOUT * 3, AI_PASS_TIMEOUT * 2, 900),
+                             options={"temperature": 0, "seed": 42,
+                                      "num_ctx": 16384})
     except Exception:
         # A missing or broken model must degrade to "nothing proposed", never
         # surface as a 500 - the steward keeps the physical groups and moves on.

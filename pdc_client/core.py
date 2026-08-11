@@ -19,6 +19,11 @@ def split_base(base_url):
     """Return (clean_base, detected_realm_or_None). Strips a trailing Keycloak realm
        path, token path, /keycloak, or /api/public/vN so the server root is left."""
     b = (base_url or "").strip().rstrip("/")
+    # Paste damage: a doubled scheme ("https://https://host", or its
+    # slash-collapsed cousin "https:/https://host"). Keep the LAST scheme —
+    # it is the one attached to the real host. Field-caught: the resulting
+    # "no host given" read as a network failure and sent the user to the NIC.
+    b = re.sub(r"^(?:https?:/{1,2})+(?=https?://)", "", b, flags=re.I)
     m = _REALM_RE.search(b)
     realm = m.group(1) if m else None
     b = re.sub(r"/protocol/openid-connect/token/?$", "", b, flags=re.I)

@@ -633,6 +633,23 @@ class TestDraftPoliciesJob:
         assert r.status_code == 404
 
 
+class TestBaseUrlSurvivesPasteDamage:
+    def test_doubled_scheme_is_normalized(self):
+        """"Could not reach https:/https://pentaho.io/...: no host given" —
+           a doubled scheme in the base field parsed as no-host and read as
+           a NETWORK failure (the user went to check the NIC). clean_base
+           exists to absorb paste mistakes; a doubled scheme is the same
+           family: the LAST scheme owns the real host."""
+        from pdc_client.core import clean_base
+        assert clean_base("https:/https://pentaho.io") == "https://pentaho.io"
+        assert clean_base("https://https://pentaho.io") == "https://pentaho.io"
+        assert clean_base("http://https://pentaho.io") == "https://pentaho.io"
+        assert clean_base("https://pentaho.io") == "https://pentaho.io", \
+            "a healthy base must pass through untouched"
+        assert clean_base("https://pentaho.io/keycloak/realms/pdc") == \
+            "https://pentaho.io", "existing path-stripping still works"
+
+
 class TestGlossaryTreeCheckWiring:
     def test_route_reaches_the_network_not_an_attribute_error(self, client):
         """glossary_categories lives in pdc_client.entities but was never

@@ -142,12 +142,15 @@ def _setup_file_log():
         h.setFormatter(logging.Formatter(
             "%(asctime)s %(levelname)s %(name)s %(message)s"))
         h.setLevel(logging.INFO)
+        # handler on the ROOT only: uvicorn/client loggers PROPAGATE there,
+        # and attaching to both wrote every line twice (field-caught)
+        root = logging.getLogger("")
+        if not any(isinstance(x, logging.handlers.RotatingFileHandler)
+                   and getattr(x, "baseFilename", "") == h.baseFilename
+                   for x in root.handlers):
+            root.addHandler(h)
         for name in ("", "uvicorn", "uvicorn.error", "client"):
             lg = logging.getLogger(name)
-            if not any(isinstance(x, logging.handlers.RotatingFileHandler)
-                       and getattr(x, "baseFilename", "") == h.baseFilename
-                       for x in lg.handlers):
-                lg.addHandler(h)
             if lg.level in (logging.NOTSET, logging.WARNING):
                 lg.setLevel(logging.INFO)
     except Exception:

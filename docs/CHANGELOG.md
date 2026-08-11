@@ -14,6 +14,47 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.36.65] - 2026-08-11
+
+### Fixed - the schema call fits one GPU and says how long it takes
+
+The categorize call went from 7:25 to 1:12 on the same machine - a 6x
+speedup from one line. The model DECLARES a 256K context; Ollama sizes
+its KV-cache reservation from the runtime context, and unbounded that
+outgrew a single 12GB card - the model got SPLIT across both GPUs (an
+empty card sat carrying half a model) and every token paid a PCIe hop.
+Worse, temperature-0 decoding is brittle across runner builds: the same
+prompt that yields five clean subjects on the single-card runner decoded
+into a 19-second nothing on the split one. Every local call now passes a
+bounded num_ctx (8K; 16K for the schema-wide call): the runner fits one
+card, tokens stay on-die, and the same estate proposes the same taxonomy.
+The call's budget floor also rises to 15 minutes (the field measured
+7:25 before the fix - the timeout exists to catch dead models, not slow
+ones), and the busy line now shows the only honest numbers for a single
+opaque call: a live elapsed clock and how long THIS machine took last
+time ("definitely takes more than a minute - can we add an estimate?").
+
+### Changed - every duplicate is a steward decision
+
+The wholesale "Merge duplicates" and "Auto-disambiguate" buttons are
+gone ("the steward needs to go through every Term"): they were the only
+controls on the Review page that ACTED without a look, against the
+propose-then-approve constitution. Each duplicate cluster's header
+carries the per-cluster decision with its recommendation; AI advise and
+Find similar stay (they only suggest); the generate preflight still
+names any collision that reaches it.
+
+### Fixed - small honesty items, field-caught in one afternoon
+
+- A failed PDC call's error banner outlived its retry - it sat next to
+  "tree matches this export". Every retry clears it on entry.
+- A doubled scheme pasted into the base-URL field ("https:/https://host")
+  parsed as no-host and read as a NETWORK failure (the user went to check
+  the NIC). clean_base now keeps the last scheme - the one attached to
+  the real host.
+- app.log wrote every line twice (the forensics handler was attached to
+  both the root logger and the uvicorn loggers that propagate to it).
+
 ## [1.36.64] - 2026-08-11
 
 ### Added - drafting narrates, and the bundle keeps its polish

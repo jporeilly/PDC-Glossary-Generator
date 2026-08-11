@@ -218,6 +218,8 @@ function GenerateCard({ rows, glossaryName, governance, settings, onNavigate, au
   async function checkTree() {
     setTreeBusy(true)
     setTree(null)
+    setError(null)   // a prior failure must not outlive its retry — the
+                     // banner sat next to "✓ tree matches" (field-caught)
     try {
       const cats = [...new Set(keptRows.map((r) => r.Category).filter(Boolean))]
       setTree(await apiPost('/api/pdc/glossary-tree-check', {

@@ -155,17 +155,6 @@ function applyGroupAction(rowsIn, grpIn, name, action) {
   return { rows: out, grp: { ...grpIn, [name]: { action, base } } }
 }
 
-// Every kept duplicate name (count > 1) under the current group keys.
-function allDupGroups(rowsIn, grpIn) {
-  const active = activeNames(grpIn)
-  const c = {}
-  rowsIn.forEach((r, i) => {
-    if (!r || !truthy(r.Keep) || isTableTerm(r)) return
-    const k = keyOf(r, i, active)
-    if (k) c[k] = (c[k] || 0) + 1
-  })
-  return Object.keys(c).filter((k) => c[k] > 1)
-}
 
 /* ---------- AI agent definitions (each proposes; the steward applies) ---------- */
 
@@ -215,6 +204,13 @@ const AGENT_DESC = [
 ]
 const AGENT_META = Object.fromEntries(AGENT_DESC.map((a) => [a.label, a]))
 
+// mm:ss for the schema-call clock — one opaque call has no mid-flight
+// progress, so elapsed + "last run took" are the only honest numbers
+const fmtMMSS = (secs) => {
+  const s = Math.max(0, Math.floor(secs || 0))
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
+}
+
 // Accepting one proposed field carries ONLY that field's provenance flag
 // (plus the QA clear for Definition). Row-level LLM_Enriched is deliberately
 // absent: it is a legacy flag the chips fall back to when per-field flags are
@@ -253,7 +249,6 @@ export default function ReviewPage({ onNavigate }) {
   // usePersistentState in state.js. Cleared when a different glossary loads.
   const [filters, setFilters] = usePersistentState('review.filters', EMPTY_FILTERS)
   const [grp, setGrp] = usePersistentState('review.grp', {})           // {name: {action, base}}
-  const [bulk, setBulk] = usePersistentState('review.bulk', { merge: false, disambig: false })
   const [sim, setSim] = usePersistentState('review.sim', null)         // {busy, list, error} | null
   const [simThresh, setSimThresh] = usePersistentState('review.simThresh', 0.6)
   const [expanded, setExpanded] = usePersistentState('review.expanded', null) // open editor row index
@@ -321,6 +316,22 @@ export default function ReviewPage({ onNavigate }) {
   // strip's highlight to step 2 (Approve). Not persisted: after a reload the
   // highlight falls back to step 1, which is harmless (re-proposing is safe).
   const [catRan, setCatRan] = useState(false)
+  // schema-call clock: elapsed ticks while the call runs; the last successful
+  // duration on THIS machine is the estimate shown for the next run
+  const [catElapsed, setCatElapsed] = useState(0)
+  const [catLastSecs, setCatLastSecs] = useState(() => {
+    try { return parseInt(localStorage.getItem('gg_cat_secs') || '0', 10) || 0 }
+    catch { return 0 }
+  })
+  const catStartRef = useRef(null)
+  useEffect(() => {
+    if (!catBusy) return undefined
+    catStartRef.current = Date.now()
+    setCatElapsed(0)
+    const t = setInterval(() =>
+      setCatElapsed(Math.floor((Date.now() - catStartRef.current) / 1000)), 1000)
+    return () => clearInterval(t)
+  }, [catBusy])
   const [evidence, setEvidence] = useState(null)   // row index | null
   const [busy, setBusy] = useState(null)           // 'load' | 'enhance' | 'save'
   const [saveName, setSaveName] = useState('')
@@ -734,38 +745,20 @@ export default function ReviewPage({ onNavigate }) {
     const res = applyGroupAction(rowsRef.current, grp, name, next)
     setRows(res.rows)
     setGrp(res.grp)
-    setBulk({ merge: false, disambig: false })
     structuralReset()
   }
 
-  function bulkResolve(action, flag, appliedMsg, revertMsg, noneMsg) {
-    if (locked) return
-    let r = rowsRef.current
-    let g = grp
-    if (bulk[flag]) {
-      Object.keys(g).forEach((n) => {
-        if (g[n].action && g[n].action !== 'separate') {
-          const res = applyGroupAction(r, g, n, 'separate')
-          r = res.rows; g = res.grp
-        }
-      })
-      setRows(r); setGrp(g); setBulk({ merge: false, disambig: false })
-      setMsg(revertMsg)
-    } else {
-      const names = allDupGroups(r, g)
-      if (!names.length) { setMsg(noneMsg); return }
-      names.forEach((n) => { const res = applyGroupAction(r, g, n, action); r = res.rows; g = res.grp })
-      setRows(r); setGrp(g)
-      setBulk({ merge: action === 'merge', disambig: action === 'split' })
-      setMsg(`${appliedMsg} ${names.length} duplicate group${names.length !== 1 ? 's' : ''}.`)
-    }
-    structuralReset()
-  }
+  // The wholesale Merge-duplicates / Auto-disambiguate buttons are gone
+  // (field: "the steward needs to go through every Term"): they were the
+  // only controls on the page that ACTED without a look, against the
+  // propose→approve constitution. Each duplicate cluster's header carries
+  // the per-cluster decision with its recommendation; the generate
+  // preflight still names any collision that reaches it.
 
   function resetAll() {
     if (!snapRef.current || locked) return
     setRows(deep(snapRef.current))
-    setGrp({}); setBulk({ merge: false, disambig: false }); setReco({}); setSim(null)
+    setGrp({}); setReco({}); setSim(null)
     setFilters(EMPTY_FILTERS)
     structuralReset()
     setMsg('Reset to the raw scan.')
@@ -877,6 +870,12 @@ export default function ReviewPage({ onNavigate }) {
             : 'No model available (or fewer than two tables) \u2014 nothing proposed.')
         return
       }
+      // this machine's real duration becomes the next run's estimate
+      const catSecs = Math.round((Date.now() - (catStartRef.current || Date.now())) / 1000)
+      if (catSecs > 2) {
+        try { localStorage.setItem('gg_cat_secs', String(catSecs)) } catch { /* private mode */ }
+        setCatLastSecs(catSecs)
+      }
       // Land as PILLS through the shared proposal machinery, not a bulk
       // apply: acceptance IS the steward's approval, per pill or Accept all,
       // exactly like every other thing the model proposes. Nothing changes
@@ -975,7 +974,7 @@ export default function ReviewPage({ onNavigate }) {
       return nx
     }))
     setSim({ busy: false, list: sim.list.filter((x) => x.keep !== s.drop && x.drop !== s.drop) })
-    setMsg(`Merged “${s.drop}” into “${s.keep}” (${n} row${n !== 1 ? 's' : ''}). Use the duplicate header (or Merge duplicates) to collapse into one row.`)
+    setMsg(`Merged “${s.drop}” into “${s.keep}” (${n} row${n !== 1 ? 's' : ''}). Use the duplicate header's Merge to collapse into one row.`)
   }
 
   function simFlip(idx) {
@@ -1251,7 +1250,7 @@ export default function ReviewPage({ onNavigate }) {
       const d = await apiPost('/api/load-glossary', { glossary: text })
       setRows(d.rows || [])
       snapRef.current = deep(d.rows || []); setUi('review.snap', snapRef.current)
-      setGrp({}); setBulk({ merge: false, disambig: false }); setReco({}); setSim(null)
+      setGrp({}); setReco({}); setSim(null)
       setFilters(EMPTY_FILTERS)
       structuralReset()
       const rp = d.report || {}
@@ -1271,7 +1270,7 @@ export default function ReviewPage({ onNavigate }) {
       const d = await apiPost('/api/enhance-glossary', { rows: rowsRef.current, glossary: text, append_missing: true })
       setRows(d.rows || [])
       snapRef.current = deep(d.rows || []); setUi('review.snap', snapRef.current)
-      setGrp({}); setBulk({ merge: false, disambig: false })
+      setGrp({})
       structuralReset()
       const rp = d.report || {}
       setMsg(`Enhanced from ${rp.glossary || f.name}: ${rp.matched || 0} matched, ${rp.added || 0} added.`)
@@ -1502,7 +1501,17 @@ export default function ReviewPage({ onNavigate }) {
               AI categories — one call over the whole schema graph
               <span className="rv-thinking" role="status" aria-label="AI categories running"><i /><i /><i /></span>
             </span>
-            <span className="ep muted">bigger models take up to a minute — proposals land as Category pills</span>
+            {/* one opaque call has no mid-flight progress, so show the only
+                honest numbers: the clock, and what THIS machine did last
+                time (field: "definitely takes more than a minute — can we
+                add an estimate?") */}
+            <span className="ep muted">
+              elapsed {fmtMMSS(catElapsed)}
+              {catLastSecs
+                ? ` · last run took ${fmtMMSS(catLastSecs)}`
+                : ' · first run also pays model load'}
+              {' '}· proposals land as Category pills when the call returns
+            </span>
           </div>
         )}
 
@@ -1657,17 +1666,11 @@ export default function ReviewPage({ onNavigate }) {
               Keep High+Med conf
             </button>
             <span className="rv-sep" aria-hidden="true" />
+            {/* no wholesale merge/disambiguate here — every duplicate cluster
+                is a steward decision, made on its own header (with the
+                recommendation shown); the generate preflight names any
+                collision that slips through */}
             <span className="lbl">DUPLICATES</span>
-            <button className={`ghost sm${bulk.merge ? ' applied' : ''}`} disabled={locked}
-                    onClick={() => bulkResolve('merge', 'merge', 'Merged', 'Reverted merge.', 'No duplicate term names to merge.')}
-                    title="Collapse same-named terms into one term linked to all their columns — PDC's one-term-many-data-elements model. Click again to revert.">
-              Merge duplicates
-            </button>
-            <button className={`ghost sm${bulk.disambig ? ' applied' : ''}`} disabled={locked}
-                    onClick={() => bulkResolve('split', 'disambig', 'Disambiguated', 'Reverted disambiguation.', 'No duplicate term names to disambiguate.')}
-                    title="Make every term name unique by appending its source table, so name-based Resolve can't mis-link. Click again to revert.">
-              Auto-disambiguate
-            </button>
             <button className="ghost sm" disabled={advising || noRows || !checkGroups} onClick={aiAdvise}
                     title={!checkGroups
                       ? 'Nothing to escalate — every duplicate group was already settled from profiled evidence. This button only ever acts on groups badged “check”.'

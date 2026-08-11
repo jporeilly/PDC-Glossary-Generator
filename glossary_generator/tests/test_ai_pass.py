@@ -430,8 +430,8 @@ class TestCategoriesTimeoutIsVisible:
         monkeypatch.setattr(llm, "_warm", lambda m=None: None)
         rows = [make_row("A", "s.t1.a"), make_row("B", "s.t2.b")]
         llm.propose_categories(rows)
-        assert (seen.get("timeout") or 0) >= 360, \
-            "the categories call needs at least 2x the AI-pass floor"
+        assert (seen.get("timeout") or 0) >= 900, \
+            "the field measured 7:25 for this call — the floor must clear it"
 
 
 class TestPolicyHintsNarrate:
