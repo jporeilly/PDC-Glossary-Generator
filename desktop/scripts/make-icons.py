@@ -167,7 +167,14 @@ for y in range(H):
 side = Image.composite(Image.new("RGB", (W, H), ACCENT_DARK), side, grad.resize((W, H)))
 d = ImageDraw.Draw(side)
 sw = colorize(swirl_a, WHITE, (W * 0.54) / swirl_a.width)
-side.paste(sw, (int((W - sw.width) / 2), int(H * 0.11)), sw)
+# The sidebar swirl wears the app badge, same composition as the app
+# icon (the header's swirl lands ~42 px tall, glyph mush - left plain).
+L = int(sw.width / 0.72)
+tile = Image.new("RGBA", (L, L), (0, 0, 0, 0))
+tile.alpha_composite(sw, (int((L - sw.width) / 2 - L * 0.03),
+                          int((L - sw.height) / 2 - L * 0.03)))
+draw_badge(tile, L, args.badge, args.badge_color)
+side.paste(tile, (int((W - L) / 2), int(H * 0.11) - (L - sw.height) // 2), tile)
 wmark = colorize(wm_a, WHITE, (W * 0.74) / wm_a.width)
 side.paste(wmark, (int((W - wmark.width) / 2), int(H * 0.455)), wmark)
 try:
