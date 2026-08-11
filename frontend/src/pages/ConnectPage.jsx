@@ -1119,7 +1119,7 @@ const DB_DEFAULTS = {
 }
 const MINIO_DEFAULTS = {
   endpoint: '', bucket: '', access_key: '', secret_key: '',
-  prefix: '', secure: false, level: 'file', profile_dq: false,
+  prefix: '', secure: false, level: 'file', profile_dq: false, content_terms: true,
 }
 const DDL_DEFAULTS = { path: '' }
 
@@ -1268,6 +1268,11 @@ function ConnectionForm({ editing, onSaved, onCancel }) {
                  title="Apply business term, sensitivity and rating to each leaf file (so Trust Score lands on the files you see in PDC) rather than the folder.">
             <input type="checkbox" checked={minio.level === 'file'}
                    onChange={(e) => setMinio({ ...minio, level: e.target.checked ? 'file' : 'folder' })} /> Granularity: each file (leaf objects)
+          </label>
+          <label className="check" style={{ alignSelf: 'end', paddingBottom: '.45rem' }}
+                 title="Parse each content-profilable object's declared columns (CSV headers, JSON/JSONL record paths) into candidate terms — the same shape PDC's own scanner catalogs, with values profiled exactly like database columns. Purely mechanical: whatever the files declare, no estate assumptions.">
+            <input type="checkbox" checked={minio.content_terms !== false}
+                   onChange={(e) => setMinio({ ...minio, content_terms: e.target.checked })} /> Terms from file contents (columns)
           </label>
           <label className="check" style={{ alignSelf: 'end', paddingBottom: '.45rem' }}
                  title="Read each object (CSV/JSON/JSONL/XML/text) and compute a Data Quality score from its content — the fourth Trust Score input.">

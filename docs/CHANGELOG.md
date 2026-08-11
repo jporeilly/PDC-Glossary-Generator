@@ -14,6 +14,30 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.36.57] - 2026-08-11
+
+### Added - terms from file contents: a CSV column is a column
+
+The direct object-store scan produced 5 folder terms while PDC's harvest
+of the SAME bucket carried every CSV column - the app never parsed file
+contents into terms at all ("would expect a lot more Terms for
+Documents"). Now it does, estate-agnostically: content-profilable objects
+(csv/tsv/psv, JSON arrays, JSONL) declare their columns (headers, or
+record leaves flattened to dotted paths like readings.flow_gpm), each
+column's sampled values run the SAME deterministic profiler as a database
+column (induced patterns, enums, sensitivity - Asset ID arrives carrying
+^AST-\d{4}$), and the rows flow through the standard document path: leaf
+naming, per-folder physical categories, envelope fields auto-pruned with
+their reason. On the connection: "Terms from file contents (columns)",
+default ON - including for connections saved before the flag existed.
+
+Released under the new discipline: proven against the LIVE lab bucket
+before building - which caught two defects the unit tests missed
+(path-derived record-term names, bucket-named categories) plus a
+would-be production KeyError from suggest()'s bracket-accessed column
+shape. 268 tests; live result: 16 files -> 38 column terms, Gis/Scada
+categories, envelopes pruned.
+
 ## [1.36.56] - 2026-08-11
 
 ### Changed - one grid writer, in the working order

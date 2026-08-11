@@ -1561,8 +1561,13 @@ def suggest(tables, schema=None):
     # Add one table-level "record" term per table — created in the glossary so the
     # Steward has it to link, but conceptual (no Source_Column) so the app never
     # auto-links it. Skip any that would collide with an existing (category, term).
+    # DOCUMENT "tables" (bucket/path keys) mint no record term: the file and
+    # folder terms from suggest_document_files already own that role, and a
+    # record term derived from a full path reads as garbage ("Awc-documents/
+    # gis/asset Inventory Record" — live-test-caught before release).
     existing = {(r["Category"], r["Term"]) for r in out}
-    out += [r for r in table_term_rows(tables, out)
+    out += [r for r in table_term_rows(
+                {t: c for t, c in tables.items() if not _FILE_EXT.search(t or "")}, out)
             if (r["Category"], r["Term"]) not in existing]
     return out
 
@@ -2125,7 +2130,8 @@ def _get_object_bytes(s3, bucket, key, max_bytes):
 
 
 def harvest_files(cfg, max_objects=20000, owner_sample=600,
-                  profile_dq=False, dq_max_bytes=5_000_000, dq_sample=800):
+                  profile_dq=False, dq_max_bytes=5_000_000, dq_sample=800,
+                  content_columns=False):
     """Enumerate INDIVIDUAL objects (leaf files) in a bucket, retaining each key so
        metadata can be applied per file (harvest_minio rolls these up into folders and
        discards the keys). Honours the same include/exclude globs as discover_documents
@@ -2188,15 +2194,23 @@ def harvest_files(cfg, max_objects=20000, owner_sample=600,
             # (json/xml) are skipped when larger than the cap (truncation would break
             # the parse); line-oriented formats are profiled from a head with the last
             # partial line dropped.
-            if profile_dq and dq_done < dq_sample and ext in _DQ_PROFILABLE:
+            if (profile_dq or content_columns) and dq_done < dq_sample and ext in _DQ_PROFILABLE:
                 size = obj.get("Size", 0) or 0
                 if size <= dq_max_bytes or ext in _DQ_LINE_EXTS:
                     raw = _get_object_bytes(s3, bucket, key, dq_max_bytes)
                     if raw and size > dq_max_bytes and ext in _DQ_LINE_EXTS:
                         raw = raw.rsplit(b"\n", 1)[0]      # drop truncated final line
-                    qd = profile_document_object(raw, ext)
-                    if qd:
-                        rec_file["qdims"] = qd
+                    if profile_dq:
+                        qd = profile_document_object(raw, ext)
+                        if qd:
+                            rec_file["qdims"] = qd
+                    if content_columns:
+                        # same read, second harvest: the columns this object
+                        # DECLARES become candidate terms downstream — the
+                        # app-side parity of PDC cataloging a CSV's columns
+                        cc = extract_document_columns(raw, ext)
+                        if cc:
+                            rec_file["columns"] = cc
                     dq_done += 1
             files.append(rec_file)
             n += 1
@@ -2220,6 +2234,136 @@ def _doc_match(rel, base, pats):
     import fnmatch
     rl, bl = rel.lower(), base.lower()
     return any(fnmatch.fnmatch(bl, p) or fnmatch.fnmatch(rl, p) for p in pats)
+
+
+def extract_document_columns(content, ext, max_cols=200, sample_rows=200):
+    """The columns a content-profilable object DECLARES, with sampled values.
+       Purely mechanical — whatever the file says, for any estate: delimited
+       files (csv/tsv/psv) use their header row; JSON arrays and JSONL flatten
+       each record's scalar leaves to dotted paths (readings.alarm,
+       systems.flow_gpm) — the same shape PDC's own scanner catalogs. Returns
+       [{column, values}], or [] when the format declares no columns."""
+    ext = (ext or "").lower()
+    if not content:
+        return []
+    try:
+        text = content.decode("utf-8")
+    except Exception:
+        try:
+            text = content.decode("latin-1")
+        except Exception:
+            return []
+
+    if ext in _DQ_DELIM_EXTS:
+        import csv as _csv, io
+        delim = {"csv": ",", "tsv": "\t", "psv": "|"}[ext]
+        rows = [r for r in _csv.reader(io.StringIO(text), delimiter=delim) if r]
+        if not rows:
+            return []
+        header = [str(h).strip() for h in rows[0]]
+        if not any(header):
+            return []
+        body = rows[1:sample_rows + 1]
+        cols = []
+        for i, h in enumerate(header[:max_cols]):
+            if not h:
+                continue
+            cols.append({"column": h, "values": [r[i] for r in body if i < len(r)]})
+        return cols
+
+    records = []
+    if ext in _DQ_JSON_EXTS:
+        try:
+            obj = json.loads(text)
+        except Exception:
+            return []
+        if isinstance(obj, list):
+            records = [r for r in obj if isinstance(r, dict)][:sample_rows]
+        elif isinstance(obj, dict):
+            records = [obj]
+        else:
+            return []
+    elif ext in _DQ_JSONL_EXTS:
+        for line in text.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                r = json.loads(line)
+            except Exception:
+                continue
+            if isinstance(r, dict):
+                records.append(r)
+            if len(records) >= sample_rows:
+                break
+    else:
+        return []
+
+    coldict, order = {}, []
+
+    def _leaves(node, prefix):
+        if isinstance(node, dict):
+            for k, v in node.items():
+                _leaves(v, f"{prefix}.{k}" if prefix else str(k))
+        elif isinstance(node, list):
+            for x in node[:sample_rows]:
+                _leaves(x, prefix)
+        else:
+            if prefix not in coldict:
+                if len(coldict) >= max_cols:
+                    return
+                coldict[prefix] = []
+                order.append(prefix)
+            if node is not None and len(coldict[prefix]) < sample_rows:
+                coldict[prefix].append(node)
+
+    for r in records:
+        _leaves(r, "")
+    return [{"column": k, "values": coldict[k]} for k in order if k]
+
+
+def suggest_document_columns(files, bucket="documents"):
+    """Candidate terms from the COLUMNS content-profilable files declare — the
+       app-side parity of PDC's own scanner, which catalogs a CSV's columns as
+       COLUMN entities (field-caught: the direct scan produced 5 folder terms
+       while PDC's harvest of the same bucket carried every column). Purely
+       mechanical and estate-agnostic: each column's sampled values run the
+       SAME deterministic profiler as a database column (_profile_values →
+       patterns, enums, sensitivity), and the rows flow through suggest()'s
+       document path — leaf naming, pack-driven categories, envelope pruning.
+       Entries carry the full shape suggest() bracket-accesses (comment / pk /
+       fk / notnull / type), so a document column and a SQL column are the
+       same thing downstream."""
+    tables = {}
+    for f in files or []:
+        cols = f.get("columns") or []
+        if not cols:
+            continue
+        # the RELATIVE path is the "table" (its top folder becomes the
+        # physical-fallback category: gis/asset_inventory.csv → Gis); the
+        # bucket rides in the schema slot of the source identity instead —
+        # live-test-caught: bucket-prefixed names filed every column under
+        # one bucket-named category
+        tname = f.get("rel") or f.get("base") or ""
+        entries = []
+        for c in cols:
+            name = str(c.get("column") or "").strip()
+            if not name:
+                continue
+            raw_vals = c.get("values") or []
+            vals = [str(v) for v in raw_vals if str(v).strip()]
+            prof = _profile_values(name, vals, max(len(raw_vals), 1)) if vals else {}
+            # the COMPLETE shape suggest() bracket-accesses (enumerated, not
+            # guessed: column/pk/fk/attributes/comment/table/notnull/type/
+            # ref_table/ref_col) — a document column IS a column downstream
+            entries.append({"column": name, "profile": prof, "comment": "",
+                            "type": "", "pk": False, "fk": False,
+                            "notnull": False, "attributes": {},
+                            "table": f.get("base") or "", "ref_table": "",
+                            "ref_col": ""})
+        if entries:
+            tables[tname] = entries
+    return suggest(tables, schema=bucket) if tables else []
 
 
 def discover_documents(cfg, max_objects=50000, top_n=8):

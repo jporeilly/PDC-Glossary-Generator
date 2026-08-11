@@ -787,7 +787,7 @@ def _csv_row_to_conn(row):
                "secret_key": row.get("secretAccessKey") or row.get("secretKey"),
                "prefix": str(row.get("path") or "").lstrip("/"),
                "secure": str(endpoint).lower().startswith("https"),
-               "level": "file", "profile_dq": False}
+               "level": "file", "profile_dq": False, "content_terms": True}
         return {"name": name, "type": "minio", "config": cfg}, None
     return None, "unsupported kind %r for a live connection (postgres/mysql/oracle/minio/s3 only)" % (kind or "?")
 
@@ -1380,17 +1380,32 @@ def scan(body: dict = Body(default={})):
                 # and compute a Data-Quality score (csv/json/text/xml), instead of
                 # leaving the Data Quality input for PDC to fill.
                 profile_dq = bool(cfg.get("profile_dq") or cfg.get("dq"))
-                files = suggester.harvest_files(cfg, profile_dq=profile_dq)
+                # content_terms: parse each content-profilable object's DECLARED
+                # columns into candidate terms — the app-side parity of PDC's own
+                # scanner cataloging a CSV's columns (field-caught: the direct
+                # scan produced 5 folder terms while PDC's harvest of the same
+                # bucket carried every column). Defaults ON, including for
+                # connections saved before the flag existed.
+                content_terms = bool(cfg.get("content_terms", True))
+                files = suggester.harvest_files(cfg, profile_dq=profile_dq,
+                                                content_columns=content_terms)
                 rows = suggester.suggest_document_files(files, bucket)
+                col_rows = suggester.suggest_document_columns(files, bucket) if content_terms else []
+                rows = rows + col_rows
                 try: tagdict.accrete(rows, source="minio")
                 except Exception: pass
                 folders = sorted({f["folder"] for f in files})
                 scored = sum(1 for f in files if f.get("qdims"))
+                parsed = sum(1 for f in files if f.get("columns"))
                 sig = (f"{len(files)} leaf file(s) across {len(folders)} folder(s); "
                        "metadata applies per file")
+                if content_terms:
+                    sig += (f" · {len(col_rows)} column term(s) parsed from "
+                            f"{parsed} file(s)' contents")
                 if profile_dq:
                     sig += f" · Data Quality computed from content for {scored} file(s)"
-                scn = {"objects": len(files), "folders": len(folders), "dq_scored": scored}
+                scn = {"objects": len(files), "folders": len(folders),
+                       "dq_scored": scored, "content_columns": len(col_rows)}
                 return {"rows": rows, "stats": _stats(rows), "scanned": scn,
                         "check": suggester.scan_check(rows, scn),
                         "ownership": {"signals": [sig]}}
@@ -2981,7 +2996,7 @@ def _pdc_record_to_conn(rec):
                "secret_key": "",
                "prefix": str(rec.get("path") or "").lstrip("/"),
                "secure": str(endpoint).lower().startswith("https"),
-               "level": "file", "profile_dq": False}
+               "level": "file", "profile_dq": False, "content_terms": True}
         return ({"name": name, "type": "minio", "config": cfg}, "secret key",
                 _reachability_warning(endpoint))
     return (None, None,
