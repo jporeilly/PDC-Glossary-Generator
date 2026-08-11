@@ -581,7 +581,7 @@ install/reset-scenario scripts moved to the PDC-Scenarios repo)
 | --- | --- |
 | [REFERENCE.md](docs/REFERENCE.md) | App reference: env vars, drivers, Ollama/GPU, API, repository manifest |
 | [GUIDE.md](docs/GUIDE.md) | THE manual: why (Registry) + install/setup + walkthrough + real-PDC operating notes |
-| [GLOSSARY-STRATEGY.md](docs/GLOSSARY-STRATEGY.md) | Implementing a glossary in PDC: rollout phases, the conditions under which glossaries drift, sizing the domain split, and the gotchas that look like success |
+| [GLOSSARY-STRATEGY.html](docs/GLOSSARY-STRATEGY.html) | Implementing a glossary in PDC: rollout phases, the conditions under which glossaries drift, sizing the domain split, and the gotchas that look like success |
 | [CHANGELOG.md](docs/CHANGELOG.md) | Release history |
 | [PDC-VM-TROUBLESHOOTING.md](docs/PDC-VM-TROUBLESHOOTING.md) | PDC platform errors on the lab VM (OpenSearch init, site-wide 404, certs, licensing) |
 | [PDC-Scenarios](https://github.com/jporeilly/PDC-Scenarios) | Every vertical's data kit, domain pack and courseware — incl. the shared lab and lab-setup.docx (Parts A–I) |
