@@ -14,6 +14,18 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.36.59] - 2026-08-11
+
+### Changed - the agent strip lights one step at a time
+
+Steps 1 and 3 were both blue at once, so nothing on the strip said "you
+are HERE". It now reads as a stepper: the current step carries the
+primary highlight and the others drop to ghost - AI categories hands the
+blue to Approve categories once proposals land, the keystone hands it to
+AI pass, and after an enriched pass the strip goes quiet (the flow lives
+at Review complete). Highlight only: every button stays clickable, so a
+steward working manually is never gated by the lighting.
+
 ## [1.36.58] - 2026-08-11
 
 ### Fixed - a timed-out categories call says so, and gets time to finish

@@ -317,6 +317,10 @@ export default function ReviewPage({ onNavigate }) {
   // later declaration is a temporal-dead-zone crash that blanks the page
   // (field-caught on the .52 clean install; bundlers cannot catch TDZ)
   const [catBusy, setCatBusy] = useState(false)
+  // session flag: an AI-categories run produced proposals — advances the
+  // strip's highlight to step 2 (Approve). Not persisted: after a reload the
+  // highlight falls back to step 1, which is harmless (re-proposing is safe).
+  const [catRan, setCatRan] = useState(false)
   const [evidence, setEvidence] = useState(null)   // row index | null
   const [busy, setBusy] = useState(null)           // 'load' | 'enhance' | 'save'
   const [saveName, setSaveName] = useState('')
@@ -492,6 +496,15 @@ export default function ReviewPage({ onNavigate }) {
     if (!c || !Array.isArray(c.categories)) return false
     return JSON.stringify(c.categories) === JSON.stringify(cats.kept)
   }, [ws.categoriesConfirmed, cats])
+  // The strip reads as a STEPPER: one blue at a time (user-specified flow
+  // lighting — "once AI categorize has completed it moves onto Approve…").
+  // Highlight only: every button stays clickable, so a manual workflow is
+  // never gated. Step derives from durable state where it exists (the
+  // keystone; LLM-enriched rows prove the pass ran) and the session catRan
+  // flag for step 1 → 2.
+  const agentStep = catsConfirmedCurrent
+    ? (stats.enriched > 0 ? 0 : 3)
+    : (catRan ? 2 : 1)
   // kept categories that are still just the humanized physical name of their
   // own table/folder — same slug rule Govern badges with
   const physicalLooking = useMemo(() => cats.kept.filter((cat) => {
@@ -861,7 +874,7 @@ export default function ReviewPage({ onNavigate }) {
         items[i] = { patch: { Category: a[i] },
                      display: [{ field: 'Category', from: cur, to: a[i] }] }
       })
-      if (!n) { setMsg('Every row already carries its proposed category.'); return }
+      if (!n) { setCatRan(true); setMsg('Every row already carries its proposed category.'); return }
       setProposals((prev) => {
         const label = 'AI categories (schema)'
         const merged = { ...(prev ? prev.items : {}) }
@@ -877,6 +890,7 @@ export default function ReviewPage({ onNavigate }) {
                              : (AGENT_META[label] || {}).desc || '',
                  gate: !!(prev && prev.gate), items: merged }
       })
+      setCatRan(true)
       setMsg(`${cats.length} categories proposed on ${n} row(s) \u2014 accept per pill or Accept all` +
              (un ? ` \u00b7 ${un.tables.length} table(s) kept their physical group` : '') + '.')
     } catch (e) {
@@ -1409,16 +1423,16 @@ export default function ReviewPage({ onNavigate }) {
                 first (one schema-wide call), then the AI pass writes language
                 inside it - definitions against final groups, no pill fights
                 over the Category column. */}
-            <button className="primary sm" disabled={catBusy} onClick={aiCategories}
+            <button className={`${agentStep === 1 ? 'primary' : 'ghost'} sm`} disabled={catBusy} onClick={aiCategories}
                     title="Run FIRST. One call over the schema the scan proved — tables, columns, FK links — proposing an abstract business grouping. Assignments land as Category pills: accept, rename any group, and only then run the AI pass so definitions are written against the final taxonomy.">
               {catBusy ? 'Proposing…' : '1 · AI categories'}
             </button>
-            <button className={`ghost sm${catsConfirmedCurrent ? ' applied' : ''}`}
+            <button className={`${agentStep === 2 ? 'primary' : 'ghost'} sm${catsConfirmedCurrent ? ' applied' : ''}`}
                     disabled={catBusy || !cats.kept.length} onClick={confirmCategories}
                     title="The KEYSTONE. Declare the category set settled: the Dictionary syncs immediately so its queue reflects this taxonomy, Govern keys stewardship to settled names, and Export pack freezes the mapping for future scans. If you change categories afterwards, this asks to be approved again — the drift is visible, never silent.">
               {catsConfirmedCurrent ? '✓ 2 · Categories approved' : '2 · Approve categories'}
             </button>
-            <button className="primary sm" disabled={aiDisabled} onClick={runAiPass}
+            <button className={`${agentStep === 3 ? 'primary' : 'ghost'} sm`} disabled={aiDisabled} onClick={runAiPass}
                     title="One model call per row for every field the LLM can decide — definition, purpose, a clearer name, governed tags and a blank category. Replaces running Enrich + AI suggest + AI categorize separately (three passes over the same rows, each overwriting the last). Proposals only — accept per pill.">
               3 · AI pass (all fields)
             </button>
