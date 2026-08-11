@@ -1008,7 +1008,13 @@ def propose_categories(rows, model=None, compute=None, max_categories=9):
     except Exception:
         pass
     try:
-        res = _complete_json(prompt, model=model, num_gpu=num_gpu, timeout=TIMEOUT * 3)
+        # ONE schema-wide call on a possibly-large model: the budget must
+        # absorb model LOAD (a 27b pays 30-60s before generating) plus a long
+        # completion. Too short and the symptom is "no pills + 'proposed
+        # nothing usable'" - which reads as model quality when it is a clock
+        # (field-caught: gemma3:27b "no pills and weird categories").
+        res = _complete_json(prompt, model=model, num_gpu=num_gpu,
+                             timeout=max(TIMEOUT * 3, AI_PASS_TIMEOUT * 2))
     except Exception:
         # A missing or broken model must degrade to "nothing proposed", never
         # surface as a 500 - the steward keeps the physical groups and moves on.

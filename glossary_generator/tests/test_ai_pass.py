@@ -411,3 +411,24 @@ class TestAdvisorRespectsCalculatedMeasures:
         assert "business MEASURES" in p
         assert "being computed is not a disqualifier" in p
         assert "The formula belongs IN the definition" in p
+
+
+class TestCategoriesTimeoutIsVisible:
+    def test_schema_call_gets_a_big_budget(self, monkeypatch):
+        """One schema-wide call on a possibly-large model must absorb model
+           LOAD plus a long completion - too short and the symptom is "no
+           pills", which reads as model quality when it is a clock
+           (field-caught: gemma3:27b 'no pills and weird categories')."""
+        seen = {}
+
+        def capture(prompt, model=None, num_gpu=None, timeout=None):
+            seen["timeout"] = timeout
+            return {"categories": [{"name": "Operations", "tables": ["t1", "t2"]}]}
+
+        monkeypatch.setattr(llm, "_complete_json", capture)
+        monkeypatch.setattr(llm, "status", lambda m=None: {"online": True})
+        monkeypatch.setattr(llm, "_warm", lambda m=None: None)
+        rows = [make_row("A", "s.t1.a"), make_row("B", "s.t2.b")]
+        llm.propose_categories(rows)
+        assert (seen.get("timeout") or 0) >= 360, \
+            "the categories call needs at least 2x the AI-pass floor"

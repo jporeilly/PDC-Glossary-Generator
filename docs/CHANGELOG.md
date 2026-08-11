@@ -14,6 +14,21 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.36.58] - 2026-08-11
+
+### Fixed - a timed-out categories call says so, and gets time to finish
+
+"No pills and weird categories" from a larger model read as model quality;
+the likelier truth was a CLOCK - one schema-wide call must absorb model
+LOAD (a 27b pays 30-60s before generating) plus a long completion, and on
+timeout the UI said "the model proposed nothing usable", sending the
+steward model-shopping. The call's budget now floors at 2x the AI-pass
+timeout (>=360s, test-pinned), the endpoint reports timeouts distinctly,
+and the message tells the truth: "The model TIMED OUT ... not a quality
+verdict", pointing at the Settings timeout and warm loads. Field wisdom
+recorded with it: on this workload the 12b gemma has been the sweet spot -
+bigger is not automatically better for strict-JSON schema reasoning.
+
 ## [1.36.57] - 2026-08-11
 
 ### Added - terms from file contents: a CSV column is a column

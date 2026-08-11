@@ -840,9 +840,11 @@ export default function ReviewPage({ onNavigate }) {
       const cats = (d.categories || []).filter((c) => !c.unassigned)
       const un = (d.categories || []).find((c) => c.unassigned)
       if (!d.used_llm || !cats.length) {
-        setMsg(d.used_llm
-          ? 'The model proposed nothing usable \u2014 set a few categories by hand and re-run.'
-          : 'No model available (or fewer than two tables) \u2014 nothing proposed.')
+        setMsg(d.timed_out
+          ? 'The model TIMED OUT on the schema-wide call \u2014 larger models need a longer LLM timeout (Settings) and a warm first load. Nothing was proposed; not a quality verdict.'
+          : d.used_llm
+            ? 'The model proposed nothing usable \u2014 set a few categories by hand and re-run.'
+            : 'No model available (or fewer than two tables) \u2014 nothing proposed.')
         return
       }
       // Land as PILLS through the shared proposal machinery, not a bulk

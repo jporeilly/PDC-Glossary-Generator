@@ -1248,9 +1248,15 @@ def ai_categories(body: dict = Body(default={})):
     body = body or {}
     rows = [r for r in (body.get("rows") or []) if isinstance(r, dict)]
     from ai import llm
+    # a timeout on this ONE long call must be distinguishable from "the model
+    # had no opinion" — the UI's "proposed nothing usable" on a clock failure
+    # sent the steward model-shopping when the fix was a longer budget
+    before = llm.call_failures().get("timeout", 0)
     proposal, assignments, used = llm.propose_categories(
         rows, model=body.get("model"), compute=body.get("compute"))
-    return {"categories": proposal, "assignments": assignments, "used_llm": used}
+    timed_out = llm.call_failures().get("timeout", 0) - before
+    return {"categories": proposal, "assignments": assignments, "used_llm": used,
+            "timed_out": max(timed_out, 0)}
 
 @app.post("/api/seed")
 def seed(body: dict = Body(default={})):
