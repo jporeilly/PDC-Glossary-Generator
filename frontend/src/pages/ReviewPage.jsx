@@ -1945,8 +1945,12 @@ const GridRow = memo(function GridRow({ row: r, index, pos, expanded, prop, onAc
         )}
         {!keptRow && r.Prune_Reason && (
           <span className="rv-ttbadge rv-keybadge"
-                title={`Auto-pruned by the scan: ${r.Prune_Reason}. The PK/FK relationship still travels to the Registry's physical model — tick Keep to restore it as a term.`}>
-            KEY
+                title={`Auto-pruned by the scan: ${r.Prune_Reason}. ${/key|reference/i.test(r.Prune_Reason) ? "The PK/FK relationship still travels to the Registry's physical model — tick" : 'Tick'} Keep to restore it as a term.`}>
+            {/* the badge says WHY it was pruned — "KEY" on an envelope date
+                field read as a misjudgment when it was just a hardcoded label
+                (field-caught: "Dates have now been identified as Keys") */}
+            {/envelope/i.test(r.Prune_Reason) ? 'ENVELOPE'
+              : /key|reference/i.test(r.Prune_Reason) ? 'KEY' : 'PRUNED'}
           </span>
         )}
         {r.Suggested_Name && r.Suggested_Name !== r.Term && (

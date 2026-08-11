@@ -14,6 +14,26 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.36.54] - 2026-08-11
+
+### Fixed - the auto-prune badge says WHY
+
+Every auto-pruned row wore a hardcoded "KEY" badge, so a JSON envelope
+field like export_date read as "dates have now been identified as keys"
+(field-caught) - a mislabel presenting a correct prune as a wrong
+judgment. The badge now reflects the Prune_Reason: KEY for surrogate
+PK/FK ids, ENVELOPE for document-envelope fields, PRUNED otherwise; the
+tooltip keeps quoting the full reason, and only genuinely key-pruned rows
+claim their relationship travels to the physical model.
+
+Also learned in the same field session and recorded here: Harvest-from-PDC
+builds rows from the CATALOG, which carries no PK/FK metadata - so a
+harvested grid cannot auto-prune surrogate keys, and it resurrects
+everything PDC remembers (dated snapshot files included). Build review
+grids from DIRECT scans; use Harvest to overlay what PDC governs. Whether
+PDC's column entities expose key attributes (which would let harvest
+prune) is an open probe - the estate was mid-rebuild when checked.
+
 ## [1.36.53] - 2026-08-10
 
 ### Fixed - the Review page rendered blank on .52
