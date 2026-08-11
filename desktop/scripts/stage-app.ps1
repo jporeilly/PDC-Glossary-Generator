@@ -92,9 +92,16 @@ $excludeDirs  += @("domain_packs")
 # robocopy: /MIR-free mirror of a clean tree, /XD and /XF do the excluding.
 # Exit codes 0-7 are success (8+ is a real failure) - a quirk worth pinning,
 # because treating any non-zero as failure makes every build look broken.
+#
+# /XD and /XF names are RELATIVE on purpose: an absolute path matches only that
+# exact directory/file, so "app\__pycache__" excluded the TOP-LEVEL cache while
+# every subpackage's (core/, engine/, ai/, sources/) shipped from the dev
+# checkout into Program Files - where the uninstaller then left them behind
+# (found on PDC-Insights 1.17.0: 24 leftover files after uninstall). A
+# relative name matches at any depth.
 $roboArgs = @($srcApp, $stageApp, "/E", "/NFL", "/NDL", "/NJH", "/NJS", "/NP")
-foreach ($d in $excludeDirs)  { $roboArgs += @("/XD", (Join-Path $srcApp $d)) }
-foreach ($f in $excludeFiles) { $roboArgs += @("/XF", (Join-Path $srcApp $f)) }
+foreach ($d in $excludeDirs)  { $roboArgs += @("/XD", $d) }
+foreach ($f in $excludeFiles) { $roboArgs += @("/XF", $f) }
 & robocopy @roboArgs | Out-Null
 if ($LASTEXITCODE -ge 8) { throw "robocopy failed staging the app (exit $LASTEXITCODE)" }
 

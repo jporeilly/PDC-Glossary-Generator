@@ -73,6 +73,11 @@ def main():
     sys.path.insert(0, app_dir)
     os.chdir(app_dir)
 
+    # Belt and braces with the shell's PYTHONDONTWRITEBYTECODE: never compile
+    # bytecode into a read-only install tree - a .pyc the installer never
+    # shipped is a file the uninstaller leaves behind.
+    sys.dont_write_bytecode = True
+
     import uvicorn
     uvicorn.run("api:app", host=args.host, port=args.port, log_level="info")
 
