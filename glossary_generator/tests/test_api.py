@@ -604,6 +604,29 @@ class TestDictionarySyncOnEntry:
         assert "terms" in d and "tags" in d
 
 
+class TestPendingHealthSeesTheLiveGrid:
+    def test_first_run_unsaved_rows_are_not_fossils(self, client, fresh_dict):
+        """The stale universe was SAVED glossaries only, and the autosave only
+           writes once the glossary is NAMED — so a first run reaching the
+           Dictionary before naming saw its entire fresh queue flagged stale
+           and "Retire stale" offered to tombstone the whole vocabulary
+           (field-caught). The page now POSTS the live rows with the health
+           check; entries they back are evidence-carrying, not fossils."""
+        tagdict = fresh_dict
+        rows = [_row("Fossil Candidate", "zz.fossil_table.fossil_col",
+                     Suggested_Tags="fossil-tag")]
+        tagdict.accrete(rows, persist=True)
+        stale = client.get("/api/tagdict/pending-health").json()
+        assert "Fossil Candidate" in stale["terms"], \
+            "with an empty store and no live rows the entry IS a fossil"
+        stale = client.post("/api/tagdict/pending-health",
+                            json={"rows": rows}).json()
+        assert "Fossil Candidate" not in stale["terms"], \
+            "rows the caller posts are evidence — a first run has no fossils"
+        assert "fossil-tag" not in stale["tags"], \
+            "live rows back tags the same way they back terms"
+
+
 class TestWritesSurviveAVanishedStateDir:
     def test_write_recreates_the_directory(self, client, fresh_dict):
         """Delete the state dir under a RUNNING server (the fresh-install wipe

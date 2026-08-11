@@ -2099,29 +2099,41 @@ def api_tagdict_save(body: dict = Body(default={})):
                  warnings=len(warnings))
     return out
 
+def _pending_universe(rows, sources, terms_l, tags_l):
+    """Fold one row list into the pending-health evidence universe."""
+    for r in rows or []:
+        if not isinstance(r, dict):
+            continue
+        t = str(r.get("Term") or "").strip().lower()
+        if t:
+            terms_l.add(t)
+        for c in str(r.get("Source_Column") or "").split(";"):
+            c = c.strip().lower()
+            if c:
+                sources.add(c)
+        for tg in str(r.get("Suggested_Tags") or "").split(";"):
+            tg = tg.strip().lower()
+            if tg:
+                tags_l.add(tg)
+
+
 @app.get("/api/tagdict/pending-health")
-def api_tagdict_pending_health():
+@app.post("/api/tagdict/pending-health")
+def api_tagdict_pending_health(body: dict = Body(default={})):
     """Which PENDING entries still have evidence anywhere? The universe is
-    every SAVED glossary's rows (the loaded workspace autosaves into the same
-    store), so vocabulary from another domain's scan is never flagged. An
-    entry whose sources, name and aliases appear nowhere is a fossil — it came
-    from a scan whose rows no longer exist, nothing can ever refresh it, and
-    it pollutes the steward's queue. Names only; retiring stays a steward
-    action through /api/tagdict/review."""
+    every SAVED glossary's rows PLUS the live workspace rows the caller may
+    POST. The live rows matter on a first run: the autosave only writes once
+    the glossary is NAMED, so before that the store is empty and every entry
+    the scan just streamed in read as a fossil — the stale badge covered the
+    whole queue and "Retire stale" offered to tombstone the entire vocabulary
+    (field-caught). An entry whose sources, name and aliases appear nowhere
+    is a real fossil — it came from a scan whose rows no longer exist,
+    nothing can ever refresh it, and it pollutes the steward's queue. Names
+    only; retiring stays a steward action through /api/tagdict/review."""
     sources, terms_l, tags_l = set(), set(), set()
     for v in _load_gloss().values():
-        for r in v.get("rows", []):
-            t = str(r.get("Term") or "").strip().lower()
-            if t:
-                terms_l.add(t)
-            for c in str(r.get("Source_Column") or "").split(";"):
-                c = c.strip().lower()
-                if c:
-                    sources.add(c)
-            for tg in str(r.get("Suggested_Tags") or "").split(";"):
-                tg = tg.strip().lower()
-                if tg:
-                    tags_l.add(tg)
+        _pending_universe(v.get("rows"), sources, terms_l, tags_l)
+    _pending_universe((body or {}).get("rows"), sources, terms_l, tags_l)
     return tagdict.stale_pending(sources=sources, terms=terms_l, tags=tags_l)
 
 @app.post("/api/tagdict/review")

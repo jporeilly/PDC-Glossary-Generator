@@ -116,7 +116,11 @@ export default function DictionaryPage({ onNavigate }) {
       : apiGet('/api/tagdict')
     fetchDict.then((d) => {
       setDict(d)
-      apiGet('/api/tagdict/pending-health').then(setStale).catch(() => {})
+      // POST the live rows: the health universe must include the unsaved
+      // grid, or a first run (autosave needs a NAME first) flags the whole
+      // fresh queue stale and "Retire stale" offers everything.
+      apiPost('/api/tagdict/pending-health', { rows: ws.rows || [] })
+        .then(setStale).catch(() => {})
     }).catch((e) => setLoadErr(e.message))
   }
   const loadAudit = () => {
@@ -149,7 +153,8 @@ export default function DictionaryPage({ onNavigate }) {
       // longer pending (retired, approved or folded since the AI review ran)
       setAdvice((a) => Object.fromEntries(Object.entries(a).filter(([k]) =>
         (d.terms || []).some((t) => t.term === k && t.status === 'pending'))))
-      apiGet('/api/tagdict/pending-health').then(setStale).catch(() => {})
+      apiPost('/api/tagdict/pending-health', { rows: ws.rows || [] })
+        .then(setStale).catch(() => {})
       loadAudit()
       if (doneMsg) setMsg(doneMsg)
       return d
@@ -690,8 +695,8 @@ export default function DictionaryPage({ onNavigate }) {
                   <>
                     <button className="ghost mini"
                             onClick={() => review('term', staleTerms, 'reject', undefined,
-                              `Retired ${staleTerms.length} stale term(s) — no current evidence in any saved glossary.`)}
-                            title="Retire every pending term whose sources, name and aliases appear in NO saved glossary — fossils from scans whose rows are gone, which nothing can ever refresh. Durable, and safe: a real concept re-proposes itself with evidence on a future scan.">
+                              `Retired ${staleTerms.length} stale term(s) — no current evidence in the live grid or any saved glossary.`)}
+                            title="Retire every pending term whose sources, name and aliases appear in NO current row — neither the live Review grid nor any saved glossary. Fossils from scans whose rows are gone, which nothing can ever refresh. Durable, and safe: a real concept re-proposes itself with evidence on a future scan.">
                       ✕ Retire stale ({staleTerms.length})
                     </button>{' '}
                   </>
@@ -712,7 +717,7 @@ export default function DictionaryPage({ onNavigate }) {
                         <b>{t.term}</b>
                         {staleTerms.includes(t.term) && (
                           <span className="badge warning"
-                                title="No saved glossary carries this entry's sources, name or aliases — it came from a scan whose rows no longer exist, so nothing can ever refresh it. Retire unless you know the concept is real; a real one re-proposes with evidence.">
+                                title="No current row carries this entry's sources, name or aliases — not the live Review grid, not any saved glossary. It came from a scan whose rows no longer exist, so nothing can ever refresh it. Retire unless you know the concept is real; a real one re-proposes with evidence.">
                             stale
                           </span>
                         )}
@@ -771,7 +776,7 @@ export default function DictionaryPage({ onNavigate }) {
                   <button className="ghost mini"
                           onClick={() => review('tag', staleTags, 'reject', undefined,
                             `Retired ${staleTags.length} stale tag(s) — carried by no current row.`)}
-                          title="Retire every pending tag that no row in any saved glossary carries — leftovers from earlier scans and unsettled categories.">
+                          title="Retire every pending tag that no current row carries — neither the live Review grid nor any saved glossary. Leftovers from earlier scans and unsettled categories.">
                     ✕ Retire stale ({staleTags.length})
                   </button>
                 )}
@@ -780,7 +785,7 @@ export default function DictionaryPage({ onNavigate }) {
                     <span className="chip" key={t.tag}>
                       {t.tag}
                       {staleTags.includes(t.tag) && (
-                        <span className="badge warning" title="No row in any saved glossary carries this tag — a leftover from an earlier scan or an unsettled category.">stale</span>
+                        <span className="badge warning" title="No current row carries this tag — not the live Review grid, not any saved glossary. A leftover from an earlier scan or an unsettled category.">stale</span>
                       )}
                       <button className="ghost mini act" aria-label={`Approve tag ${t.tag}`}
                               title="Approve — joins the governed tag allow-list that tagging and search facets draw from."

@@ -14,6 +14,23 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.36.60] - 2026-08-11
+
+### Fixed - a first run is not a fossil field
+
+The stale check's evidence universe was SAVED glossaries only, and the
+autosave only writes once the glossary is NAMED - so a fresh install
+reaching the Dictionary before naming saw its entire just-scanned queue
+flagged stale, with "Retire stale" offering to tombstone the whole
+vocabulary (field-caught: "why are the Terms marked Stale before
+approval?"). The Dictionary page now posts the live Review grid with the
+health check and the universe unions it with every saved glossary: a
+first run shows zero stale, and later rounds still surface true fossils -
+pending entries from scans whose rows are gone everywhere, which nothing
+can ever refresh. That flywheel reading is the intent: stale earns its
+meaning on round two, when the estate has moved and dead vocabulary
+should leave the steward's queue in one click.
+
 ## [1.36.59] - 2026-08-11
 
 ### Changed - the agent strip lights one step at a time
