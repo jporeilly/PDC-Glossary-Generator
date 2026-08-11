@@ -604,6 +604,26 @@ class TestDictionarySyncOnEntry:
         assert "terms" in d and "tags" in d
 
 
+class TestGlossaryTreeCheckWiring:
+    def test_route_reaches_the_network_not_an_attribute_error(self, client):
+        """glossary_categories lives in pdc_client.entities but was never
+           added to the package's __init__ exports, so the shim re-exported
+           everything EXCEPT it - the first live click died with "module
+           'sources.pdc_api' has no attribute 'glossary_categories'"
+           (field-caught the moment the never-live-verified branch met
+           reality). The route must fail on the NETWORK (bogus host), never
+           on the attribute."""
+        from sources import pdc_api
+        assert hasattr(pdc_api, "glossary_categories"), \
+            "the shim must re-export glossary_categories"
+        r = client.post("/api/pdc/glossary-tree-check", json={
+            "base_url": "https://pdc.invalid.example", "glossary": "G",
+            "categories": ["A"], "token": "x"})
+        assert r.status_code == 502
+        assert "glossary_categories" not in (r.json().get("error") or ""), \
+            "the failure must be the unreachable host, not the wiring"
+
+
 class TestClientLogIsTheBlackBox:
     def test_client_errors_reach_app_log(self, client):
         """A field crash left NOTHING to read - no Windows event, no WebView

@@ -14,6 +14,19 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.36.63] - 2026-08-11
+
+### Fixed - the PDC tree check reaches PDC
+
+"module 'sources.pdc_api' has no attribute 'glossary_categories'" - the
+function lives in pdc_client.entities but was never added to the
+package's __init__ exports, so the compatibility shim re-exported
+everything EXCEPT it and the first live click on "Check PDC tree for
+lingering categories" died before reaching the network (field-caught the
+moment the never-live-verified branch met reality). One line: the export
+list now carries glossary_categories, and a test pins the route to fail
+on the HOST, never the wiring.
+
 ## [1.36.62] - 2026-08-11
 
 ### Changed - categorize consolidates: subjects, clusters, completion

@@ -79,6 +79,7 @@ from .entities import (
     _under_root,
     filter_entities,
     get_entity,
+    glossary_categories,
     glossary_exists,
     harvest_from_catalog,
     list_catalog_roots,
