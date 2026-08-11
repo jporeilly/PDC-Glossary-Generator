@@ -1,0 +1,830 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Implementing a Business Glossary in Pentaho Data Catalog</title>
+<meta name="description" content="A catalog gives you containers. It does not give you conventions. The rollout, the conditions under which glossaries drift, and the gotchas that look like success while being wrong.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,300..800;1,6..72,300..600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#f6f9f8;
+  --panel:#eef2f2;
+  --card:#eef2f2;
+  --card-line:#e2e9e7;
+  --row-line:#dde5e3;
+  --ink:#14282c;
+  --ink-body:#1c3338;
+  --ink-soft:#5b7580;
+  --ink-faint:#8298a0;
+  --rule:#d3dcda;
+  --teal:#0f6b64;
+  --teal-tint:#e2eeeb;
+  --teal-rule:#7fa8a5;
+  --mono-ink:#3f6a6a;
+  --rust:#b4522e;
+  --rust-text:#a8503a;
+  --rust-tint:#f9ece7;
+  --oxblood:#5e2020;
+  --serif:"Newsreader",Charter,"Iowan Old Style",Georgia,serif;
+  --sans:"IBM Plex Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+  --measure:62ch;
+  --rail:11rem;
+  --gap:clamp(1.5rem,4vw,3.5rem);
+}
+
+*,*::before,*::after{box-sizing:border-box;}
+html{-webkit-text-size-adjust:100%;}
+
+body{
+  margin:0;
+  background:var(--paper);
+  color:var(--ink-body);
+  font-family:var(--serif);
+  font-optical-sizing:auto;
+  font-size:clamp(1.04rem,1rem + 0.25vw,1.2rem);
+  line-height:1.62;
+  font-weight:380;
+  text-rendering:optimizeLegibility;
+}
+
+.kicker{
+  font-family:var(--mono);
+  font-size:0.6875rem;font-weight:600;letter-spacing:0.15em;text-transform:uppercase;
+  color:var(--ink-faint);
+}
+.kicker--teal{color:var(--teal);}
+
+code{
+  font-family:var(--mono);
+  font-size:0.8em;background:#e5ebeb;border-radius:2px;
+  padding:0.14em 0.4em;margin:0 0.06em;white-space:nowrap;color:var(--ink);
+}
+
+:focus-visible{outline:2px solid var(--teal);outline-offset:3px;border-radius:2px;}
+
+/* ---------- layout ---------- */
+.wrap{max-width:1240px;margin:0 auto;padding:0 clamp(20px,5vw,64px);}
+.row{
+  display:grid;grid-template-columns:var(--rail) minmax(0,var(--measure));
+  gap:var(--gap);align-items:start;
+}
+.row__body > *:first-child{margin-top:0;}
+.row__body > *:last-child{margin-bottom:0;}
+
+/* ---------- masthead ---------- */
+.masthead{padding:clamp(3rem,7vw,5.5rem) 0 0;}
+.masthead__grid{
+  display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.05fr);
+  gap:clamp(2rem,6vw,5rem);align-items:center;
+}
+.masthead__eyebrow{margin:0 0 clamp(1.1rem,2.5vw,1.7rem);}
+.masthead h1{
+  margin:0;font-weight:700;font-size:clamp(2.6rem,1.2rem + 5.6vw,4.9rem);
+  line-height:1.02;letter-spacing:-0.021em;color:var(--ink);max-width:13ch;
+}
+.deck{
+  margin:clamp(1.1rem,2.4vw,1.6rem) 0 0;max-width:34ch;
+  font-size:clamp(1.08rem,1rem + 0.45vw,1.3rem);line-height:1.5;color:var(--ink-body);
+}
+.masthead__rule{border:0;border-top:1px solid var(--rule);margin:clamp(2.4rem,5vw,3.4rem) 0 0;}
+
+.diverge{margin:0;}
+.diverge svg{display:block;width:100%;height:auto;}
+.diverge__caps{display:flex;justify-content:space-between;gap:1rem;margin-top:0.55rem;}
+.dline{stroke-dashoffset:0;}
+.d1{stroke-dasharray:520;}
+.d2{stroke-dasharray:560;}
+.d3{stroke-dasharray:560;}
+.d4{stroke-dasharray:600;}
+@media (prefers-reduced-motion:no-preference){
+  .dline{stroke-dashoffset:600;animation:draw 1.5s cubic-bezier(.32,.72,.3,1) forwards;}
+  .d2{animation-delay:.12s;}
+  .d3{animation-delay:.2s;}
+  .d4{animation-delay:.28s;}
+  @keyframes draw{to{stroke-dashoffset:0;}}
+  .rise{opacity:0;transform:translateY(9px);animation:rise .7s cubic-bezier(.2,.7,.3,1) forwards;}
+  .rise--2{animation-delay:.07s;}
+  .rise--3{animation-delay:.14s;}
+  @keyframes rise{to{opacity:1;transform:none;}}
+}
+
+/* ---------- sections ---------- */
+.section{padding:clamp(3rem,6.5vw,5rem) 0;border-bottom:1px solid var(--rule);}
+.section:last-of-type{border-bottom:0;}
+.rail{position:sticky;top:2.2rem;display:flex;flex-direction:column;gap:0.3rem;}
+
+h2{
+  margin:0 0 1.3rem;font-weight:700;font-size:clamp(1.75rem,1.3rem + 1.5vw,2.35rem);
+  line-height:1.14;letter-spacing:-0.018em;color:var(--ink);max-width:20ch;
+}
+h3{
+  font-family:var(--sans);margin:2rem 0 1.05rem;
+  font-weight:600;font-size:1.06rem;line-height:1.35;color:var(--ink);
+}
+h4{
+  font-family:var(--sans);margin:0 0 0.45rem;
+  font-weight:600;font-size:1.02rem;line-height:1.35;color:var(--ink);
+}
+p{margin:0 0 1.05rem;}
+strong{font-weight:600;color:var(--ink);}
+
+/* ---------- lists ---------- */
+ul.notes{list-style:none;margin:0.7rem 0 1.3rem;padding:0;}
+ul.notes li{position:relative;padding-left:1.25rem;margin-bottom:0.95rem;}
+ul.notes li:last-child{margin-bottom:0;}
+ul.notes li::before{
+  content:"";position:absolute;left:0;top:0.5em;width:0.45rem;height:2px;background:var(--teal);
+}
+ul.notes--avoid li::before{background:var(--rust);}
+
+/* ---------- condition cards ---------- */
+.cond{margin:1.6rem 0;padding:1.4rem 1.6rem 1.5rem;background:var(--card);border:1px solid var(--card-line);}
+.cond__head{display:flex;align-items:center;gap:0.75rem;margin-bottom:0.9rem;}
+.cond__badge{
+  flex:0 0 auto;width:1.62rem;height:1.62rem;border-radius:4px;
+  background:var(--teal);color:#fff;display:flex;align-items:center;justify-content:center;
+  font-family:var(--mono);font-size:0.8rem;font-weight:600;line-height:1;
+}
+.cond__title{font-family:var(--sans);margin:0;font-weight:600;font-size:1.06rem;line-height:1.3;color:var(--ink);}
+.cond > p{margin:0 0 1rem;}
+.cond > *:last-child{margin-bottom:0;}
+
+/* ---------- source blocks ---------- */
+.source{margin:1.6rem 0;padding:0.9rem 0 0.85rem 1.25rem;border-left:2px solid var(--teal-rule);}
+.source__body{
+  margin:0;font-family:var(--mono);
+  font-size:0.82rem;line-height:1.72;color:var(--mono-ink);
+}
+.source__body code{font-size:1em;padding:0.1em 0.35em;}
+.source__body strong{color:inherit;font-weight:600;}
+.source__cite{
+  display:block;margin-top:0.85rem;font-family:var(--sans);font-style:normal;
+  font-size:0.8rem;color:var(--ink-faint);
+}
+
+/* ---------- tell ---------- */
+.tell{
+  margin:1.3rem 0;padding:0.6rem 0.95rem;font-family:var(--sans);
+  background:var(--rust-tint);border-left:2px solid var(--rust);
+  font-size:0.86rem;line-height:1.5;color:var(--rust-text);
+}
+.tell__label{font-weight:600;letter-spacing:0.06em;color:var(--rust);}
+
+/* ---------- flow line ---------- */
+.flowline{
+  margin:1.7rem 0;padding:0.95rem 1.15rem;
+  background:var(--panel);border-left:2px solid var(--teal-rule);
+  font-family:var(--mono);font-size:0.82rem;line-height:1.72;color:var(--teal);
+}
+.flowline .arrow{opacity:0.55;}
+.flowline em{font-style:italic;color:var(--ink-soft);}
+
+/* ---------- tables ---------- */
+.table-wrap{margin:1.6rem 0;background:var(--panel);overflow-x:auto;}
+table{width:100%;border-collapse:collapse;}
+th{
+  font-family:var(--mono);text-align:left;vertical-align:bottom;
+  font-size:0.64rem;font-weight:600;letter-spacing:0.14em;text-transform:uppercase;
+  color:var(--ink-faint);padding:1.05rem 1rem 0.85rem;
+}
+td{
+  font-family:var(--sans);padding:0.85rem 1rem 0.9rem;
+  border-top:1px solid var(--row-line);vertical-align:top;
+  font-size:0.9rem;line-height:1.45;color:var(--ink-soft);
+}
+tbody tr td:first-child{color:var(--ink-body);}
+th:first-child,td:first-child{padding-left:1.05rem;}
+th:last-child,td:last-child{padding-right:1.05rem;}
+
+/* ---------- gotchas ---------- */
+.gotcha{margin-top:2rem;}
+.gotcha:first-of-type{margin-top:1.5rem;}
+.gotcha p{margin:0;}
+
+/* ---------- phases ---------- */
+.phase{position:relative;margin-top:2.3rem;padding-left:3.5rem;}
+.phase::before{content:"";position:absolute;left:0;top:0.2rem;width:2.75rem;border-top:2px solid var(--teal);}
+.phase__head{display:block;margin-bottom:0.55rem;}
+.phase__no{
+  position:absolute;left:0;top:0.8rem;font-family:var(--mono);
+  font-size:0.7rem;font-weight:600;letter-spacing:0.1em;color:var(--teal);
+}
+.phase__name{
+  display:block;font-family:var(--sans);margin:0.2rem 0 0;
+  font-weight:600;font-size:1.05rem;line-height:1.3;color:var(--ink);
+}
+.phase > *:last-child{margin-bottom:0;}
+
+/* ---------- diagrams ---------- */
+.dgm{margin:2.2rem 0;padding:0;}
+.dgm__label{margin:0 0 0.95rem;}
+.dgm__note{font-family:var(--sans);margin:1.1rem 0 0;font-size:0.88rem;line-height:1.55;color:var(--ink-soft);}
+
+.contract{display:grid;grid-template-columns:1fr auto 1.15fr auto 1fr;grid-template-rows:auto 5.4rem auto;}
+.cbox{
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0.2rem;
+  padding:0.85rem 0.9rem;background:var(--panel);text-align:center;
+}
+.cbox__k{
+  font-family:var(--mono);font-size:0.56rem;font-weight:600;
+  letter-spacing:0.16em;text-transform:uppercase;color:var(--teal);margin-bottom:0.1rem;
+}
+.cbox__t{font-weight:600;font-size:1rem;line-height:1.2;color:var(--ink);}
+.cbox__s{font-family:var(--sans);font-size:0.76rem;line-height:1.35;color:var(--ink-soft);}
+.cbox--key{background:var(--paper);border:1px solid var(--teal);}
+.c-gg{grid-area:1/1/2/2;}
+.c-a1{grid-area:1/2/2/3;}
+.c-reg{grid-area:1/3/2/4;}
+.c-a2{grid-area:1/4/2/5;}
+.c-pg{grid-area:1/5/2/6;}
+.c-dl{grid-area:2/1/3/2;}
+.c-wo{grid-area:2/3/3/4;}
+.c-dr{grid-area:2/5/3/6;}
+.c-cat{grid-area:3/1/4/6;}
+
+.carrow{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0.32rem;padding:0 0.6rem;min-width:5rem;}
+.carrow__l{
+  font-family:var(--mono);font-size:0.55rem;font-weight:600;
+  letter-spacing:0.15em;text-transform:uppercase;color:var(--teal);
+}
+.carrow__line{position:relative;width:100%;height:1px;background:var(--teal);}
+.carrow__line--r::after{
+  content:"";position:absolute;right:-1px;top:-3.5px;
+  border-left:7px solid var(--teal);border-top:4px solid transparent;border-bottom:4px solid transparent;
+}
+.carrow__line--l::before{
+  content:"";position:absolute;left:-1px;top:-3.5px;
+  border-right:7px solid var(--teal);border-top:4px solid transparent;border-bottom:4px solid transparent;
+}
+
+.drop{position:relative;}
+.drop::before{content:"";position:absolute;left:50%;top:0;bottom:0.45rem;border-left:1px solid var(--rule);}
+.drop::after{
+  content:"";position:absolute;left:50%;bottom:0;transform:translateX(-50%);
+  border-top:7px solid var(--ink-faint);border-left:4px solid transparent;border-right:4px solid transparent;
+}
+.drop__lab{position:absolute;top:22%;font-family:var(--sans);font-size:0.72rem;line-height:1.3;color:var(--ink-soft);}
+.c-dl .drop__lab{left:calc(50% + 0.6rem);}
+.c-dr .drop__lab{right:calc(50% + 0.6rem);text-align:right;}
+
+.cwithout{
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0.15rem;
+  margin:0.85rem 0;padding:0.6rem;border:1px dashed var(--rule);text-align:center;
+}
+.cwithout__k{
+  font-family:var(--mono);font-size:0.55rem;font-weight:600;
+  letter-spacing:0.16em;text-transform:uppercase;color:var(--ink-faint);
+}
+.cwithout__t{font-family:var(--sans);font-size:0.78rem;color:var(--rust);}
+
+.owners__global{
+  display:flex;flex-direction:column;gap:0.28rem;text-align:center;
+  padding:0.7rem 1rem 0.8rem;border:1px solid var(--teal);border-radius:4px;background:var(--teal-tint);
+}
+.owners__k{
+  font-family:var(--mono);font-size:0.56rem;font-weight:600;
+  letter-spacing:0.14em;text-transform:uppercase;color:var(--teal);
+}
+.owners__sub{font-family:var(--sans);font-size:0.72rem;line-height:1.4;color:var(--ink-soft);}
+.owners__links{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));height:1.75rem;}
+.owners__links span{justify-self:center;width:1px;background:var(--teal);opacity:0.5;}
+.owners__grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));border:1px solid var(--card-line);background:var(--panel);}
+.owner{padding:0.75rem 0.7rem 0.85rem;text-align:center;border-left:1px solid var(--card-line);}
+.owner:first-child{border-left:0;}
+.owner__name{display:block;font-weight:600;font-size:0.92rem;line-height:1.2;color:var(--ink);}
+.owner__who{display:block;font-family:var(--sans);margin-top:0.22rem;font-size:0.76rem;color:var(--ink-soft);}
+.owner__role{
+  display:block;margin-top:0.38rem;font-family:var(--mono);
+  font-size:0.55rem;font-weight:600;letter-spacing:0.12em;text-transform:uppercase;color:var(--ink-faint);
+}
+.owner--orphan .owner__role{color:var(--rust);}
+.owners__rule{
+  margin:0.85rem 0 0;font-family:var(--mono);font-size:0.55rem;font-weight:500;
+  letter-spacing:0.12em;text-transform:uppercase;color:var(--ink-faint);
+}
+
+.loop{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0.55rem;}
+.loop__stage{position:relative;padding:0.85rem 0.85rem 0.95rem;background:var(--panel);text-align:center;}
+.loop__stage::after{
+  content:"";position:absolute;right:-0.45rem;top:50%;transform:translateY(-50%);
+  border-left:6px solid var(--teal);border-top:4px solid transparent;border-bottom:4px solid transparent;
+}
+.loop__stage:last-child::after{content:none;}
+.loop__stage--opt{background:transparent;border:1px dashed var(--rule);}
+.loop__n{display:block;font-family:var(--mono);font-size:0.55rem;font-weight:600;letter-spacing:0.16em;color:var(--ink-faint);}
+.loop__t{display:block;margin-top:0.28rem;font-weight:600;font-size:0.98rem;line-height:1.2;color:var(--ink);}
+.loop__s{display:block;font-family:var(--sans);margin-top:0.24rem;font-size:0.76rem;line-height:1.35;color:var(--ink-soft);}
+
+/* ---------- colophon ---------- */
+.colophon{padding:clamp(2.4rem,5vw,3.6rem) 0 clamp(3.2rem,7vw,5rem);border-top:1px solid var(--rule);}
+.colophon p{font-family:var(--sans);max-width:64ch;margin:0;font-size:0.88rem;line-height:1.6;color:var(--ink-soft);}
+
+.footbar{position:fixed;left:0;right:0;bottom:0;height:7px;background:var(--oxblood);z-index:60;}
+
+/* ---------- narrow ---------- */
+@media (max-width:1000px){
+  .masthead__grid{grid-template-columns:minmax(0,1fr);gap:2.6rem;}
+  .masthead h1{max-width:none;}
+  .deck{max-width:52ch;}
+}
+@media (max-width:900px){
+  .row{grid-template-columns:minmax(0,1fr);gap:1.2rem;}
+  .rail{position:static;flex-direction:row;align-items:baseline;gap:0.85rem;}
+  h2{max-width:none;}
+  .owners__grid{grid-template-columns:repeat(2,minmax(0,1fr));}
+  .owner:nth-child(3){border-left:0;}
+  .owner:nth-child(3),.owner:nth-child(4){border-top:1px solid var(--card-line);}
+  .owners__links{grid-template-columns:repeat(2,minmax(0,1fr));}
+  .loop{grid-template-columns:repeat(2,minmax(0,1fr));gap:1.1rem 0.55rem;}
+  .loop__stage:nth-child(2)::after{right:auto;left:50%;top:auto;bottom:-0.8rem;transform:translateX(-50%);border-left:4px solid transparent;border-right:4px solid transparent;border-top:6px solid var(--teal);border-bottom:0;}
+}
+@media (max-width:700px){
+  .contract{display:flex;flex-direction:column;}
+  .carrow{min-width:0;padding:0.6rem 0;}
+  .carrow__line{width:1px;height:1.5rem;}
+  .carrow__line--r::after{right:auto;left:-3.5px;top:auto;bottom:-1px;border-left:4px solid transparent;border-right:4px solid transparent;border-top:7px solid var(--teal);border-bottom:0;}
+  .carrow__line--l::before{right:auto;left:-3.5px;top:-1px;border-right:4px solid transparent;border-left:4px solid transparent;border-bottom:7px solid var(--teal);border-top:0;}
+  .drop{height:auto;padding:0.75rem 0;text-align:center;}
+  .drop::before,.drop::after{display:none;}
+  .drop__lab{position:static;display:block;text-align:center;}
+  .c-dl .drop__lab,.c-dr .drop__lab{left:auto;right:auto;text-align:center;}
+  .owners__grid{grid-template-columns:minmax(0,1fr);}
+  .owner{border-left:0;border-top:1px solid var(--card-line);}
+  .owner:first-child{border-top:0;}
+  .owners__links{display:none;}
+  .loop{grid-template-columns:minmax(0,1fr);gap:1.1rem;}
+  .loop__stage::after{right:auto;left:50%;top:auto;bottom:-0.8rem;transform:translateX(-50%);border-left:4px solid transparent;border-right:4px solid transparent;border-top:6px solid var(--teal);border-bottom:0;}
+  .cond{padding:1.2rem 1.1rem 1.3rem;}
+  .phase{padding-left:2.9rem;}
+  .phase::before{width:2.2rem;}
+}
+
+/* ---------- print ---------- */
+@media print{
+  :root{--paper:#fff;--panel:#f2f4f4;--card:#f6f8f7;--teal-tint:#fff;--rust-tint:#fdf6f3;}
+  body{font-size:10.5pt;line-height:1.5;}
+  .footbar{display:none;}
+  .rail{position:static;}
+  .row{grid-template-columns:7rem minmax(0,1fr);gap:1.5rem;}
+  .source,.flowline,.dgm,table,.gotcha,.cond,.diverge,.tell{break-inside:avoid;}
+  h2,h3,.phase{break-after:avoid;}
+}
+</style>
+</head>
+<body>
+
+<header class="masthead">
+  <div class="wrap">
+    <div class="masthead__grid">
+      <div>
+        <p class="masthead__eyebrow kicker kicker--teal rise">Field guide · Pentaho Data Catalog</p>
+        <h1 class="rise rise--2">Implementing a business glossary</h1>
+        <p class="deck rise rise--3">A catalog gives you containers. It does not give you conventions. This is the rollout, the conditions under which glossaries drift, and the gotchas that look like success while being wrong.</p>
+      </div>
+
+      <figure class="diverge">
+        <svg viewBox="0 0 520 300" role="img" aria-labelledby="divTitle">
+          <title id="divTitle">Four lines leaving a single point: one holds flat, three diverge — one convention becoming four vocabularies.</title>
+          <line x1="6" y1="8" x2="6" y2="292" stroke="#d3dcda" stroke-width="1"></line>
+          <line x1="514" y1="8" x2="514" y2="292" stroke="#d3dcda" stroke-width="1"></line>
+          <g fill="none" stroke-linecap="round" stroke-width="1.7">
+            <path class="dline d1" d="M6,150 L514,150" stroke="#0f6b64"></path>
+            <path class="dline d2" d="M6,150 C150,148 320,116 514,52" stroke="#b4522e"></path>
+            <path class="dline d3" d="M6,150 C150,153 320,190 514,242" stroke="#b4522e" opacity="0.82"></path>
+            <path class="dline d4" d="M6,150 C170,157 330,212 514,288" stroke="#c9754f" opacity="0.62"></path>
+          </g>
+          <circle cx="6" cy="150" r="4.5" fill="#0f6b64"></circle>
+        </svg>
+        <figcaption class="diverge__caps">
+          <span class="kicker">One convention</span>
+          <span class="kicker">Four vocabularies</span>
+        </figcaption>
+      </figure>
+    </div>
+    <hr class="masthead__rule">
+  </div>
+</header>
+
+<main>
+
+<section class="section" id="premise">
+  <div class="wrap row">
+    <div class="rail">
+      <span class="kicker kicker--teal">Premise</span>
+      <span class="kicker">Why this exists</span>
+    </div>
+    <div class="row__body">
+      <h2>The governed unit is the row, not the glossary</h2>
+
+      <p>Pentaho Data Catalog ships everything needed to hold a governed glossary: glossaries, business terms, tags, sensitivity, roles, and Data Identification methods that stamp terms onto columns automatically. What it does not do — what no catalog does — is force two people to describe the same concept the same way.</p>
+
+      <p>That matters because the same three facts about a column get decided in more than one place, and nothing reconciles them:</p>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th scope="col">Fact</th><th scope="col">Decided in the glossary</th><th scope="col">Decided again in…</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>What the concept <em>is</em></td><td>Business term and definition</td><td>An identification method bound to a term</td></tr>
+            <tr><td>How it is <em>labelled</em></td><td>Tags on the term</td><td>Tags a pattern or dictionary stamps on match</td></tr>
+            <tr><td>How <em>sensitive</em> it is</td><td>Sensitivity on the term</td><td>Sensitivity applied by identification</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p>Six months on you have <code>PII</code> and <code>pii</code>, "Customer ID" and "Cust Identifier", one steward calling a postcode HIGH and another calling it LOW — and a classification you cannot defend in an audit. That is not a discipline failure. It is the predictable result of asking people to hold a convention in their heads across ten domains and two years.</p>
+
+      <p>So the governed unit is not the glossary. It is <strong>one row per concept</strong> — the term, its controlled tags, its rule-derived sensitivity, its category — written once and read by everything downstream. That row is the <strong>Registry</strong>. The glossary export is an output; the Registry is the asset.</p>
+
+      <figure class="dgm">
+        <div class="contract">
+          <div class="cbox c-gg">
+            <span class="cbox__t">Glossary Generator</span>
+            <span class="cbox__s">scan · review · govern</span>
+          </div>
+          <div class="carrow c-a1">
+            <span class="carrow__l">writes</span>
+            <span class="carrow__line carrow__line--r"></span>
+          </div>
+          <div class="cbox cbox--key c-reg">
+            <span class="cbox__k">The contract</span>
+            <span class="cbox__t">Registry</span>
+            <span class="cbox__s">one row per concept</span>
+          </div>
+          <div class="carrow c-a2">
+            <span class="carrow__l">reads</span>
+            <span class="carrow__line carrow__line--l"></span>
+          </div>
+          <div class="cbox c-pg">
+            <span class="cbox__t">Policy Generator</span>
+            <span class="cbox__s">methods · drift check</span>
+          </div>
+
+          <div class="drop c-dl"><span class="drop__lab">business terms<br>and tags</span></div>
+          <div class="cwithout c-wo">
+            <span class="cwithout__k">Without it</span>
+            <span class="cwithout__t">two sources of truth</span>
+          </div>
+          <div class="drop c-dr"><span class="drop__lab">dictionaries<br>and patterns</span></div>
+
+          <div class="cbox c-cat">
+            <span class="cbox__t">Pentaho Data Catalog</span>
+            <span class="cbox__s">same term · same tags · same sensitivity, from both directions</span>
+          </div>
+        </div>
+        <figcaption class="dgm__note">Both halves of the catalog's classification are fed from one row. Remove the Registry and the two paths become independent — each still correct on its own terms, and no longer in agreement.</figcaption>
+      </figure>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="drift">
+  <div class="wrap row">
+    <div class="rail">
+      <span class="kicker kicker--teal">Drift</span>
+      <span class="kicker">Four conditions</span>
+    </div>
+    <div class="row__body">
+      <h2>Why glossaries drift</h2>
+
+      <p>Drift is not random. It is what happens when any one of the following is missing, and each has a symptom you can recognise before the damage is expensive.</p>
+
+      <div class="cond">
+        <div class="cond__head">
+          <span class="cond__badge" aria-hidden="true">X</span>
+          <h3 class="cond__title">A controlled tag vocabulary</h3>
+        </div>
+        <p>Unless tags come from an allow-list, every steward invents their own. Free-text tagging produces <code>PII</code>, <code>pii</code>, <code>PII-Data</code>, <code>personal</code> — four labels, one concept, and a search that returns a quarter of what it should.</p>
+        <p class="tell"><span class="tell__label">TELL</span> — tag counts keep rising while coverage doesn't.</p>
+      </div>
+
+      <div class="cond">
+        <div class="cond__head">
+          <span class="cond__badge" aria-hidden="true">Y</span>
+          <h3 class="cond__title">Deterministic classification</h3>
+        </div>
+        <p>Unless sensitivity and PII category are derived from evidence by rule, they become opinion — and opinion varies by person, by mood, and by how much time someone had that afternoon. Let a language model decide them and they vary <em>per run</em>, which means the classification is not reproducible and therefore not auditable.</p>
+        <div class="source">
+          <p class="source__body">Do NOT return sensitivity or PII — those are deterministic from the scan.</p>
+          <span class="source__cite">The model prompt, Glossary Generator</span>
+        </div>
+        <p>A model is a drafting aid for <em>language</em> — names, definitions, purpose. It gets no vote on classification.</p>
+        <p class="tell"><span class="tell__label">TELL</span> — two runs over the same data return different sensitivity.</p>
+        <div class="source">
+          <p class="source__body">A live specimen: a water utility's ph_level column was expanded by a generic built-in abbreviation to "Phone Level" — and the PII name-matcher then read the expanded name, stamping CONTACT_INFO, contact and privacy tags, and MEDIUM sensitivity onto a chemistry measurement. One wrong generic assumption, three governance fields corrupted, everything looking deliberate. The cure was not a better guess but no guess: ambiguous tokens get no global opinion, and the company's own pack records the right expansion the first time a steward renames the term.</p>
+          <span class="source__cite">Caught in the field, first GPU review</span>
+        </div>
+      </div>
+
+      <div class="cond">
+        <div class="cond__head">
+          <span class="cond__badge" aria-hidden="true">Z</span>
+          <h3 class="cond__title">One row read by both the glossary and the methods</h3>
+        </div>
+        <p>Unless the glossary and the detection methods draw from the same row, they diverge the moment either is edited. Someone tightens a pattern; the term's tags no longer match what the pattern stamps. Nothing errors. The catalog is now quietly inconsistent — which is worse than being loudly wrong, because nobody goes looking.</p>
+        <p class="tell"><span class="tell__label">TELL</span> — a column carrying a term whose tags differ from the term's own.</p>
+      </div>
+
+      <div class="cond">
+        <div class="cond__head">
+          <span class="cond__badge" aria-hidden="true">+</span>
+          <h3 class="cond__title">Visibility across glossaries</h3>
+        </div>
+        <p>Once you have several glossaries, each steward re-authors concepts their neighbours already own. "Customer Identifier" in Customer, "Cust ID" in Billing, "Client Number" in Servicing — three terms, one concept, and no way to roll up.</p>
+        <p class="tell"><span class="tell__label">TELL</span> — the same concept resolves to a different term id per domain.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="rollout">
+  <div class="wrap row">
+    <div class="rail">
+      <span class="kicker kicker--teal">Rollout</span>
+      <span class="kicker">Standards first</span>
+    </div>
+    <div class="row__body">
+      <h2>The order matters more than the pace</h2>
+
+      <div class="phase">
+        <div class="phase__head">
+          <span class="phase__no">00</span>
+          <span class="phase__name">Pilot one domain</span>
+        </div>
+        <p>Pick one domain with a willing steward and genuinely important data. Run it end to end. The deliverable is not the glossary — it is the convention: the domain pack, the tag dictionary, the category set, the sensitivity rules. Budget for this taking longer than everything that follows. It should.</p>
+      </div>
+
+      <div class="phase">
+        <div class="phase__head">
+          <span class="phase__no">01</span>
+          <span class="phase__name">Freeze the global layer</span>
+        </div>
+        <p>Before a second domain starts, fix what every domain shares.</p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th scope="col">Global — set once, changed by exception</th><th scope="col">Per domain — the steward's call</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Tag allow-list</td><td>Which concepts exist</td></tr>
+              <tr><td>Sensitivity rules</td><td>Definitions and purpose</td></tr>
+              <tr><td>Category set</td><td>Stewardship and ratings</td></tr>
+              <tr><td>Naming conventions</td><td>The approval gate</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>A steward decides <em>what the concepts are</em>. They do not get to invent the vocabulary those concepts are described in. That single distinction is what makes many small glossaries safe instead of a drift factory.</p>
+
+        <figure class="dgm">
+          <div class="owners">
+            <div class="owners__global">
+              <span class="owners__k">Global — set once, changed by exception</span>
+              <span class="owners__sub">tag allow-list · sensitivity rules · category set · naming conventions</span>
+            </div>
+            <div class="owners__links" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
+            <div class="owners__grid">
+              <div class="owner">
+                <span class="owner__name">Customer</span>
+                <span class="owner__who">M. Garcia</span>
+                <span class="owner__role">Steward</span>
+              </div>
+              <div class="owner">
+                <span class="owner__name">Billing</span>
+                <span class="owner__who">R. Hayes</span>
+                <span class="owner__role">Steward</span>
+              </div>
+              <div class="owner owner--orphan">
+                <span class="owner__name">Network Assets</span>
+                <span class="owner__who">unassigned</span>
+                <span class="owner__role">No owner — will decay</span>
+              </div>
+              <div class="owner">
+                <span class="owner__name">Servicing</span>
+                <span class="owner__who">A. Okonkwo</span>
+                <span class="owner__role">Steward</span>
+              </div>
+            </div>
+            <p class="owners__rule">Each steward decides which concepts exist — never the vocabulary they are described in.</p>
+          </div>
+          <figcaption class="dgm__note">The shape that makes many small glossaries safe. An unowned glossary is shown deliberately: it is the one that drifts first, and the easiest to create by accident when a domain is split off a source rather than off a person.</figcaption>
+        </figure>
+      </div>
+
+      <div class="phase">
+        <div class="phase__head">
+          <span class="phase__no">02</span>
+          <span class="phase__name">Roll out by domain</span>
+        </div>
+        <p>One glossary per <strong>accountable steward</strong>, not per source — sources cut across domains, stewardship doesn't. Scope each load to one coherent subject area so the review stays reviewable.</p>
+        <p>Per domain: scan and profile, generate, check for existing terms, review, govern, resolve, apply. Run the cross-glossary check <em>early</em> on later domains — reuse climbs as coverage grows, and reusing is far cheaper than reconciling.</p>
+      </div>
+
+      <div class="phase">
+        <div class="phase__head">
+          <span class="phase__no">03</span>
+          <span class="phase__name">Deploy methods, then drift-check</span>
+        </div>
+        <p>Feed the Registry to the Policy Generator, deploy the dictionaries and patterns, then run its drift check on a schedule. This is the step that makes the glossary <em>operational</em> rather than documentation: terms start landing on columns automatically, stamped with the tags the Registry says they carry.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="sizing">
+  <div class="wrap row">
+    <div class="rail">
+      <span class="kicker kicker--teal">Sizing</span>
+      <span class="kicker">The domain split</span>
+    </div>
+    <div class="row__body">
+      <h2>How many glossaries, and how big</h2>
+      <ul class="notes">
+        <li><strong>One glossary per accountable owner.</strong> If nobody's name is on it, it decays.</li>
+        <li><strong>Five to fifteen</strong> suits a mid-size enterprise. Fewer and review is unmanageable; more and you fragment concepts across too many owners.</li>
+        <li><strong>Terms plateau, columns don't.</strong> Sixty <code>customer_id</code> columns collapse into one term carrying sixty sources. An organisation has a few hundred business concepts however many tables express them — size the effort on concepts, not columns.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="pack">
+  <div class="wrap row">
+    <div class="rail">
+      <span class="kicker kicker--teal">The pack</span>
+      <span class="kicker">Author one thing</span>
+    </div>
+    <div class="row__body">
+      <h2>Building the domain pack</h2>
+
+      <p>The pack is what makes the second scan visibly better than the first: the vocabulary of one company, learned once. The temptation is to sit down and author an industry taxonomy before scanning anything. Resist it.</p>
+
+      <div class="source">
+        <p class="source__body">table_category / table_terms / terms / tag_rules left EMPTY on purpose. Inventing table names for a database nobody has scanned yet produces rules that never match and read as if they were curated.</p>
+        <span class="source__cite">The scaffolder's own reasoning</span>
+      </div>
+
+      <p>That last clause is the trap. A hand-authored taxonomy looks authoritative, matches nothing, and goes unquestioned <em>because</em> it looks deliberate.</p>
+
+      <h3>Author one thing: the category list</h3>
+      <p>It is the only input a person reliably knows before scanning, because it comes from how the business talks rather than how its data is modelled. Everything derivable is then derived from it.</p>
+      <ul class="notes">
+        <li><strong>Five to nine categories.</strong> Fewer and they stop discriminating; more and nobody holds the set in their head.</li>
+        <li><strong>Named as the business names them</strong>, not as the schema does. Categories mirroring source systems produce a glossary that documents the database rather than the business.</li>
+        <li><strong>One steward per category</strong> where you can manage it.</li>
+      </ul>
+
+      <div class="source">
+        <p class="source__body">A live specimen — the same folder, twice: two runs of the AI categoriser over the same water-utility scan filed the <code>correspondence</code> folder first under <strong>Records &amp; Documents</strong> — the records-management lens: what kind of artifact this is, where retention lives — then under <strong>Communications &amp; Outreach</strong> — the function lens: what the business does with it. Same evidence, same schema; two defensible taxonomies. Neither is wrong: abstraction has degrees of freedom, and every run samples one. Ask the same consultant twice, get two org charts. That is category drift in its purest form, and the cure is not a better model — it is a decision that sticks: proposals land as pills, the steward picks a lens once, and Export pack freezes the choice so every later run proposes against a settled baseline instead of renaming it.</p>
+        <span class="source__cite">Caught in the field, two consecutive GPU reviews</span>
+      </div>
+
+      <h3>Grow everything else from reviewed rows</h3>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th scope="col">Learned</th><th scope="col">From</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Table → category, table terms</td><td>the actual tables in the scan</td></tr>
+            <tr><td>Category keywords</td><td>table-name tokens</td></tr>
+            <tr><td>Abbreviations</td><td>aligned column tokens — <code>mbr_no</code> + "Member Number" → <code>mbr: Member</code></td></tr>
+            <tr><td>Tags, tag rules, terms</td><td>the <em>approved</em> company layer only</td></tr>
+            <tr><td>Detection seeds</td><td>induced value patterns and profiled reference lists</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>The <strong>abbreviations</strong> earn the most and are the least guessable: every organisation shortens words its own way, and that mapping is exactly what makes the next scan arrive with <code>mbr_no</code> already reading as <em>Member Number</em>.</p>
+      <p>Two rules keep it safe. Only <strong>approved</strong> vocabulary reaches the pack, so it inherits the steward's judgement rather than the scanner's guesses. And merges <strong>surface conflicts side by side</strong> instead of overwriting — a steward's recorded decision beats the machine's newest opinion.</p>
+
+      <h3>Industry standards are a check, never a seed</h3>
+      <p>AWWA for water, FIBO or BIAN for financial services and their equivalents elsewhere are useful <em>after</em> a first pass, as a diff. Seed from one and you import vocabulary the company does not actually use — you end up governing terms nobody says out loud, which is how a glossary becomes shelfware. Run the domain, then compare against the standard to find the gaps that are genuinely missing rather than merely absent.</p>
+
+      <p class="flowline">scaffold <span class="arrow">→</span> scan <span class="arrow">→</span> review <span class="arrow">→</span> export pack <span class="arrow">→</span> commit <span class="arrow">→</span> <em>next scan starts here</em></p>
+
+      <p>A company with no pack at all is a legitimate start: run packless, do one full cycle, and the first export <em>is</em> your base pack — built entirely from evidence someone has already approved.</p>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="gotchas">
+  <div class="wrap row">
+    <div class="rail">
+      <span class="kicker kicker--teal">Gotchas</span>
+      <span class="kicker">Looks like success</span>
+    </div>
+    <div class="row__body">
+      <h2>Six ways to be wrong quietly</h2>
+
+      <div class="gotcha">
+        <h4>Scanning is not profiling</h4>
+        <p>A file scan defaults <code>withProfile: false</code> and <code>headerExists: false</code>. Inherit those and your CSVs are catalogued with no columns — or columns named <code>Column-0 … Column-N</code>, because the header row was read as data. Every status still reads OK.</p>
+      </div>
+
+      <div class="gotcha">
+        <h4>Re-profiling is additive</h4>
+        <p>Run a scan again with different header settings and the catalog <em>adds</em> the new columns without retiring the old, leaving <code>Column-0</code>, <code>asset_id</code>, <code>Column-1</code>, <code>asset_type</code> interleaved. Recreate the data source rather than re-running over the top.</p>
+      </div>
+
+      <div class="gotcha">
+        <h4>Classification before the glossary is a catch-22</h4>
+        <p>Data Classification assigns business terms — which do not exist until the glossary is built, from the very profile the scan produces. Enabled on a first pass it can only mark everything unclassified, leaving a pile to resolve by hand. Run it later, deliberately, and only over unstructured documents; structured files never need it, because their terms are assigned directly with profile evidence behind each one.</p>
+      </div>
+
+      <figure class="dgm">
+        <div class="loop">
+          <div class="loop__stage">
+            <span class="loop__n">01</span>
+            <span class="loop__t">Scan + profile</span>
+            <span class="loop__s">columns, statistics</span>
+          </div>
+          <div class="loop__stage">
+            <span class="loop__n">02</span>
+            <span class="loop__t">Generate</span>
+            <span class="loop__s">terms exist now</span>
+          </div>
+          <div class="loop__stage">
+            <span class="loop__n">03</span>
+            <span class="loop__t">Apply</span>
+            <span class="loop__s">terms onto columns</span>
+          </div>
+          <div class="loop__stage loop__stage--opt">
+            <span class="loop__n">04</span>
+            <span class="loop__t">Classify</span>
+            <span class="loop__s">documents only</span>
+          </div>
+        </div>
+        <figcaption class="dgm__note">Classification first has no terms to assign — everything comes back unclassified, to be resolved by hand. Structured files never re-enter this loop: their terms are assigned directly at Apply, with the profile evidence behind each one.</figcaption>
+      </figure>
+
+      <div class="gotcha">
+        <h4>The internal API routes by hostname</h4>
+        <p>Reached on a bare IP, internal endpoints answer 401 with a perfectly valid token while the public API works fine — so an object-store file scan fails and everything else succeeds. Use the vhost URL.</p>
+      </div>
+
+      <div class="gotcha">
+        <h4>A gateway refusal is not an auth failure</h4>
+        <p>Where the catalog sits behind a WAF, proxy or zero-trust edge, a browser login does not authenticate a non-browser client. The symptom reads as "authentication failed"; the cause is an edge refusal before the request ever arrived. Check for the gateway's fingerprint before touching realms and passwords.</p>
+      </div>
+
+      <div class="gotcha">
+        <h4>Nothing tells you a step was skipped</h4>
+        <p>The through-line in all of the above: the failure state and the success state look identical from the outside. Insist that tooling reports what it didn't do — a skipped profile, a truncated scope, an inherited default — because a green tick over an omitted step is the most expensive thing in this list.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="anti">
+  <div class="wrap row">
+    <div class="rail">
+      <span class="kicker kicker--teal">Avoid</span>
+      <span class="kicker">Anti-patterns</span>
+    </div>
+    <div class="row__body">
+      <h2>Reliable ways to end up with a glossary nobody trusts</h2>
+      <ul class="notes notes--avoid">
+        <li><strong>One enterprise glossary.</strong> No owner, unbounded review, every steward editing the same object.</li>
+        <li><strong>Free-text tags.</strong> The single fastest route to drift.</li>
+        <li><strong>AI-authored definitions applied unreviewed.</strong> The model drafts; the steward is accountable.</li>
+        <li><strong>Classification run before terms exist.</strong> Guarantees a backlog of unclassified assets.</li>
+        <li><strong>Per-steward sensitivity judgement.</strong> Sensitivity is a rule, not an opinion.</li>
+        <li><strong>Treating the glossary as the deliverable.</strong> It is the Registry that keeps everything else honest.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="limits">
+  <div class="wrap row">
+    <div class="rail">
+      <span class="kicker kicker--teal">Limits</span>
+      <span class="kicker">Stated plainly</span>
+    </div>
+    <div class="row__body">
+      <h2>What tooling does not solve</h2>
+      <ul class="notes">
+        <li><strong>Concurrency.</strong> Several stewards working simultaneously need separate instances of the authoring tool.</li>
+        <li><strong>Very large single sources.</strong> Profiling scope is bounded per source and reported rather than silently clipped. Row counts are irrelevant — a ten-million-row table is one entity.</li>
+        <li><strong>Long-running scans.</strong> A loader that waits synchronously per source suits a demo, not an overnight estate scan.</li>
+        <li><strong>Organisational agreement.</strong> No tool decides who owns "Customer". Settle that before the rollout, or the glossaries will encode the argument.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer class="colophon">
+  <div class="wrap">
+    <p>Pentaho Data Catalog · glossary implementation strategy. Companion to the Glossary Generator, which builds the Registry, and the Policy Generator, which reads it.</p>
+  </div>
+</footer>
+
+<div class="footbar" aria-hidden="true"></div>
+</body>
+</html>
