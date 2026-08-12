@@ -16,6 +16,28 @@ const fmtBytes = (b) => {
 
 const pct = (x) => Math.round((x || 0) * 100) + '%'
 
+const FTYPE_COLORED = new Set(['pdf', 'docx', 'doc', 'csv', 'tsv', 'xlsx', 'xls', 'json', 'xml', 'txt', 'md'])
+
+const ftypeClass = (ext) => {
+  const e = (ext || '').toLowerCase()
+  return `ftype ftype-${FTYPE_COLORED.has(e) ? e : 'other'}`
+}
+
+const extOf = (key) => {
+  const b = (key || '').split('/').pop()
+  const i = b.lastIndexOf('.')
+  return i > 0 ? b.slice(i + 1).toLowerCase() : ''
+}
+
+const splitKey = (key) => {
+  const i = (key || '').lastIndexOf('/')
+  return i >= 0 ? [key.slice(0, i + 1), key.slice(i + 1)] : ['', key || '']
+}
+
+function MiniBar({ frac }) {
+  return <span className="mini"><i style={{ width: pct(frac) }} /></span>
+}
+
 /* ================= column profiling (database discovery) ================= */
 
 const SENS_CLS = { HIGH: 'sens-hi', MEDIUM: 'sens-md', LOW: 'sens-lo' }

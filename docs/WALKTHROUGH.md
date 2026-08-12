@@ -8,8 +8,9 @@ so the same document runs a demo, an enablement session, or a solo exam.
 Numbers in *(parentheses)* are from the Arizona Water reference estate —
 yours will differ; the *shape* of each check should not.
 
-> **Rule of thumb:** scans capture evidence *at scan time*. After upgrading
-> the app, re-scan before judging results — an old grid carries old evidence.
+> **Rule of thumb:** evidence is captured when the grid is built. After
+> upgrading the app, re-harvest (or re-scan) before judging results — an old
+> grid carries old evidence.
 
 ---
 
@@ -33,25 +34,42 @@ glossaries, the LLM chip is green on your model, PDC shows "not connected".
 > to the catalog yet — the app builds the glossary first, the catalog
 > receives it at the end."*
 
-## Phase 1 — Connect
+## Phase 1 — Connect (PDC is the system of record)
 
 - [ ] Settings: model, compute, and **company name** (a wipe clears it).
-- [ ] Connect → import the connections CSV for your estate.
-- [ ] **Test** each connection.
+- [ ] Connect → **Bulk load**: register the estate's sources in PDC from your
+      CSV, with ingest + analysis (profiling for databases, discovery for
+      object stores). Skip if PDC already holds the estate.
+- [ ] Sign in to PDC on the Harvest card → **List data sources**.
+- [ ] *(optional, once per environment)* Run the **diagnostic** on a source —
+      it reports whether PDC exposes stats / values / patterns, so you know
+      what harvest can feed downstream.
 
-**Pass-check:** every connection tests green *(3 connections)*.
+**Pass-check:** PDC lists your sources; the diagnostic reports values and
+patterns present *(a PDC-only path is then viable end to end)*.
 
-> **Talk track** — *"One CSV describes the estate — databases, object
-> stores, credentials — and becomes saved connections in one import. Each
-> one gets a live test before we trust it. In a real engagement this file
-> comes from the platform team; it's also how the same run repeats on the
-> next environment."*
+> Direct source connections are an advanced fallback for sources PDC has not
+> profiled — PDC returns stored credentials encrypted, so a working
+> connection cannot be derived from a PDC record; supply it yourself or
+> import the loader CSV.
 
-## Phase 2 — Scan — both sources before any AI
+> **Talk track** — *"One CSV describes the estate — databases, object stores,
+> credentials — and the bulk loader registers every source in the catalog,
+> ingests its metadata and runs the analysis pass. From here the app needs
+> nothing but the catalog: no database passwords, no side channel. Everything
+> downstream is built from what the catalog already knows."*
 
-- [ ] Object store connection → **Add to glossary** *(~43 rows)*.
-- [ ] Database connection → **Add to glossary** — merges into the same grid
-      *(~180 rows, ~157 kept)*.
+## Phase 2 — Harvest — both sources before any AI
+
+- [ ] **Harvest selected** for the object-store source *(~57 terms)*.
+- [ ] **Harvest selected** for the database source — merges into the same
+      grid by source identity *(~180 rows, ~157 kept)*.
+
+The harvest line reports **profiled columns** — how many came back carrying
+PDC's value evidence. That number is what the policy bundle later depends on.
+
+*(Advanced fallback: if a source is not profiled in PDC, its saved connection
+can still Add to glossary from a direct scan.)*
 
 **Pass-checks:**
 - Structural keys auto-pruned, with reasons on the rows *(~23)*.
@@ -60,12 +78,12 @@ glossaries, the LLM chip is green on your model, PDC shows "not connected".
 - Low-cardinality code columns carry **Enum values**; formatted columns
   carry a **Value pattern** (open a row's evidence to confirm).
 
-> **Talk track** — *"Every column the scan finds becomes one candidate
+> **Talk track** — *"Every column the catalog holds becomes one candidate
 > term — database columns, and the columns inside the files in the object
-> store: a CSV's header row is read, a JSON file's structure is walked. The
-> scan also profiles values as it goes, and that evidence stays on the row:
-> this status column carries its actual value list, this account number
-> carries the format its values share. Notice what the app already declined
+> store, because the catalog read those file headers when it discovered the
+> store. The catalog profiled the values too, and that evidence comes back
+> with them: this status column carries its actual value list, this account
+> number carries the format its values share. Notice what the app already declined
 > for us — surrogate keys, a column literally named 'description', a
 > snapshot column stamped with the month it was exported. Each one is
 > un-ticked, not deleted, with the reason written on the row: the steward

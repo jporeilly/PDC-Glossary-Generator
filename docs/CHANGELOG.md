@@ -14,6 +14,49 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.37.0] - 2026-08-12
+
+### PDC is the system of record
+
+A minor-version bump because the architecture changed, not the details.
+
+The app used to hold its own source connections and scan databases and
+object stores directly. It no longer needs to: the bulk loader registers
+and profiles the estate **in PDC**, and Harvest brings back structure,
+governance **and** — as of this line — the value evidence PDC already
+computed. One credential, one system of record; the glossary, dictionaries,
+Data Patterns, DQ expectations and labels all derive from the catalog.
+
+What changed to make that true:
+
+- **Harvest carries PDC's profiling.** It maps `profilingInfo` onto the
+  same profile dict a direct value scan produced — reference lists from
+  `sampling.sample`, Data Pattern seeds from induced patterns, completeness
+  and uniqueness from the counts. Guarded: near-unique columns never become
+  a dictionary, and a human summary ("99.9% numeric") is never shipped as a
+  regex.
+- **A probe that answers with payloads.** Pick a PDC data source and it
+  reports what the catalog actually exposes — stats / values / patterns,
+  raw payload included — how many columns it sampled, and by which route it
+  asked (parent-table name, or the entities' own ids, so a name-resolution
+  miss can never masquerade as "PDC has no profiling"). It also dumps a
+  real entity's attributes to answer whether labels ride them.
+- **No more connections the app cannot use.** PDC returns credentials
+  encrypted (`AES/GCM/NoPadding|…`), so connections derived from a PDC
+  record were born broken — "no password supplied", "InvalidAccessKeyId".
+  That path is removed, encrypted values are refused rather than pasted
+  into credential fields, and the direct-connection form is demoted to an
+  advanced disclosure pending the last measurement on document columns.
+- **Labels.** Suggested from evidence the scan already proved — handling
+  from the PII call, access-tier from sensitivity, criticality from the CDE
+  flag, domain from the approved category — chosen on Govern, and now shown
+  per row in Review's expanded evidence, so the steward sees the
+  consequence beside the reason. `retention` stays absent until your domain
+  pack defines it: "7 years on compliance records" is your regulatory fact,
+  not this engine's invention.
+- **Discovery results render where they belong** — the database profile on
+  Schema beside its tables, the bucket charts on Files beside its files.
+
 ## [1.36.70] - 2026-08-12
 
 ### Changed - harvest maps PDC's profiling, in the shapes PDC really uses

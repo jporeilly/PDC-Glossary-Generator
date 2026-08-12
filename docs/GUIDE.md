@@ -483,10 +483,37 @@ to set sensitivity, PII and CDE from the data — not just the column name.
 These are the same dimensions PDC's profiler captures (completeness, cardinality,
 patterns, sensitivity), so you can line the two up side by side.
 
-#### 3.2 Harvest from PDC (no direct DB access)
+#### 3.2 Harvest from PDC — the primary path
 
-Instead of connecting straight to the database, you can build the glossary from
-what **PDC has already cataloged**. The **Harvest from PDC** card on Connections:
+**PDC is the system of record**, and harvest is how the glossary is built:
+the bulk loader registers and profiles the estate in PDC, and harvest reads
+it back. That means **one credential and no direct database access** — the
+app never needs, stores or asks for a source password.
+
+Harvest returns three things, and the third is what makes the path complete:
+
+1. **Structure** — tables/files, columns, types, keys, comments.
+2. **Governance PDC already holds** — sensitivity, trust scores, linked terms,
+   overlaid so you can see existing work before generating.
+3. **Value evidence PDC profiled** — reference lists, induced patterns, and
+   completeness/uniqueness baselines, mapped onto the same `profile` shape a
+   direct value scan produced. This is what mints **Dictionaries**, **Data
+   Patterns** and **DQ expectations**; without it a harvested glossary would
+   carry structure but seed no policies.
+
+Not sure what your PDC exposes? The **diagnostic** beside the harvest card
+probes a chosen source and reports, per column, whether stats / values /
+patterns come back — with the raw payload, the number of columns sampled, and
+which route the profiling was requested by — plus a real entity's attributes,
+which is how the labels question gets answered on your instance rather than in
+the abstract.
+
+Direct source connections remain available behind an advanced disclosure for
+sources PDC has not profiled. Note that PDC returns stored credentials
+**encrypted**, so a connection cannot be derived from a PDC record — supply
+credentials yourself (or import the loader CSV) when you genuinely need one.
+
+The **Harvest from PDC** card on Connections:
 
 1. **List data sources** — the public API has no "list all data sources" call
    (the data-sources endpoint is retrieve-by-id only), so the picker reads the

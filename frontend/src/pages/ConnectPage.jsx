@@ -900,9 +900,16 @@ function ProfilingProbeCard({ rows, pdc }) {
             {res.verdict}
           </p>
           <p className="summary">
-            <span className="badge" style={{ marginRight: '.4rem' }}>
-              columns resolved <b>{res.columns_found ?? 0}</b>
+            <span className="badge" style={{ marginRight: '.4rem' }}
+                  title="How many columns this probe SAMPLED (it asks about the first few, by design) — not how many PDC holds.">
+              sampled <b>{res.columns_found ?? 0}</b> column(s)
             </span>
+            {res.probe_via && (
+              <span className="badge" style={{ marginRight: '.4rem' }}
+                    title="How the profiling was requested: by resolving the parent table's name, or directly by the entities' own ids. If the id route finds profiling the name route missed, the gap was ours.">
+                via {res.probe_via}
+              </span>
+            )}
             {['stats', 'values', 'patterns'].map((k) => (
               <span key={k} className={`badge ${res.capabilities?.[k] ? 'good' : 'warning'}`}
                     style={{ marginRight: '.4rem' }}>

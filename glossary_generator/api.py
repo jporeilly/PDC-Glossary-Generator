@@ -3577,6 +3577,7 @@ def api_pdc_profiling_probe(body: dict = Body(default={})):
     ds_id = (body.get("data_source_id") or "").strip() or None
     ds_name = (body.get("data_source_name") or "").strip() or None
     cols = [str(c).strip() for c in (body.get("columns") or []) if str(c).strip()]
+    ent_ids, parent_ids, total_available = [], [], 0
 
     try:
         token, _ = _pdc_token_and_reauth(body, base, version, verify)
@@ -3597,6 +3598,14 @@ def api_pdc_profiling_probe(body: dict = Body(default={})):
                     c = ".".join(x for x in (sch, tbl, col) if x)
                     if c not in cols:
                         cols.append(c)
+                        eid = pdc_api._eid(e) or e.get("_id") or ""
+                        if eid:
+                            ent_ids.append(str(eid))
+                        par = (e.get("parentId") or e.get("parentID")
+                               or (e.get("parentIds") or [None])[0])
+                        if par and str(par) not in parent_ids:
+                            parent_ids.append(str(par))
+                total_available += 1
                 if len(cols) >= 8:
                     break
         if not cols:                   # last resort: the grid's kept columns
@@ -3619,6 +3628,35 @@ def api_pdc_profiling_probe(body: dict = Body(default={})):
                           "tableName": p[-2], "columnName": p[-1]})
         prof = pdc_api.pdc_profile_for_columns(base, token, specs, version=version,
                                                verify_tls=verify)
+        # DIRECT attempt: ask for profiling by the entities' OWN ids. The
+        # name-based path resolves a parent TABLE by name, which for a
+        # document store means matching a filename — a failure there is
+        # indistinguishable from "PDC has no profiling", so remove the
+        # variable rather than argue about it (field: 8 document columns
+        # resolved, profiling empty).
+        direct = {}
+        if ent_ids and not prof:
+            for filt in ({"ids": ent_ids[:12]}, {"parentIds": parent_ids[:12]}):
+                if not list(filt.values())[0]:
+                    continue
+                try:
+                    items = pdc_api.filter_profiling_info(base, token, filt,
+                                                          version=version,
+                                                          verify_tls=verify)
+                except Exception:
+                    items = []
+                for it in items or []:
+                    pinfo = it.get("profilingInfo") or it.get("profiling") or {}
+                    if pinfo:
+                        direct[str(it.get("name") or it.get("_id"))] = {
+                            "stats": pinfo.get("stats") or pinfo.get("statistics") or {},
+                            "sampling": pinfo.get("sampling") or pinfo.get("samples"),
+                            "patterns": pinfo.get("patternAnalysis") or pinfo.get("patterns"),
+                            "_via": "ids" if "ids" in filt else "parentIds",
+                        }
+                if direct:
+                    break
+        prof = prof or direct
     except Exception as e:
         return _err(str(e)[:300], 502)
 
@@ -3709,6 +3747,9 @@ def api_pdc_profiling_probe(body: dict = Body(default={})):
             # confused with "never asked" (field-caught on a document store:
             # three absent chips that actually meant no columns were resolved)
             "columns_found": len(cols), "columns_sample": cols[:8],
+            "sampled": True, "probe_via": next(
+                (v.get("_via") for v in (prof or {}).values()
+                 if isinstance(v, dict) and v.get("_via")), "table-name"),
             "columns": out, "verdict": verdict,
             "labels": labels, "labels_verdict": lab_verdict}
 

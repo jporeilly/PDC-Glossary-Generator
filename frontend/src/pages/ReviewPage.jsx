@@ -318,6 +318,29 @@ export default function ReviewPage({ onNavigate }) {
   // strip's highlight to step 2 (Approve). Not persisted: after a reload the
   // highlight falls back to step 1, which is harmless (re-proposing is safe).
   const [catRan, setCatRan] = useState(false)
+  // Inferred labels, per term — Review shows the CONSEQUENCE of the evidence
+  // (what labels this term would carry), Govern decides the policy (which
+  // keys to keep). One call to the shared engine, so the logic never forks.
+  const [labelsByTerm, setLabelsByTerm] = useState({})
+  useEffect(() => {
+    if (!rows.length) { setLabelsByTerm({}); return undefined }
+    const t = setTimeout(() => {
+      apiPost('/api/labels/suggest', { rows: rowsRef.current })
+        .then((d) => {
+          const idx = {}
+          for (const k of (d.keys || [])) {
+            for (const v of (k.values || [])) {
+              for (const term of (v.terms || [])) {
+                (idx[term] || (idx[term] = {}))[k.key] = v.value
+              }
+            }
+          }
+          setLabelsByTerm(idx)
+        })
+        .catch(() => setLabelsByTerm({}))
+    }, 600)
+    return () => clearTimeout(t)
+  }, [rows])
   // schema-call clock: elapsed ticks while the call runs; the last successful
   // duration on THIS machine is the estimate shown for the next run
   const [catElapsed, setCatElapsed] = useState(0)
@@ -1831,6 +1854,7 @@ export default function ReviewPage({ onNavigate }) {
                                  onEvidence={setEvidence} onToggle={toggleExpand} />
                         {expanded === i && rows[i] && (
                           <ExpandedRow row={rows[i]} index={i} onField={onField}
+                                       labels={labelsByTerm[String(rows[i]?.Term || '').trim()]}
                                        prop={proposals ? proposals.items[i] : undefined} onAcceptProp={acceptProp}
                                        onEvidence={setEvidence} onClose={() => setExpanded(null)}
                                        onAiReview={runAiPassRow} aiBusy={aiDisabled} />
@@ -2199,7 +2223,7 @@ const GridRow = memo(function GridRow({ row: r, index, pos, expanded, prop, onAc
    full-width textareas and the scan-evidence bits underneath. */
 
 function ExpandedRow({ row: r, index, prop, onAcceptProp, onField, onEvidence, onClose,
-                       onAiReview, aiBusy }) {
+                       onAiReview, aiBusy, labels }) {
   const srcs = splitList(r.Source_Column)
   const enums = splitList(r.Enum_Values)
   // pending AI proposal for a prose field → the old value stays in the
@@ -2252,6 +2276,14 @@ function ExpandedRow({ row: r, index, prop, onAcceptProp, onField, onEvidence, o
               </span>
             )}
             {!srcs.length && !hasEvidence(r) && <span className="rv-msg">table-level (conceptual) term — no profiled evidence</span>}
+            {labels && Object.keys(labels).length > 0 && (
+              <span title="Inferred from this row's own evidence — the PII call, sensitivity, the CDE flag, the approved category, and any vocabulary your domain pack defines. Choose which keys are kept on the Govern page; nothing is written until Apply.">
+                <span className="rv-expevk">LABELS</span>
+                {Object.entries(labels).map(([k, v]) => (
+                  <code key={k} className="rv-expenum">{k}={v}</code>
+                ))}
+              </span>
+            )}
             <span className="rv-detseg"
                   title="Auto = detectable by value shape: with profiled evidence the Registry seeds a detection method, with none Policy asks for a seed. Mapping-only = governed by term links (Apply) alone, no value shape exists — Policy stops expecting a detection method. Full note: How terms are defined & built.">
               <span className="rv-expevk">DETECTION</span>

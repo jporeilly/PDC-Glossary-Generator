@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  <img alt="Version 1.36.70" src="https://img.shields.io/badge/version-1.36.70-0F766E">
+  <img alt="Version 1.37.0" src="https://img.shields.io/badge/version-1.37.0-0F766E">
   <img alt="Pentaho Data Catalog 11.0.0" src="https://img.shields.io/badge/Pentaho%20Data%20Catalog-11.0.0-1f6feb">
   <img alt="Public API v3" src="https://img.shields.io/badge/public%20API-v3-1f6feb">
   <img alt="Python 3.9+" src="https://img.shields.io/badge/python-3.9%2B-3776AB">
@@ -27,7 +27,7 @@
 
 ---
 
-**Version:** 1.36.70 · validated against Pentaho Data Catalog 11.0.0 (public API v3).
+**Version:** 1.37.0 · validated against Pentaho Data Catalog 11.0.0 (public API v3).
 
 > [!TIP]
 > **Quick start (Windows 11 host):** one command stands up the whole
@@ -73,7 +73,7 @@ four moves:
 
 | Step | Page | What you get |
 | --- | --- | --- |
-| ① | **[Connect](#walkthrough)** | A live scan of a database, an object store or a DDL file — or a harvest of what PDC already catalogs |
+| ① | **[Connect](#walkthrough)** | Register the estate in PDC (bulk load), then **harvest** what PDC has cataloged — structure, governance and the value evidence it profiled. No source credentials needed |
 | ② | **[Review](#walkthrough)** | One candidate term per meaningful column, with evidence, AI proposals and duplicate resolution |
 | ③ | **[Govern](#walkthrough)** | Stewardship from the real roster, ratings, and the approval gate |
 | ④ | **[Generate &amp; apply](#walkthrough)** | Import-ready JSONL, the Classification Registry, and a write-back onto PDC entities |
@@ -157,7 +157,7 @@ One pass through the app, page by page — the sidebar stepper walks the same
 order. Expand a step for what it does and how it looks.
 
 <details>
-<summary><b>① Connect</b> — scan a database, an object store or a DDL file (or harvest from PDC)</summary>
+<summary><b>① Connect</b> — register the estate in PDC, then harvest what it cataloged</summary>
 
 <br>
 **Bulk load** registers many sources in PDC at once from a CSV, ingests each
@@ -166,11 +166,20 @@ one's metadata, and can run the analysis pass straight after —
 object store's files — so the setup is one stop with no step forgotten.
 <p align="center">
   <img alt="Connect — saved connections, bulk load and the live scan" src="docs/images/connect.png" width="900"><br>
-  <em>Connect — saved connections, bulk load and the live scan</em>
+  <em>Connect — bulk-load into PDC, harvest what it cataloged, and probe what it exposes</em>
 </p>
-Live database scan (PostgreSQL, SQL Server, MySQL/MariaDB,
-Oracle), MinIO/S3 document stores, or a plain DDL file. 
-Or skip direct access entirely and **harvest from what PDC has already cataloged**. The schema
+**PDC is the system of record.** Harvest reads back what the catalog holds
+for a source — tables and columns, keys, comments, the governance PDC
+already carries (sensitivity, trust, linked terms) *and* the value evidence
+its profiling computed (reference lists, induced patterns, completeness and
+uniqueness). That evidence is what mints Dictionaries, Data Patterns and DQ
+expectations, so the whole downstream flow works from the catalog with **one
+credential and no direct database access**. A built-in diagnostic reports
+exactly what your PDC exposes, per column, with the raw payload.
+
+Direct scanning (PostgreSQL, SQL Server, MySQL/MariaDB, Oracle, MinIO/S3, or
+a plain DDL file) remains available behind an advanced disclosure for
+sources PDC has not profiled. The schema
 browser (tables, PK/FK relationships, write-back of missing keys) and the
 MinIO/S3 object browser live on their own **Schema** and **Files**
 sub-pages under Connect. Schema renders as **Cards or an ER diagram**

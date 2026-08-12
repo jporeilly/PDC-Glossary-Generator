@@ -9,7 +9,8 @@
 > "ready for the Policy Generator" hand-off indicator. Since 1.6.12: the Dictionary
 > is its own page with scan-time alias resolution; a search-facet preview; a steward
 > audit trail; similarity-scored suggested merges (**Find similar**); a multi-select
-> **Harvest from PDC** picker that scales to 100+ sources; installable scenario
+> **Harvest from PDC** picker that scales to 100+ sources and now carries the
+> catalog's own profiling (values, patterns, DQ baselines); installable scenario
 > domain packs; and non-destructive **Enrich** with **↶ Revert enrich**. Since 1.7.0
 > the workshop scenario is **Copper State Credit Union** (financial services) — see
 > `CHANGELOG.md` and the CSCU workshop in the PDC-Scenarios repo
