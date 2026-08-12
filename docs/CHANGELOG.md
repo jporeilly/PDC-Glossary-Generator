@@ -14,6 +14,70 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.36.69] - 2026-08-12
+
+### Changed - PDC is the source of truth: harvest carries its profiling
+
+"Harvest from PDC is used to build the glossary, all the data should be
+there — after all that's what PDC uses." Correct, and the gap was OURS:
+harvest read entity metadata (structure, keys, comments, the governance
+overlay) and never asked for the profiling PDC had already computed, so a
+harvested grid arrived with no value evidence and could seed no
+dictionaries, Data Patterns or DQ expectations. Harvest now pulls
+profiling-info per column and maps it onto the same profile dict a direct
+value scan produces — reference lists, induced patterns, completeness and
+uniqueness baselines — alias-tolerant across PDC versions, with near-unique
+columns still refused a value list so ids never read as reference data. The
+harvest summary reports how many columns came back profiled.
+
+### Added - labels, suggested from evidence and never invented
+
+PDC labels are small key/value custom properties. The Govern page now
+proposes them from what the scan already proved: `handling` (the PII call),
+`access-tier` (sensitivity), `criticality` (the CDE flag) and `domain` (the
+category you approved) — each shown with its values, the terms behind them
+and the evidence line. The steward keeps the keys; values are recomputed
+from the live grid at export so a kept label cannot go stale. Labels READ
+classification and never change it.
+
+`retention` is deliberately absent until your domain pack defines it:
+"7 years on compliance records" is a regulatory fact for an organisation,
+not something this engine may invent. Define `labels.retention` in the pack
+and the suggestion appears, matched on each document's own class. A key
+whose values exceed PDC's ~6-value cap is refused, with the reason.
+
+### Added - a probe that answers architecture questions with payloads
+
+Connect gains a diagnostic driven by the same "List data sources" call
+Harvest uses: pick a PDC source and it reports what the catalog actually
+exposes — stats / values / patterns, per column, raw payload included — and
+dumps a real entity's attribute keys to show whether labels ride attributes
+(writable through the PATCH Apply already uses) or need their own endpoint.
+
+### Fixed - the app stops making broken connections
+
+PDC returns credentials ENCRYPTED: userName and accessId come back as
+`AES/GCM/NoPadding|…`, which the app copied straight into a connection —
+so the database said "no password supplied" and MinIO said
+"InvalidAccessKeyId" ("the connections it adds are messed up"). The
+→ Connection button is gone (harvest is the path; the loader CSV carries
+real credentials when a direct scan is genuinely needed), and any encrypted
+value is now refused rather than pasted into a credential field. The
+"Add a source connection directly" panel is demoted to an advanced
+disclosure, pending the probe's verdict on removing it entirely.
+
+### Fixed - smaller truths
+
+- The harvest scan-result line no longer claims profiling never ran when
+  only Data Identification hasn't: ingest and profiling clearly ran if PDC
+  holds the columns; `0 identified` means classification is the missing
+  step.
+- Factory reset now survives its own process: the workspace lives in tab
+  memory, so the next autosave would have written the deleted glossary
+  straight back. The reset stops this process saving and hard-reloads.
+- The reachability-remap example is generic rather than one scenario's
+  container name.
+
 ## [1.36.68] - 2026-08-12
 
 ### Added - Factory reset: the app owns its own zero
