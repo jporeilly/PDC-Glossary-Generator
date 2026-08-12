@@ -132,6 +132,23 @@ function SnapshotCard() {
         <button className="primary" onClick={() => fileRef.current?.click()}>Restore from snapshot…</button>
         <input ref={fileRef} type="file" accept=".zip" style={{ display: 'none' }}
                onChange={(e) => { restore(e.target.files[0]); e.target.value = '' }} />
+        {/* the guaranteed clean slate — exists because the installer's
+            delete-app-data demonstrably failed to wipe on an upgrade and
+            two estates conflated (field-caught); the app owns its own zero */}
+        <button className="ghost" style={{ color: 'var(--status-critical, #c62828)' }}
+                onClick={async () => {
+                  if (!window.confirm(
+                    'Factory reset — delete ALL app data?\n\nConnections, settings, saved '
+                    + 'glossaries, the dictionary, roster, audit trail, Registries and the '
+                    + 'installed domain pack are deleted (app.log is kept). Take a snapshot '
+                    + 'first if in doubt.\n\nClose and relaunch the app afterwards.')) return
+                  try {
+                    const d = await apiPost('/api/factory-reset', { confirm: 'RESET' })
+                    setMsg(`✓ Factory reset — deleted ${d.deleted.length} item(s). ${d.note}`)
+                  } catch (err) { setMsg(`Factory reset failed: ${err.message}`) }
+                }}>
+          ⚠ Factory reset…
+        </button>
         {msg && <span className="summary">{msg}</span>}
       </div>
     </section>

@@ -50,12 +50,15 @@ function CheckBlock({ check }) {
       {(check.issues || []).map((i, k) => (
         <div key={k} className={i.tone === 'bad' ? 'warn' : undefined}>
           · {i.text}
-          {/* the backend names every offender — a warning that ends on a
-              colon with no names sent the steward hunting ("Build check
-              needs to be a little clearer") */}
-          {(i.terms || []).map((t) => (
-            <code key={t.label} style={{ marginLeft: '.35rem' }}>{t.label}</code>
-          ))}
+          {/* offenders on their OWN line, each carrying its location —
+              "Status" inline at the end of a three-line sentence still sent
+              the steward hunting ("the build check is still not clear") */}
+          {(i.terms || []).length > 0 && (
+            <div style={{ margin: '.2rem 0 .35rem 1.1rem', display: 'flex',
+                          flexWrap: 'wrap', gap: '.35rem' }}>
+              {i.terms.map((t) => <code key={t.label}>{t.label}</code>)}
+            </div>
+          )}
         </div>
       ))}
       {check.verdict && <div>{check.verdict}</div>}
@@ -1617,17 +1620,19 @@ function ProfilingCard({ de, authBody }) {
 
   return (
     <section className="card">
-      <h2>3 · Profile documents in PDC <span>before Apply — PDC's Data Discovery mints the file-column entities</span></h2>
+      <h2>3 · Profile documents in PDC <span>before Apply — fills the gaps PDC&apos;s Data Discovery hasn&apos;t covered</span></h2>
       <p className="hint-line">
-        <b>The app already profiled these files at scan time</b> — that&apos;s where the document
-        column terms and their value evidence came from. <b>PDC has not</b>: files that were only
-        metadata-ingested show <b>Profiled Status: SKIPPED</b>, carry no file Data Quality, and —
-        the part that bites — <b>their columns don&apos;t exist as PDC entities yet</b>, so Apply
-        has nothing to link document-column terms to (they report <i>not found</i>). This runs
-        PDC&apos;s own <b>Data Discovery</b> (with profiling) on the scanned document folders:
-        PDC mints the file-column entities and computes its file Data Quality, the fourth
-        Trust-Score input. Run it and let the jobs finish <i>before</i> Apply. Database columns
-        aren&apos;t affected (they profile when you scan the database).
+        An estate registered through the <b>bulk loader</b> with <i>discover</i> ticked already
+        had PDC run Data Discovery at setup — those file-column entities exist and file Data
+        Quality is computed, and this step has nothing to do. It matters for the <b>gaps</b>:
+        files added <i>since</i>, stores registered <i>without</i> discovery, or metadata-only
+        ingests — those show <b>Profiled Status: SKIPPED</b>, carry no file Data Quality, and
+        their columns don&apos;t exist as PDC entities, so Apply reports their terms{' '}
+        <i>not found</i>. The check below finds exactly those objects and submits PDC&apos;s{' '}
+        <b>Data Discovery</b> for them alone — let the jobs finish <i>before</i> Apply.
+        (The app&apos;s own scan-time profiling is separate: it&apos;s where your grid&apos;s
+        column terms and value evidence came from, whatever PDC has done.) Database columns
+        aren&apos;t affected — they profile when you scan the database.
       </p>
       <div className="actions">
         <button className="primary" onClick={trigger} disabled={busy}>

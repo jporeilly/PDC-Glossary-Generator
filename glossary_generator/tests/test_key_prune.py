@@ -238,3 +238,22 @@ class TestDocumentColumnCategory:
         from engine import suggester
         assert suggester.categorize_column("") is None
         assert suggester.categorize_column(None) is None
+
+
+class TestCandidateReferenceLists:
+    def test_barely_repeating_values_still_travel(self):
+        """Service City's 8 cities were SEEN by profiling but never persisted
+           (the strict uniq gate refused), so the drafter and DQ arrived
+           empty-handed ("lets set for equal or more than 2 values"). A small
+           non-id value set now rides the profile as a candidate list —
+           while the KIND stays 'value', so review semantics and the key
+           prune are untouched."""
+        vals = ["Phoenix", "Tucson", "Mesa", "Sedona", "Bisbee",
+                "Phoenix", "Tucson", "Globe", "Yuma", "Page"]  # 10 rows, 8 distinct
+        prof = suggester._profile_values("service_city", vals, len(vals))
+        assert prof.get("kind") != "enum", "the strict gate still refuses"
+        assert prof.get("enum") and len(prof["enum"]) == 8, prof
+        # id-territory never travels: 10 rows, 10 distinct
+        ids = [f"C{i:03d}" for i in range(10)]
+        prof2 = suggester._profile_values("customer_code", ids, len(ids))
+        assert not prof2.get("enum"), "near-unique values never become a list"

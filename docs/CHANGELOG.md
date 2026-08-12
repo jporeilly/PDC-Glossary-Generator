@@ -14,6 +14,42 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.36.68] - 2026-08-12
+
+### Added - Factory reset: the app owns its own zero
+
+The installer's delete-app-data checkbox demonstrably failed to wipe on an
+upgrade and two estates conflated. Settings now carries a guarded
+**Factory reset** — deletes every state file (connections, settings, saved
+glossaries, dictionary, roster, audit, Registries, installed pack) and the
+running process's caches; app.log survives (the black box outlives the
+wipe). Take a snapshot first if in doubt; close and relaunch after. The
+walkthrough's Phase 0 now leads with it.
+
+### Fixed - profiled values travel at your threshold
+
+Barely-repeating reference columns (Service City's 8 cities, County's 5)
+were SEEN by profiling but never persisted - the strict repeated-codes
+gate refused, and the drafter and DQ arrived empty-handed. A small non-id
+value set (2-12 distinct, uniqueness below id-territory) now rides the
+profile as a candidate list ("lets set for equal or more than 2 values"):
+dictionary rules and allowed-values baselines mint from it, while the
+strict gate keeps its meaning for review semantics and the key prune.
+Re-scan once to fill existing grids (the merge fills empty evidence and
+keeps every edit) - the same re-scan also fills Value_Kind, unlocking the
+recognised-kind patterns for email/phone/zip columns.
+
+### Fixed - honest words, located offenders
+
+- The build check's duplicate-name chips now carry WHERE each name lives
+  ("Status - in Account Alerts · Water Systems"), on their own line -
+  naming the term alone still sent the steward hunting.
+- The "Profile documents in PDC" card no longer claims PDC never profiled
+  a bulk-loaded estate ("the documents were initially profiled via the
+  bulk loader" - correct): discovery ran at setup; the step is the
+  GAP-FILLER for files added since or metadata-only ingests, and its
+  check submits jobs only for those.
+
 ## [1.36.67] - 2026-08-12
 
 ### Added - the Estate Report: the flow ends on a noun

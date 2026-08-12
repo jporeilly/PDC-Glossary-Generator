@@ -15,8 +15,11 @@ yours will differ; the *shape* of each check should not.
 
 ## Phase 0 — Clean install
 
-- [ ] Close the running app.
-- [ ] Run the installer → **tick "delete app data"** → finish.
+- [ ] **Settings → ⚠ Factory reset** in the running app (take a snapshot
+      first if in doubt) — the guaranteed in-app wipe; the installer's
+      delete-app-data checkbox has a known defect on upgrades.
+- [ ] Close the app.
+- [ ] Run the installer → finish.
 - [ ] Launch.
 
 **Pass-check:** the sidebar shows the new version, Home lists **no** saved
@@ -220,18 +223,20 @@ those with one click.)
 
 - [ ] Import the JSONL in PDC (Glossary → Actions → Import).
 - [ ] Back in the app: **Resolve term ids**.
-- [ ] **Run Data Discovery on documents** (step 3 on the page) and let the
-      PDC jobs finish — PDC mints the file-column *entities* and computes
-      its file Data Quality. The app profiled these files at scan time;
-      PDC has not, and until it does, document-column terms have nothing
-      to link to (Apply reports them *not found*).
+- [ ] **Check Data Discovery on documents** (step 3 on the page). A
+      bulk-loaded estate (discovery ticked) already had PDC discover the
+      store at setup — the check is then a no-op. It submits PDC jobs only
+      for the *gaps* (files added since, metadata-only ingests); let any
+      jobs finish — until then those document columns have no PDC entities
+      and Apply reports them *not found*.
 - [ ] **Apply terms**.
 
 > **Talk track** — *"The catalog assigns every imported term its identity.
 > Resolve looks each term up by name and stamps those ids back onto our
-> rows. For the object store there's one catalog-side step: our scanner
-> read inside those files at scan time — the catalog hasn't yet, so we
-> ask it to run its own Data Discovery, which creates
+> rows. For the object store there's one catalog-side check: the bulk
+> loader usually had the catalog discover these files at setup, so this
+> is a gap-filler — for anything added since, we ask the catalog to run
+> its own Data Discovery, which creates
 > the file-column entities and scores file quality, its fourth
 > Trust-Score input. Then Apply writes the term-to-column associations
 > into the catalog — the moment the glossary stops being a document and

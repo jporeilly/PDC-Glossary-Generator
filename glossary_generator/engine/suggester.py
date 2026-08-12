@@ -582,10 +582,21 @@ def _profile_values(name, vals, sample_n):
     if uniq >= 0.95 and n >= 5 and frac(RX_DEC) < 0.5:
         return {**base, "confidence": "High", "reason": "Profiled: near-unique values (likely identifier)",
                 "kind": "identifier"}
+    # A CANDIDATE reference list rides along whenever profiling captured a
+    # small value set that is not id-territory ("lets set for equal or more
+    # than 2 values" — Service City's 8 cities were SEEN but never persisted,
+    # so the drafter and DQ arrived empty-handed). The strict repeated-codes
+    # gate above keeps its meaning (kind stays decimal/value here, so review
+    # semantics and the key prune are untouched); this only lets the captured
+    # values travel to dictionary rules and allowed-values baselines.
+    candidate = (sorted(set(strs))[:12]
+                 if 2 <= distinct <= 12 and uniq < 0.95 else None)
     dec = frac(RX_DEC)
     if dec >= 0.5:
-        return {**base, "reason": "Profiled", "kind": "decimal", "valid": round(dec, 3)}
-    return {**base, "reason": "Profiled", "kind": "value"}
+        return {**base, "reason": "Profiled", "kind": "decimal", "valid": round(dec, 3),
+                **({"enum": candidate} if candidate else {})}
+    return {**base, "reason": "Profiled", "kind": "value",
+            **({"enum": candidate} if candidate else {})}
 
 def profile_live(cfg, tables, schema=None, sample_size=80):
     """Sample rows per table and attach a `profile` dict to each column. Best-effort;
@@ -3201,11 +3212,19 @@ def glossary_build_check(rows, recs, glossary_name):
                        "Merge or rename these on the Review page (the duplicate header offers both):",
                        "terms": [{"label": p2, "q": p2.split(" / ", 1)[-1]} for p2 in dup_pairs]})
     if dup_names:
-        issues.append({"tone": "warn", "text": f"{len(dup_names)} term name(s) appear in more than one category — "
-                       "Resolve matches terms BY NAME, so it cannot tell which of the two a column "
-                       "means and may link the wrong one. Rename one of each pair on the Review page "
-                       "(filter by the name below), or merge them if they are the same concept:",
-                       "terms": [{"label": t, "q": t} for t in dup_names]})
+        # name WHERE each duplicate lives — "Status" alone still sent the
+        # steward hunting through five categories (field-caught twice)
+        name_cats = {}
+        for r in kept:
+            name_cats.setdefault(r.get("Term", ""), set()).add(
+                (r.get("Category", "") or "—").strip() or "—")
+        issues.append({"tone": "warn",
+                       "text": f"{len(dup_names)} term name(s) live in more than one "
+                       "category. Resolve matches terms BY NAME and may link a column "
+                       "to the wrong one — on the Review page, rename one of each "
+                       "(filter by the name), or merge them if they are one concept:",
+                       "terms": [{"label": f"{t}  —  in {' · '.join(sorted(name_cats.get(t, [])))}",
+                                  "q": t} for t in dup_names]})
     if no_cat:
         issues.append({"tone": "warn", "text": f"{len(no_cat)} term(s) have no category — they land in PDC under "
                        "'Unassigned'. Set a category on the Review page:",

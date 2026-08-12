@@ -796,3 +796,24 @@ class TestWritesSurviveAVanishedStateDir:
         r2 = client.post("/api/connections/import-csv", json={"csv": csv, "only": ["AWO"]})
         assert r2.status_code == 200, "writes must self-heal, not 500"
         assert os.path.isdir(paths.state_dir())
+
+
+class TestFactoryReset:
+    def test_wipes_state_and_requires_confirm(self, client, fresh_dict):
+        """The installer's delete-app-data failed to wipe on an upgrade and
+           two estates conflated — the app owns its own zero. Guarded by an
+           explicit confirm; app.log is kept (the black box outlives the
+           wipe)."""
+        import os as _os
+        tagdict = fresh_dict
+        tagdict.accrete([_row("Meter Size", "awc.meters.meter_size")],
+                        persist=True)
+        assert _os.path.exists(_os.environ["GLOSSARY_TAG_DICTIONARY"])
+        r = client.post("/api/factory-reset", json={})
+        assert r.status_code == 400, "no confirm, no wipe"
+        r2 = client.post("/api/factory-reset", json={"confirm": "RESET"}).json()
+        assert "tag_dictionary.json" in r2["deleted"]
+        assert not _os.path.exists(_os.environ["GLOSSARY_TAG_DICTIONARY"])
+        d = client.get("/api/tagdict").json()
+        assert all(t.get("status") != "pending" for t in d.get("terms", [])), \
+            "the running process forgets too — reseeded defaults, no pending"

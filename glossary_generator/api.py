@@ -3517,6 +3517,51 @@ def data_elements(body: dict = Body(default={})):
             "breakdown": breakdown,
             "policy": {**suggester.DEFAULT_MAP_POLICY, **(policy or {})}}
 
+@app.post("/api/factory-reset")
+def api_factory_reset(body: dict = Body(default={})):
+    """Delete ALL app state from inside the app — the guaranteed clean slate.
+    Exists because the installer's delete-app-data checkbox demonstrably
+    failed to wipe on an upgrade (field: three stale files survived and
+    conflated two estates); until that is reproduced and fixed, the app
+    owns its own zero. Body: {confirm: "RESET"}. app.log is kept — the
+    black box should outlive the wipe. Close and relaunch afterwards so
+    the seeds (domain pack, defaults) regenerate."""
+    if (body or {}).get("confirm") != "RESET":
+        return _err('pass {"confirm": "RESET"} to wipe all app data', 400)
+    import shutil
+    deleted = []
+    targets = [PEOPLE_FILE, CONN_FILE, SETTINGS_FILE, GLOSS_FILE,
+               RECEIPTS_FILE, paths.state_path("tag_dictionary.json",
+                                               "GLOSSARY_TAG_DICTIONARY"),
+               paths.state_path("audit_log.json", "GLOSSARY_AUDIT_LOG"),
+               paths.state_path("domain_pack.json", "GLOSSARY_DOMAIN_PACK")]
+    for p in targets:
+        try:
+            if p and os.path.exists(p):
+                os.unlink(p)
+                deleted.append(os.path.basename(p))
+        except Exception:
+            pass
+    try:
+        if os.path.isdir(REGISTRY_DIR):
+            shutil.rmtree(REGISTRY_DIR, ignore_errors=True)
+            deleted.append("registries/")
+    except Exception:
+        pass
+    # drop the in-memory caches so the running process forgets too
+    try:
+        with tagdict._LOCK:
+            tagdict._DICT = None
+            tagdict._COMPILED = tagdict._COMPILED_KEY = None
+    except Exception:
+        pass
+    logging.getLogger("client").error(
+        "factory-reset: %s deleted", ", ".join(deleted) or "nothing")
+    return {"deleted": deleted,
+            "note": "Close and relaunch the app — seeds and defaults "
+                    "regenerate on startup. app.log was kept."}
+
+
 @app.post("/api/estate-report")
 def api_estate_report(body: dict = Body(default={})):
     """The estate's closing summary + the Policy-Generator handoff contract,
