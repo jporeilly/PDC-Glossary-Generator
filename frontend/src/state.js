@@ -17,6 +17,7 @@ const ws = {
   glossaryName: '',  // the PDC glossary name used at generate time
   rows: [],          // review-grid rows (Category/Term/Definition/… per column)
   discovery: null,   // data-discovery profile captured with the glossary
+  docsDiscovery: null, // bucket profile — rendered on the Files page
   governance: null,  // Govern page's buildGovernance() output (stewardship,
                      // ratings, per-category overrides) — legacy `governance` key
   categoriesConfirmed: null,  // the KEYSTONE: {at, categories} once the steward
@@ -134,6 +135,13 @@ export function setReviewCompleted(v) {
   markDirty()
 }
 
+export function setDocsDiscovery(d) {
+  // the object-store profile belongs to the page that browses files, so it
+  // rides the workspace rather than one page's local state
+  ws.docsDiscovery = d || null
+  markDirty()
+}
+
 export function setDiscovery(discovery) {
   ws.discovery = discovery
   markDirty()
@@ -169,7 +177,7 @@ export function setPdcSession(session) {
 
 export function clearWorkspace() {
   ws.id = null; ws.name = ''; ws.glossaryName = ''
-  ws.rows = []; ws.discovery = null; ws.governance = null
+  ws.rows = []; ws.discovery = null; ws.docsDiscovery = null; ws.governance = null
   ws.categoriesConfirmed = null; ws.reviewCompleted = null
   ws.dirty = false; ws.savedAt = null; ws.saveError = null
   clearUi('review.')
@@ -195,6 +203,7 @@ export async function openGlossary(id) {
   ws.glossaryName = g.glossary_name || g.name || ''
   ws.rows = g.rows || []
   ws.discovery = g.discovery || null
+  ws.docsDiscovery = g.docs_discovery || null
   ws.governance = g.governance || null
   ws.categoriesConfirmed = g.categories_confirmed || null
   ws.reviewCompleted = g.review_completed || null
@@ -219,6 +228,8 @@ export async function save() {
       rows: ws.rows,
       governance: ws.governance || undefined,
       discovery: ws.discovery || undefined,
+    docs_discovery: ws.docsDiscovery || undefined,
+      docs_discovery: ws.docsDiscovery || undefined,
       categories_confirmed: ws.categoriesConfirmed || undefined,
       review_completed: ws.reviewCompleted || undefined,
     })

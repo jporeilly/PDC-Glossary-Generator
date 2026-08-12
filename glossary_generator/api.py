@@ -3584,9 +3584,11 @@ def api_pdc_profiling_probe(body: dict = Body(default={})):
             # same entry point as Harvest: pick a data source from PDC's own
             # list, and let the catalog tell us which columns it holds — no
             # hand-typed paths, no app-side grid needed
-            ents = pdc_api.filter_entities(base, token, {"types": ["COLUMN"]},
-                                           version=version, verify_tls=verify,
-                                           timeout=40)
+            # the same type list the client harvests with — a document
+            # store's columns are not typed "COLUMN"
+            ents = pdc_api.filter_entities(
+                base, token, {"types": list(dict.fromkeys(pdc_api._COL_TYPES))},
+                version=version, verify_tls=verify, timeout=40)
             for e in ents:
                 if not pdc_api._under_root(e, ds_id, ds_name):
                     continue
@@ -3654,9 +3656,9 @@ def api_pdc_profiling_probe(body: dict = Body(default={})):
     # attribute keys so the answer is the catalog's own payload.
     labels = {"attribute_keys": [], "label_like_keys": [], "sample": ""}
     try:
-        probe_ents = pdc_api.filter_entities(base, token, {"types": ["COLUMN"]},
-                                             version=version, verify_tls=verify,
-                                             timeout=30)
+        probe_ents = pdc_api.filter_entities(
+            base, token, {"types": list(dict.fromkeys(pdc_api._COL_TYPES))},
+            version=version, verify_tls=verify, timeout=30)
         ent = next((e for e in probe_ents
                     if (not (ds_id or ds_name)) or pdc_api._under_root(e, ds_id, ds_name)), None)
         if ent:
@@ -3673,9 +3675,17 @@ def api_pdc_profiling_probe(body: dict = Body(default={})):
     except Exception as e:
         labels["error"] = str(e)[:200]
 
-    if not out:
-        verdict = ("PDC returned no profiling for these columns — either they are "
-                   "not profiled in PDC yet, or the names did not resolve.")
+    if not cols:
+        verdict = ("No COLUMN entities found under this source — nothing to ask "
+                   "about. An object store holds FILE entities, and its columns "
+                   "only exist once PDC's Data Discovery has run; try a database "
+                   "source, or run discovery on this store first.")
+    elif not out:
+        verdict = (f"Resolved {len(cols)} column(s) from the catalog "
+                   f"({', '.join(cols[:3])}…) but PDC returned no profilingInfo "
+                   "for them — so the columns exist and are NOT profiled (or "
+                   "profiling is not exposed on this PDC version). That is a "
+                   "different finding from 'no columns found'.")
     elif caps["values"] or caps["patterns"]:
         verdict = ("PDC exposes value-level detail — harvest CAN fill the profile "
                    "dict from the catalog's own work, so a PDC-only path is viable. "
@@ -3695,6 +3705,10 @@ def api_pdc_profiling_probe(body: dict = Body(default={})):
                    "definition first); capture one 'assign label' call in "
                    "DevTools to see the real endpoint.")
     return {"probed": list(out.keys()), "capabilities": caps,
+            # what the catalog gave us to work with, so "absent" can never be
+            # confused with "never asked" (field-caught on a document store:
+            # three absent chips that actually meant no columns were resolved)
+            "columns_found": len(cols), "columns_sample": cols[:8],
             "columns": out, "verdict": verdict,
             "labels": labels, "labels_verdict": lab_verdict}
 

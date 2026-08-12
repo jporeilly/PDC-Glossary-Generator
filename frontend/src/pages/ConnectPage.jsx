@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { apiGet, apiPost, apiDelete, runJob } from './../api.js'
-import { getWorkspace, setRows, setDiscovery, setPdcSession, useWorkspace, usePersistentState } from './../state.js'
+import { getWorkspace, setRows, setDiscovery, setDocsDiscovery, setPdcSession, useWorkspace, usePersistentState } from './../state.js'
 import { mergeBySource } from './../rowmerge.js'
 import './connect.css'
 
@@ -175,6 +175,7 @@ export default function ConnectPage({ onNavigate }) {
       conn: { ...conn.config, include, exclude },
     })
     setDocs({ connId: conn.id, name: conn.name, data: d })
+    setDocsDiscovery({ ...d, name: conn.name })   // the Files page renders it
     return d
   }
 
@@ -847,7 +848,10 @@ function ProfilingProbeCard({ rows, pdc }) {
       const picked = (sources || []).find((s) => (s.id || s.name) === ds) || {}
       setRes(await apiPost('/api/pdc/profiling-probe', {
         ...pdcAuthBody(pdc),
-        data_source_id: picked.id || '', data_source_name: picked.name || '',
+        // scope EXACTLY like harvest does — fqdn first, then id: scoping by
+        // id alone found no columns under a document source, which read as
+        // "PDC has no profiling" when PDC plainly had 57 terms' worth
+        data_source_id: picked.fqdn || picked.id || '', data_source_name: picked.name || '',
         rows: rows || [],
       }))
     } catch (e) { setErr(e.message) } finally { setBusy(false) }
@@ -896,6 +900,9 @@ function ProfilingProbeCard({ rows, pdc }) {
             {res.verdict}
           </p>
           <p className="summary">
+            <span className="badge" style={{ marginRight: '.4rem' }}>
+              columns resolved <b>{res.columns_found ?? 0}</b>
+            </span>
             {['stats', 'values', 'patterns'].map((k) => (
               <span key={k} className={`badge ${res.capabilities?.[k] ? 'good' : 'warning'}`}
                     style={{ marginRight: '.4rem' }}>

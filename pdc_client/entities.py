@@ -250,50 +250,82 @@ def _profile_from_pdc(pinfo):
     stats = pinfo.get("stats") or pinfo.get("statistics") or {}
     out = {}
 
-    def num(*names):
+    def num(bag, *names):
         for n in names:
-            v = stats.get(n) if isinstance(stats, dict) else None
+            v = bag.get(n) if isinstance(bag, dict) else None
             if isinstance(v, (int, float)):
                 return float(v)
         return None
 
-    total = num("rowCount", "totalCount", "count", "sampleSize")
-    nulls = num("nullCount", "nulls", "missingCount")
-    distinct = num("distinctCount", "uniqueCount", "cardinality")
+    # ---- counts -> completeness / uniqueness baselines --------------------
+    sampling = pinfo.get("sampling") or pinfo.get("samples") or {}
+    total = (num(stats, "rowCount", "totalCount", "count", "sampleSize")
+             or num(sampling, "totalSamples", "sampleCount"))
+    nulls = num(stats, "nullCount", "nulls", "missingCount", "blankCount")
+    distinct = num(stats, "distinctCount", "uniqueCount", "cardinality",
+                   "distinctValues")
     if total:
         if nulls is not None:
-            out["completeness"] = round(max(0.0, (total - nulls) / total), 3)
+            out["completeness"] = round(max(0.0, min(1.0, (total - nulls) / total)), 3)
         if distinct is not None:
             out["uniq"] = round(min(1.0, distinct / total), 3)
 
-    # distinct VALUES — what a Dictionary rule and an allowed-values check need
-    vals = []
-    for key in ("sampling", "samples", "sampleValues", "topValues",
-                "frequentValues", "valueDistribution", "distinctValues"):
-        v = pinfo.get(key)
-        if isinstance(v, list) and v:
-            for item in v[:24]:
-                if isinstance(item, dict):
-                    s = item.get("value") or item.get("val") or item.get("name")
-                else:
-                    s = item
-                s = str(s).strip() if s is not None else ""
-                if s and s not in vals:
-                    vals.append(s)
-            if vals:
+    # ---- distinct VALUES -> Dictionary rules + allowed-values checks ------
+    # A live probe showed PDC returns these under sampling as
+    # {sample: [...], totalSamples: n, discardedSamples: n} — and tellingly,
+    # `sample` appears for low-cardinality columns (billing_city, phone,
+    # system_type) while high-cardinality ones carry only the counters. That
+    # is exactly the population a reference list should be built from.
+    raw = []
+    if isinstance(sampling, dict):
+        for k in ("sample", "samples", "values", "topValues", "frequentValues"):
+            v = sampling.get(k)
+            if isinstance(v, list) and v:
+                raw = v
                 break
+    elif isinstance(sampling, list):
+        raw = sampling
+    if not raw:
+        for k in ("sampleValues", "topValues", "frequentValues",
+                  "valueDistribution", "distinctValues"):
+            v = pinfo.get(k)
+            if isinstance(v, list) and v:
+                raw = v
+                break
+
+    vals = []
+    for item in raw[:64]:
+        s = item
+        if isinstance(item, dict):
+            s = (item.get("value") if item.get("value") is not None
+                 else item.get("val") if item.get("val") is not None
+                 else item.get("name"))
+        s = "" if s is None else str(s).strip()
+        if s and s not in vals:
+            vals.append(s)
+    # same rule the app's own profiler keeps: a small repeated set is
+    # reference data; near-unique values are identifiers, never a dictionary
     if 2 <= len(vals) <= 12 and (out.get("uniq") is None or out["uniq"] < 0.95):
         out["enum"] = sorted(vals)[:12]
 
-    # an induced pattern, when PDC's pattern analysis offers one
+    # ---- PDC's induced pattern -> a Data Pattern seed ---------------------
     pats = pinfo.get("patternAnalysis") or pinfo.get("patterns")
+    if isinstance(pats, dict):
+        pats = (pats.get("patterns") or pats.get("items")
+                or pats.get("results") or [])
     if isinstance(pats, list) and pats:
         first = pats[0]
-        rx = (first.get("regex") or first.get("pattern") or first.get("value")
-              if isinstance(first, dict) else first)
-        if rx and str(rx).strip():
-            out["pattern"] = str(rx).strip()
-            out["kind"] = "code"
+        rx = first
+        if isinstance(first, dict):
+            rx = (first.get("regex") or first.get("pattern")
+                  or first.get("expression") or first.get("value"))
+        rx = "" if rx is None else str(rx).strip()
+        # a pattern is only useful if it looks like one — PDC sometimes
+        # returns a human summary ("99.9% numeric") rather than an expression
+        if rx and any(ch in rx for ch in "^$[]\\+*?{}") and len(rx) <= 400:
+            out["pattern"] = rx
+            out.setdefault("kind", "code")
+
     if out:
         out.setdefault("reason", "Profiled by PDC")
     return out

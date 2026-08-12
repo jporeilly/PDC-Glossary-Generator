@@ -14,6 +14,41 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.36.70] - 2026-08-12
+
+### Changed - harvest maps PDC's profiling, in the shapes PDC really uses
+
+A live probe against the estate answered the architecture question: for a
+structured source PDC exposes **stats, values and patterns**. It nests the
+values under `sampling{sample, totalSamples, discardedSamples}` — and
+tellingly returns `sample` for low-cardinality columns (billing_city,
+system_type, phone) while high-cardinality ones carry only the counters, so
+the catalog itself says which columns are reference data. The mapper now
+reads those shapes: sample values become reference lists (Dictionary rules
+and allowed-values checks), induced patterns become Data Pattern seeds, and
+null/distinct counts become completeness and uniqueness baselines.
+Guarded both ways — near-unique columns never become a dictionary, and a
+human summary in `patterns` ("99.9% numeric") is refused rather than
+shipped as a regex.
+
+### Fixed - the probe measured the instrument, not the catalog
+
+Probing a document store reported "no profiling" when PDC plainly held 57
+terms' worth of CSV-header columns. Two faults, both in the probe: it
+scoped by id where harvest scopes by fqdn-then-id, and it asked only for
+type COLUMN when a document store's columns are typed otherwise. It now
+scopes exactly as harvest does, uses the client's full type list, and
+reports **columns resolved** alongside the capability chips — so "absent"
+can never again be confused with "never asked".
+
+### Changed - discovery results render where they belong
+
+The database profile (expandable tables, sensitivity and key tiles) now
+renders on the **Schema** page beside the tables it describes, and the
+bucket profile (file-type and folder charts) on the **Files** page beside
+the files — both read from the workspace, so they survive navigation and
+reload rather than living in one page's local state.
+
 ## [1.36.69] - 2026-08-12
 
 ### Changed - PDC is the source of truth: harvest carries its profiling

@@ -840,3 +840,26 @@ class TestHarvestCarriesPdcProfiling:
                                "patterns": [{"regex": "^AWC-[0-9]{6}$"}]})
         assert "enum" not in q and q["pattern"] == "^AWC-[0-9]{6}$"
         assert _profile_from_pdc({}) == {}
+
+    def test_the_shapes_a_live_probe_showed(self):
+        """Probing a real estate showed PDC nests values under
+           sampling{sample, totalSamples, discardedSamples} — and returns
+           `sample` for low-cardinality columns while high-cardinality ones
+           carry only the counters. Values may also arrive as {value, count}
+           objects, and `patterns` sometimes holds prose rather than an
+           expression."""
+        from pdc_client.entities import _profile_from_pdc as f
+        city = f({"stats": {"rowCount": 100, "nullCount": 2, "distinctCount": 4},
+                  "sampling": {"sample": ["Phoenix", "Tucson", "Mesa", "Sedona"],
+                               "totalSamples": 100, "discardedSamples": 0}})
+        assert city["enum"] == ["Mesa", "Phoenix", "Sedona", "Tucson"]
+        assert city["completeness"] == 0.98
+        ids = f({"stats": {"rowCount": 500, "distinctCount": 500},
+                 "sampling": {"totalSamples": 500, "discardedSamples": 480}})
+        assert "enum" not in ids, "a discarded-sample column is not a dictionary"
+        objs = f({"sampling": {"sample": [{"value": "Paid", "count": 9},
+                                          {"value": "Unpaid", "count": 3}]}})
+        assert objs["enum"] == ["Paid", "Unpaid"]
+        prose = f({"stats": {"rowCount": 10},
+                   "patterns": [{"pattern": "99.9% numeric"}]})
+        assert "pattern" not in prose, "a human summary is not a regex"

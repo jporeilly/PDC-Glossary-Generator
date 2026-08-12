@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
 import { apiGet, apiPost } from './../api.js'
+import { DocsPanel } from './../components/DiscoveryPanels.jsx'
+import { setDocsDiscovery, useWorkspace } from './../state.js'
 import './files.css'
 
 // Files page — the S3/MinIO object browser, split out of Connect as its own
@@ -58,6 +60,9 @@ const fileIcon = (ext) => FILE_ICON[(ext || '').toLowerCase()] || '📄'
 /* ================================================================== */
 
 export default function FilesPage({ onNavigate }) {
+  // The bucket profile — file-type and folder charts — renders HERE, beside
+  // the files it describes, instead of on the page that triggered the scan.
+  const ws = useWorkspace()
   const [conns, setConns] = useState(null)
   const [connsError, setConnsError] = useState(null)
   const [connId, setConnId] = useState('')
@@ -206,6 +211,19 @@ export default function FilesPage({ onNavigate }) {
           <FileModal file={openFile} conn={selected} onClose={() => setOpenFile(null)} />
         )}
       </section>
+
+      {ws.docsDiscovery && (
+        <DocsPanel docs={{ name: ws.docsDiscovery.name || 'this store',
+                           data: ws.docsDiscovery }}
+                   onRefilter={async (include, exclude) => {
+                     const conn = (conns || []).find((c) => c.id === connId)
+                     if (!conn) return
+                     const d = await apiPost('/api/discover-docs', {
+                       conn: { ...conn.config, include, exclude },
+                     })
+                     setDocsDiscovery({ ...d, name: conn.name })
+                   }} />
+      )}
     </>
   )
 }

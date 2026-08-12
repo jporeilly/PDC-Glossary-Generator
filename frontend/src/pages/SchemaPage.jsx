@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { apiGet, apiPost } from './../api.js'
+import { ProfilePanel } from './../components/DiscoveryPanels.jsx'
+import { useWorkspace } from './../state.js'
 import './schema.css'
 
 // Schema page — the schema browser, split out of Connect as its own
@@ -69,6 +71,9 @@ function Modal({ title, wide, onClose, children }) {
 /* ================================================================== */
 
 export default function SchemaPage({ onNavigate }) {
+  // The database discovery profile renders HERE — beside the tables it
+  // describes — rather than on the page that happened to trigger it.
+  const ws = useWorkspace()
   const [conns, setConns] = useState(null)
   const [connsError, setConnsError] = useState(null)
   const [connId, setConnId] = useState('')
@@ -321,6 +326,10 @@ export default function SchemaPage({ onNavigate }) {
           </Modal>
         )}
       </section>
+
+      {/* the database discovery profile, rendered where its tables live */}
+      {ws.discovery && <ProfilePanel profile={{ name: ws.name || 'this source', data: ws.discovery }}
+                                     onNavigate={onNavigate} />}
     </>
   )
 }
