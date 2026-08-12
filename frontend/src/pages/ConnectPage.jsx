@@ -210,11 +210,24 @@ export default function ConnectPage({ onNavigate }) {
       <BulkLoadCard pdc={setPdcProxy(pdc, setPdc, pdcPass, setPdcPass)} onConnectionsChanged={setConns} />
       <HarvestCard pdc={setPdcProxy(pdc, setPdc, pdcPass, setPdcPass)} onConnectionsChanged={refreshConns}
                    onNavigate={onNavigate} glossaryName={ws.glossaryName} />
+      <ProfilingProbeCard rows={ws.rows} pdc={setPdcProxy(pdc, setPdc, pdcPass, setPdcPass)} />
 
-      <div ref={formRef}>
+      {/* DEMOTED, not deleted: PDC is the system of record — harvest above is
+          the primary path ("you shouldn't create a new connection, only use
+          PDC connections"). This stays for the one job harvest cannot do
+          today: read VALUES (patterns, reference lists, quality dims, the
+          deterministic PII calls) that mint Dictionaries, Data Patterns and
+          DQ expectations. The profiling probe above decides whether PDC can
+          supply those too — when it can, this panel goes. */}
+      <details ref={formRef} className="card" open={!!editing}>
+        <summary className="summary" style={{ cursor: 'pointer' }}>
+          <b>Add a source connection directly</b>
+          <span className="notes"> · advanced — only when PDC has not profiled the source,
+            or when you need value evidence PDC does not expose</span>
+        </summary>
         <ConnectionForm editing={editing} onCancel={() => setEditing(null)}
                         onSaved={(list) => { setConns(list); setEditing(null) }} />
-      </div>
+      </details>
 
       <ConnectionCards conns={conns} error={connsError} onNavigate={onNavigate}
                        onEdit={startEdit} onChanged={setConns}
@@ -756,7 +769,7 @@ function ImportCsvPanel({ csv, onClose, onImported }) {
       <div className="list-tools">
         <label className="field" style={{ flex: 1 }} title="Rewrite Docker-internal hosts/ports to addresses reachable from where the app runs. The PDC-side CSV is unchanged.">
           App reachability remap
-          <input type="text" placeholder="cscu-postgres=localhost, 5432=5433" value={remap}
+          <input type="text" placeholder="db-host=localhost, 5432=5433" value={remap}
                  onChange={(e) => onRemap(e.target.value)} className="text" />
         </label>
       </div>
@@ -795,6 +808,126 @@ function ImportCsvPanel({ csv, onClose, onImported }) {
         <button className="ghost" onClick={onClose}>Cancel</button>
       </div>
     </Modal>
+  )
+}
+
+/* ---------- diagnostic: what does PDC's own profiling expose? ----------
+   The architecture question: if PDC already ingested and profiled the estate
+   (bulk loader), Harvest should be the primary path and the app should not
+   need source credentials at all ("shouldn't you always use Harvest from
+   PDC?"). Harvest reads entity metadata — structure + governance, but no
+   VALUE evidence, which is what mints Dictionaries, Data Patterns, DQ
+   expectations and the deterministic PII calls. This probe answers it with
+   the catalog's own payload rather than argument. */
+function ProfilingProbeCard({ rows, pdc }) {
+  // Same entry point as Harvest: list PDC's data sources, pick one, and let
+  // the catalog say which columns it holds ("its from the List data sources
+  // in Harvest from PDC") — no hand-typed paths.
+  const [sources, setSources] = useState(null)
+  const [ds, setDs] = useState('')
+  const [res, setRes] = useState(null)
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState(null)
+
+  const listSources = async () => {
+    setBusy(true); setErr(null)
+    try {
+      const d = await apiPost('/api/pdc/data-sources', pdcAuthBody(pdc))
+      setSources(d.data_sources || [])
+      if ((d.data_sources || []).length && !ds) {
+        const f = d.data_sources[0]
+        setDs(f.id || f.name || '')
+      }
+    } catch (e) { setErr(e.message) } finally { setBusy(false) }
+  }
+
+  const probe = async () => {
+    setBusy(true); setErr(null); setRes(null)
+    try {
+      const picked = (sources || []).find((s) => (s.id || s.name) === ds) || {}
+      setRes(await apiPost('/api/pdc/profiling-probe', {
+        ...pdcAuthBody(pdc),
+        data_source_id: picked.id || '', data_source_name: picked.name || '',
+        rows: rows || [],
+      }))
+    } catch (e) { setErr(e.message) } finally { setBusy(false) }
+  }
+
+  return (
+    <details className="card">
+      <summary className="summary" style={{ cursor: 'pointer' }}>
+        <b>Diagnostic — what does PDC&apos;s profiling expose?</b>
+        <span className="notes"> · decides whether Harvest alone can feed the policy engine</span>
+      </summary>
+      <p className="hint-line">
+        Harvest reads what PDC cataloged: structure, types, keys, and the governance
+        PDC already holds — but not <i>values</i>. Dictionaries, Data Patterns, DQ
+        expectations and the deterministic PII/sensitivity calls all come from value
+        evidence. This asks PDC for its own <code>profilingInfo</code> on a few columns
+        and reports what is actually in it: aggregate stats only, or distinct values and
+        patterns too. If it carries values, a PDC-only path (no source credentials) is
+        viable and Harvest becomes the primary route.
+      </p>
+      <div className="actions">
+        <button className="ghost" onClick={listSources} disabled={busy}>
+          {busy && !sources ? 'Listing…' : 'List data sources'}
+        </button>
+        {sources && sources.length > 0 && (
+          <select value={ds} onChange={(e) => setDs(e.target.value)}
+                  title="The PDC data source to probe — the catalog supplies its columns">
+            {sources.map((s) => (
+              <option key={s.id || s.name} value={s.id || s.name}>
+                {s.name}{s.type ? ` · ${s.type}` : ''}
+              </option>
+            ))}
+          </select>
+        )}
+        <button className="primary" onClick={probe} disabled={busy || !ds}>
+          {busy && sources ? 'Probing…' : 'Probe PDC profiling'}
+        </button>
+        {sources && sources.length === 0 && (
+          <span className="notes">PDC returned no sources — has the estate been ingested?</span>
+        )}
+        {err && <span className="warn">{err}</span>}
+      </div>
+      {res && (
+        <>
+          <p className={`summary ${res.capabilities?.values || res.capabilities?.patterns ? 'ok' : 'warn'}`}>
+            {res.verdict}
+          </p>
+          <p className="summary">
+            {['stats', 'values', 'patterns'].map((k) => (
+              <span key={k} className={`badge ${res.capabilities?.[k] ? 'good' : 'warning'}`}
+                    style={{ marginRight: '.4rem' }}>
+                {k}: {res.capabilities?.[k] ? 'present' : 'absent'}
+              </span>
+            ))}
+          </p>
+          {res.labels && (
+            <details style={{ marginTop: '.4rem' }}>
+              <summary>
+                <b>Labels &amp; custom properties</b>
+                <span className="notes"> — {res.labels_verdict}</span>
+              </summary>
+              {res.labels.label_like_keys?.length > 0 && (
+                <p className="summary">label-like keys:{' '}
+                  {res.labels.label_like_keys.map((k) => <code key={k} style={{ marginRight: '.3rem' }}>{k}</code>)}
+                </p>
+              )}
+              <p className="notes">attributes on a real entity: {(res.labels.attribute_keys || []).join(', ') || '—'}</p>
+              <pre className="code-block" style={{ maxHeight: '240px', overflow: 'auto' }}>{res.labels.sample}</pre>
+            </details>
+          )}
+          {Object.entries(res.columns || {}).map(([k, v]) => (
+            <details key={k} style={{ marginTop: '.4rem' }}>
+              <summary><code>{k}</code> <span className="notes">keys: {v.keys.join(', ') || '—'}
+                {v.value_like_keys?.length ? ` · value-like: ${v.value_like_keys.join(', ')}` : ''}</span></summary>
+              <pre className="code-block" style={{ maxHeight: '260px', overflow: 'auto' }}>{v.raw}</pre>
+            </details>
+          ))}
+        </>
+      )}
+    </details>
   )
 }
 
@@ -852,23 +985,11 @@ function HarvestCard({ pdc, onConnectionsChanged, onNavigate, glossaryName }) {
 
   // PDC source -> saved app connection (prefills everything except the secret;
   // re-adding an existing connection keeps its saved secret).
-  async function toConnection(s) {
-    const k = hvKey(s)
-    note(k, '', 'Reading the PDC record…')
-    try {
-      const d = await apiPost('/api/pdc/source-to-connection', {
-        ...pdcAuthBody(pdc), data_source_name: s.name || s.id,
-      })
-      onConnectionsChanged()
-      const bits = [`✓ ${d.updated ? 'updated' : 'saved'} as app connection "${d.connection.name}"`]
-      if (d.kept_secret) bits.push('kept your saved secret')
-      else if (d.needs) bits.push(`set the ${d.needs} on its card below — or import your loader CSV (Bulk loader → Add to app connections), which carries the credentials`)
-      if (d.warning) bits.push(d.warning)
-      note(k, 'good', bits.join(' · '))
-    } catch (err) {
-      note(k, 'bad', `Failed: ${err.message}`)
-    }
-  }
+  // toConnection removed: PDC returns credentials ENCRYPTED (userName /
+  // accessId come back as 'AES/GCM/NoPadding|…'), so a connection built from
+  // a PDC record could never authenticate — it arrived broken and looked like
+  // the app's fault. Harvest is the path; when a direct scan is genuinely
+  // needed, import the loader CSV, which carries real credentials.
 
   async function harvestOne(s, collectCards) {
     const k = hvKey(s)
@@ -943,7 +1064,7 @@ function HarvestCard({ pdc, onConnectionsChanged, onNavigate, glossaryName }) {
       <p className="hint-line">
         Build the glossary from what PDC has <b>already cataloged</b> — no re-created connections,
         no secrets. List the sources PDC holds, then per source: <b>Test</b> (read-only — what did
-        PDC actually ingest?), <b>→ Connection</b> (save it as an app connection, minus the secret)
+        PDC actually ingest?)
         and <b>Harvest</b> (pull its terms into the glossary), or tick several and harvest together.
         Terms PDC already governs are flagged so you don't overwrite existing work.
       </p>
@@ -1030,10 +1151,6 @@ function HarvestCard({ pdc, onConnectionsChanged, onNavigate, glossaryName }) {
                     {s.fqdn && <span className="src-fqdn" title={s.fqdn}>{s.fqdn}</span>}
                     <button className="ghost connect-sm" onClick={() => testSource(s)}
                             title="Read-only: what has PDC actually ingested for this source?">Test</button>
-                    {(!s.type || String(s.type).toUpperCase() === 'RESOURCE') && (
-                      <button className="ghost connect-sm" onClick={() => toConnection(s)}
-                              title="Save this PDC source as an app connection for a direct live scan — prefills everything except the secret">→ Connection</button>
-                    )}
                     <button className="ghost connect-sm"
                             onClick={() => {
                               const cards = []
@@ -1094,7 +1211,10 @@ function PdcScanCard({ ps }) {
       trust-scored <b>{ps.trust_scored || 0}</b> · term-linked <b>{ps.term_linked || 0}</b> ·{' '}
       tagged <b>{ps.tagged || 0}</b>
       {!ps.identified && total > 0 &&
-        <span className="muted"> — 0 identified usually means Profiling / Data Identification hasn't run on this source in PDC yet</span>}
+        <span className="muted"> — ingest (and profiling) clearly ran, since PDC holds these
+          columns; <b>0 identified</b> means <b>Data Identification</b> has not — that is the
+          step that stamps sensitivity, and trust scores / term links follow it. Harvest still
+          brings the structure; PDC just has no classifications to overlay yet.</span>}
     </div>
   )
 }

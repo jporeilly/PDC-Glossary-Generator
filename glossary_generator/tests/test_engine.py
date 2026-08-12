@@ -741,3 +741,54 @@ class TestRecognisedKindDQ:
         assert dq, "a recognised kind must produce a DQ artifact"
         blob = json.dumps(dq[0]["rule"]).replace("\\\\", "\\")
         assert RX_EMAIL.pattern in blob and '"recognised"' in json.dumps(dq[0]["rule"])
+
+
+class TestLabelSuggestions:
+    """Labels are derived from proven evidence and never invented — and PDC
+       caps a label at a handful of values, so a key that explodes is not a
+       label at all."""
+
+    def _rows(self):
+        return [
+            _row("Customer Email", "awc.customers.email", Category="Customer Management",
+                 Sensitivity="HIGH", PII_Category="CONTACT_INFO",
+                 Critical_Data_Element="Yes"),
+            _row("Meter Size", "awc.meters.meter_size", Category="Asset Management",
+                 Sensitivity="LOW", PII_Category="", Critical_Data_Element="No"),
+        ]
+
+    def test_derived_keys_read_classification(self):
+        from engine import labels
+        got = labels.suggest_labels(self._rows())
+        keys = {k["key"]: k for k in got["keys"]}
+        assert set(keys) >= {"handling", "access-tier", "criticality", "domain"}
+        handling = {v["value"]: v["terms"] for v in keys["handling"]["values"]}
+        assert handling["restricted"] == ["Customer Email"], handling
+        tiers = {v["value"] for v in keys["access-tier"]["values"]}
+        assert tiers == {"tier-1", "tier-3"}
+
+    def test_retention_is_never_invented(self):
+        from engine import labels
+        got = labels.suggest_labels(self._rows())
+        assert not any(k["key"] == "retention" for k in got["keys"])
+        assert any("domain pack" in n for n in got["notes"]), got["notes"]
+
+    def test_retention_comes_from_the_pack(self):
+        from engine import labels
+        rows = [_row("Report Date", "bucket.compliance/epa_2026.pdf.date",
+                     Category="Water Quality", Sensitivity="LOW",
+                     PII_Category="", Critical_Data_Element="No")]
+        pack = {"labels": {"retention": {"compliance": "7y", "correspondence": "3y"}}}
+        got = labels.suggest_labels(rows, pack=pack)
+        ret = next(k for k in got["keys"] if k["key"] == "retention")
+        assert ret["source"] == "pack"
+        assert ret["values"][0]["value"] == "7y"
+
+    def test_a_key_with_too_many_values_is_refused(self):
+        from engine import labels
+        rows = [_row(f"T{i}", f"awc.t.c{i}", Category=f"Category {i}",
+                     Sensitivity="LOW", PII_Category="", Critical_Data_Element="No")
+                for i in range(9)]
+        got = labels.suggest_labels(rows)
+        assert not any(k["key"] == "domain" for k in got["keys"])
+        assert any("too many for a PDC label" in n for n in got["notes"])

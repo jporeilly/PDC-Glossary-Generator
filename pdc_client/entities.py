@@ -234,8 +234,73 @@ def _file_record(ent):
             "owner": owner, "recent": False}, bucket
 
 
+def _profile_from_pdc(pinfo):
+    """Map PDC's own profilingInfo onto the `profile` dict the suggester
+    consumes — the SAME shape a direct value scan produces.
+
+    PDC ran the profiling (that is what its Data Identification and Trust
+    Score work from), so the evidence exists in the catalog; harvest simply
+    never asked for it, which is why harvested grids arrived with no value
+    evidence and no dictionaries or Data Patterns could be drafted from them
+    ("all the data should be there — after all that's what PDC uses").
+    Alias-tolerant like the rest of this client: PDC has spelled these keys
+    differently across versions."""
+    if not isinstance(pinfo, dict) or not pinfo:
+        return {}
+    stats = pinfo.get("stats") or pinfo.get("statistics") or {}
+    out = {}
+
+    def num(*names):
+        for n in names:
+            v = stats.get(n) if isinstance(stats, dict) else None
+            if isinstance(v, (int, float)):
+                return float(v)
+        return None
+
+    total = num("rowCount", "totalCount", "count", "sampleSize")
+    nulls = num("nullCount", "nulls", "missingCount")
+    distinct = num("distinctCount", "uniqueCount", "cardinality")
+    if total:
+        if nulls is not None:
+            out["completeness"] = round(max(0.0, (total - nulls) / total), 3)
+        if distinct is not None:
+            out["uniq"] = round(min(1.0, distinct / total), 3)
+
+    # distinct VALUES — what a Dictionary rule and an allowed-values check need
+    vals = []
+    for key in ("sampling", "samples", "sampleValues", "topValues",
+                "frequentValues", "valueDistribution", "distinctValues"):
+        v = pinfo.get(key)
+        if isinstance(v, list) and v:
+            for item in v[:24]:
+                if isinstance(item, dict):
+                    s = item.get("value") or item.get("val") or item.get("name")
+                else:
+                    s = item
+                s = str(s).strip() if s is not None else ""
+                if s and s not in vals:
+                    vals.append(s)
+            if vals:
+                break
+    if 2 <= len(vals) <= 12 and (out.get("uniq") is None or out["uniq"] < 0.95):
+        out["enum"] = sorted(vals)[:12]
+
+    # an induced pattern, when PDC's pattern analysis offers one
+    pats = pinfo.get("patternAnalysis") or pinfo.get("patterns")
+    if isinstance(pats, list) and pats:
+        first = pats[0]
+        rx = (first.get("regex") or first.get("pattern") or first.get("value")
+              if isinstance(first, dict) else first)
+        if rx and str(rx).strip():
+            out["pattern"] = str(rx).strip()
+            out["kind"] = "code"
+    if out:
+        out.setdefault("reason", "Profiled by PDC")
+    return out
+
+
 def harvest_from_catalog(base_url, token, ds_id=None, ds_name=None, version="v2",
-                         verify_tls=True, timeout=40, max_pages=12):
+                         verify_tls=True, timeout=40, max_pages=12, with_profile=True):
     """Read what PDC has ALREADY cataloged for a source (via POST /entities/filter)
        and reshape it into the structures the suggester consumes — with NO direct
        database/object-store access and no secret.
@@ -333,10 +398,35 @@ def harvest_from_catalog(base_url, token, ds_id=None, ds_name=None, version="v2"
                else f"{bkt2}/{rec['base']}")
         overlay[src.lower()] = {"sensitivity": sens, "trust": trust, "terms": terms, "governed": is_gov}
 
+    # --- PDC's own profiling -> the profile dict ---------------------------
+    # The catalog already profiled these columns; asking for it here is what
+    # lets a harvested grid carry value evidence (dictionaries, patterns, DQ
+    # baselines, deterministic PII) instead of structure alone.
+    profiled = 0
+    if with_profile and tables:
+        try:
+            from .jobs import pdc_profile_for_columns   # local: avoids a cycle
+            specs = [{"schemaName": c.get("schema") or "", "tableName": t,
+                      "columnName": c.get("column") or ""}
+                     for t, cols in tables.items() for c in cols]
+            prof = pdc_profile_for_columns(base_url, token, specs, version=version,
+                                           verify_tls=verify_tls, timeout=timeout)
+            for t, cols in tables.items():
+                for c in cols:
+                    key = ".".join(x for x in (c.get("schema") or "", t,
+                                               c.get("column") or "") if x)
+                    p = _profile_from_pdc(prof.get(key) or {})
+                    if p:
+                        c["profile"] = p
+                        profiled += 1
+        except Exception:
+            pass          # profiling is best-effort; structure still harvests
+
     summary = {"tables": len(tables), "columns": sum(len(v) for v in tables.values()),
                "files": len(files), "bucket": bucket,
                "already_governed": governed,
                "governance": gov,
+               "profiled_columns": profiled,
                "source": ds_name or ds_id or "all data sources"}
     return tables, files, overlay, summary
 

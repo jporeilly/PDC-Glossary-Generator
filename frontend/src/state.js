@@ -208,7 +208,7 @@ export async function openGlossary(id) {
 
 // Persist the workspace: POST /api/glossaries (save-or-overwrite by id).
 export async function save() {
-  if (!ws.rows.length || !canAutosave()) return null
+  if (wiped || !ws.rows.length || !canAutosave()) return null
   ws.saving = true
   emit()
   try {
@@ -246,14 +246,25 @@ const DEBOUNCE_MS = 2000
 const AUTOSAVE_MS = 30000
 let saveTimer = null
 
+// Set by a factory reset. The workspace lives in TAB MEMORY, so a wipe that
+// only deletes files would be undone by the next autosave (2s debounce, 30s
+// timer, or the pagehide beacon) writing the same glossary straight back —
+// the reset would appear to work and the estate would return. Once wiped,
+// this process saves nothing again until it reloads.
+let wiped = false
+export function markWiped() {
+  wiped = true
+  clearTimeout(saveTimer)
+}
+
 export function scheduleSave(delay = DEBOUNCE_MS) {
-  if (!canAutosave()) return
+  if (wiped || !canAutosave()) return
   clearTimeout(saveTimer)
   saveTimer = setTimeout(() => { save() }, delay)
 }
 
 setInterval(() => {
-  if (ws.dirty && ws.rows.length && !ws.saving) save()
+  if (!wiped && ws.dirty && ws.rows.length && !ws.saving) save()
 }, AUTOSAVE_MS)
 
 /* ---------- leaving the page ----------
@@ -265,7 +276,9 @@ setInterval(() => {
    killed); if the grid holds rows that CAN'T autosave yet (no name), ask
    the browser for the leave-confirmation instead. */
 window.addEventListener('pagehide', () => {
-  if (!ws.dirty || !ws.rows.length || !canAutosave()) return
+  // a wiped process must not beacon its old workspace back on the way out —
+  // that would resurrect the estate the reset just deleted
+  if (wiped || !ws.dirty || !ws.rows.length || !canAutosave()) return
   const body = new Blob([JSON.stringify({
     id: ws.id || undefined,
     name: ws.name || ws.glossaryName || 'Untitled glossary',

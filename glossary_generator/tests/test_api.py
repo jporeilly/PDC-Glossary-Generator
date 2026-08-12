@@ -817,3 +817,26 @@ class TestFactoryReset:
         d = client.get("/api/tagdict").json()
         assert all(t.get("status") != "pending" for t in d.get("terms", [])), \
             "the running process forgets too — reseeded defaults, no pending"
+
+
+class TestHarvestCarriesPdcProfiling:
+    def test_pdc_profiling_maps_onto_the_profile_dict(self):
+        """PDC ran the profiling — its Data Identification and Trust Score
+           work from it — but harvest never asked, so harvested grids had no
+           value evidence and could mint no dictionaries or Data Patterns
+           ("all the data should be there — after all that's what PDC
+           uses"). The mapper turns PDC's payload into the same profile
+           shape a direct value scan produces."""
+        from pdc_client.entities import _profile_from_pdc
+        p = _profile_from_pdc({"stats": {"rowCount": 100, "nullCount": 5,
+                                         "distinctCount": 3},
+                               "sampling": [{"value": "Paid"}, {"value": "Unpaid"},
+                                            {"value": "Overdue"}]})
+        assert p["enum"] == ["Overdue", "Paid", "Unpaid"], p
+        assert p["completeness"] == 0.95 and p["uniq"] == 0.03
+        # near-unique values never become a reference list
+        q = _profile_from_pdc({"stats": {"rowCount": 50, "distinctCount": 50},
+                               "sampling": [{"value": f"ID{i}"} for i in range(20)],
+                               "patterns": [{"regex": "^AWC-[0-9]{6}$"}]})
+        assert "enum" not in q and q["pattern"] == "^AWC-[0-9]{6}$"
+        assert _profile_from_pdc({}) == {}

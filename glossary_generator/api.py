@@ -3114,6 +3114,17 @@ _PDC_DB_ENGINES = {"POSTGRES": "postgresql", "POSTGRESQL": "postgresql",
 _PDC_OBJ_TYPES = {"AWS", "S3", "AWS_S3", "MINIO"}
 _ENGINE_PORTS = {"postgresql": "5432", "mysql": "3306", "oracle": "1521", "sqlserver": "1433"}
 
+def _pdc_enc(v):
+    """True when PDC handed back an ENCRYPTED value rather than a usable one.
+    PDC stores credentials encrypted and returns them that way in userName /
+    accessId — copying those into a connection produced a username of
+    'AES/GCM/NoPadding|65536|…', so the DB said "no password supplied" and
+    MinIO said "InvalidAccessKeyId" (field-caught: "the connections it adds
+    are messed up"). An encrypted value is not a credential; it is noise."""
+    s = str(v or "")
+    return s.startswith("AES/") or ("|" in s and len(s) > 40 and " " not in s)
+
+
 def _pdc_record_to_conn(rec):
     """Map a PDC data-source record to an app connection (prefill only — the public
        API never returns a usable password/secret, so the user supplies that once on
@@ -3128,20 +3139,24 @@ def _pdc_record_to_conn(rec):
                "port": str(rec.get("port") or _ENGINE_PORTS[eng]),
                "database": rec.get("databaseName") or "",
                "schema": (schemas[0] if schemas else ("public" if eng == "postgresql" else "")),
-               "user": rec.get("userName") or "", "password": "",
+               "user": ("" if _pdc_enc(rec.get("userName")) else (rec.get("userName") or "")),
+               "password": "",
                "ssl": False, "profile": True}
-        return ({"name": name, "type": "db", "config": cfg}, "password",
+        return ({"name": name, "type": "db", "config": cfg},
+                ("username and password" if not cfg["user"] else "password"),
                 _reachability_warning(host))
     if dt in _PDC_OBJ_TYPES:
         endpoint = rec.get("endpoint") or ""
         cfg = {"endpoint": endpoint,
                "bucket": rec.get("container") or "",
-               "access_key": rec.get("accessId") or rec.get("accessKeyID") or "",
+               "access_key": ("" if _pdc_enc(rec.get("accessId") or rec.get("accessKeyID"))
+                              else (rec.get("accessId") or rec.get("accessKeyID") or "")),
                "secret_key": "",
                "prefix": str(rec.get("path") or "").lstrip("/"),
                "secure": str(endpoint).lower().startswith("https"),
                "level": "file", "profile_dq": False, "content_terms": True}
-        return ({"name": name, "type": "minio", "config": cfg}, "secret key",
+        return ({"name": name, "type": "minio", "config": cfg},
+                ("access key and secret key" if not cfg["access_key"] else "secret key"),
                 _reachability_warning(endpoint))
     return (None, None,
             f"databaseType {dt or '(unknown)'} has no live-scan support in the app — "
@@ -3516,6 +3531,173 @@ def data_elements(body: dict = Body(default={})):
             "skipped_terms": breakdown["skipped_count"],
             "breakdown": breakdown,
             "policy": {**suggester.DEFAULT_MAP_POLICY, **(policy or {})}}
+
+@app.post("/api/labels/suggest")
+def api_labels_suggest(body: dict = Body(default={})):
+    """Suggest PDC labels (key/value custom properties) from what the scan
+    already proved — PII, sensitivity, CDE, the settled category, and any
+    vocabulary your domain pack defines (e.g. retention). Labels READ
+    classification; they never change it, and nothing is applied: the steward
+    picks which keys to keep. Body: {rows}."""
+    from engine import labels as labels_engine
+    body = body or {}
+    pack = {}
+    try:
+        with open(paths.domain_pack_path(), encoding="utf-8") as f:
+            pack = json.load(f)
+    except Exception:
+        pack = {}
+    return labels_engine.suggest_labels(body.get("rows") or [], pack=pack)
+
+
+@app.post("/api/pdc/profiling-probe")
+def api_pdc_profiling_probe(body: dict = Body(default={})):
+    """DIAGNOSTIC: what does PDC's own profiling actually expose per column?
+
+    The architecture question behind it: if PDC already ingested and profiled
+    the estate (bulk loader), Harvest should be the primary path and the app
+    should not need source credentials at all. Harvest reads entity metadata
+    today — structure + governance, but NO value evidence — and value evidence
+    is what mints Dictionaries, Data Patterns, DQ expectations and the
+    deterministic PII/sensitivity calls. So: does profilingInfo carry
+    distinct-value samples and/or induced patterns, or only aggregate stats?
+
+    Returns the RAW profilingInfo per column (truncated) plus a capability
+    verdict, so the answer is evidence, not argument.
+    Body: {base_url, token|username+password, version?, verify_tls?,
+           columns: ["schema.table.column", ...]} (or rows: [review rows])."""
+    from sources import pdc_api
+    body = body or {}
+    base = (body.get("base_url") or "").strip()
+    version = body.get("version") or "v2"
+    verify = bool(body.get("verify_tls", False))
+    if not base:
+        return _err("PDC base URL is required", 400)
+
+    ds_id = (body.get("data_source_id") or "").strip() or None
+    ds_name = (body.get("data_source_name") or "").strip() or None
+    cols = [str(c).strip() for c in (body.get("columns") or []) if str(c).strip()]
+
+    try:
+        token, _ = _pdc_token_and_reauth(body, base, version, verify)
+        if not cols and (ds_id or ds_name):
+            # same entry point as Harvest: pick a data source from PDC's own
+            # list, and let the catalog tell us which columns it holds — no
+            # hand-typed paths, no app-side grid needed
+            ents = pdc_api.filter_entities(base, token, {"types": ["COLUMN"]},
+                                           version=version, verify_tls=verify,
+                                           timeout=40)
+            for e in ents:
+                if not pdc_api._under_root(e, ds_id, ds_name):
+                    continue
+                sch, tbl, col = pdc_api._split_entity_path(e)
+                if tbl and col:
+                    c = ".".join(x for x in (sch, tbl, col) if x)
+                    if c not in cols:
+                        cols.append(c)
+                if len(cols) >= 8:
+                    break
+        if not cols:                   # last resort: the grid's kept columns
+            for r in (body.get("rows") or []):
+                if not isinstance(r, dict):
+                    continue
+                sc = str(r.get("Source_Column") or "").split(";")[0].strip()
+                if sc.count(".") >= 2 and sc not in cols:
+                    cols.append(sc)
+                if len(cols) >= 6:
+                    break
+        if not cols:
+            return _err("no columns to probe — pick a PDC data source (List data "
+                        "sources in Harvest), or pass columns:[schema.table.column]", 400)
+
+        specs = []
+        for c in cols[:12]:
+            p = c.split(".")
+            specs.append({"schemaName": p[0] if len(p) >= 3 else "",
+                          "tableName": p[-2], "columnName": p[-1]})
+        prof = pdc_api.pdc_profile_for_columns(base, token, specs, version=version,
+                                               verify_tls=verify)
+    except Exception as e:
+        return _err(str(e)[:300], 502)
+
+    def _dig(o, want, depth=0):
+        """Any key whose name suggests distinct VALUES (not just counts)."""
+        found = []
+        if depth > 4:
+            return found
+        if isinstance(o, dict):
+            for k, v in o.items():
+                if want in k.lower() and v not in (None, "", [], {}):
+                    found.append(k)
+                found += _dig(v, want, depth + 1)
+        elif isinstance(o, list):
+            for v in o[:5]:
+                found += _dig(v, want, depth + 1)
+        return found
+
+    out, caps = {}, {"stats": False, "values": False, "patterns": False}
+    for key, p in (prof or {}).items():
+        raw = json.dumps(p, default=str)
+        caps["stats"] = caps["stats"] or bool(p.get("stats"))
+        caps["patterns"] = caps["patterns"] or bool(p.get("patterns"))
+        val_keys = sorted(set(_dig(p, "value") + _dig(p, "distinct") + _dig(p, "sample")))
+        caps["values"] = caps["values"] or bool(p.get("sampling")) or bool(val_keys)
+        out[key] = {"keys": sorted(p.keys()),
+                    "value_like_keys": val_keys,
+                    "raw": raw[:4000] + ("…(truncated)" if len(raw) > 4000 else "")}
+
+    # ---- labels / custom properties -------------------------------------
+    # The standing open question ("we haven't looked at labels in PDC… could
+    # be where we set a label in the API call"). Labels are key-value custom
+    # properties on an item; if they ride an entity's attributes, the same
+    # PATCH Apply already uses can write them. Dump one entity's real
+    # attribute keys so the answer is the catalog's own payload.
+    labels = {"attribute_keys": [], "label_like_keys": [], "sample": ""}
+    try:
+        probe_ents = pdc_api.filter_entities(base, token, {"types": ["COLUMN"]},
+                                             version=version, verify_tls=verify,
+                                             timeout=30)
+        ent = next((e for e in probe_ents
+                    if (not (ds_id or ds_name)) or pdc_api._under_root(e, ds_id, ds_name)), None)
+        if ent:
+            attrs = pdc_api._attrs_of(ent) or {}
+            labels["attribute_keys"] = sorted(attrs.keys())[:60]
+            labels["entity_keys"] = sorted(ent.keys())[:40]
+            labels["label_like_keys"] = sorted(
+                k for k in list(attrs.keys()) + list(ent.keys())
+                if any(w in k.lower() for w in
+                       ("label", "customprop", "custom_prop", "property",
+                        "userdefined", "udp", "annotation")))
+            blob = json.dumps(ent, default=str)
+            labels["sample"] = blob[:3000] + ("…(truncated)" if len(blob) > 3000 else "")
+    except Exception as e:
+        labels["error"] = str(e)[:200]
+
+    if not out:
+        verdict = ("PDC returned no profiling for these columns — either they are "
+                   "not profiled in PDC yet, or the names did not resolve.")
+    elif caps["values"] or caps["patterns"]:
+        verdict = ("PDC exposes value-level detail — harvest CAN fill the profile "
+                   "dict from the catalog's own work, so a PDC-only path is viable. "
+                   "Map the keys listed above onto profile{enum, pattern, kind}.")
+    elif caps["stats"]:
+        verdict = ("PDC exposes aggregate stats only (no distinct values, no "
+                   "patterns) — harvest can fill DQ baselines but NOT dictionaries "
+                   "or Data Patterns; those still need a value pass.")
+    else:
+        verdict = "profilingInfo came back empty for every probed column."
+    lab_verdict = ("Label-like keys are present on the entity — labels/custom "
+                   "properties can very likely be written with the same "
+                   "attributes PATCH Apply already uses."
+                   if labels.get("label_like_keys") else
+                   "No label-like key on this entity's payload — labels are "
+                   "probably a separate resource (or need an item-type "
+                   "definition first); capture one 'assign label' call in "
+                   "DevTools to see the real endpoint.")
+    return {"probed": list(out.keys()), "capabilities": caps,
+            "columns": out, "verdict": verdict,
+            "labels": labels, "labels_verdict": lab_verdict}
+
 
 @app.post("/api/factory-reset")
 def api_factory_reset(body: dict = Body(default={})):

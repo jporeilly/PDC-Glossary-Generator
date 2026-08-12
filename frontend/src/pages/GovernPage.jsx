@@ -350,6 +350,18 @@ export default function GovernPage({ onNavigate }) {
   // JSONL and resolve, so a steward decision must never evaporate because
   // the taxonomy settled around it.
   const [orphans, setOrphans] = useState({})
+  // Labels: PDC key/value custom properties, SUGGESTED from what the scan
+  // proved (labels read classification, never change it). The steward keeps
+  // the keys; values are recomputed from the live grid at export time.
+  const [labels, setLabels] = useState(null)
+  const [labelKeys, setLabelKeys] = useState(
+    () => ((ws.governance && ws.governance.labelKeys) || []))
+  useEffect(() => {
+    if (!rows.length) { setLabels(null); return }
+    apiPost('/api/labels/suggest', { rows })
+      .then(setLabels)
+      .catch(() => setLabels(null))
+  }, [rows])
   const [autoInfo, setAutoInfo] = useState({})
   const [openCats, setOpenCats] = useState({})
   const [autoFallback, setAutoFallback] = useState(true)
@@ -821,6 +833,9 @@ export default function GovernPage({ onNavigate }) {
       createdBy: defaults.steward || defaults.owner || '',
       default: { owner: defaults.owner, custodian: defaults.custodian, businessSteward: defaults.steward, stakeholders },
       categories,
+      // the label KEYS the steward kept — values are recomputed from the
+      // live grid at export/apply, so a label can never go stale against it
+      labelKeys: labelKeys,
     }
   }
 
@@ -1069,6 +1084,62 @@ export default function GovernPage({ onNavigate }) {
         )}
         {cats.length === 0 && (
           <p className="hint-line">Scan a source first — the per-category overrides build from the review grid’s categories.</p>
+        )}
+      </section>
+
+      <section className="card">
+        <h2>Labels <span>PDC key/value custom properties — suggested from the scan, kept by you</span></h2>
+        <p className="hint-line">
+          A label is a small governed key/value PDC carries on an item (a handful of values
+          plus a default). These are <b>derived</b> from what the scan already proved — the
+          PII call, sensitivity, the CDE flag, the category you approved — plus any
+          vocabulary your <b>domain pack</b> defines. Labels <i>read</i> classification; they
+          never change it, and nothing is written until Apply. Tick the keys worth carrying:
+          the values are recomputed from the live grid at export, so a kept label can never
+          go stale against the review.
+        </p>
+        {!labels && <p className="hint-line">Scan and review terms first — labels derive from the grid.</p>}
+        {labels && labels.keys?.length > 0 && (
+          <div className="table-scroll">
+            <table>
+              <thead><tr><th>Keep</th><th>Label</th><th>Values (terms)</th><th>Derived from</th></tr></thead>
+              <tbody>
+                {labels.keys.map((k) => (
+                  <tr key={k.key}>
+                    <td>
+                      <input type="checkbox" checked={labelKeys.includes(k.key)}
+                             aria-label={`Keep label ${k.key}`}
+                             onChange={(e) => setLabelKeys((prev) => (e.target.checked
+                               ? [...new Set([...prev, k.key])]
+                               : prev.filter((x) => x !== k.key)))} />
+                    </td>
+                    <td><b>{k.key}</b>{' '}
+                      <span className={`badge ${k.source === 'pack' ? 'good' : ''}`}>{k.source}</span></td>
+                    <td>
+                      {k.values.map((v) => (
+                        <span key={v.value} className="chip" title={v.terms.join(', ')}
+                              style={{ marginRight: '.3rem' }}>
+                          {v.value} <b>{v.count}</b>
+                        </span>
+                      ))}
+                    </td>
+                    <td className="notes">{k.why}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        {labels?.notes?.length > 0 && (
+          <ul className="workcycle" style={{ marginTop: '.5rem' }}>
+            {labels.notes.map((n) => <li key={n} className="notes">{n}</li>)}
+          </ul>
+        )}
+        {labelKeys.length > 0 && (
+          <p className="summary ok">
+            {labelKeys.length} label key(s) kept — they ride the governance, are recorded in
+            the Registry for the Policy Generator, and are written to PDC on Apply.
+          </p>
         )}
       </section>
 

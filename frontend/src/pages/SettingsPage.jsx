@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import ThemeSelect from './../components/ThemeSelect.jsx'
 import { apiGet, apiPost, runJob } from './../api.js'
+import { clearWorkspace, markWiped } from './../state.js'
 
 // Curated model suggestions (same list the old UI seeds its dropdown with);
 // the live /api/models list is layered on top as "Installed".
@@ -143,8 +144,17 @@ function SnapshotCard() {
                     + 'installed domain pack are deleted (app.log is kept). Take a snapshot '
                     + 'first if in doubt.\n\nClose and relaunch the app afterwards.')) return
                   try {
+                    // stop this process saving BEFORE the wipe: the workspace
+                    // lives in tab memory, so the next autosave would write
+                    // the just-deleted glossary straight back and the reset
+                    // would silently undo itself
+                    markWiped()
+                    clearWorkspace()
                     const d = await apiPost('/api/factory-reset', { confirm: 'RESET' })
-                    setMsg(`✓ Factory reset — deleted ${d.deleted.length} item(s). ${d.note}`)
+                    setMsg(`✓ Factory reset — deleted ${d.deleted.length} item(s). Reloading…`)
+                    // a hard reload drops every page's in-memory state, so
+                    // nothing can resurrect the estate that was just deleted
+                    setTimeout(() => window.location.reload(), 900)
                   } catch (err) { setMsg(`Factory reset failed: ${err.message}`) }
                 }}>
           ⚠ Factory reset…
