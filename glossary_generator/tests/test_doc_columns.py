@@ -74,3 +74,48 @@ class TestSuggestDocumentColumns:
     def test_no_files_no_rows(self):
         assert suggester.suggest_document_columns([], "b") == []
         assert suggester.suggest_document_columns([{"rel": "a.pdf", "ext": "pdf"}], "b") == []
+
+
+class TestDocumentColumnLinks:
+    def test_parse_source_splits_file_and_column_at_the_extension(self):
+        """Apply reported every document column "not found": _parse_source
+           fell into the database splitter (the bucket segment carries a
+           dot) and emitted column "csv.material" on table
+           "gis/pipe_network_segments" — garbage PDC could never hold. The
+           file ends at its extension; the column is what follows."""
+        de = suggester._parse_source(
+            "awc-documents.gis/pipe_network_segments.csv.material")
+        assert de == {"schema_name": "awc-documents",
+                      "table_name": "gis/pipe_network_segments.csv",
+                      "column_name": "material", "entity_type": "COLUMN"}
+        leaf = suggester._parse_source(
+            "awc-documents.scada/all_systems.jsonl.record.customer.id")
+        assert leaf["table_name"] == "scada/all_systems.jsonl"
+        assert leaf["column_name"] == "record.customer.id", \
+            "a dotted JSON leaf stays whole as the column"
+
+    def test_db_and_object_shapes_are_untouched(self):
+        db = suggester._parse_source("awc_operations.customers.customer_id")
+        assert db == {"schema_name": "awc_operations", "table_name": "customers",
+                      "column_name": "customer_id", "entity_type": "COLUMN"}
+        obj = suggester._parse_source("awc-documents/gis/pipe_network_segments.csv")
+        assert obj == {"schema_name": "awc-documents", "table_name": "gis",
+                       "column_name": "pipe_network_segments.csv",
+                       "entity_type": "OBJECT"}
+
+
+class TestDocumentColumnsInPolicies:
+    def test_rule_regex_targets_the_real_column_name(self):
+        """split('.')[-1] on a document source made the rule's column regex
+           target "csv.material"-era garbage, and shredded a JSONL leaf to
+           just "id" — an over-matching pattern that would tag every id
+           column in the estate ("this will also affect the draft
+           policies")."""
+        from engine import policy_draft
+        r = {"Source_Column": "awc-documents.gis/segments.csv.material"}
+        assert policy_draft._col_names(r) == ["material"]
+        leaf = {"Source_Column": "awc-documents.scada/x.jsonl.record.customer.id"}
+        assert policy_draft._col_names(leaf) == ["record.customer.id"]
+        rx = policy_draft.column_name_regex(policy_draft._col_names(leaf))
+        assert "record_?customer_?id" in rx, \
+            "the leaf's full path tokens form the regex, never a bare 'id'"

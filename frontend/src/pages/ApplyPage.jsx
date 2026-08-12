@@ -47,7 +47,17 @@ function CheckBlock({ check }) {
     <div className="summary">
       <b>{icon} {check.title}</b>
       {(check.rows || []).map((r) => <span key={r.label}> · {r.label}: <b>{r.value}</b></span>)}
-      {(check.issues || []).map((i, k) => <div key={k} className={i.tone === 'bad' ? 'warn' : undefined}>· {i.text}</div>)}
+      {(check.issues || []).map((i, k) => (
+        <div key={k} className={i.tone === 'bad' ? 'warn' : undefined}>
+          · {i.text}
+          {/* the backend names every offender — a warning that ends on a
+              colon with no names sent the steward hunting ("Build check
+              needs to be a little clearer") */}
+          {(i.terms || []).map((t) => (
+            <code key={t.label} style={{ marginLeft: '.35rem' }}>{t.label}</code>
+          ))}
+        </div>
+      ))}
       {check.verdict && <div>{check.verdict}</div>}
     </div>
   )
@@ -170,14 +180,23 @@ export default function ApplyPage({ onNavigate }) {
         </p>
       </details>
 
+      {/* Connection FIRST: the Generate card's own preflight (the PDC tree
+          check) and everything below need the session — clicking top-down
+          hit "base URL required" before the sign-in card had even been seen
+          (field-caught: "PDC Connection should be before Generate JSONL"). */}
+      <ConnectionCard conn={conn} setConn={setConn} saveConn={saveConn} />
       <GenerateCard rows={ws.rows} glossaryName={glossaryName} governance={ws.governance}
                     settings={settings} onNavigate={onNavigate} authBody={authBody} />
-      <ConnectionCard conn={conn} setConn={setConn} saveConn={saveConn} />
       <DataElementsCard rows={ws.rows} glossaryName={glossaryName} de={de} setDe={setDe} />
       <ResolveCard de={de} setDe={setDe} authBody={authBody} glossaryName={glossaryName}
                    rows={ws.rows} settings={settings} />
-      <ApplyCard de={de} authBody={authBody} glossaryName={glossaryName} rows={ws.rows} conn={conn} />
+      {/* Discovery BEFORE Apply: PDC only mints file-column entities when its
+          own Data Discovery runs, so applying first reported every document
+          column "not found" (field-caught: "surely this step should come
+          before"). The card also now says the honest thing — the APP profiled
+          these files at scan time; PDC has not. */}
       <ProfilingCard de={de} authBody={authBody} />
+      <ApplyCard de={de} authBody={authBody} glossaryName={glossaryName} rows={ws.rows} conn={conn} />
       {ws.discovery?.tables?.length > 0 && (
         <CompareCard discovery={ws.discovery} authBody={authBody} />
       )}
@@ -435,7 +454,7 @@ function GenerateCard({ rows, glossaryName, governance, settings, onNavigate, au
       <div className="actions" style={{ marginTop: 0 }}>
         <button className="ghost" disabled={treeBusy || !glossaryName.trim() || !authBody}
                 onClick={checkTree}
-                title="Read the categories PDC currently holds under this glossary and compare them with this export. Imports update terms in place but never REMOVE categories, so folders from earlier imports linger unless deleted in PDC first. Uses the PDC connection card below.">
+                title="Read the categories PDC currently holds under this glossary and compare them with this export. Imports update terms in place but never REMOVE categories, so folders from earlier imports linger unless deleted in PDC first. Uses the PDC connection card above — sign in there first.">
           {treeBusy ? 'Checking PDC tree…' : 'Check PDC tree for lingering categories'}
         </button>
         {tree && !tree.exists && (
@@ -774,18 +793,39 @@ function DataElementsCard({ rows, glossaryName, de, setDe }) {
         Low-confidence, non-CDE, non-PII columns are held back. A per-row <b>Map</b> = Y/N always
         wins. DQ weights are renormalised per column over the dimensions that apply.
       </p>
-      {skipped.length > 0 && (
-        <details>
-          <summary className="summary" style={{ cursor: 'pointer' }}>
-            <b>{de.skipped_terms}</b> term(s) held back — not linked to a data element
-          </summary>
-          <ul className="bucket-list">
-            {skipped.slice(0, 300).map((x, i) => (
-              <li key={i}><b>{x.term}</b> <span className="notes">({x.category || '—'})</span> — {x.reason}</li>
-            ))}
-          </ul>
-        </details>
-      )}
+      {skipped.length > 0 && (() => {
+        // Two different populations were one list ("anything that ends with
+        // Record is at the table level" — field-caught): conceptual
+        // table-level terms are glossary-only BY DESIGN (the steward links
+        // them to their tables in PDC by hand — they were never column-link
+        // candidates), so they collapse to one line; only the terms the
+        // POLICY held back are actionable and get the listing.
+        const conceptual = skipped.filter((x) => /conceptual|no physical column/i.test(x.reason || ''))
+        const actionable = skipped.filter((x) => !/conceptual|no physical column/i.test(x.reason || ''))
+        return (
+          <>
+            {actionable.length > 0 && (
+              <details>
+                <summary className="summary" style={{ cursor: 'pointer' }}>
+                  <b>{actionable.length}</b> term(s) held back by the mapping policy — set <b>Map</b> = Y (or raise confidence) to link them
+                </summary>
+                <ul className="bucket-list">
+                  {actionable.slice(0, 300).map((x, i) => (
+                    <li key={i}><b>{x.term}</b> <span className="notes">({x.category || '—'})</span> — {x.reason}</li>
+                  ))}
+                </ul>
+              </details>
+            )}
+            {conceptual.length > 0 && (
+              <p className="hint-line">
+                <b>{conceptual.length}</b> table-level record term(s) are glossary-only by design —
+                created in the glossary for the steward to link to their <i>tables</i> in PDC
+                (feeding the Trust Score), never to columns. Not held back; simply not column material.
+              </p>
+            )}
+          </>
+        )
+      })()}
     </section>
   )
 }
@@ -1136,7 +1176,7 @@ function ApplyCard({ de, authBody, glossaryName, rows, conn }) {
 
   return (
     <section className="card">
-      <h2>3 · Apply to PDC <span>writes back — dry-run first</span></h2>
+      <h2>4 · Apply to PDC <span>writes back — dry-run first · document columns need step 3 to have run</span></h2>
       <p className="hint-line">
         Resolve each kept column in PDC, <b>merge</b> the term plus sensitivity / CDE /
         verified-lineage / rating into whatever the column already carries, and <code>PATCH</code>{' '}
@@ -1577,13 +1617,17 @@ function ProfilingCard({ de, authBody }) {
 
   return (
     <section className="card">
-      <h2>4 · Profile documents in PDC <span>optional — PDC Data Discovery on the applied folders</span></h2>
+      <h2>3 · Profile documents in PDC <span>before Apply — PDC's Data Discovery mints the file-column entities</span></h2>
       <p className="hint-line">
-        Object-store files that were only metadata-ingested show <b>Profiled Status: SKIPPED</b>{' '}
-        and <b>Data Quality: Not Available</b>. This runs PDC's own <b>Data Discovery</b> (with
-        profiling) on the document folders you just applied to — so PDC computes its file Data
-        Quality, the fourth Trust-Score input. Database columns aren't affected (they profile
-        when you scan the database).
+        <b>The app already profiled these files at scan time</b> — that&apos;s where the document
+        column terms and their value evidence came from. <b>PDC has not</b>: files that were only
+        metadata-ingested show <b>Profiled Status: SKIPPED</b>, carry no file Data Quality, and —
+        the part that bites — <b>their columns don&apos;t exist as PDC entities yet</b>, so Apply
+        has nothing to link document-column terms to (they report <i>not found</i>). This runs
+        PDC&apos;s own <b>Data Discovery</b> (with profiling) on the scanned document folders:
+        PDC mints the file-column entities and computes its file Data Quality, the fourth
+        Trust-Score input. Run it and let the jobs finish <i>before</i> Apply. Database columns
+        aren&apos;t affected (they profile when you scan the database).
       </p>
       <div className="actions">
         <button className="primary" onClick={trigger} disabled={busy}>

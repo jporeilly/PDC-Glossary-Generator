@@ -1922,23 +1922,24 @@ def api_similarity(body: dict = Body(default={})):
     sugg = similarity.suggest_merges(terms, threshold=body.get("threshold", similarity.DEFAULT_THRESHOLD))
     return {"suggestions": sugg, "term_count": len(terms)}
 
-@app.post("/api/recommend-resolutions")
-def api_recommend_resolutions(body: dict = Body(default={})):
-    """Advise Merge / Disambiguate / Keep separate for every same-named duplicate
-    group in the review rows — the decision aid behind the cluster headers.
-    Escalation ladder, cheapest first:
-      1. cached scan evidence (FK links, profiled value sets, induced formats),
-      2. a LIVE data probe when a connection is supplied (sample distinct values
-         from each member column and compare the actual populations),
-      3. the AI adjudicator (Ollama) for groups still ambiguous, when ai=true.
-    Recommendations are hints only — nothing is auto-applied.
-    Body: {rows, conn?, ai?, model?, compute?}."""
+def _recommend_resolutions_run(body, progress=None):
+    """The duplicate-advice ladder, shared by the sync route and its job twin.
+    `progress` narrates: evidence → probe (live value sampling) → adjudicate
+    (one model call per still-ambiguous group — the slow stretch)."""
     body = body or {}
     rows = body.get("rows") or []
     groups = similarity.group_rows(rows)
     probed = 0
     probes_by_name = {}
 
+    def _p(ev):
+        if progress:
+            try:
+                progress(ev)
+            except Exception:
+                pass
+
+    _p({"phase": "evidence", "detail": "weighing cached scan evidence"})
     # live probe: only for groups the cached evidence leaves ambiguous
     cfg = body.get("conn") or {}
     if cfg.get("host") or cfg.get("database"):
@@ -1957,6 +1958,8 @@ def api_recommend_resolutions(body: dict = Body(default={})):
         if need:
             try:
                 flat = sorted({s for ss in need.values() for s in ss})
+                _p({"phase": "probe",
+                    "detail": "sampling %d live column(s)" % len(flat)})
                 samples = suggester.sample_distinct_values(cfg, flat)
                 for nm, srcs in need.items():
                     pr = []
@@ -1995,7 +1998,8 @@ def api_recommend_resolutions(body: dict = Body(default={})):
         still_ambiguous = len(ambiguous)
         if ambiguous:
             verdicts, used_llm = llm.adjudicate_groups(
-                ambiguous, model=body.get("model"), compute=body.get("compute"))
+                ambiguous, model=body.get("model"), compute=body.get("compute"),
+                progress=progress)
             for r in out:
                 v = verdicts.get(r["name"])
                 if v:
@@ -2004,6 +2008,21 @@ def api_recommend_resolutions(body: dict = Body(default={})):
     out.sort(key=lambda x: (x["band"] != "high", -x["count"]))
     return {"groups": out, "probed": probed, "used_llm": used_llm,
             "ambiguous": still_ambiguous}
+
+
+@app.post("/api/recommend-resolutions")
+def api_recommend_resolutions(body: dict = Body(default={})):
+    """Advise Merge / Disambiguate / Keep separate for every same-named duplicate
+    group in the review rows — the decision aid behind the cluster headers.
+    Escalation ladder, cheapest first:
+      1. cached scan evidence (FK links, profiled value sets, induced formats),
+      2. a LIVE data probe when a connection is supplied (sample distinct values
+         from each member column and compare the actual populations),
+      3. the AI adjudicator (Ollama) for groups still ambiguous, when ai=true.
+    Recommendations are hints only — nothing is auto-applied.
+    Body: {rows, conn?, ai?, model?, compute?}. For ai=true prefer the job twin
+    /api/jobs/recommend-resolutions — same work with live narration."""
+    return _recommend_resolutions_run(body)
 
 def _draft_policies_run(body, progress=None):
     """The drafting pipeline, shared by the sync route and the job twin.
@@ -3644,6 +3663,25 @@ def api_job_zip(job_id: str):
     return Response(data, media_type="application/zip",
                     headers={"Content-Disposition":
                              "attachment; filename=drafted-policies.zip"})
+
+@app.post("/api/jobs/recommend-resolutions")
+def api_job_recommend_resolutions(body: dict = Body(default={})):
+    """Job twin of /api/recommend-resolutions: the per-group adjudication ran
+       behind a silent "Advising…" (field: "need some feedback also on AI
+       advise for deduplicating"). Poll /api/jobs/{id} — phase walks
+       evidence → probe → adjudicate (done/total + the group just judged via
+       `detail`); `result` is the same payload the sync route returns."""
+    body = body or {}
+    def _runner(job):
+        cb = _job_progress(job)
+        def _p(ev):
+            if isinstance(ev, dict) and ev.get("detail"):
+                job["detail"] = ev["detail"]
+            if isinstance(ev, dict) and ev.get("group"):
+                job["detail"] = ev["group"]
+            cb(ev)
+        job["result"] = _recommend_resolutions_run(body, progress=_p)
+    return _start_job("recommend-resolutions", _runner)
 
 @app.post("/api/jobs/pull-model")
 def api_job_pull_model(body: dict = Body(default={})):

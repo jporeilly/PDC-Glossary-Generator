@@ -434,6 +434,26 @@ class TestCategoriesTimeoutIsVisible:
             "the field measured 7:25 for this call — the floor must clear it"
 
 
+class TestAdjudicateNarrates:
+    def test_progress_fires_per_group_with_the_name(self, monkeypatch):
+        """One model call per ambiguous duplicate group ran behind a silent
+           "Advising…" (field: "need some feedback also on AI advise for
+           deduplicating") — the callback must fire once per group with
+           done/total and the group just judged."""
+        monkeypatch.setattr(llm, "status", lambda m=None: {"online": True})
+        monkeypatch.setattr(llm, "_warm", lambda m=None: None)
+        monkeypatch.setattr(llm, "_adjudicate_one",
+                            lambda g, model=None, num_gpu=None:
+                            {"action": "merge", "reason": "same concept"})
+        seen = []
+        groups = [{"name": "Capacity", "members": []},
+                  {"name": "Status", "members": []}]
+        llm.adjudicate_groups(groups, workers=1, progress=seen.append)
+        assert [e["done"] for e in seen] == [1, 2]
+        assert all(e["total"] == 2 and e["phase"] == "adjudicate" for e in seen)
+        assert {e["group"] for e in seen} == {"Capacity", "Status"}
+
+
 class TestPolicyHintsNarrate:
     def test_progress_fires_per_concept_with_the_term(self, monkeypatch):
         """One model call per rule, previously in total silence — the

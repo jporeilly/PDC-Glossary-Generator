@@ -48,10 +48,18 @@ def _cols_of(r):
 
 
 def _col_names(r):
-    """Bare column names off the row's physical columns (schema.table.column)."""
+    """Bare column names off the row's physical columns — through the ONE
+    canonical source splitter, so a document column yields its real column
+    name and a JSONL leaf keeps its dotted path ("record.customer.id"),
+    instead of split('.')[-1] shredding it to "id" and the rule regex
+    over-matching every id column in the estate (the dotted-filename trap's
+    third sibling — field-caught: "this will also affect the draft
+    policies")."""
+    from engine.suggester import _parse_source
     out = []
     for c in _cols_of(r):
-        name = c.split(".")[-1].strip()
+        de = _parse_source(c)
+        name = ((de or {}).get("column_name") or c.split(".")[-1]).strip()
         if name and name not in out:
             out.append(name)
     return out
@@ -209,6 +217,15 @@ def dq_rules_from_rows(rows, glossary_name="Business Glossary", prefix=None):
                 checks.append({"check": "format", "regex": vp,
                                **({"signature": sig} if sig else {}),
                                "source": "profiled"})
+            else:
+                # recognised kinds carry the profiler's shape into DQ too —
+                # an email column's format expectation ships even though the
+                # detection pattern is canonical ("build a draft policy and
+                # some dq rules as well": full estate coverage, all custom)
+                kind = str(r.get("Value_Kind") or "").strip().lower()
+                if kind in _kind_patterns():
+                    checks.append({"check": "format", "regex": _kind_patterns()[kind],
+                                   "kind": kind, "source": "recognised"})
             if len(enums) >= 2:
                 checks.append({"check": "allowed_values", "values": enums,
                                "source": "profiled"})
@@ -267,10 +284,48 @@ _NO_SHAPE = re.compile(
     re.I)
 
 
+def _was_profiled(r):
+    """Did profiling touch this row? The prose marker (Suggested_Reason
+    'Profiled: …') dies the moment the AI pass rewrites that field — the
+    profile's own DATA on the row is the durable witness (field-caught:
+    enriched rows were told to 're-scan with profiling on')."""
+    if str(r.get("Suggested_Reason") or "").startswith("Profiled"):
+        return True
+    if r.get("Suggested_Quality") is not None:
+        return True
+    if r.get("Source_Quality_Dims"):
+        return True
+    return bool(str(r.get("Value_Kind") or "").strip())
+
+
+# Kinds the profiler RECOGNISED in this estate's actual values (>=60% of the
+# sample matched) — each mints a CUSTOM Data Pattern using the profiler's own
+# shape, so there is ONE definition of "email" in the codebase. Clarified in
+# the field: custom-only means WE ship every policy (PDC's inbuilt set stays
+# unused) — it never meant generic concepts go undetected. The recognition
+# came from this estate's data; the deployment is ours; the policy is custom.
+# "date" deliberately absent: every date column matches a date shape, so a
+# date Data Pattern would over-match — dates stay tagged via the term↔column
+# link.
+def _kind_patterns():
+    from engine import suggester as _sug
+    return {"email": _sug.RX_EMAIL.pattern, "phone": _sug.RX_PHONE.pattern,
+            "zip": _sug.RX_ZIP.pattern, "ssn": _sug.RX_SSN.pattern,
+            "card": _sug.RX_CC.pattern}
+
+
 def _no_value_shape(cols):
     """True when EVERY source column is a kind with no detectable value shape, so
-    the term is a link-only concern rather than a not-yet-profiled one."""
-    names = [str(c).split(".")[-1] for c in (cols or []) if c]
+    the term is a link-only concern rather than a not-yet-profiled one. Column
+    names come through the canonical source splitter — split('.')[-1] turned a
+    document column into its file extension's neighbour and misclassified it."""
+    from engine.suggester import _parse_source
+    names = []
+    for c in (cols or []):
+        if not c:
+            continue
+        de = _parse_source(str(c))
+        names.append(((de or {}).get("column_name") or str(c).split(".")[-1]))
     return bool(names) and all(_NO_SHAPE.search(n) for n in names)
 
 
@@ -320,17 +375,25 @@ def draft_from_rows(rows, glossary_name="Business Glossary", prefix=None,
             cur = curated.get(term.lower(), [])
             cp = next((s for s in cur if s.get("type") == "pattern" and (s.get("regex") or "").strip()), None)
             cd = next((s for s in cur if s.get("type") == "dictionary" and len([v for v in (s.get("values") or []) if str(v).strip()]) >= 2), None)
+            kind = str(r.get("Value_Kind") or "").strip().lower()
             if cp:
                 vp, sig, seed_kind = cp["regex"].strip(), (cp.get("signature") or "").strip() or None, "curated"
             elif cd:
                 enums, seed_kind = [str(v).strip() for v in cd["values"] if str(v).strip()], "curated"
+            elif kind in _kind_patterns():
+                # the profiler recognised the estate's own values as this
+                # kind — mint the CUSTOM pattern (PDC's inbuilt set is unused
+                # by design, so the coverage must ship from here)
+                vp, seed_kind = _kind_patterns()[kind], "recognised"
             elif not any(c.count(".") >= 2 for c in _cols_of(r)):
                 skipped.append({"term": term, "why": "document term — identify documents with vocabulary dictionaries, not value shapes"})
                 continue
             elif not sig and not (r.get("Enum_Values") or "").strip():
                 if _no_value_shape(_cols_of(r)):
                     skipped.append({"term": term, "why": "tagged via the term↔column link, not a value pattern — a surrogate id / date / name / amount has no value shape to detect (expected)"})
-                elif str(r.get("Suggested_Reason") or "").startswith("Profiled"):
+                elif kind == "date":
+                    skipped.append({"term": term, "why": "recognised as date values — every date column matches a date shape, so a date Data Pattern would over-match; dates are tagged via the term↔column link (expected)"})
+                elif _was_profiled(r):
                     # the row WAS profiled — telling the steward to re-scan
                     # is wrong advice; the values simply induce no shape
                     skipped.append({"term": term, "why": "profiled, but the values induce no shape (numeric or free-form content) — add a curated seed for this term to the domain pack if it should be detectable"})

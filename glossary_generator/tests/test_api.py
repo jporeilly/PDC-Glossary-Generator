@@ -633,6 +633,26 @@ class TestDraftPoliciesJob:
         assert r.status_code == 404
 
 
+class TestAdviseJob:
+    def test_job_returns_the_same_payload_as_the_sync_route(self, client):
+        """AI advise ran behind a silent "Advising…" — the job twin narrates
+           evidence → probe → adjudicate and returns the sync payload."""
+        import time
+        rows = [_row("Capacity", "awc.gis.capacity"),
+                _row("Capacity", "awc.ops.capacity")]
+        job = client.post("/api/jobs/recommend-resolutions",
+                          json={"rows": rows}).json()["job"]
+        for _ in range(100):
+            j = client.get(f"/api/jobs/{job}").json()
+            if j["status"] != "running":
+                break
+            time.sleep(0.05)
+        assert j["status"] == "done", j.get("detail")
+        r = j["result"]
+        assert {"groups", "probed", "used_llm", "ambiguous"} <= set(r)
+        assert any(g["name"] == "Capacity" for g in r["groups"])
+
+
 class TestBaseUrlSurvivesPasteDamage:
     def test_doubled_scheme_is_normalized(self):
         """"Could not reach https:/https://pentaho.io/...: no host given" —

@@ -744,14 +744,17 @@ def _adjudicate_one(group, model=None, num_gpu=None):
     return _complete_json(prompt, model=model, num_gpu=num_gpu)
 
 
-def adjudicate_groups(groups, model=None, compute=None, workers=None):
+def adjudicate_groups(groups, model=None, compute=None, workers=None,
+                      progress=None):
     """AI agent pass over AMBIGUOUS duplicate groups — the ones the deterministic
        evidence rubric could not settle. For each group the model weighs the
        members' definitions and scan evidence and proposes merge / disambiguate /
        separate; the code applies guardrails (action must be one of the grid's
        three; rationale trimmed) and NEVER auto-applies — the result is a hint on
        the group header, the steward still clicks. Returns ({name: {action,
-       reason}}, used_llm)."""
+       reason}}, used_llm). `progress`, when given, fires per adjudicated group
+       with {phase, done, total, group} — one model call per group ran behind a
+       silent "Advising…" (field: "need some feedback also on AI advise")."""
     groups = [g for g in (groups or []) if isinstance(g, dict) and g.get("name")]
     if not groups or not status(model)["online"]:
         return {}, False
@@ -772,11 +775,26 @@ def adjudicate_groups(groups, model=None, compute=None, workers=None):
         except Exception:
             return g, None
 
+    def _note(i, g):
+        if progress:
+            try:
+                progress({"phase": "adjudicate", "done": i, "total": len(groups),
+                          "group": g.get("name", "")})
+            except Exception:
+                pass  # narration must never fail the pass
+
     if workers == 1 or len(groups) <= 1:
-        results = [_do(g) for g in groups]
+        results = []
+        for i, g in enumerate(groups, 1):
+            results.append(_do(g))
+            _note(i, g)
     else:
+        results = []
         with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as ex:
-            results = list(ex.map(_do, groups))
+            futs = {ex.submit(_do, g): g for g in groups}
+            for i, f in enumerate(concurrent.futures.as_completed(futs), 1):
+                results.append(f.result())
+                _note(i, futs[f])
 
     out = {}
     for g, res in results:

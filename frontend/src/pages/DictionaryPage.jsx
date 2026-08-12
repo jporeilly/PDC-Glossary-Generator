@@ -435,8 +435,9 @@ export default function DictionaryPage({ onNavigate }) {
 
   async function exportPack(apply, res = resolutions) {
     if (apply && !window.confirm(
-      'Apply the refreshed pack to this app?\n\nThis overwrites the installed domain_pack.json ' +
-      '(a timestamped backup is kept) and reseeds the dictionary from it. Approved company ' +
+      'Install this pack as the app’s domain pack?\n\nThe flywheel turn: overwrites the ' +
+      'installed domain_pack.json (a timestamped backup is kept) and reseeds the dictionary ' +
+      'from it, so the NEXT scan starts from everything this review taught. Approved company ' +
       'terms/tags and company rules SURVIVE the reseed; pending scan-noise is discarded.')) return
     try {
       const d = await apiPost('/api/export-pack', {
@@ -1017,10 +1018,6 @@ export default function DictionaryPage({ onNavigate }) {
           <button className="primary" onClick={saveDict}>Save dictionary</button>
           <button className="ghost" onClick={load}>Reload</button>
           <a className="badge accent" href="/api/tagdict/export.json">⬇ Export JSON</a>
-          <button className="primary" onClick={() => exportPack(false)}
-                  title="Generate a domain pack from what the scans learned: table mappings, abbreviations, the governed company vocabulary, and curated_seeds carrying the induced value patterns / reference lists — detection seeds specific to THIS company. Merges over the installed pack; where the scan disagrees with the pack, each conflict is listed for you to decide (curated seeds default to the fresher scan evidence). Review, then commit to the scenario repo.">
-            Export domain pack
-          </button>
           <button className="ghost" onClick={reset}
                   title="Reseed from the domain pack + built-in defaults. Approved company items and rules are kept; pending items are discarded; a backup file is taken first.">
             Reseed
@@ -1028,33 +1025,44 @@ export default function DictionaryPage({ onNavigate }) {
           {typeof msg === 'string' ? <span className="summary">{msg}</span> : msg}
         </div>
 
+        {/* The pack flow reads as STEPS — "Apply to this app" was a lone
+            button whose purpose ("is not an obvious part of the workflow")
+            hid the flywheel's most important turn: teaching the next scan. */}
+        <div className="actions" role="group" style={{ marginTop: '.6rem' }}
+             aria-label="Domain pack — teach the next scan">
+          <span className="summary"><b>Domain pack</b> · teach the next scan:</span>
+          <button className={`${!pack ? 'primary' : 'ghost'} mini`} onClick={() => exportPack(false)}
+                  title="Distill this review into a domain pack: table mappings, abbreviations, the governed company vocabulary, and curated seeds carrying the induced value patterns / reference lists — detection knowledge specific to THIS company. Merges over the installed pack; where the scan disagrees with the pack, each conflict is listed for you (curated seeds default to the fresher scan evidence).">
+            {pack ? '↻ 1 · Regenerate pack' : '1 · Generate pack'}
+          </button>
+          <button className="ghost mini" disabled={!pack}
+                  onClick={() => pack && downloadBlob(JSON.stringify(pack.pack, null, 2), 'domain_pack.json')}
+                  title="Read exactly what it learned, or carry it to another install — this is the file that goes in the scenario repo's domain_pack/ folder.">
+            2 · ⬇ Inspect / ship the pack
+          </button>
+          <button className={`${pack && !pack.applied ? 'primary' : 'ghost'} mini`}
+                  disabled={!pack || pack.applied} onClick={() => exportPack(true)}
+                  title="The flywheel turn: writes this pack into the app and reseeds the dictionary from it, so the NEXT scan of this estate starts from everything this review taught. Approved vocabulary and rules survive; a backup of the old pack is kept.">
+            {pack && pack.applied ? '✓ 3 · Installed as this app’s pack' : '3 · Install as this app’s pack'}
+          </button>
+        </div>
+
         {pack && (
           <div style={{ marginTop: '.8rem' }}>
             <p className="summary">
-              Domain pack generated{pack.merged_over ? ' (merged over the installed pack)' : ''}:{' '}
+              Pack generated{pack.merged_over ? ' (merged over the installed pack)' : ''}:{' '}
               <b>{pack.learned}</b> learned addition(s){reportBits ? ` — ${reportBits}` : ''}
-              {' '}
-              <button className="ghost mini"
-                      onClick={() => downloadBlob(JSON.stringify(pack.pack, null, 2), 'domain_pack.json')}>
-                ⬇ download domain_pack.json
-              </button>
-              {!pack.applied && (
-                <>
-                  {' '}
-                  <button className="primary mini" onClick={() => exportPack(true)}>Apply to this app</button>{' '}
-                  <span className="notes">writes the pack + reseeds the dictionary (approved items survive)</span>
-                </>
-              )}
               {(!ws.rows || !ws.rows.length) && (
                 <span className="notes"> (no scan rows loaded — table mappings and curated seeds need a scanned glossary)</span>
               )}
             </p>
             {pack.applied && (
               <p className="summary ok">
-                ✓ Applied: pack written to <code>{pack.pack_path || ''}</code>
-                {pack.pack_backup ? ' (backup kept)' : ''} and the dictionary reseeded from it.
-                Also commit the file to the scenario's domain_pack/ folder so the next install
-                starts from it.
+                ✓ Installed: pack written to <code>{pack.pack_path || ''}</code>
+                {pack.pack_backup ? ' (backup kept)' : ''} and the dictionary reseeded from it —
+                the next scan of this estate starts from what this review taught. Use{' '}
+                <b>2 · Inspect / ship</b> to commit the same file to the scenario&apos;s
+                domain_pack/ folder so the next <i>install</i> starts from it too.
               </p>
             )}
             {conflicts.length > 0 && (

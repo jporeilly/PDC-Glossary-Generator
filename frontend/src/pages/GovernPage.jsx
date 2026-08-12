@@ -630,12 +630,11 @@ export default function GovernPage({ onNavigate }) {
       const kept = d.expertise_preserved || 0
       const blanks = fetched.filter((p) => p.id && !(p.expertise || '').trim()).length
       setKMsg(`✓ Fetched ${d.count} users${d.saved ? ' (saved to roster)' : ' — review and Save roster'}${kept ? ` · kept expertise for ${kept}` : ''}.`)
-      if (blanks && kc.genExp) {
-        setKMsg(`✓ Fetched ${d.count} users. Generating expertise for ${blanks}…`)
-        await suggestExpertise(false, fetched)
-        setKMsg(`✓ Fetched ${d.count} users · expertise generated — review and Save roster.`)
-      } else if (blanks) {
-        setKMsg(`✓ Fetched ${d.count} users — ${blanks} have no expertise yet; run ⚡ Suggest expertise so auto-assign can match on more than role.`)
+      // No generate-at-fetch: expertise is for the people you KEEP, not every
+      // account Keycloak holds — trim the roster first, then ⚡ Suggest
+      // expertise below ("this option can be applied later", field-caught).
+      if (blanks) {
+        setKMsg(`✓ Fetched ${d.count} users — ${blanks} have no expertise yet. Trim the roster to your stewards, then run ⚡ Suggest expertise so auto-assign can match on more than role.`)
       }
     } catch (err) {
       setKMsg(`✗ ${err.message}`)
@@ -1148,7 +1147,7 @@ function HowItWorksCard() {
 
 function KeycloakCard({ onFetch, msg }) {
   const [kc, setKc] = useState({ base: '', realm: '', authRealm: 'master', user: '',
-    pass: '', token: '', verify: false, save: true, genExp: true })
+    pass: '', token: '', verify: false, save: true })
   const [busy, setBusy] = useState(false)
   const set = (patch) => setKc((k) => ({ ...k, ...patch }))
 
@@ -1248,10 +1247,9 @@ function KeycloakCard({ onFetch, msg }) {
           <input type="checkbox" checked={kc.save} onChange={(e) => set({ save: e.target.checked })} />
           save to roster
         </label>
-        <label className="check">
-          <input type="checkbox" checked={kc.genExp} onChange={(e) => set({ genExp: e.target.checked })} />
-          ⚡ generate expertise (LLM)
-        </label>
+        {/* no generate-expertise-at-fetch: expertise belongs to the people
+            you KEEP, not every account Keycloak holds — trim the roster,
+            then ⚡ Suggest expertise below (field-caught) */}
         <button className="primary" onClick={fetchNow} disabled={busy}>{busy ? 'Fetching…' : 'Fetch'}</button>
         {msg && <span className="summary">{msg}</span>}
       </div>

@@ -11,7 +11,7 @@
 // PROPOSE: each run collects its changes into a diff panel and the steward
 // applies the selected ones — nothing mutates the grid behind your back.
 import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { apiGet, apiPost } from './../api.js'
+import { apiGet, apiPost, runJob } from './../api.js'
 import { useWorkspace, usePersistentState, getUi, setUi, setRows, patchRow, setGlossaryMeta, setGovernance, setCategoriesConfirmed, setReviewCompleted, save } from './../state.js'
 import { sameSourceCount, selfFold } from './../rowmerge.js'
 import './review.css'
@@ -198,7 +198,7 @@ const AGENT_DESC = [
     </>) },
 
   { label: 'AI categories (schema)',
-    desc: 'One call shown what the scan proved - tables, columns and FK links - proposing an abstract business grouping: the fewest categories that still discriminate, every table placed in one. Each assignment lands as a Category pill for you to accept; tables the model cannot place keep their physical group. Settle the set, rename any group, and Export pack freezes it.' },
+    desc: 'One deterministic call (same estate, same answer — the call is seeded) shown what the scan proved: tables, columns, FK links and folder families, with the clusters they form named outright. It proposes a handful of broad business SUBJECTS — each holding several tables, never one category per table — unplaced tables inherit their cluster’s subject, and a small guard-railed second call places the stragglers into the model’s own set. Assignments land as Category pills; anything still unplaced keeps its physical group, visibly. The completion line tells you what accepting would do to the category count BEFORE you accept; settle the set, rename any group, then 2 · Approve categories makes it the keystone.' },
   { label: 'AI review (this row)',
     desc: 'The same pass, scoped to one row — for when a single term came back weak and you don’t want to spend a full sweep on it. Identical prompt, evidence and guardrails; the proposals land as pills on that row alone.' },
 ]
@@ -305,6 +305,8 @@ export default function ReviewPage({ onNavigate }) {
   }, [rows, xgConn, setXg])
   const [reco, setReco] = useState({})             // {name: recommendation} — re-derived on mount
   const [advising, setAdvising] = useState(false)
+  // live narration while the advise job runs — {phase, done, total, detail}
+  const [adviseProg, setAdviseProg] = useState(null)
   const [agent, setAgent] = useState(null)         // {label, done, total, proposed, cancelling}
   const [proposals, setProposals] = useState(null) // {label, note, items:{rowIndex:{patch, display, issues?}}} — inline pills
   // declared HERE, with its sibling agent states: the silent-heal effect far
@@ -512,9 +514,29 @@ export default function ReviewPage({ onNavigate }) {
   // Highlight only: every button stays clickable, so a manual workflow is
   // never gated. Step derives from durable state where it exists (the
   // keystone; LLM-enriched rows prove the pass ran) and the session catRan
-  // flag for step 1 → 2.
+  // flag for step 1 → 2. Step 3 keeps the blue while a sweep is RUNNING:
+  // accepting pills mid-run lit stats.enriched and the strip went quiet at
+  // batch 8 of 26 (field-caught: "ive moved onto 3 · AI pass, but its still
+  // indicating step 2 — the button needs to be blue").
+  // Same-named kept clusters still awaiting a header decision — the honest
+  // "step 4 is not done" signal (field-caught twice: "i forgot the
+  // deduplicate last time!" — the stage had no light, so the flow lost the
+  // steward at the same spot in two runs).
+  const undecidedDups = useMemo(() => {
+    const active = activeNames(grp)
+    const c = {}
+    rows.forEach((r, i) => {
+      if (!r || !truthy(r.Keep) || isTableTerm(r)) return
+      const k = keyOf(r, i, active)
+      if (k) c[k] = (c[k] || 0) + 1
+    })
+    return Object.keys(c).filter((k) => c[k] > 1 && !grp[k]).length
+  }, [rows, grp])
+  // After the pass: the blue hands to 4 · AI advise while clusters remain
+  // undecided; quiet only when every duplicate has its decision — the
+  // flow's next action is then ✓ Review complete.
   const agentStep = catsConfirmedCurrent
-    ? (stats.enriched > 0 ? 0 : 3)
+    ? ((agent || stats.enriched === 0) ? 3 : (undecidedDups > 0 ? 4 : 0))
     : (catRan ? 2 : 1)
   // kept categories that are still just the humanized physical name of their
   // own table/folder — same slug rule Govern badges with
@@ -800,7 +822,9 @@ export default function ReviewPage({ onNavigate }) {
   const checkGroups = Object.values(reco).filter((r) => r && r.band !== 'high').length
 
   // Full pass (the AI advise button): + live data-value probe + AI adjudication,
-  // both scoped server-side to the `check` groups above.
+  // both scoped server-side to the `check` groups above. Runs as a JOB so the
+  // per-group adjudication narrates instead of a silent "Advising…" (field:
+  // "need some feedback also on AI advise for deduplicating").
   async function aiAdvise() {
     if (!checkGroups) {
       setMsg('Nothing to escalate — every duplicate group was settled from profiled evidence.')
@@ -808,13 +832,16 @@ export default function ReviewPage({ onNavigate }) {
     }
     setAdvising(true)
     setError(null)
+    setAdviseProg({ phase: 'starting', done: 0, total: 0, detail: '' })
     try {
       let conn = null
       try {
         const c = await apiGet('/api/connections')
         conn = ((c.connections || []).find((x) => x.type === 'db') || {}).config || null
       } catch { /* probe is optional — evidence + AI still apply */ }
-      const d = await apiPost('/api/recommend-resolutions', { rows: rowsRef.current, conn, ai: true })
+      const d = await runJob('recommend-resolutions',
+        { rows: rowsRef.current, conn, ai: true },
+        (j) => setAdviseProg(j))
       const m = {}
       ;(d.groups || []).forEach((g) => { m[g.name] = g })
       setReco(m)
@@ -829,6 +856,7 @@ export default function ReviewPage({ onNavigate }) {
           : `${probedTxt} — the data settled every one, so no model call was needed.`)
     } catch (e) { setError(e.message) }
     setAdvising(false)
+    setAdviseProg(null)
   }
 
   // The scope check. A steward reviewing hundreds of tables in ONE glossary is
@@ -1486,6 +1514,19 @@ export default function ReviewPage({ onNavigate }) {
                     title="One model call per row for every field the LLM can decide — definition, purpose, a clearer name, governed tags and a blank category. Replaces running Enrich + AI suggest + AI categorize separately (three passes over the same rows, each overwriting the last). Proposals only — accept per pill.">
               3 · AI pass (all fields)
             </button>
+            {/* step 4 lives ON the strip — the dedupe stage had no light and
+                lost the steward at the same spot in two runs ("i forgot the
+                deduplicate last time!"). The decisions happen on each cluster
+                header; this button escalates only the (check) groups. */}
+            <button className={`${agentStep === 4 ? 'primary' : 'ghost'} sm`} disabled={advising || noRows || !checkGroups}
+                    onClick={aiAdvise}
+                    title={!checkGroups
+                      ? (undecidedDups
+                          ? `Run FOURTH — after the pass, with final names and real definitions in hand. ${undecidedDups} duplicate cluster(s) await a decision on their header bars (Merge / Disambiguate / Keep separate — the recommendation and its reason are already shown). Nothing here needs escalating: every cluster carries profiled evidence.`
+                          : 'Run FOURTH — after the pass. Every duplicate cluster is decided; nothing to escalate.')
+                      : `Run FOURTH — after the pass, with final names and real definitions in hand. Decide each duplicate cluster on its header bar; this escalates only the ${checkGroups} group${checkGroups !== 1 ? 's' : ''} badged “check” — no profiled value sets to compare — probing LIVE data values over your database connection and letting the model adjudicate. Hints only.`}>
+              {advising ? 'Advising…' : `4 · AI advise${checkGroups ? ` (${checkGroups})` : ''}`}
+            </button>
             {anySuggestedNames && (
               <button className="ghost sm" disabled={locked} onClick={useAllNames}
                       title="Apply every pending → suggested-name chip at once.">
@@ -1494,6 +1535,23 @@ export default function ReviewPage({ onNavigate }) {
             )}
           </span>
         </div>
+
+        {adviseProg && (
+          <div className="rv-progress">
+            <span className="ep">
+              AI advise — probe &amp; adjudicate
+              <span className="rv-thinking" role="status" aria-label="AI advise running"><i /><i /><i /></span>
+            </span>
+            <span className="ep muted">
+              {adviseProg.phase === 'adjudicate'
+                ? <>adjudicating group <b>{adviseProg.done}</b> of <b>{adviseProg.total}</b>
+                    {adviseProg.detail ? <> — {adviseProg.detail}</> : null}</>
+                : adviseProg.phase === 'probe' ? (adviseProg.detail || 'sampling live values…')
+                : adviseProg.phase === 'evidence' ? 'weighing cached scan evidence…'
+                : 'starting…'}
+            </span>
+          </div>
+        )}
 
         {catBusy && !agent && (
           <div className="rv-progress">
@@ -1671,12 +1729,9 @@ export default function ReviewPage({ onNavigate }) {
                 recommendation shown); the generate preflight names any
                 collision that slips through */}
             <span className="lbl">DUPLICATES</span>
-            <button className="ghost sm" disabled={advising || noRows || !checkGroups} onClick={aiAdvise}
-                    title={!checkGroups
-                      ? 'Nothing to escalate — every duplicate group was already settled from profiled evidence. This button only ever acts on groups badged “check”.'
-                      : `Escalate only the ${checkGroups} group${checkGroups !== 1 ? 's' : ''} badged “check” — the ones with no profiled value sets to compare. Probes LIVE data values over your database connection, then lets the AI agent adjudicate what is left. Groups already decided on evidence are never re-judged. Hints only.`}>
-              {advising ? 'Advising…' : `AI advise${checkGroups ? ` (${checkGroups})` : ''}`}
-            </button>
+            {/* AI advise moved onto the AI AGENTS strip as 4 · AI advise —
+                the dedupe stage needed a light in the flow, not a toolbar
+                corner. Find similar stays here: it is advisory search. */}
             <button className="ghost sm" disabled={noRows} onClick={() => (sim ? setSim(null) : findSimilar())}
                     title="Score the shown terms pairwise and suggest same-concept names to merge (e.g. Phone / Customer Phone / Cust Phone No).">
               Find similar
@@ -1878,13 +1933,12 @@ function RvNode({ className = 'rv-wfnode', role = 'link', x, y, w, h, title, sub
 
 function ReviewGuide({ onNavigate }) {
   const flashAgents = () => flashTarget(['.rv-agents'])
-  const flashName = () => flashTarget(['.rv-savename', '.rv-saved'])
   return (
     <details className="card rv-guide" open>
       <summary>How to review — the working order</summary>
       <div className="rv-wfwrap">
         <svg className="rv-wf" viewBox="0 0 950 240"
-             aria-label="Working order: 1 prune the rows; 2 name the glossary — autosave keeps your review and streams accepted improvements into the Dictionary's pending vocabulary; 3 run the AI agents in sequence — Enrich, then Suggest, Categorize and Tags, with QA as the gate (they propose, you apply) — suggested names do part of the disambiguation; 4 resolve remaining duplicate names with final names and enriched definitions in hand; 5 when you're happy with the review, go to the Dictionary page and approve the pending vocabulary — it already carries your enrichments — then continue to the Govern page. The Dictionary and Govern boxes navigate; the agent chips highlight the AI toolbar.">
+             aria-label="Working order: 1 prune the rows — keys and noise arrive already un-kept; 2 run AI categories — one seeded schema-wide call proposing a handful of business subjects, landing as Category pills; 3 Approve categories — the keystone: names and saves an unnamed glossary, syncs the Dictionary's pending vocabulary, and everything downstream keys off it; 4 run the AI pass — definitions, purposes, names and tags proposed against the settled taxonomy; 5 resolve duplicates one cluster at a time from each header's recommendation, with AI advise as step 4 on the strip escalating the groups marked check; 6 Review complete stamps the review, then approve the pending vocabulary on the Dictionary page and continue to Govern. The Dictionary and Govern boxes navigate; the agent chips highlight the AI toolbar.">
           <defs>
             <marker id="rv-wfhead" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="8" markerHeight="8"
                     markerUnits="userSpaceOnUse" orient="auto-start-reverse">
@@ -1892,53 +1946,62 @@ function ReviewGuide({ onNavigate }) {
             </marker>
           </defs>
 
-          {/* row 1: prune → name (autosave = the Review→Dictionary sync) */}
-          <RvNode x={4} y={8} w={168} h={46} title="① Prune" sub="keep / drop · High+Med cull" />
-          <path className="rv-wfarrow" d="M176 31 H194" markerEnd="url(#rv-wfhead)" />
-          <RvNode role="button" x={198} y={8} w={244} h={46} title="② Name the glossary" sub="autosave on · syncs the Dictionary"
-                  onActivate={flashName}
-                  aria="Name the glossary — autosave keeps your review and streams accepted improvements into the Dictionary's pending vocabulary" />
+          {/* row 1: prune → categorize → the keystone (order is the point:
+              the taxonomy settles FIRST, everything downstream keys off it) */}
+          <RvNode x={4} y={8} w={150} h={46} title="① Prune" sub="keys & noise arrive un-kept" />
+          <path className="rv-wfarrow" d="M158 31 H176" markerEnd="url(#rv-wfhead)" />
+          <RvNode role="button" x={180} y={8} w={250} h={46} title="② 1 · AI categories" sub="one seeded schema call · subject pills"
+                  onActivate={flashAgents}
+                  aria="Run AI categories — one deterministic schema-wide call proposing a handful of business subjects; assignments land as Category pills" />
+          <path className="rv-wfarrow" d="M434 31 H452" markerEnd="url(#rv-wfhead)" />
+          <RvNode role="button" x={456} y={8} w={300} h={46} title="③ 2 · Approve categories" sub="the keystone · names & saves · syncs"
+                  onActivate={flashAgents}
+                  aria="Approve categories — the keystone: declares the taxonomy settled, names and saves an unnamed glossary, and syncs the Dictionary's pending vocabulary" />
 
           {/* wrap connector into row 2 */}
-          <path className="rv-wfarrow" d="M320 58 V72 H60 V82" markerEnd="url(#rv-wfhead)" />
+          <path className="rv-wfarrow" d="M606 58 V72 H60 V82" markerEnd="url(#rv-wfhead)" />
 
-          {/* row 2: the pass runs BEFORE duplicate resolution — it finalizes
-              names (dissolving false duplicates), and real definitions make the
-              remaining same-name calls easy. Two scopes, one agent: the sweep
-              over every kept row, and the same call aimed at a single row. */}
+          {/* row 2: the pass BEFORE duplicates — it finalizes names and writes
+              real definitions, dissolving false duplicates and making the
+              remaining same-name calls easy; each survivor is then a
+              per-cluster steward decision, lit as step 4 on the strip */}
           <g className="rv-wfgroup">
-            <rect x={4} y={88} width={568} height={62} rx="10" />
-            <text className="rv-wfglbl" x={14} y={101}>③ AI PASS — KEPT ROWS · ONE CALL PER BATCH · PROPOSE → YOU APPLY</text>
+            <rect x={4} y={88} width={554} height={62} rx="10" />
+            <text className="rv-wfglbl" x={14} y={101}>④ AI PASS — KEPT ROWS · ONE CALL PER BATCH · PROPOSE → YOU APPLY</text>
           </g>
-          <RvNode chip role="button" className="rv-wfnode rv-wfchip" x={14} y={108} w={230} h={32}
+          <RvNode chip role="button" className="rv-wfnode rv-wfchip" x={14} y={108} w={222} h={32}
                   title="3 · AI pass (all fields)" onActivate={flashAgents}
                   aria="Run the combined AI pass — definition, purpose, name, tags and a blank category in one call per batch of kept rows" />
-          <text className="rv-wfglbl" x={252} y={129}>or</text>
-          <RvNode chip x={274} y={108} w={286} h={32}
+          <text className="rv-wfglbl" x={244} y={129}>or</text>
+          <RvNode chip x={266} y={108} w={282} h={32}
                   title="AI review (this row)" sub="same pass · expand a row"
                   aria="AI review — the same pass scoped to one row, from that row's expanded editor" />
-
+          <path className="rv-wfarrow" d="M562 119 H580" markerEnd="url(#rv-wfhead)" />
+          <RvNode role="button" x={584} y={98} w={236} h={46} title="⑤ Resolve duplicates" sub="per cluster · 4 · AI advise for (check)"
+                  onActivate={flashAgents}
+                  aria="Resolve duplicates — decide each same-named cluster on its header bar; 4 · AI advise on the strip escalates only the groups marked check" />
 
           {/* wrap connector into row 3 */}
-          <path className="rv-wfarrow" d="M60 150 V162" markerEnd="url(#rv-wfhead)" />
+          <path className="rv-wfarrow" d="M60 144 V162" markerEnd="url(#rv-wfhead)" />
 
-          {/* row 3: dedupe on FINAL names, then one Dictionary hop, then Govern */}
-          <RvNode x={4} y={168} w={214} h={46} title="④ Resolve duplicates" sub="Merge · Disambiguate · AI advise" />
-          <path className="rv-wfarrow" d="M222 191 H240" markerEnd="url(#rv-wfhead)" />
-          <RvNode x={244} y={168} w={244} h={46} title="⑤ Approve pending vocabulary" sub="Dictionary ↗ · enriched by your review"
+          {/* row 3: stamp the review, approve the vocabulary once, govern */}
+          <RvNode x={4} y={168} w={206} h={46} title="⑥ ✓ Review complete" sub="stamps the review · warns, never blocks" />
+          <path className="rv-wfarrow" d="M214 191 H232" markerEnd="url(#rv-wfhead)" />
+          <RvNode role="button" x={236} y={168} w={250} h={46} title="⑦ Approve pending vocabulary" sub="Dictionary ↗ · synced at the keystone"
                   onActivate={() => onNavigate('dictionary')}
-                  aria="When you're happy with the review, go to the Dictionary page — the pending vocabulary already carries your accepted enrichments; approve or retire it there" />
-          <path className="rv-wfarrow" d="M492 191 H510" markerEnd="url(#rv-wfhead)" />
-          <RvNode x={514} y={168} w={140} h={46} title="Govern ↗" sub="set stewardship"
+                  aria="Go to the Dictionary page — the pending vocabulary already carries your accepted edits; approve or retire it there" />
+          <path className="rv-wfarrow" d="M490 191 H508" markerEnd="url(#rv-wfhead)" />
+          <RvNode x={512} y={168} w={140} h={46} title="Govern ↗" sub="set stewardship"
                   onActivate={() => onNavigate('govern')} aria="Go to the Govern page to set stewardship" />
         </svg>
       </div>
       <ol className="workcycle">
-        <li><b>Prune.</b> Every scanned column is a candidate — untick <b>Keep</b> on noise (or use <b>Keep High+Med conf</b>) rather than hunting for gaps; table-level terms always stay. <b>Structural keys arrive already pruned</b> (the <b>KEY</b> badge): a surrogate PK / FK reference-id isn&apos;t a business term — its PK/FK relationship still travels to the Registry&apos;s physical model, and ticking Keep restores it.</li>
-        <li><b>Name the glossary</b> (top right of the grid) — autosave keeps your review <b>and</b> streams every accepted improvement into the Dictionary&apos;s <i>pending</i> vocabulary, so the two never drift. The flow is one-way: Review edits refresh pending entries; nothing in the Dictionary is approved without you.</li>
-        <li><b>Run the AI pass.</b> <b>AI pass (all fields)</b> covers definition, purpose, a clearer name, governed tags and a blank category in <b>one model call per batch of rows</b> — every field proposed together from the same evidence, so none contradicts another — and it folds in the free deterministic work (governed tags re-derived from the Dictionary, the definition linter's QA ⚠ chip). To redo one row, expand it and use <b>AI review</b>; to redo one field, accept only that field's pill. Agents never edit the grid: as each batch returns, click-to-accept pills light up on the affected cells — accept them one by one, or <b>Accept all</b> from the strip above the grid. The grid's <b>LLM</b> pills appear only after a proposal is accepted. The governed tags it can propose come from the <i>approved</i> allow-list, so tags you approve on the Dictionary enrich the next run: the flywheel.</li>
-        <li><b>Resolve duplicates — with final names and real definitions in hand.</b> The <b>AI pass</b> runs first on purpose: it finalizes names, dissolving false duplicates before you judge them (a rename <i>is</i> disambiguation), and real definitions make the remaining same-name calls easy. Same-named <i>kept</i> terms get a header bar: <b>Merge</b> into one term linked to all its columns, <b>Disambiguate</b> into unique names, or keep separate. Each header already carries a recommendation <i>and its reason</i>, derived from the scan evidence the moment the glossary loads — no button, no model. <b>AI advise</b> only escalates the groups that reason marks <b>(check)</b>: the ones with no profiled value sets to compare, where it probes live values over your database connection and lets the model adjudicate what is left. Auto-pruned keys sit outside duplicate resolution.</li>
-        <li><b>Approve the pending vocabulary — once, at the end.</b> When you&apos;re happy with the review, hop to the <b>Dictionary</b> (click the box above): its pending terms and tags already carry your accepted definitions and corrected names (a fixed name folds the scan&apos;s raw misread in as an alias, so rescans don&apos;t re-propose it). Approve or retire, then <b>Set stewardship →</b> on the Govern page.</li>
+        <li><b>Prune.</b> Every scanned column is a candidate — untick <b>Keep</b> on noise (or use <b>Keep High+Med conf</b>) rather than hunting for gaps; table-level terms always stay. The scan arrives with its own pruning done, reason on every row: <b>structural keys</b> (the <b>KEY</b> badge — a surrogate PK / FK reference-id isn&apos;t a business term, and its relationship still travels to the Registry&apos;s physical model), <b>envelope fields</b> from documents, bare <b>structural columns</b> (description, notes) and <b>period-stamped snapshot columns</b> (the stamp names <i>when</i>, not what). Ticking Keep restores any of them.</li>
+        <li><b>Run 1 · AI categories.</b> One <b>seeded, deterministic</b> call over the whole schema graph — tables, columns, FK links and folder families, with their clusters named outright — proposing a handful of broad business <b>subjects</b>, never one category per table. Assignments land as Category pills; unplaced tables keep their physical group, visibly. The completion line tells you what accepting would do to the category count <i>before</i> you accept, and the busy line carries a live clock plus how long this machine took last time. Re-running replaces the previous run&apos;s pills — two taxonomies never interleave.</li>
+        <li><b>Approve the categories — the keystone.</b> The count sits on the button, so you know exactly how many categories you&apos;re signing off. Approving declares the taxonomy settled — and everything downstream keys off that declaration: an unnamed glossary is <b>named and saved for you</b> (rename any time — from this moment nothing is lost to a closed window), the Dictionary&apos;s <i>pending</i> vocabulary syncs immediately, Govern binds stewardship to the settled names, and Export pack freezes the mapping for future scans. Change categories afterwards and the button asks to be approved again — drift is visible, never silent.</li>
+        <li><b>Run the AI pass.</b> <b>AI pass (all fields)</b> covers definition, purpose, a clearer name, governed tags and a blank category in <b>one model call per batch of rows</b> — every field proposed together from the same evidence, so none contradicts another, and all of it written <i>against the settled taxonomy</i> — plus the free deterministic work (governed tags re-derived from the Dictionary, the definition linter&apos;s QA ⚠ chip). To redo one row, expand it and use <b>AI review</b>; to redo one field, accept only that field&apos;s pill. Agents never edit the grid: as each batch returns, click-to-accept pills light up — accept one by one, or <b>Accept all</b>. The governed tags come from the <i>approved</i> allow-list, so tags you approve on the Dictionary enrich the next run: the flywheel.</li>
+        <li><b>Resolve duplicates — step <i>4</i> on the strip, one cluster at a time.</b> The pass runs first on purpose: with final names and real definitions in hand, false duplicates dissolve and the remaining same-name calls are easy — and consolidation makes them <i>likelier</i> (five subjects now hold what eleven physical groups held). Every same-named <i>kept</i> cluster gets a header bar carrying a recommendation <i>and its reason</i>, derived from scan evidence — <b>Merge</b> into one term linked to all its columns, <b>Disambiguate</b> into unique names, or keep separate, each a deliberate click. There is <b>no wholesale button</b> on purpose: every fold is a steward decision. <b>4 · AI advise</b> lights on the strip while clusters await you, and escalates only the groups reason marks <b>(check)</b> — no profiled value sets to compare — probing live values over your database connection and letting the model adjudicate what is left. Auto-pruned keys sit outside duplicate resolution, and the Generate preflight names any collision that slips through.</li>
+        <li><b>✓ Review complete → Dictionary.</b> The bottom button stamps the review done — it warns if the keystone is missing or pills are still pending, but never blocks — and lands you on the <b>Dictionary</b>: its pending terms and tags already carry your accepted definitions and corrected names (a fixed name folds the scan&apos;s raw misread in as an alias, so rescans don&apos;t re-propose it). Approve or retire once, at the end, then <b>Set stewardship →</b> on the Govern page.</li>
       </ol>
 
       <div className="rv-agentdocs-h">
@@ -1954,10 +2017,11 @@ function ReviewGuide({ onNavigate }) {
       </ul>
 
       <p className="hint-line">
-        Review flows one way into the Dictionary: autosave refreshes its <i>pending</i>
-        entries with your accepted edits (never the approved vocabulary — approval stays
-        a steward click on the Dictionary page). The Dictionary in turn governs what the
-        agents may propose.
+        Review flows one way into the Dictionary: the keystone syncs it the moment the
+        taxonomy settles, and autosave keeps refreshing its <i>pending</i> entries with
+        your accepted edits (never the approved vocabulary — approval stays a steward
+        click on the Dictionary page). The Dictionary in turn governs what the agents
+        may propose.
       </p>
     </details>
   )

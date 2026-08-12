@@ -14,6 +14,65 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.36.66] - 2026-08-12
+
+### The clean-run release: a full walk's field findings, in one build
+
+An end-to-end field run (fresh install -> scan -> categorize -> keystone ->
+AI pass -> dedupe -> Dictionary -> Govern -> generate -> import -> resolve ->
+Data Discovery -> apply -> draft policies) produced fourteen improvements.
+
+**The flow lights every stage.**
+- Duplicate resolution is step 4 ON the strip ("i forgot the deduplicate
+  last time!"): 4 - AI advise takes the blue when the pass finishes while
+  same-named clusters await decisions, and goes quiet only when every
+  cluster is decided. The pass-then-dedupe order is now the taught order
+  (final names + real definitions make the calls easy).
+- The stepper no longer goes quiet mid-pass: accepting pills lit the
+  "enriched" signal at batch 8 of 26 and step 3 lost the blue.
+- AI advise narrates (evidence -> live probe -> "adjudicating group n of m
+  - <name>") as a background job, like every long agent now does.
+- The in-app guide (diagram + working order) and docs/WALKTHROUGH.md are
+  rewritten to the keystone flow, with a Phase 7 closeout checklist: every
+  artifact the estate produced, versioned, Policy-Generator-ready.
+
+**Apply reaches everything it should.**
+- The PDC connection card now LEADS the Apply page (its session feeds
+  everything below, including the tree check that sat above it).
+- "Profile documents in PDC" moved BEFORE Apply and says the honest thing:
+  the APP profiled these files at scan time - PDC has not, and until its
+  Data Discovery mints the file-column entities, Apply has nothing to link
+  ("surely this step should come before").
+- The dotted-filename trap's whole family is extinct: _parse_source now
+  splits document sources at the file extension (Apply asked PDC for a
+  column named "csv.material" - every document column "not found"), and
+  the policy drafter's column names go through the same one splitter (a
+  JSONL leaf shredded to bare "id" made an over-matching rule regex).
+
+**Policies cover the estate - all custom, all evidence.**
+- Clarified with the field: custom-only means WE ship every policy (PDC's
+  inbuilt set stays unused) - it never meant generic concepts go
+  undetected. Columns the profiler RECOGNISED as email/phone/zip/ssn/card
+  in this estate's values now mint custom Data Patterns carrying the
+  profiler's own shape, plus matching DQ format expectations. "date" stays
+  link-only (a date shape matches every date column).
+- The profiler's verdict travels as data (Value_Kind on each row): the
+  AI pass rewriting Suggested_Reason no longer makes profiled rows read as
+  unprofiled ("re-scan" advice on rows profiling DID touch).
+- The Build check names every offender inline (the backend always sent
+  them; the UI dropped them - a warning that ended on a colon), and its
+  verdicts say where to fix and that the check reruns.
+- The held-back links list splits honestly: policy-held terms (actionable)
+  vs table-level record terms (glossary-only by design, one line).
+
+**Smaller field catches.**
+- The domain-pack flow reads as steps: 1 - Generate pack, 2 - Inspect /
+  ship, 3 - Install as this app's pack (the flywheel turn, was "Apply to
+  this app").
+- Keycloak fetch no longer offers generate-expertise-at-fetch: trim the
+  roster to your stewards first, then Suggest expertise ("we'll only be
+  dealing with stewards, custodians, owners").
+
 ## [1.36.65] - 2026-08-11
 
 ### Fixed - the schema call fits one GPU and says how long it takes

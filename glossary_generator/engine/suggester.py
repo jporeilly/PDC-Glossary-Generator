@@ -1577,6 +1577,11 @@ def suggest(tables, schema=None):
                          "Value_Signature": prof.get("signature", ""),
                          "Value_Pattern": prof.get("pattern", ""),
                          "Enum_Values": ";".join(prof.get("enum", []) or []),
+                         # the profiler's VERDICT survives as data — prose
+                         # markers (Suggested_Reason "Profiled: …") die the
+                         # moment the AI pass rewrites the field, and the
+                         # drafter then told profiled rows to "re-scan"
+                         "Value_Kind": prof.get("kind", ""),
                          "LLM_Enriched": "No"})
     for r in rows:
         key = (r["Category"], r["Term"])
@@ -1590,7 +1595,7 @@ def suggest(tables, schema=None):
                                                 r.get("Suggested_Rating", 0))
             # carry each merged column's own DQ dimensions
             seen[key].setdefault("Source_Quality_Dims", {}).update(r.get("Source_Quality_Dims", {}))
-            for f in ("Value_Signature", "Value_Pattern", "Enum_Values"):
+            for f in ("Value_Signature", "Value_Pattern", "Enum_Values", "Value_Kind"):
                 if not seen[key].get(f) and r.get(f):
                     seen[key][f] = r[f]
             # A term survives the structural-key prune when ANY of its merged
@@ -2676,15 +2681,41 @@ def _kept_rows(rows):
     """Yield only the rows the reviewer marked to keep."""
     return [r for r in rows if str(r.get("Keep", "Y")).lower() in ("y", "yes", "true", "1")]
 
+# _FILE_EXT anchored to end-of-string finds a FILE; this one finds the
+# extension INSIDE a source so the trailing ".column" can be split off —
+# "bucket.gis/segments.csv.material" is file "gis/segments.csv" + column
+# "material", never column "csv.material" (the dotted-filename trap that
+# already bit _row_table, field-caught again as Apply's "not found"s).
+_FILE_EXT_ANY = re.compile(r"\.(csv|tsv|psv|json|jsonl|xml|txt|parquet|avro|"
+                           r"ya?ml|pdf|docx?|xlsx?|pptx?)(?=\.|$)", re.I)
+
+
 def _parse_source(src):
     """Resolve a Source_Column into a physical data element (schema/table/column or object)."""
     src = (src or "").strip()
     if not src or src.startswith("glossary:"):
         return None
-    if "/" in src and "." not in src.split("/")[0]:
-        parts = src.split("/")
-        return {"schema_name": parts[0], "table_name": "/".join(parts[1:-1]),
-                "column_name": parts[-1], "entity_type": "OBJECT"}
+    if "/" in src:
+        head = src.split("/")[0]
+        if "." not in head:
+            # object path bucket/folder/file — the leaf file is the element
+            parts = src.split("/")
+            return {"schema_name": parts[0], "table_name": "/".join(parts[1:-1]),
+                    "column_name": parts[-1], "entity_type": "OBJECT"}
+        # document COLUMN: "bucket.rel/path/file.ext.column" — bucket ends at
+        # the first dot, the file ends at its extension, the column (possibly
+        # a dotted JSON leaf) is whatever follows
+        bucket, rest = src.split(".", 1)
+        m = _FILE_EXT_ANY.search(rest)
+        if m:
+            fname = rest[:m.end()]
+            col = rest[m.end():].lstrip(".")
+            if col:
+                return {"schema_name": bucket, "table_name": fname,
+                        "column_name": col, "entity_type": "COLUMN"}
+            return {"schema_name": bucket,
+                    "table_name": "/".join(fname.split("/")[:-1]),
+                    "column_name": fname.split("/")[-1], "entity_type": "OBJECT"}
     p = src.split(".")
     if len(p) >= 3:
         return {"schema_name": p[0], "table_name": p[1], "column_name": ".".join(p[2:]),
@@ -3166,23 +3197,31 @@ def glossary_build_check(rows, recs, glossary_name):
     # scrolling the glossary to hunt down the last few
     if dup_pairs:
         issues.append({"tone": "bad", "text": f"{len(dup_pairs)} term(s) duplicated within a category — "
-                       "these share one generated id and collide on import (one overwrites the other):",
+                       "each pair shares ONE generated id, so on import one overwrites the other. "
+                       "Merge or rename these on the Review page (the duplicate header offers both):",
                        "terms": [{"label": p2, "q": p2.split(" / ", 1)[-1]} for p2 in dup_pairs]})
     if dup_names:
-        issues.append({"tone": "warn", "text": f"{len(dup_names)} term name(s) repeat across categories — "
-                       "name-based Resolve can't tell them apart, so a column may link to the wrong one:",
+        issues.append({"tone": "warn", "text": f"{len(dup_names)} term name(s) appear in more than one category — "
+                       "Resolve matches terms BY NAME, so it cannot tell which of the two a column "
+                       "means and may link the wrong one. Rename one of each pair on the Review page "
+                       "(filter by the name below), or merge them if they are the same concept:",
                        "terms": [{"label": t, "q": t} for t in dup_names]})
     if no_cat:
-        issues.append({"tone": "warn", "text": f"{len(no_cat)} term(s) have no category — they import under 'Unassigned':",
+        issues.append({"tone": "warn", "text": f"{len(no_cat)} term(s) have no category — they land in PDC under "
+                       "'Unassigned'. Set a category on the Review page:",
                        "terms": [{"label": t, "q": t} for t in sorted(set(no_cat))]})
     if no_def:
-        issues.append({"tone": "warn", "text": f"{len(no_def)} term(s) have no definition:",
+        issues.append({"tone": "warn", "text": f"{len(no_def)} term(s) have no definition — they import blank. "
+                       "The AI pass (or a row edit) on the Review page fills them:",
                        "terms": [{"label": t, "q": t} for t in sorted(set(no_def))]})
 
     tone = "bad" if dup_pairs else ("warn" if issues else "ok")
     verdict = ({"ok": f"All {len(terms)} terms are clean — import this JSONL in PDC (Glossary → Actions → Import), then Resolve & Apply.",
-                "warn": "Importable, but the notes above can cause ambiguous links or Unassigned terms. Fix them in the table for clean links.",
-                "bad": "Duplicate terms in the same category lose data on import — rename or remove the duplicates before importing."})[tone]
+                "warn": "Importable as-is — but every term named above risks an ambiguous link or an "
+                        "'Unassigned' landing. Fix them on the Review page, then Generate again; the "
+                        "check reruns each time.",
+                "bad": "Duplicate terms in the same category LOSE DATA on import — merge or rename them "
+                       "on the Review page before importing, then Generate again."})[tone]
     return {"title": "Build check", "rows": rows_out, "issues": issues, "tone": tone, "verdict": verdict}
 
 

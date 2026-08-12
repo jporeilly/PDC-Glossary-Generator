@@ -105,16 +105,6 @@ glossaries, the LLM chip is green on your model, PDC shows "not connected".
 > moment you approve, the workspace names and saves itself: from here on,
 > nothing we do can be lost to a closed window."*
 
-- [ ] **Merge duplicates** now — before the AI pass, so it has fewer rows
-      to enrich *(~20 rows fold)*.
-
-> **Talk track** — *"Consolidating eleven physical groups into five
-> subjects means the same business concept can now appear twice — Capacity
-> from the GIS files and Capacity from the operations database sit in one
-> category. The merge folds them into a single term that keeps both
-> physical sources as evidence. Nothing is discarded — one concept, two
-> linked columns, which is exactly what the catalog should hold."*
-
 - [ ] `3 · AI pass (all fields)` — the long stage; the batch line narrates
       progress. **Accept all** when it finishes.
 
@@ -126,6 +116,22 @@ glossaries, the LLM chip is green on your model, PDC shows "not connected".
 > stage. What you get back is a glossary that reads like a business wrote
 > it, at a per-term cost of seconds, not the weeks a manual glossary
 > project burns."*
+
+- [ ] **Resolve duplicates** — `4 · AI advise` lights on the strip while
+      same-named clusters await a decision. Work each cluster's header bar:
+      **Merge / Disambiguate / Keep separate**, recommendation and reason
+      shown *(~10 clusters; ~20 rows fold)*. AI advise escalates only the
+      groups badged *(check)*.
+
+> **Talk track** — *"The pass ran first on purpose: with final names and
+> real definitions in hand, false duplicates dissolve and the remaining
+> calls are easy. Consolidating eleven physical groups into five subjects
+> means the same business concept can now appear twice — Capacity from the
+> GIS files and Capacity from the operations database sit in one category.
+> Each cluster is a deliberate steward decision on its own header — there
+> is no wholesale button, by design. A merge folds them into a single term
+> that keeps both physical sources as evidence: one concept, two linked
+> columns, which is exactly what the catalog should hold."*
 
 - [ ] `✓ Review complete → Dictionary`.
 
@@ -213,15 +219,53 @@ those with one click.)
 > traces to sampled evidence."*
 
 - [ ] Import the JSONL in PDC (Glossary → Actions → Import).
-- [ ] Back in the app: **Resolve term ids** → **Apply terms**.
+- [ ] Back in the app: **Resolve term ids**.
+- [ ] **Run Data Discovery on documents** (step 3 on the page) and let the
+      PDC jobs finish — PDC mints the file-column *entities* and computes
+      its file Data Quality. The app profiled these files at scan time;
+      PDC has not, and until it does, document-column terms have nothing
+      to link to (Apply reports them *not found*).
+- [ ] **Apply terms**.
 
 > **Talk track** — *"The catalog assigns every imported term its identity.
 > Resolve looks each term up by name and stamps those ids back onto our
-> rows, and Apply writes the term-to-column associations into the catalog —
-> the moment the glossary stops being a document and starts being live
-> metadata on real assets. From here the flywheel runs: rescan, review the
-> delta, approve, re-export. The first pass is the project; every pass
-> after it is maintenance."*
+> rows. For the object store there's one catalog-side step: our scanner
+> read inside those files at scan time — the catalog hasn't yet, so we
+> ask it to run its own Data Discovery, which creates
+> the file-column entities and scores file quality, its fourth
+> Trust-Score input. Then Apply writes the term-to-column associations
+> into the catalog — the moment the glossary stops being a document and
+> starts being live metadata on real assets. From here the flywheel runs:
+> rescan, review the delta, approve, re-export. The first pass is the
+> project; every pass after it is maintenance."*
+
+## Phase 7 — Closeout: the estate's deliverables, versioned
+
+Everything this run produced should exist as a FILE, per estate, ready for
+the Policy Generator and the next environment. Tick each artifact:
+
+- [ ] **Import JSONL** — downloaded (and/or shipped to the lab store):
+      glossary + categories + terms, the catalog's copy of record.
+- [ ] **Registry** — written automatically at Generate (path shown in the
+      summary): the machine-readable term↔column mapping the Policy
+      Generator reads; what makes the next scan deterministic.
+- [ ] **Domain pack** — `1 · Generate pack` → `3 · Install as this app's
+      pack` (the flywheel turn) → `2 · Inspect / ship` the same file into
+      the scenario repo's `domain_pack/` folder, so the next INSTALL starts
+      from what this run taught.
+- [ ] **Drafted policies bundle** — Data Patterns + Dictionaries (+ values
+      CSVs) + DQ expectations, downloaded from the draft job (the job copy
+      carries the AI polish). Skips reviewed: every remaining skip should
+      read as a constraint (link-only kinds, curated-seed candidates), not
+      a failure.
+- [ ] **Resolve & Apply receipts** — resolve stamped ids; apply reported
+      written/rated counts; "not found" investigated (document columns need
+      step 3's Data Discovery to have run first).
+- [ ] **Versioned** — the pack and bundle land in the scenario repo with a
+      commit; the glossary name in PDC matches the intended one.
+
+**Pass-check:** a colleague could rebuild this estate's governance from the
+repo alone — pack, registry, policies, JSONL — without your workspace.
 
 ---
 

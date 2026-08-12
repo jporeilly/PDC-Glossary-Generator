@@ -343,6 +343,49 @@ class TestPolicyDraft:
         assert why["Ph Level"].startswith("profiled, but"), why
         assert why["Mystery Field"].startswith("no profiled evidence"), why
 
+    def test_profiled_survives_the_ai_pass_rewriting_the_reason(self):
+        """The AI pass rewrites Suggested_Reason with the model's rationale,
+           which killed the prose marker — enriched profiled rows were told
+           to "re-scan with profiling on" (field-caught on the .65 walk).
+           The profile's own data on the row is the durable witness."""
+        rows = [_row("Peak Usage", "awc.usage.peak_usage",
+                     Suggested_Reason="LLM: seasonal demand indicator",
+                     Source_Quality_Dims={"awc.usage.peak_usage": {"c": 1.0}})]
+        art = policy_draft.draft_from_rows(rows, prefix="AWC")
+        why = {s["term"]: s["why"] for s in art["skipped"]}
+        assert why["Peak Usage"].startswith("profiled, but"), why
+
+    def test_recognised_kinds_mint_custom_patterns(self):
+        """Clarified in the field: custom-only means WE ship every policy
+           (PDC's inbuilt set stays unused) — it never meant generic concepts
+           go undetected. A column the profiler recognised as email/phone/zip
+           in THIS estate's values mints a CUSTOM Data Pattern carrying the
+           profiler's own shape ("so we do need these policies to be
+           built")."""
+        from engine.suggester import RX_EMAIL
+        rows = [_row("Customer Email", "awc.customers.email",
+                     Suggested_Reason="LLM: contact detail",
+                     Value_Kind="email", Suggested_Tags="pii")]
+        art = policy_draft.draft_from_rows(rows, prefix="AWC",
+                                           governed_tags=["pii"])
+        pats = {p["term"]: p for p in art["patterns"]}
+        assert "Customer Email" in pats, art["skipped"]
+        assert pats["Customer Email"]["seed"] == "recognised"
+        blob = json.dumps(pats["Customer Email"]["rule"]).replace("\\\\", "\\")
+        assert RX_EMAIL.pattern in blob, \
+            "the rule carries the profiler's own shape — one definition"
+
+    def test_date_kind_stays_link_only(self):
+        """A date Data Pattern would match every date column in the estate —
+           date-kind rows stay tagged via the term↔column link, with the
+           reason saying exactly that."""
+        rows = [_row("Effective", "awc.rates.effective",
+                     Suggested_Reason="LLM: when the rate starts",
+                     Value_Kind="date")]
+        art = policy_draft.draft_from_rows(rows, prefix="AWC")
+        why = {s["term"]: s["why"] for s in art["skipped"]}
+        assert "would over-match" in why.get("Effective", ""), why
+
     def test_draft_zips_into_import_bundle(self):
         import io
         import zipfile
@@ -684,3 +727,17 @@ def test_no_industry_vocabulary_decides_critical_data_elements():
     for name in ("account_number", "ssn", "tax_id", "amount_due", "violation_code"):
         assert suggester.CDE_PATTERNS.search(name), \
             "{} is cross-industry regulatory vocabulary and must still match".format(name)
+
+
+class TestRecognisedKindDQ:
+    def test_email_column_gets_a_format_expectation(self):
+        """Full-coverage commission: recognised kinds ship on BOTH sides —
+           a custom Data Pattern for detection and a DQ format expectation
+           for conformance, each carrying the profiler's one shape."""
+        from engine.suggester import RX_EMAIL
+        rows = [_row("Customer Email", "awc.customers.email",
+                     Value_Kind="email")]
+        dq = policy_draft.dq_rules_from_rows(rows, prefix="AWC")
+        assert dq, "a recognised kind must produce a DQ artifact"
+        blob = json.dumps(dq[0]["rule"]).replace("\\\\", "\\")
+        assert RX_EMAIL.pattern in blob and '"recognised"' in json.dumps(dq[0]["rule"])
