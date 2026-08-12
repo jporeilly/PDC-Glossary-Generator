@@ -199,6 +199,24 @@ def _registry_path(glossary_name):
        export step and the resolve step touch the same versioned file."""
     return os.path.join(REGISTRY_DIR, f"registry.{suggester.det_glossary_id(glossary_name)}.json")
 
+
+# ---- estate receipts -------------------------------------------------------
+# Every closing artifact leaves a RECEIPT (what, when, headline counts) so the
+# Estate Report can verify the handoff contract from facts on disk instead of
+# trusting ticked boxes ("checks that all the required estate docs are in
+# place ready for Policy Generator").
+RECEIPTS_FILE = paths.state_path("estate_receipts.json", "GLOSSARY_RECEIPTS")
+
+def _receipt(kind, **data):
+    try:
+        import datetime
+        r = _read_json(RECEIPTS_FILE, {})
+        r[kind] = {"at": datetime.datetime.now().isoformat(timespec="seconds"),
+                   **{k: v for k, v in data.items() if v is not None}}
+        _write_json(RECEIPTS_FILE, r)
+    except Exception:
+        pass  # a receipt must never fail the action it records
+
 DEFAULT_SETTINGS = {"theme": "light",
                     "model": os.environ.get("LLM_MODEL", "llama3.2:3b"),
                     "compute": "auto",
@@ -2574,6 +2592,8 @@ def api_export_pack(body: dict = Body(default={})):
         rs = tagdict.reset(preserve_approved=True)
         out.update({"applied": True, "pack_path": path, "pack_backup": backup,
                     "reseed_kept": rs.get("kept")})
+        _receipt("pack", learned=out.get("learned"), path=path,
+                 applied=True)
     return out
 
 @app.get("/api/tagdict/export.json")
@@ -3497,6 +3517,134 @@ def data_elements(body: dict = Body(default={})):
             "breakdown": breakdown,
             "policy": {**suggester.DEFAULT_MAP_POLICY, **(policy or {})}}
 
+@app.post("/api/estate-report")
+def api_estate_report(body: dict = Body(default={})):
+    """The estate's closing summary + the Policy-Generator handoff contract,
+    verified from facts on disk (registry, pack, receipts) — never from
+    ticked boxes. Body: {rows, glossary_name}. Returns {stats, contract,
+    receipts, ready, missing}."""
+    from collections import Counter
+    body = body or {}
+    rows = [r for r in (body.get("rows") or []) if isinstance(r, dict)]
+    name = (body.get("glossary_name") or "").strip() or "Business Glossary"
+
+    def _is_kept(r):
+        return str(r.get("Keep", "Y")).strip().lower() in ("y", "yes", "true", "1")
+    kept = [r for r in rows if _is_kept(r)]
+    cats = Counter((str(r.get("Category") or "").strip() or "—") for r in kept)
+    sens = Counter((str(r.get("Sensitivity") or "LOW").upper()) for r in kept)
+    conf = Counter((str(r.get("Confidence") or "").strip() or "—") for r in kept)
+    tags = Counter(t.strip() for r in kept
+                   for t in str(r.get("Suggested_Tags") or "").split(";") if t.strip())
+    stats = {
+        "glossary": name,
+        "terms_kept": len(kept), "terms_dropped": len(rows) - len(kept),
+        "categories": [{"name": c, "count": n} for c, n in cats.most_common()],
+        "sensitivity": dict(sens), "confidence": dict(conf),
+        "tags_top": [{"tag": t, "count": n} for t, n in tags.most_common(10)],
+        "pii": sum(1 for r in kept if str(r.get("PII_Category") or "").strip()),
+        "cde": sum(1 for r in kept
+                   if str(r.get("Critical_Data_Element") or "").lower() == "yes"),
+        "enriched": sum(1 for r in kept
+                        if str(r.get("LLM_Enriched") or "").lower() in ("yes", "true")),
+        "table_terms": sum(1 for r in kept
+                           if not str(r.get("Source_Column") or "").strip()),
+        "with_evidence": sum(1 for r in kept
+                             if (r.get("Value_Pattern") or r.get("Enum_Values")
+                                 or r.get("Value_Kind"))),
+    }
+
+    receipts = _read_json(RECEIPTS_FILE, {})
+    saved_at = ""
+    for g in (_load_gloss() or {}).values():
+        if (g.get("name") == name or g.get("glossary_name") == name):
+            saved_at = max(saved_at, str(g.get("savedAt") or ""))
+
+    contract, missing = [], []
+    def item(key, label, ok, detail, path=None, at=None, stale=False):
+        contract.append({"key": key, "label": label, "ok": bool(ok),
+                         "detail": detail, "path": path, "at": at,
+                         "stale": bool(stale)})
+        if not ok:
+            missing.append(label)
+
+    # Registry — the Policy Generator's primary input
+    rp = _registry_path(name)
+    reg = _read_json(rp, None)
+    gid = suggester.det_glossary_id(name)
+    if not isinstance(reg, dict) or not reg:
+        item("registry", "Registry", False,
+             "not written yet — Generate JSONL authors it", path=rp)
+    elif str(reg.get("glossary_id") or "") != gid:
+        item("registry", "Registry", False,
+             "belongs to a DIFFERENT glossary (id mismatch) — Generate again "
+             "under this name", path=rp)
+    else:
+        item("registry", "Registry", True,
+             f"{len(reg.get('concepts') or [])} concept(s), physical model + "
+             "tag vocabulary present", path=rp)
+
+    # Domain pack — installed as this app's pack
+    pk = receipts.get("pack") or {}
+    pack_path = None
+    try:
+        pack_path = paths.domain_pack_write_path()
+    except Exception:
+        pass
+    pack_on_disk = bool(pack_path and os.path.exists(pack_path))
+    if pk.get("applied") and pack_on_disk:
+        item("pack", "Domain pack (installed)", True,
+             f"{pk.get('learned', 0)} learned addition(s) installed",
+             path=pk.get("path") or pack_path, at=pk.get("at"))
+    else:
+        item("pack", "Domain pack (installed)", False,
+             "generate the pack on the Dictionary page and Install it as "
+             "this app's pack (the flywheel turn)", path=pack_path)
+
+    # Receipts-backed artifacts
+    gen = receipts.get("generate") or {}
+    gen_ok = bool(gen) and gen.get("glossary") == name
+    gen_stale = bool(gen_ok and saved_at and str(gen.get("at", "")) < saved_at)
+    item("jsonl", "Import JSONL", gen_ok,
+         (f"{gen.get('lines', 0)} line(s) — {gen.get('categories', 0)} "
+          f"categories, {gen.get('terms', 0)} terms"
+          + (" · REGENERATE: the review was saved after this export"
+             if gen_stale else "")) if gen_ok
+         else "not generated yet (Apply page → Generate JSONL)",
+         at=gen.get("at"), stale=gen_stale)
+
+    dr = receipts.get("draft") or {}
+    dr_ok = bool(dr)
+    dr_stale = bool(dr_ok and saved_at and str(dr.get("at", "")) < saved_at)
+    item("policies", "Drafted policies bundle", dr_ok,
+         (f"{dr.get('patterns', 0)} pattern(s), {dr.get('dictionaries', 0)} "
+          f"dictionar(ies), {dr.get('quality', 0)} DQ rule(s), "
+          f"{dr.get('skipped', 0)} skip(s)"
+          + (" · REGENERATE: the review was saved after this draft"
+             if dr_stale else "")) if dr_ok
+         else "not drafted yet (Apply page → Draft policies)",
+         at=dr.get("at"), stale=dr_stale)
+
+    rs = receipts.get("resolve") or {}
+    item("resolve", "Resolve receipt", bool(rs),
+         "term ids stamped" if rs else
+         "not run yet (import the JSONL in PDC first)", at=rs.get("at"))
+    ap = receipts.get("apply") or {}
+    item("apply", "Apply receipt", bool(ap),
+         ("written to PDC" if ap else
+          "no non-dry-run apply recorded yet"), at=ap.get("at"))
+
+    stale_any = any(c.get("stale") for c in contract)
+    ready = not missing and not stale_any
+    return {"stats": stats, "receipts": receipts, "contract": contract,
+            "saved_at": saved_at, "ready": ready, "missing": missing,
+            "verdict": ("READY for the Policy Generator — every artifact "
+                        "present and current." if ready else
+                        (f"{len(missing)} artifact(s) missing" if missing else "")
+                        + (" · stale artifact(s) need regenerating"
+                           if stale_any else ""))}
+
+
 @app.post("/api/generate")
 def generate(body: dict = Body(default={})):
     """Generate import-ready glossary JSONL (and summary stats) from review rows."""
@@ -3517,9 +3665,14 @@ def generate(body: dict = Body(default={})):
                                           glossary_id=suggester.det_glossary_id(name))
     except Exception:
         registry_path = None  # never let Registry authoring break the export
+    check = suggester.glossary_build_check(rows, recs, name)
+    _receipt("generate", glossary=name, lines=len(recs), kept=kept,
+             categories=sum(1 for r in recs if r["type"] == "category"),
+             terms=sum(1 for r in recs if r["type"] == "term"),
+             registry=registry_path, check_tone=check.get("tone"))
     return {"jsonl": jsonl,
             "registry": registry_path,
-            "check": suggester.glossary_build_check(rows, recs, name),
+            "check": check,
             "stats": {"glossary": name, "lines": len(recs),
                       "categories": sum(1 for r in recs if r["type"] == "category"),
                       "terms": sum(1 for r in recs if r["type"] == "term"),
@@ -3591,7 +3744,13 @@ def api_job_resolve_terms(body: dict = Body(default={})):
        per-term progress and the final resolve report in `result`."""
     body = body or {}
     def _runner(job):
-        job["result"] = _resolve_terms_impl(body, progress=_job_progress(job))
+        res = _resolve_terms_impl(body, progress=_job_progress(job))
+        job["result"] = res
+        _receipt("resolve", **{k: v for k, v in (res or {}).items()
+                               if isinstance(v, (int, str))
+                               and not isinstance(v, bool)
+                               and k in ("resolved", "unresolved", "total",
+                                         "stamped", "glossary")})
     return _start_job("resolve-terms", _runner)
 
 @app.post("/api/jobs/apply-to-pdc")
@@ -3601,7 +3760,16 @@ def api_job_apply_to_pdc(body: dict = Body(default={})):
        progress and the final apply report in `result`."""
     body = body or {}
     def _runner(job):
-        job["result"] = _apply_to_pdc_impl(body, progress=_job_progress(job))
+        res = _apply_to_pdc_impl(body, progress=_job_progress(job))
+        job["result"] = res
+        # dry runs leave no receipt — the report must reflect real writes
+        if not body.get("dry_run", True):
+            _receipt("apply", **{k: v for k, v in (res or {}).items()
+                                 if isinstance(v, (int, str))
+                                 and not isinstance(v, bool)
+                                 and k in ("resolved", "written", "not_found",
+                                           "tables_rated", "rated", "total",
+                                           "trust")})
     return _start_job("apply-to-pdc", _runner)
 
 @app.post("/api/jobs/bulk-load")
@@ -3648,6 +3816,12 @@ def api_job_draft_policies(body: dict = Body(default={})):
         draft, summary = _draft_policies_run(body, progress=_p)
         job["_zip"] = policy_draft.to_zip_bytes(draft)
         job["result"] = summary
+        _receipt("draft", glossary=body.get("glossary_name"),
+                 patterns=len(summary.get("patterns") or []),
+                 dictionaries=len(summary.get("dictionaries") or []),
+                 quality=len(summary.get("quality") or []),
+                 skipped=len(summary.get("skipped") or []),
+                 used_llm=summary.get("used_llm"))
     return _start_job("draft-policies", _runner)
 
 @app.get("/api/jobs/{job_id}/zip")

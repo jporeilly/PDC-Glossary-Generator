@@ -267,6 +267,12 @@ the Policy Generator and the next environment. Tick each artifact:
 **Pass-check:** a colleague could rebuild this estate's governance from the
 repo alone — pack, registry, policies, JSONL — without your workspace.
 
+> The **Report** page runs this checklist for you: governance summary with
+> charts, and the handoff contract verified from the artifacts on disk
+> (registry parsed and id-matched, receipts, freshness) with a single
+> READY-for-Policy-Generator verdict — exportable as a standalone HTML
+> report to commit next to the pack.
+
 ---
 
 ## When a pass-check fails

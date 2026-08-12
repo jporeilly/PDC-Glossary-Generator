@@ -633,6 +633,47 @@ class TestDraftPoliciesJob:
         assert r.status_code == 404
 
 
+class TestEstateReport:
+    def test_contract_verifies_from_disk_not_ticks(self, client, fresh_dict):
+        """The closeout is a CONTRACT CHECK: registry parsed and id-matched,
+           receipts consulted, freshness compared — "checks that all the
+           required estate docs are in place ready for Policy Generator"."""
+        rows = [_row("Meter Size", "awc.meters.meter_size",
+                     Critical_Data_Element="No", PII_Category="")]
+        r = client.post("/api/estate-report",
+                        json={"rows": rows, "glossary_name": "Estate X"}).json()
+        assert r["ready"] is False
+        keys = {c["key"]: c for c in r["contract"]}
+        assert not keys["registry"]["ok"], "no registry yet"
+        assert not keys["jsonl"]["ok"], "no generate receipt yet"
+        assert r["stats"]["terms_kept"] == 1
+
+        client.post("/api/generate",
+                    json={"rows": rows, "glossary_name": "Estate X"})
+        r2 = client.post("/api/estate-report",
+                         json={"rows": rows, "glossary_name": "Estate X"}).json()
+        k2 = {c["key"]: c for c in r2["contract"]}
+        assert k2["registry"]["ok"], k2["registry"]
+        assert k2["jsonl"]["ok"], k2["jsonl"]
+        assert "concept" in k2["registry"]["detail"]
+
+    def test_registry_id_mismatch_is_named(self, client, fresh_dict):
+        """A registry from a DIFFERENT glossary must fail the contract with
+           the reason, not pass on file-exists."""
+        rows = [_row("Meter Size", "awc.meters.meter_size",
+                     Critical_Data_Element="No", PII_Category="")]
+        client.post("/api/generate",
+                    json={"rows": rows, "glossary_name": "Estate A"})
+        import os as _os
+        from api import _registry_path
+        _os.replace(_registry_path("Estate A"), _registry_path("Estate B"))
+        r = client.post("/api/estate-report",
+                        json={"rows": rows, "glossary_name": "Estate B"}).json()
+        keys = {c["key"]: c for c in r["contract"]}
+        assert not keys["registry"]["ok"]
+        assert "DIFFERENT glossary" in keys["registry"]["detail"]
+
+
 class TestAdviseJob:
     def test_job_returns_the_same_payload_as_the_sync_route(self, client):
         """AI advise ran behind a silent "Advising…" — the job twin narrates

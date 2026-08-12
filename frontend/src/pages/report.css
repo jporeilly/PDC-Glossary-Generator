@@ -1,0 +1,18 @@
+/* Estate Report — bar lists and the sensitivity stack, in the app's idiom */
+.rp-bars { display: flex; flex-direction: column; gap: .25rem; max-width: 720px; }
+.rp-bar { display: flex; align-items: center; gap: .5rem; font-size: .84rem; }
+.rp-barlbl {
+  width: 220px; flex: none; overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap; color: var(--text-secondary);
+}
+.rp-bartrack {
+  flex: 1 1 auto; height: 10px; background: var(--surface-2);
+  border-radius: 5px; overflow: hidden;
+}
+.rp-barfill { display: block; height: 100%; border-radius: 5px; }
+.rp-barval { flex: none; min-width: 2ch; text-align: right; }
+.rp-stack {
+  display: flex; height: 14px; border-radius: 7px; overflow: hidden;
+  max-width: 720px; background: var(--surface-2);
+}
+.rp-stackseg { display: block; height: 100%; }

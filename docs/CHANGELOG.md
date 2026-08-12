@@ -14,6 +14,25 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.36.67] - 2026-08-12
+
+### Added - the Estate Report: the flow ends on a noun
+
+A new final workflow page ("a final page like a report summary … with some
+pretty summary graphs"): the estate's governance stated - terms kept /
+dropped, categories, sensitivity mix, PII/CDE, enrichment and evidence
+coverage, top tags - drawn in the app's own idiom, no chart library.
+
+Beneath it, the **Policy-Generator handoff contract**, verified from facts
+on disk, never from ticked boxes: the Registry is parsed and id-matched to
+THIS glossary (a different estate's file fails with the reason), the
+installed domain pack is checked, and every closing action now leaves a
+RECEIPT (generate, draft, pack install, resolve, non-dry-run apply) that
+the contract consults - with freshness flags when the review was saved
+after an artifact was produced ("REGENERATE"). One verdict line: READY for
+the Policy Generator, or exactly what is missing or stale. Exportable as a
+single self-contained HTML report to commit next to the pack.
+
 ## [1.36.66] - 2026-08-12
 
 ### The clean-run release: a full walk's field findings, in one build

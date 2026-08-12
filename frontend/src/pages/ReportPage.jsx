@@ -1,0 +1,170 @@
+// Estate Report — the closing page: the estate's governance stated, and the
+// Policy-Generator handoff contract VERIFIED from facts on disk (registry
+// parsed + id-matched, receipts, freshness) — never from ticked boxes.
+// Field-commissioned: "a final page like a report summary … with some pretty
+// summary graphs" + "checks that all the required estate docs are in place
+// ready for Policy Generator".
+import { useEffect, useState } from 'react'
+import { apiPost } from './../api.js'
+import { useWorkspace } from './../state.js'
+import './report.css'
+
+function downloadBlob(content, filename, type = 'text/html') {
+  const url = URL.createObjectURL(new Blob([content], { type }))
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
+const SENS_COLORS = { HIGH: 'var(--status-critical, #c62828)', MEDIUM: '#e08a00', LOW: 'var(--status-good, #2e7d32)' }
+
+// horizontal bar list — the app's own idiom, no chart library
+function Bars({ items, colorFor }) {
+  const max = Math.max(1, ...items.map((i) => i.count))
+  return (
+    <div className="rp-bars">
+      {items.map((i) => (
+        <div className="rp-bar" key={i.name}>
+          <span className="rp-barlbl" title={i.name}>{i.name}</span>
+          <span className="rp-bartrack">
+            <span className="rp-barfill" style={{ width: `${(i.count / max) * 100}%`,
+                                                  background: colorFor ? colorFor(i.name) : 'var(--accent)' }} />
+          </span>
+          <b className="rp-barval">{i.count}</b>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// one full-width stacked bar for the sensitivity mix
+function Stacked({ mix }) {
+  const total = Object.values(mix).reduce((a, b) => a + b, 0) || 1
+  const order = ['HIGH', 'MEDIUM', 'LOW']
+  return (
+    <div className="rp-stack" role="img"
+         aria-label={order.map((k) => `${k} ${mix[k] || 0}`).join(', ')}>
+      {order.filter((k) => mix[k]).map((k) => (
+        <span key={k} className="rp-stackseg"
+              style={{ width: `${((mix[k] || 0) / total) * 100}%`, background: SENS_COLORS[k] }}
+              title={`${k}: ${mix[k]}`} />
+      ))}
+    </div>
+  )
+}
+
+export default function ReportPage({ onNavigate }) {
+  const ws = useWorkspace()
+  const [rep, setRep] = useState(null)
+  const [err, setErr] = useState(null)
+  const glossaryName = (ws.glossaryName || ws.name || '').trim()
+
+  const load = () => {
+    setErr(null)
+    apiPost('/api/estate-report', { rows: ws.rows || [], glossary_name: glossaryName })
+      .then(setRep)
+      .catch((e) => setErr(e.message))
+  }
+  useEffect(() => { load() }, [])   // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (err) return <section className="card"><h2>Estate report</h2><p className="warn">{err}</p></section>
+  if (!rep) return <section className="card"><h2>Estate report</h2><p className="hint-line">Compiling…</p></section>
+
+  const s = rep.stats
+  const chips = [
+    ['Terms kept', s.terms_kept], ['Dropped', s.terms_dropped],
+    ['Categories', (s.categories || []).length],
+    ['PII', s.pii], ['CDE', s.cde], ['LLM-enriched', s.enriched],
+    ['With value evidence', s.with_evidence], ['Table-level', s.table_terms],
+  ]
+
+  const exportHtml = () => {
+    const esc = (t) => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;')
+    const bar = (i, max) =>
+      `<div style="display:flex;align-items:center;gap:8px;margin:2px 0">
+         <span style="width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(i.name)}</span>
+         <span style="flex:1;background:#eee;border-radius:4px"><span style="display:block;height:10px;border-radius:4px;background:#CC0000;width:${(i.count / max) * 100}%"></span></span>
+         <b>${i.count}</b></div>`
+    const maxCat = Math.max(1, ...(s.categories || []).map((c) => c.count))
+    const html = `<!doctype html><meta charset="utf-8"><title>Estate report — ${esc(s.glossary)}</title>
+<body style="font:14px/1.5 system-ui,Segoe UI,sans-serif;max-width:900px;margin:2rem auto;padding:0 1rem;color:#222">
+<h1 style="border-bottom:3px solid #CC0000;padding-bottom:.3rem">Estate report — ${esc(s.glossary)}</h1>
+<p>${chips.map(([l, v]) => `<b>${v}</b> ${esc(l)}`).join(' · ')}</p>
+<h2>Terms by category</h2>${(s.categories || []).map((c) => bar(c, maxCat)).join('')}
+<h2>Sensitivity</h2><p>${Object.entries(s.sensitivity || {}).map(([k, v]) => `<b>${esc(k)}</b> ${v}`).join(' · ')}</p>
+<h2>Top tags</h2><p>${(s.tags_top || []).map((t) => `${esc(t.tag)} (${t.count})`).join(' · ')}</p>
+<h2>Handoff contract — Policy Generator</h2>
+<table style="border-collapse:collapse;width:100%">${(rep.contract || []).map((c) =>
+  `<tr style="border-bottom:1px solid #ddd"><td style="padding:4px 8px">${c.ok ? '✅' : '❌'}</td>
+   <td style="padding:4px 8px"><b>${esc(c.label)}</b></td>
+   <td style="padding:4px 8px">${esc(c.detail || '')}</td>
+   <td style="padding:4px 8px;color:#666">${esc(c.at || '')}</td></tr>`).join('')}</table>
+<p style="font-weight:600;color:${rep.ready ? '#2e7d32' : '#c62828'}">${esc(rep.verdict || '')}</p>
+<p style="color:#666">Generated ${new Date().toISOString().slice(0, 19).replace('T', ' ')} · PDC Glossary Generator</p>
+</body>`
+    const slug = (s.glossary || 'estate').toLowerCase().replace(/[^a-z0-9]+/g, '-')
+    downloadBlob(html, `estate-report-${slug}.html`)
+  }
+
+  return (
+    <>
+      <section className="card">
+        <h2>Estate report <span>{s.glossary} — the governance this run produced</span></h2>
+        <p className={`summary ${rep.ready ? 'ok' : 'warn'}`}>
+          {rep.ready ? '✓ ' : '⚠ '}{rep.verdict}
+        </p>
+        <div className="actions">
+          <button className="ghost" onClick={load}>↻ Refresh</button>
+          <button className="primary" onClick={exportHtml}
+                  title="One self-contained HTML file — the per-estate report to commit next to the pack (print it for PDF).">
+            ⬇ Export report (HTML)
+          </button>
+        </div>
+        <p className="summary">
+          {chips.map(([l, v]) => <span key={l} className="badge" style={{ marginRight: '.4rem' }}>{l} <b>{v}</b></span>)}
+        </p>
+
+        <h3 className="subhead">Terms by category</h3>
+        <Bars items={(s.categories || []).map((c) => ({ name: c.name, count: c.count }))} />
+
+        <h3 className="subhead">Sensitivity mix</h3>
+        <Stacked mix={s.sensitivity || {}} />
+        <p className="notes">
+          {Object.entries(s.sensitivity || {}).map(([k, v]) => `${k} ${v}`).join(' · ')}
+          {' '}· confidence: {Object.entries(s.confidence || {}).map(([k, v]) => `${k} ${v}`).join(' · ')}
+        </p>
+
+        <h3 className="subhead">Top tags</h3>
+        <Bars items={(s.tags_top || []).map((t) => ({ name: t.tag, count: t.count }))} />
+      </section>
+
+      <section className="card">
+        <h2>Handoff contract <span>Policy Generator — verified from disk, not ticks</span></h2>
+        <div className="table-scroll">
+          <table>
+            <thead><tr><th></th><th>Artifact</th><th>State</th><th>When</th></tr></thead>
+            <tbody>
+              {(rep.contract || []).map((c) => (
+                <tr key={c.key}>
+                  <td>{c.ok ? '✅' : '❌'}</td>
+                  <td><b>{c.label}</b>{c.stale && <span className="badge warning" style={{ marginLeft: '.35rem' }}>stale</span>}</td>
+                  <td>{c.detail}{c.path && <div className="notes"><code>{c.path}</code></div>}</td>
+                  <td className="notes">{c.at || '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {!rep.ready && (
+          <p className="hint-line">
+            Missing or stale artifacts are minted where they live: <b>Generate JSONL</b> and{' '}
+            <b>Draft policies</b> on the <button className="nav" onClick={() => onNavigate('apply')}>Apply →</button> page,
+            the <b>domain pack</b> on the <button className="nav" onClick={() => onNavigate('dictionary')}>Dictionary →</button> page.
+          </p>
+        )}
+      </section>
+    </>
+  )
+}

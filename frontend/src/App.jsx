@@ -9,6 +9,7 @@ import ReviewPage from './pages/ReviewPage.jsx'
 import GovernPage from './pages/GovernPage.jsx'
 import ApplyPage from './pages/ApplyPage.jsx'
 import DictionaryPage from './pages/DictionaryPage.jsx'
+import ReportPage from './pages/ReportPage.jsx'
 import SettingsPage from './pages/SettingsPage.jsx'
 import { useWorkspace } from './state.js'
 import { apiGet } from './api.js'
@@ -25,6 +26,7 @@ const ICONS = {
   apply: <><path d="M12 17V5m0 0-4.2 4.2M12 5l4.2 4.2" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" fill="none" /><path d="M4.5 19.5h15" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" fill="none" /></>,
   dictionary: <><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" fill="none" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2Z" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" fill="none" /></>,
   settings: <><circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.7" fill="none" /><path d="M12 2v3m0 14v3M2 12h3m14 0h3M4.9 4.9l2.1 2.1m10 10 2.1 2.1M19.1 4.9 17 7m-10 10-2.1 2.1" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" fill="none" /></>,
+  report: <><path d="M5 20V10m7 10V4m7 16v-7" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" fill="none" /><path d="M3.5 20.5h17" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" fill="none" /></>,
 }
 
 function Ico({ id }) {
@@ -48,6 +50,8 @@ const STEPS = [
     tip: 'Set steward, owner, custodian, status and rating — saved with the workspace and baked into the JSONL at generate time.' },
   { id: 'apply', label: 'Apply', hint: 'generate, resolve & write',
     tip: 'Generate the import-ready JSONL (+ Registry), import it in PDC, resolve term ids, then apply the term↔column links with a dry-run first.' },
+  { id: 'report', label: 'Report', hint: 'estate summary & handoff',
+    tip: 'The estate\'s closing report — governance summary with charts, and the Policy-Generator handoff contract verified from the artifacts on disk. Export as a standalone HTML report.' },
 ]
 
 // Child pages rendered indented under a workflow step in the nav. They keep
@@ -69,6 +73,7 @@ const PAGES = {
   govern: GovernPage,
   apply: ApplyPage,
   dictionary: DictionaryPage,
+  report: ReportPage,
   settings: SettingsPage,
 }
 
@@ -82,6 +87,7 @@ const CRUMBS = {
   govern: ['Workflow', 'Govern'],
   apply: ['Workflow', 'Apply'],
   dictionary: ['Workflow', 'Dictionary'],
+  report: ['Workflow', 'Report'],
   settings: ['Configure', 'Settings'],
 }
 
