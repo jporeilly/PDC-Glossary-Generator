@@ -14,6 +14,30 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.37.3] - 2026-08-13
+
+### Fixed - the Files page went blank after a document harvest
+
+Its own black box named the fault in one line — *Uncaught TypeError:
+Cannot read properties of undefined (reading 'toLocaleString')* — from the
+folder chart reading `f.count` on a payload that carried `files`. Three
+faults, one root: the harvest payload did not speak the panel's
+vocabulary.
+
+- `by_folder` now carries `count` (and `by_type` its byte totals), and the
+  panels degrade a missing number to 0 rather than blanking the page.
+- The newest-objects list is `newest`, not `recent` — it had been silently
+  empty rather than loud, which is worse.
+- **Document columns no longer overwrite the database profile.** A harvest
+  now splits by kind: database tables fill the **Schema** view, the columns
+  PDC profiled *inside files* fill the **Files** view beneath the bucket
+  charts, each with its own recomputed summary. Harvesting a document store
+  used to clobber the database one, so only the unstructured profile
+  survived.
+
+Both payload shapes are pinned by tests that assert the exact keys the
+panels read, and that a document harvest leaves the database view alone.
+
 ## [1.37.2] - 2026-08-13
 
 ### Added - you decide how many subjects this business has

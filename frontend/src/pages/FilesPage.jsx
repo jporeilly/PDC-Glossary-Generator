@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { apiGet, apiPost } from './../api.js'
-import { DocsPanel } from './../components/DiscoveryPanels.jsx'
+import { DocsPanel, ProfilePanel } from './../components/DiscoveryPanels.jsx'
 import { setDocsDiscovery, useWorkspace } from './../state.js'
 import './files.css'
 
@@ -223,6 +223,13 @@ export default function FilesPage({ onNavigate }) {
                      })
                      setDocsDiscovery({ ...d, name: conn.name })
                    }} />
+      )}
+      {/* the columns PDC profiled INSIDE those files — they belong here, with
+          the files, not in the database view they used to overwrite */}
+      {ws.docsDiscovery?.columns && (
+        <ProfilePanel profile={{ name: ws.docsDiscovery.name || 'this store',
+                                 data: ws.docsDiscovery.columns }}
+                      onNavigate={onNavigate} />
       )}
     </>
   )

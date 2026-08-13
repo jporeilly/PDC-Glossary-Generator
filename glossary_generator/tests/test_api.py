@@ -902,50 +902,304 @@ class TestHarvestCarriesPdcProfiling:
 
 
 class TestHarvestBuildsDiscoveryViews:
-    def test_harvest_reshapes_into_schema_and_files_views(self, client, monkeypatch):
-        """The Schema page's per-table results and the Files page's charts
-           used to fill only after a DIRECT scan — on a PDC-only path they
-           stayed empty ("would like to see the table results here … same
-           for unstructured"). Harvest now returns the same discovery shape,
-           built from what PDC already gave us."""
-        from sources import pdc_api
+    """The Schema page's per-table results and the Files page's charts used to
+       fill only after a DIRECT scan, so a PDC-only path left them empty. And
+       when both landed in one payload, a document harvest overwrote the
+       database profile ("only getting column profiling for unstructured")."""
 
-        tables = {"customers": [
-            {"table": "customers", "column": "email", "schema": "awc",
-             "type": "text", "pk": False, "fk": False, "notnull": True,
-             "unique": False, "comment": "",
-             "profile": {"rows": 100, "non_null": 98, "distinct": 97,
-                         "completeness": 0.98, "uniq": 0.97, "kind": "email"}},
-            {"table": "customers", "column": "customer_id", "schema": "awc",
-             "type": "int", "pk": True, "fk": False, "notnull": True,
-             "unique": True, "comment": "", "profile": {}},
-        ]}
-        files = [{"rel": "gis/segments.csv", "base": "segments.csv", "folder": "gis",
-                  "ext": "csv", "bytes": 2048, "modified": "2026-05-01"},
-                 {"rel": "compliance/epa.pdf", "base": "epa.pdf", "folder": "compliance",
-                  "ext": "pdf", "bytes": 9000, "modified": "2026-06-01"}]
-        summary = {"tables": 1, "columns": 2, "files": 2, "bucket": "awc-docs",
-                   "already_governed": 0, "governance": {}, "profiled_columns": 1,
-                   "source": "Estate"}
+    def _harvest(self, client, monkeypatch, tables, files, bucket=""):
+        from sources import pdc_api
+        summary = {"tables": len(tables), "columns": sum(len(v) for v in tables.values()),
+                   "files": len(files), "bucket": bucket, "already_governed": 0,
+                   "governance": {}, "profiled_columns": 1, "source": "Estate"}
         monkeypatch.setattr(pdc_api, "harvest_from_catalog",
                             lambda *a, **k: (tables, files, {}, summary))
         monkeypatch.setattr("api._pdc_token_and_reauth", lambda *a, **k: ("tok", None))
+        return client.post("/api/pdc/harvest",
+                           json={"base_url": "https://pdc.example", "token": "t"}).json()
 
-        d = client.post("/api/pdc/harvest",
-                        json={"base_url": "https://pdc.example", "token": "t"}).json()
+    def _col(self, table, name, **kw):
+        base = {"table": table, "column": name, "schema": "awc", "type": "text",
+                "pk": False, "fk": False, "notnull": True, "unique": False,
+                "comment": "", "profile": {}}
+        base.update(kw)
+        return base
 
+    def test_a_database_harvest_fills_the_schema_view(self, client, monkeypatch):
+        tables = {"customers": [
+            self._col("customers", "email",
+                      profile={"rows": 100, "non_null": 98, "distinct": 97,
+                               "completeness": 0.98, "uniq": 0.97, "kind": "email"}),
+            self._col("customers", "customer_id", pk=True),
+        ]}
+        d = self._harvest(client, monkeypatch, tables, [])
         disc = d["discovery"]
-        assert disc["source"] == "harvest" and disc["summary"]["tables"] == 1
-        assert disc["summary"]["columns"] == 2
+        assert disc and disc["source"] == "harvest"
+        assert disc["summary"]["tables"] == 1 and disc["summary"]["columns"] == 2
         assert disc["summary"]["profiled"] == 1, "evidence coverage is reported"
         t0 = disc["tables"][0]
         assert t0["rows"] == 100 and t0["profiled_columns"] == 1
         assert "low_confidence" in t0, "the weak-terms chart needs this per table"
         col = next(c for c in t0["columns"] if c["column"] == "email")
         assert col["completeness"] == 0.98 and col["kind"] == "email"
+        assert d["docs_discovery"] is None
 
+    def test_a_document_harvest_fills_the_files_view_only(self, client, monkeypatch):
+        tables = {"segments.csv": [
+            self._col("segments.csv", "material",
+                      profile={"rows": 120, "completeness": 1.0, "uniq": 0.05,
+                               "enum": ["Cast Iron", "HDPE", "PVC"]}),
+        ]}
+        files = [{"rel": "gis/segments.csv", "base": "segments.csv", "folder": "gis",
+                  "ext": "csv", "bytes": 2048, "modified": "2026-05-01"},
+                 {"rel": "compliance/epa.pdf", "base": "epa.pdf", "folder": "compliance",
+                  "ext": "pdf", "bytes": 9000, "modified": "2026-06-01"}]
+        d = self._harvest(client, monkeypatch, tables, files, bucket="awc-docs")
         docs = d["docs_discovery"]
         assert docs["summary"]["files"] == 2 and docs["summary"]["folders"] == 2
         assert {x["ext"] for x in docs["by_type"]} == {"csv", "pdf"}
         assert docs["largest"][0]["bytes"] == 9000
         assert docs["by_folder"][0]["folder"] == "compliance"
+        # the panel's vocabulary, exactly: `count` per bucket and `newest`,
+        # not `files`/`recent` — that mismatch blanked the Files page
+        assert "count" in docs["by_folder"][0], docs["by_folder"][0]
+        assert "count" in docs["by_type"][0] and "bytes" in docs["by_type"][0]
+        assert "newest" in docs and "recent" not in docs
+        # file columns ride with the charts and stay OUT of the database view,
+        # which they were overwriting
+        assert docs["columns"]["tables"][0]["name"] == "segments.csv"
+        assert d["discovery"] is None, "a document harvest is not a database profile"
+
+
+class TestEstateReport:
+    def test_contract_verifies_from_disk_not_ticks(self, client, fresh_dict):
+        """The closeout is a CONTRACT CHECK: registry parsed and id-matched,
+           receipts consulted, freshness compared — "checks that all the
+           required estate docs are in place ready for Policy Generator"."""
+        rows = [_row("Meter Size", "awc.meters.meter_size",
+                     Critical_Data_Element="No", PII_Category="")]
+        r = client.post("/api/estate-report",
+                        json={"rows": rows, "glossary_name": "Estate X"}).json()
+        assert r["ready"] is False
+        keys = {c["key"]: c for c in r["contract"]}
+        assert not keys["registry"]["ok"], "no registry yet"
+        assert not keys["jsonl"]["ok"], "no generate receipt yet"
+        assert r["stats"]["terms_kept"] == 1
+
+        client.post("/api/generate",
+                    json={"rows": rows, "glossary_name": "Estate X"})
+        r2 = client.post("/api/estate-report",
+                         json={"rows": rows, "glossary_name": "Estate X"}).json()
+        k2 = {c["key"]: c for c in r2["contract"]}
+        assert k2["registry"]["ok"], k2["registry"]
+        assert k2["jsonl"]["ok"], k2["jsonl"]
+        assert "concept" in k2["registry"]["detail"]
+
+    def test_registry_id_mismatch_is_named(self, client, fresh_dict):
+        """A registry from a DIFFERENT glossary must fail the contract with
+           the reason, not pass on file-exists."""
+        rows = [_row("Meter Size", "awc.meters.meter_size",
+                     Critical_Data_Element="No", PII_Category="")]
+        client.post("/api/generate",
+                    json={"rows": rows, "glossary_name": "Estate A"})
+        import os as _os
+        from api import _registry_path
+        _os.replace(_registry_path("Estate A"), _registry_path("Estate B"))
+        r = client.post("/api/estate-report",
+                        json={"rows": rows, "glossary_name": "Estate B"}).json()
+        keys = {c["key"]: c for c in r["contract"]}
+        assert not keys["registry"]["ok"]
+        assert "DIFFERENT glossary" in keys["registry"]["detail"]
+
+
+class TestAdviseJob:
+    def test_job_returns_the_same_payload_as_the_sync_route(self, client):
+        """AI advise ran behind a silent "Advising…" — the job twin narrates
+           evidence → probe → adjudicate and returns the sync payload."""
+        import time
+        rows = [_row("Capacity", "awc.gis.capacity"),
+                _row("Capacity", "awc.ops.capacity")]
+        job = client.post("/api/jobs/recommend-resolutions",
+                          json={"rows": rows}).json()["job"]
+        for _ in range(100):
+            j = client.get(f"/api/jobs/{job}").json()
+            if j["status"] != "running":
+                break
+            time.sleep(0.05)
+        assert j["status"] == "done", j.get("detail")
+        r = j["result"]
+        assert {"groups", "probed", "used_llm", "ambiguous"} <= set(r)
+        assert any(g["name"] == "Capacity" for g in r["groups"])
+
+
+class TestBaseUrlSurvivesPasteDamage:
+    def test_doubled_scheme_is_normalized(self):
+        """"Could not reach https:/https://pentaho.io/...: no host given" —
+           a doubled scheme in the base field parsed as no-host and read as
+           a NETWORK failure (the user went to check the NIC). clean_base
+           exists to absorb paste mistakes; a doubled scheme is the same
+           family: the LAST scheme owns the real host."""
+        from pdc_client.core import clean_base
+        assert clean_base("https:/https://pentaho.io") == "https://pentaho.io"
+        assert clean_base("https://https://pentaho.io") == "https://pentaho.io"
+        assert clean_base("http://https://pentaho.io") == "https://pentaho.io"
+        assert clean_base("https://pentaho.io") == "https://pentaho.io", \
+            "a healthy base must pass through untouched"
+        assert clean_base("https://pentaho.io/keycloak/realms/pdc") == \
+            "https://pentaho.io", "existing path-stripping still works"
+
+
+class TestGlossaryTreeCheckWiring:
+    def test_route_reaches_the_network_not_an_attribute_error(self, client):
+        """glossary_categories lives in pdc_client.entities but was never
+           added to the package's __init__ exports, so the shim re-exported
+           everything EXCEPT it - the first live click died with "module
+           'sources.pdc_api' has no attribute 'glossary_categories'"
+           (field-caught the moment the never-live-verified branch met
+           reality). The route must fail on the NETWORK (bogus host), never
+           on the attribute."""
+        from sources import pdc_api
+        assert hasattr(pdc_api, "glossary_categories"), \
+            "the shim must re-export glossary_categories"
+        r = client.post("/api/pdc/glossary-tree-check", json={
+            "base_url": "https://pdc.invalid.example", "glossary": "G",
+            "categories": ["A"], "token": "x"})
+        assert r.status_code == 502
+        assert "glossary_categories" not in (r.json().get("error") or ""), \
+            "the failure must be the unreachable host, not the wiring"
+
+
+class TestClientLogIsTheBlackBox:
+    def test_client_errors_reach_app_log(self, client):
+        """A field crash left NOTHING to read - no Windows event, no WebView
+           dump, no log. The frontend beacons uncaught errors here and they
+           must land in app.log in the state dir, so the NEXT vanishing
+           window leaves a record."""
+        r = client.post("/api/client-log", json={
+            "kind": "error", "message": "boom at ReviewPage",
+            "stack": "Error: boom\n  at aiCategories", "url": "#review"})
+        assert r.status_code == 200 and r.json().get("ok") is True
+        import logging
+        for h in logging.getLogger("client").handlers:
+            try:
+                h.flush()
+            except Exception:
+                pass
+        log = os.path.join(os.environ["GLOSSARY_STATE_DIR"], "app.log")
+        assert os.path.exists(log), "app.log must exist in the state dir"
+        with open(log, encoding="utf-8") as f:
+            text = f.read()
+        assert "boom at ReviewPage" in text and "#review" in text
+
+
+class TestPendingHealthSeesTheLiveGrid:
+    def test_first_run_unsaved_rows_are_not_fossils(self, client, fresh_dict):
+        """The stale universe was SAVED glossaries only, and the autosave only
+           writes once the glossary is NAMED — so a first run reaching the
+           Dictionary before naming saw its entire fresh queue flagged stale
+           and "Retire stale" offered to tombstone the whole vocabulary
+           (field-caught). The page now POSTS the live rows with the health
+           check; entries they back are evidence-carrying, not fossils."""
+        tagdict = fresh_dict
+        rows = [_row("Fossil Candidate", "zz.fossil_table.fossil_col",
+                     Suggested_Tags="fossil-tag")]
+        tagdict.accrete(rows, persist=True)
+        stale = client.get("/api/tagdict/pending-health").json()
+        assert "Fossil Candidate" in stale["terms"], \
+            "with an empty store and no live rows the entry IS a fossil"
+        stale = client.post("/api/tagdict/pending-health",
+                            json={"rows": rows}).json()
+        assert "Fossil Candidate" not in stale["terms"], \
+            "rows the caller posts are evidence — a first run has no fossils"
+        assert "fossil-tag" not in stale["tags"], \
+            "live rows back tags the same way they back terms"
+
+
+class TestWritesSurviveAVanishedStateDir:
+    def test_write_recreates_the_directory(self, client, fresh_dict):
+        """Delete the state dir under a RUNNING server (the fresh-install wipe
+           done after launch) and every write endpoint 500'd with
+           FileNotFoundError while reads kept working - import connections and
+           Harvest both died on virgin soil (field-caught). Writers now
+           recreate the directory: state loss is acceptable on a deliberate
+           wipe, a dead server is not."""
+        import os, shutil
+        from core import paths
+        csv = ("resourceName,kind,host,port,databaseName,userName,password,schemaNames\n"
+               "AWO,postgres,h,5433,db,u,p,s\n")
+        r = client.post("/api/connections/import-csv", json={"csv": csv, "only": ["AWO"]})
+        assert r.status_code == 200
+        shutil.rmtree(paths.state_dir())                      # the mid-life wipe
+        assert not os.path.isdir(paths.state_dir())
+        r2 = client.post("/api/connections/import-csv", json={"csv": csv, "only": ["AWO"]})
+        assert r2.status_code == 200, "writes must self-heal, not 500"
+        assert os.path.isdir(paths.state_dir())
+
+
+class TestFactoryReset:
+    def test_wipes_state_and_requires_confirm(self, client, fresh_dict):
+        """The installer's delete-app-data failed to wipe on an upgrade and
+           two estates conflated — the app owns its own zero. Guarded by an
+           explicit confirm; app.log is kept (the black box outlives the
+           wipe)."""
+        import os as _os
+        tagdict = fresh_dict
+        tagdict.accrete([_row("Meter Size", "awc.meters.meter_size")],
+                        persist=True)
+        assert _os.path.exists(_os.environ["GLOSSARY_TAG_DICTIONARY"])
+        r = client.post("/api/factory-reset", json={})
+        assert r.status_code == 400, "no confirm, no wipe"
+        r2 = client.post("/api/factory-reset", json={"confirm": "RESET"}).json()
+        assert "tag_dictionary.json" in r2["deleted"]
+        assert not _os.path.exists(_os.environ["GLOSSARY_TAG_DICTIONARY"])
+        d = client.get("/api/tagdict").json()
+        assert all(t.get("status") != "pending" for t in d.get("terms", [])), \
+            "the running process forgets too — reseeded defaults, no pending"
+
+
+class TestHarvestCarriesPdcProfiling:
+    def test_pdc_profiling_maps_onto_the_profile_dict(self):
+        """PDC ran the profiling — its Data Identification and Trust Score
+           work from it — but harvest never asked, so harvested grids had no
+           value evidence and could mint no dictionaries or Data Patterns
+           ("all the data should be there — after all that's what PDC
+           uses"). The mapper turns PDC's payload into the same profile
+           shape a direct value scan produces."""
+        from pdc_client.entities import _profile_from_pdc
+        p = _profile_from_pdc({"stats": {"rowCount": 100, "nullCount": 5,
+                                         "distinctCount": 3},
+                               "sampling": [{"value": "Paid"}, {"value": "Unpaid"},
+                                            {"value": "Overdue"}]})
+        assert p["enum"] == ["Overdue", "Paid", "Unpaid"], p
+        assert p["completeness"] == 0.95 and p["uniq"] == 0.03
+        # near-unique values never become a reference list
+        q = _profile_from_pdc({"stats": {"rowCount": 50, "distinctCount": 50},
+                               "sampling": [{"value": f"ID{i}"} for i in range(20)],
+                               "patterns": [{"regex": "^AWC-[0-9]{6}$"}]})
+        assert "enum" not in q and q["pattern"] == "^AWC-[0-9]{6}$"
+        assert _profile_from_pdc({}) == {}
+
+    def test_the_shapes_a_live_probe_showed(self):
+        """Probing a real estate showed PDC nests values under
+           sampling{sample, totalSamples, discardedSamples} — and returns
+           `sample` for low-cardinality columns while high-cardinality ones
+           carry only the counters. Values may also arrive as {value, count}
+           objects, and `patterns` sometimes holds prose rather than an
+           expression."""
+        from pdc_client.entities import _profile_from_pdc as f
+        city = f({"stats": {"rowCount": 100, "nullCount": 2, "distinctCount": 4},
+                  "sampling": {"sample": ["Phoenix", "Tucson", "Mesa", "Sedona"],
+                               "totalSamples": 100, "discardedSamples": 0}})
+        assert city["enum"] == ["Mesa", "Phoenix", "Sedona", "Tucson"]
+        assert city["completeness"] == 0.98
+        ids = f({"stats": {"rowCount": 500, "distinctCount": 500},
+                 "sampling": {"totalSamples": 500, "discardedSamples": 480}})
+        assert "enum" not in ids, "a discarded-sample column is not a dictionary"
+        objs = f({"sampling": {"sample": [{"value": "Paid", "count": 9},
+                                          {"value": "Unpaid", "count": 3}]}})
+        assert objs["enum"] == ["Paid", "Unpaid"]
+        prose = f({"stats": {"rowCount": 10},
+                   "patterns": [{"pattern": "99.9% numeric"}]})
+        assert "pattern" not in prose, "a human summary is not a regex"
+
+

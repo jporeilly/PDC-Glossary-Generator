@@ -133,7 +133,7 @@ export function ProfilePanel({ profile, onNavigate }) {
             <b>{t.name}</b>
             {t.empty && <span className="badge warning">EMPTY — needs data</span>}
             <span className="rc">
-              {(t.rows || 0).toLocaleString()} rows · {t.columns.length} cols{t.bytes ? ` · ${fmtBytes(t.bytes)}` : ''}
+              {(t.rows || 0).toLocaleString()} rows · {(t.columns || []).length} cols{t.bytes ? ` · ${fmtBytes(t.bytes)}` : ''}
             </span>
           </summary>
           <div className="table-scroll">
@@ -223,7 +223,7 @@ export function DocsPanel({ docs, onRefilter }) {
               <div className={`type-bar ${ftypeClass(t.ext)}`} key={t.ext}>
                 <span><code>{t.ext}</code></span>
                 <span className="tb-track"><span className="tb-fill" style={{ width: pct(t.count / maxCount), display: 'block' }} /></span>
-                <span className="tb-num"><b>{t.count.toLocaleString()}</b> · {fmtBytes(t.bytes)}</span>
+                <span className="tb-num"><b>{(t.count || 0).toLocaleString()}</b> · {fmtBytes(t.bytes)}</span>
               </div>
             ))}
             {(d.by_type || []).length === 0 && <p className="hint-line">none</p>}
@@ -235,7 +235,7 @@ export function DocsPanel({ docs, onRefilter }) {
             {(d.by_folder || []).map((f) => (
               <div className="folder-row" key={f.name}>
                 <span className="fr-name" title={f.name}>{f.name}</span>
-                <span className="fr-count">{f.count.toLocaleString()}</span>
+                <span className="fr-count">{(f.count ?? f.files ?? 0).toLocaleString()}</span>
                 <span className="fr-track"><span className="fr-fill" style={{ width: pct(f.bytes / maxFolder), display: 'block' }} /></span>
                 <span className="fr-size">{fmtBytes(f.bytes)}</span>
               </div>

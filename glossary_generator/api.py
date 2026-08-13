@@ -3479,7 +3479,7 @@ def pdc_harvest(body: dict = Body(default={})):
     # charts work on a harvest ("would like to see the table results here…
     # all the ingest and profiling results"). Nothing extra is fetched; this
     # is the harvest reshaped.
-    discovery = docs_discovery = None
+    discovery = docs_discovery = doc_columns = None
     if tables:
         by_col = {}
         for r in rows:
@@ -3549,8 +3549,58 @@ def pdc_harvest(body: dict = Body(default={})):
         dsum["largest_tables"] = sorted(
             [{"name": x["name"], "rows": x["rows"], "bytes": 0} for x in dtabs],
             key=lambda x: x["rows"], reverse=True)[:5]
-        discovery = {"schema": summary.get("source") or "PDC", "tables": dtabs,
-                     "summary": dsum, "source": "harvest"}
+        # Split by KIND: a document store's "tables" are files, and their
+        # column profile belongs on the Files page beside the charts — not in
+        # the database view (field: "only getting column profiling for
+        # unstructured", because the document harvest also overwrote it).
+        doc_tabs = [x for x in dtabs if suggester._FILE_EXT.search(x["name"] or "")]
+        db_tabs = [x for x in dtabs if x not in doc_tabs]
+
+        def _sum_for(sel):
+            s = {k: (0 if isinstance(v, int) else v) for k, v in dsum.items()}
+            s["sensitivity"] = {"HIGH": 0, "MEDIUM": 0, "LOW": 0}
+            s["confidence"] = {"High": 0, "Medium": 0, "Low": 0}
+            comp, n = 0.0, 0
+            for x in sel:
+                s["tables"] += 1
+                s["rows"] += x["rows"]
+                if x["rows"] == 0:
+                    s["empty"] += 1
+                for c in x["columns"]:
+                    s["columns"] += 1
+                    if c.get("profiled"):
+                        s["profiled"] += 1
+                    if c.get("pii"):
+                        s["pii"] += 1
+                    if str(c.get("cde", "")).lower() == "yes":
+                        s["cde"] += 1
+                    if c.get("pk"):
+                        s["pk_cols"] += 1
+                    if c.get("fk"):
+                        s["fk_cols"] += 1
+                    sv = c.get("sensitivity") or "LOW"
+                    if c.get("pii") or sv != "LOW":
+                        s["classified"] += 1
+                    if sv in s["sensitivity"]:
+                        s["sensitivity"][sv] += 1
+                    cf = c.get("confidence") or ""
+                    if cf in s["confidence"]:
+                        s["confidence"][cf] += 1
+                    if c.get("completeness") is not None:
+                        comp += float(c["completeness"]); n += 1
+            s["avg_completeness"] = round(comp / n, 3) if n else 0
+            s["largest_tables"] = sorted(
+                [{"name": x["name"], "rows": x["rows"], "bytes": 0} for x in sel],
+                key=lambda x: x["rows"], reverse=True)[:5]
+            return s
+
+        src_name = summary.get("source") or "PDC"
+        if db_tabs:
+            discovery = {"schema": src_name, "tables": db_tabs,
+                         "summary": _sum_for(db_tabs), "source": "harvest"}
+        if doc_tabs:
+            doc_columns = {"schema": src_name, "tables": doc_tabs,
+                           "summary": _sum_for(doc_tabs), "source": "harvest"}
 
     if files:
         from collections import Counter as _C
@@ -3559,7 +3609,9 @@ def pdc_harvest(body: dict = Body(default={})):
             ext = (f.get("ext") or "").lower() or "(none)"
             by_type[ext] += 1
             fol = f.get("folder") or "(root)"
-            b = by_folder.setdefault(fol, {"folder": fol, "files": 0, "bytes": 0})
+            b = by_folder.setdefault(fol, {"folder": fol, "count": 0,
+                                           "files": 0, "bytes": 0})
+            b["count"] += 1          # the panel reads `count`
             b["files"] += 1
             b["bytes"] += int(f.get("bytes") or 0)
         tot_b = sum(int(f.get("bytes") or 0) for f in files)
@@ -3568,17 +3620,28 @@ def pdc_harvest(body: dict = Body(default={})):
             "summary": {"files": len(files), "bytes": tot_b,
                         "types": len(by_type), "folders": len(by_folder),
                         "avg_bytes": int(tot_b / len(files)) if files else 0},
-            "by_type": [{"ext": e, "count": n} for e, n in by_type.most_common()],
+            "by_type": [{"ext": e, "count": n,
+                         "bytes": sum(int(f.get("bytes") or 0) for f in files
+                                      if ((f.get("ext") or "").lower() or "(none)") == e)}
+                        for e, n in by_type.most_common()],
             "by_folder": sorted(by_folder.values(), key=lambda x: -x["bytes"]),
             "largest": sorted(({"key": f.get("rel") or f.get("base"),
                                 "bytes": int(f.get("bytes") or 0)} for f in files),
                               key=lambda x: -x["bytes"])[:10],
-            "recent": [{"key": f.get("rel") or f.get("base"),
+            "newest": [{"key": f.get("rel") or f.get("base"),
                         "modified": str(f.get("modified") or "")}
                        for f in sorted(files, key=lambda f: str(f.get("modified") or ""),
                                        reverse=True)[:10]],
+            "include": "", "exclude": "",
             "source": "harvest",
         }
+    if doc_columns:
+        # the file columns PDC profiled, carried with the bucket charts
+        docs_discovery = dict(docs_discovery or {"bucket": "", "prefix": "",
+                                                 "summary": {}, "by_type": [],
+                                                 "by_folder": [], "largest": [],
+                                                 "recent": [], "source": "harvest"})
+        docs_discovery["columns"] = doc_columns
     # Harvested rows grow the governed vocabulary exactly like direct scans do —
     # a harvest-only workflow (and dictionary recovery after a reseed) needs no
     # direct DB/S3 access to repopulate the pending queue.
