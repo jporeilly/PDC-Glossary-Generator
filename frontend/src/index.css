@@ -324,13 +324,19 @@ button.version-pill:hover { background: var(--gridline); }
    grey suffix as an h2 + its <span>. Before this the new disclosures carried
    .summary as well and fought two rules at once (field: "standardize the font
    size and font for the expandable panels"). */
-details.card > summary {
+/* ONE type ramp for every expandable panel, wherever it sits — a nested
+   "Under the hood" aside and a top-level collapsible card are the same
+   control and now read the same size and weight; only colour marks the
+   aside as subordinate ("check all expandable panels have same font size
+   and standardize"). */
+details.card > summary,
+.uth > summary {
   cursor: pointer;
   font-weight: 650;
   font-size: 1rem;
-  color: var(--text-primary);
   letter-spacing: -0.01em;
 }
+details.card > summary { color: var(--text-primary); }
 details.card > summary b { font-weight: 650; }
 details.card > summary .notes,
 details.card > summary span {
@@ -399,10 +405,7 @@ button.mini { padding: .18rem .6rem; font-size: .78rem; }
   background: var(--surface-2);
 }
 .uth > summary {
-  cursor: pointer;
   padding: .55rem .8rem;
-  font-size: .84rem;
-  font-weight: 600;
   color: var(--text-secondary);
   list-style-position: inside;
 }

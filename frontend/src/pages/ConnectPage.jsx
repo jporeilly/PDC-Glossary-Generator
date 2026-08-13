@@ -1015,6 +1015,11 @@ function HarvestCard({ pdc, onConnectionsChanged, onNavigate, glossaryName }) {
       ...pdcAuthBody(pdc), data_source_id: s.fqdn || s.id, data_source_name: s.name || s.id,
     })
     if (d.pdc_summary) collectCards.push(d.pdc_summary)
+    // a harvest fills the discovery views too — the Schema page's per-table
+    // results and the Files page's charts work on the PDC-only path, not just
+    // after a direct scan
+    if (d.discovery) setDiscovery(d.discovery)
+    if (d.docs_discovery) setDocsDiscovery({ ...d.docs_discovery, name: s.name || s.id })
     const { added, dup } = mergeIntoWorkspace(d.rows || [])
     const gov = d.scanned?.already_governed || 0
     note(k, 'good', `✓ added ${added} term(s)${dup ? ` · ${dup} merged into existing` : ''}${gov ? ` · ${gov} already governed in PDC` : ''}`)

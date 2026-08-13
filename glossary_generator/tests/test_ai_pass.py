@@ -653,3 +653,42 @@ class TestCategoriesPromptDemandsConsolidation:
         p = seen.get("prompt") or ""
         assert "between 3 and 8" in p, \
             "a 20+-table estate must still cap at 8 subjects"
+
+
+class TestCategoryTargetIsTheStewardsCall:
+    def _capture(self, monkeypatch):
+        seen = {}
+
+        def capture(prompt, model=None, num_gpu=None, timeout=None, options=None):
+            seen["prompt"] = prompt
+            return {"categories": []}
+
+        monkeypatch.setattr(llm, "_complete_json", capture)
+        monkeypatch.setattr(llm, "status", lambda m=None: {"online": True})
+        monkeypatch.setattr(llm, "_warm", lambda m=None: None)
+        return seen
+
+    def test_a_target_reaches_the_model_as_an_aim(self, monkeypatch):
+        """The prompt biases low on purpose (it was fixing 11 renamed groups)
+           and overshot to 3 where 5 read better. How many subjects a business
+           has is the steward's judgement, so a target leads — as an aim, not
+           a cap."""
+        seen = self._capture(monkeypatch)
+        rows = [make_row("A", "s.t1.a"), make_row("B", "s.t2.b")]
+        llm.propose_categories(rows, target=5)
+        p = seen["prompt"]
+        assert "aiming for about 5" in p
+        assert "not a hard limit" in p, "a target must not read as a ceiling"
+
+    def test_no_target_leaves_the_prompt_as_it_was(self, monkeypatch):
+        seen = self._capture(monkeypatch)
+        rows = [make_row("A", "s.t1.a"), make_row("B", "s.t2.b")]
+        llm.propose_categories(rows)
+        assert "aiming for about" not in seen["prompt"]
+
+    def test_a_target_lifts_the_ceiling_it_would_otherwise_hit(self, monkeypatch):
+        """A target of 9 on a small estate must not be silently capped at 6."""
+        seen = self._capture(monkeypatch)
+        rows = [make_row("A", "s.t1.a"), make_row("B", "s.t2.b")]
+        llm.propose_categories(rows, target=9)
+        assert "between 3 and 10" in seen["prompt"], seen["prompt"][:400]

@@ -1342,7 +1342,11 @@ def ai_categories(body: dict = Body(default={})):
     # sent the steward model-shopping when the fix was a longer budget
     before = llm.call_failures().get("timeout", 0)
     proposal, assignments, used = llm.propose_categories(
-        rows, model=body.get("model"), compute=body.get("compute"))
+        rows, model=body.get("model"), compute=body.get("compute"),
+        # the steward's own target for how many subjects this business has —
+        # the model biases low by design, and the right number is a judgement
+        # about the estate, not something it can infer alone
+        target=body.get("target"))
     timed_out = llm.call_failures().get("timeout", 0) - before
     return {"categories": proposal, "assignments": assignments, "used_llm": used,
             "timed_out": max(timed_out, 0)}
@@ -3469,6 +3473,112 @@ def pdc_harvest(body: dict = Body(default={})):
         parts.append(f"{summary['files']} file(s)")
     sig = (f"Harvested {' + '.join(parts)} from PDC "
            f"· {governed} already governed in PDC")
+
+    # Build the SAME discovery payload a direct scan produces, from what PDC
+    # returned — so the Schema page's per-table panels and the Files page's
+    # charts work on a harvest ("would like to see the table results here…
+    # all the ingest and profiling results"). Nothing extra is fetched; this
+    # is the harvest reshaped.
+    discovery = docs_discovery = None
+    if tables:
+        by_col = {}
+        for r in rows:
+            sc = str(r.get("Source_Column") or "").split(";")[0].strip()
+            seg = sc.split(".")
+            if len(seg) >= 2:
+                by_col[(seg[-2].lower(), seg[-1].lower())] = r
+        dsum = {"tables": 0, "columns": 0, "rows": 0, "pii": 0, "cde": 0,
+                "pk_cols": 0, "fk_cols": 0, "classified": 0, "empty": 0,
+                "sensitivity": {"HIGH": 0, "MEDIUM": 0, "LOW": 0},
+                "confidence": {"High": 0, "Medium": 0, "Low": 0},
+                "profiled": 0, "db_bytes": 0}
+        dtabs, comp_sum, comp_n = [], 0.0, 0
+        for tname, cols in tables.items():
+            colout, trows = [], 0
+            for c in cols:
+                prof = c.get("profile") or {}
+                sr = by_col.get((tname.lower(), str(c.get("column") or "").lower()), {})
+                sens = sr.get("Sensitivity", "LOW")
+                pii = sr.get("PII_Category", "")
+                cde = sr.get("Critical_Data_Element", "No")
+                conf = sr.get("Confidence", "")
+                trows = max(trows, int(prof.get("rows") or 0))
+                colout.append({
+                    "column": c.get("column", ""), "type": c.get("type", ""),
+                    "pk": bool(c.get("pk")), "fk": bool(c.get("fk")),
+                    "non_null": prof.get("non_null"), "distinct": prof.get("distinct"),
+                    "completeness": prof.get("completeness"),
+                    "uniqueness": prof.get("uniq"),
+                    "sensitivity": sens, "pii": pii, "cde": cde,
+                    "kind": prof.get("kind", ""),
+                    "examples": (prof.get("enum") or [])[:3],
+                    "term": sr.get("Term", ""), "confidence": conf,
+                    "profiled": bool(prof),
+                })
+                dsum["columns"] += 1
+                if prof:
+                    dsum["profiled"] += 1
+                if pii:
+                    dsum["pii"] += 1
+                if str(cde).lower() == "yes":
+                    dsum["cde"] += 1
+                if c.get("pk"):
+                    dsum["pk_cols"] += 1
+                if c.get("fk"):
+                    dsum["fk_cols"] += 1
+                if pii or sens != "LOW":
+                    dsum["classified"] += 1
+                if sens in dsum["sensitivity"]:
+                    dsum["sensitivity"][sens] += 1
+                if conf in dsum["confidence"]:
+                    dsum["confidence"][conf] += 1
+                if prof.get("completeness") is not None:
+                    comp_sum += float(prof["completeness"]); comp_n += 1
+            dtabs.append({"name": tname, "rows": trows, "bytes": 0,
+                          "empty": trows == 0, "columns": colout,
+                          # what the steward scans for: how much of this table
+                          # arrived with evidence, and how weak its terms are
+                          "profiled_columns": sum(1 for c in colout if c["profiled"]),
+                          "low_confidence": sum(1 for c in colout
+                                                if str(c["confidence"]).lower() == "low")})
+            dsum["tables"] += 1
+            dsum["rows"] += trows
+            if trows == 0:
+                dsum["empty"] += 1
+        dsum["avg_completeness"] = round(comp_sum / comp_n, 3) if comp_n else 0
+        dsum["largest_tables"] = sorted(
+            [{"name": x["name"], "rows": x["rows"], "bytes": 0} for x in dtabs],
+            key=lambda x: x["rows"], reverse=True)[:5]
+        discovery = {"schema": summary.get("source") or "PDC", "tables": dtabs,
+                     "summary": dsum, "source": "harvest"}
+
+    if files:
+        from collections import Counter as _C
+        by_type, by_folder = _C(), {}
+        for f in files:
+            ext = (f.get("ext") or "").lower() or "(none)"
+            by_type[ext] += 1
+            fol = f.get("folder") or "(root)"
+            b = by_folder.setdefault(fol, {"folder": fol, "files": 0, "bytes": 0})
+            b["files"] += 1
+            b["bytes"] += int(f.get("bytes") or 0)
+        tot_b = sum(int(f.get("bytes") or 0) for f in files)
+        docs_discovery = {
+            "bucket": summary.get("bucket") or "", "prefix": "",
+            "summary": {"files": len(files), "bytes": tot_b,
+                        "types": len(by_type), "folders": len(by_folder),
+                        "avg_bytes": int(tot_b / len(files)) if files else 0},
+            "by_type": [{"ext": e, "count": n} for e, n in by_type.most_common()],
+            "by_folder": sorted(by_folder.values(), key=lambda x: -x["bytes"]),
+            "largest": sorted(({"key": f.get("rel") or f.get("base"),
+                                "bytes": int(f.get("bytes") or 0)} for f in files),
+                              key=lambda x: -x["bytes"])[:10],
+            "recent": [{"key": f.get("rel") or f.get("base"),
+                        "modified": str(f.get("modified") or "")}
+                       for f in sorted(files, key=lambda f: str(f.get("modified") or ""),
+                                       reverse=True)[:10]],
+            "source": "harvest",
+        }
     # Harvested rows grow the governed vocabulary exactly like direct scans do —
     # a harvest-only workflow (and dictionary recovery after a reseed) needs no
     # direct DB/S3 access to repopulate the pending queue.
@@ -3483,6 +3593,9 @@ def pdc_harvest(body: dict = Body(default={})):
                    **(summary.get("governance") or {})}
     return {"rows": rows, "stats": _stats(rows), "scanned": scn,
             "pdc_summary": pdc_summary,
+            # the harvest reshaped as a discovery profile, so the Schema and
+            # Files pages show per-table results and charts on a PDC-only path
+            "discovery": discovery, "docs_discovery": docs_discovery,
             "ownership": {"signals": [sig]},
             "check": suggester.scan_check(rows, scn)}
 

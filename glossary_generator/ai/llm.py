@@ -1039,7 +1039,8 @@ def schema_evidence(rows):
     return tables
 
 
-def propose_categories(rows, model=None, compute=None, max_categories=9):
+def propose_categories(rows, model=None, compute=None, max_categories=9,
+                       target=None):
     """ONE call: propose business categories from the schema's own structure.
 
     The steward should not have to invent a taxonomy, and the model should not
@@ -1106,11 +1107,27 @@ def propose_categories(rows, model=None, compute=None, max_categories=9):
     # Adaptive ceiling, biased low: categories are business SUBJECTS, and
     # even a large estate rarely has more than a handful of those.
     hi = 8 if len(tables) >= 20 else max(3, min(int(max_categories), 6))
+    # The RIGHT number is a judgement about this business, not something the
+    # model can infer alone: the bias that stopped 11 renamed groups also
+    # produced 3 where 5 read better (field). A steward's target leads.
+    try:
+        target = int(target) if target else None
+    except (TypeError, ValueError):
+        target = None
+    if target:
+        target = max(2, min(target, 12))
+        hi = max(hi, target + 1)
     n_cats = hi
+    aim = ""
+    if target:
+        aim = ("The steward is aiming for about %d categories - treat that as "
+               "the target, not a hard limit: land within one either side "
+               "unless the estate genuinely argues otherwise." % target) + chr(10)
     prompt = (
         "You are grouping a %sdata estate into business-glossary categories.\n"
         "Physical tables, their columns, and their foreign-key references:\n\n"
         "%s\n\n"
+        "%s"
         "%s"
         "Take a HOLISTIC view: a category is a broad business SUBJECT (the\n"
         "handful of things this business runs on - e.g. its customers, its\n"
@@ -1129,7 +1146,7 @@ def propose_categories(rows, model=None, compute=None, max_categories=9):
         "business - almost never a single table's name.\n\n"
         'Return JSON: {"categories": [{"name": "1-3 words",\n'
         '  "definition": "one sentence", "tables": ["..."]}]}'
-    ) % ((COMPANY + " ") if COMPANY else "", "\n".join(lines_), cluster_hint, n_cats)
+    ) % ((COMPANY + " ") if COMPANY else "", "\n".join(lines_), cluster_hint, aim, n_cats)
     num_gpu = 0 if compute == "cpu" else (99 if compute == "gpu" else None)
     try:
         _warm(model)

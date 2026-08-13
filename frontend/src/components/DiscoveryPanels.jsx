@@ -45,10 +45,12 @@ const SENS_CLS = { HIGH: 'sens-hi', MEDIUM: 'sens-md', LOW: 'sens-lo' }
 export function ProfilePanel({ profile, onNavigate }) {
   const d = profile.data
   const s = d.summary || {}
+  const harvested = d.source === 'harvest'
   const tiles = [
     ['Tables', s.tables], ['Columns', s.columns],
     ['Total rows', (s.rows || 0).toLocaleString()],
-    ['Database size', fmtBytes(s.db_bytes || 0)],
+    ...(harvested ? [] : [['Database size', fmtBytes(s.db_bytes || 0)]]),
+    ...(s.profiled != null ? [['With evidence', `${s.profiled}/${s.columns || 0}`]] : []),
     ['PII columns', s.pii], ['CDE columns', s.cde],
     ['Classified', s.classified != null ? s.classified : '—'],
     ['Avg complete', s.avg_completeness != null ? pct(s.avg_completeness) : '—'],
@@ -56,6 +58,17 @@ export function ProfilePanel({ profile, onNavigate }) {
     ['Empty tables', s.empty],
   ]
   const sev = s.sensitivity || {}
+  const conf = s.confidence || {}
+  // Which tables need the steward's eye: weak terms, and how much of the
+  // table arrived with profiling evidence behind it.
+  const weak = (d.tables || [])
+    .map((t2) => ({ name: t2.name,
+                    low: t2.low_confidence || 0,
+                    cols: (t2.columns || []).length,
+                    profiled: t2.profiled_columns }))
+    .filter((x) => x.low > 0)
+    .sort((a, b) => b.low - a.low)
+    .slice(0, 8)
   return (
     <section className="card">
       <header>
@@ -66,6 +79,36 @@ export function ProfilePanel({ profile, onNavigate }) {
         Per-column data profile — completeness, cardinality, detected type, sensitivity, PII and
         CDE — to compare against PDC's profiling. Captured with the glossary when you save it.
       </p>
+      {(conf.High || conf.Medium || conf.Low || s.profiled != null) && (
+        <div className="disc-grid" style={{ marginBottom: '.6rem' }}>
+          <div className="disc-box">
+            <div className="disc-head"><h3>Term confidence</h3>
+              <span className="disc-count">{(conf.High || 0) + (conf.Medium || 0) + (conf.Low || 0)}</span></div>
+            {['High', 'Medium', 'Low'].map((k) => {
+              const tot = Math.max(1, (conf.High || 0) + (conf.Medium || 0) + (conf.Low || 0))
+              return (
+                <div key={k} className="disc-row">
+                  <span className="disc-lbl">{k}</span>
+                  <MiniBar frac={(conf[k] || 0) / tot} />
+                  <span className="disc-val">{conf[k] || 0}</span>
+                </div>
+              )
+            })}
+          </div>
+          <div className="disc-box">
+            <div className="disc-head"><h3>Tables with low-confidence terms</h3>
+              <span className="disc-count">{weak.length}</span></div>
+            {weak.map((w) => (
+              <div key={w.name} className="disc-row">
+                <span className="disc-lbl" title={w.name}>{w.name}</span>
+                <MiniBar frac={w.cols ? w.low / w.cols : 0} />
+                <span className="disc-val">{w.low}/{w.cols}</span>
+              </div>
+            ))}
+            {weak.length === 0 && <p className="hint-line">none — every term carries medium or better</p>}
+          </div>
+        </div>
+      )}
       <div className="tiles">
         {tiles.map(([l, v]) => (
           <div className="tile" key={l}><div className="value">{String(v ?? '—')}</div><div className="label">{l}</div></div>

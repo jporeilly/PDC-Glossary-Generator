@@ -14,6 +14,50 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.37.2] - 2026-08-13
+
+### Added - you decide how many subjects this business has
+
+The schema call biases low on purpose — it was fixing 11 physical groups
+wearing new names — and on a harvested estate it overshot to 3, folding
+rate and tariff terms inside Customer Management. How many subjects a
+business has is a judgement about that business, so the strip now carries
+an **aim for N** control beside `1 - AI categories`. Blank keeps today's
+behaviour; a number reaches the model as a target, not a cap ("land within
+one either side unless the estate genuinely argues otherwise"), and lifts
+the ceiling it would otherwise hit.
+
+### Added - the consolidation stays on screen
+
+The 13 -> 3 delta was only ever stated in the completion line, which the
+next message replaced. It now rides the **Categories** chip
+(`Categories 13 → 3`, green when it shrinks) and the keystone button
+(`2 · Approve categories (13 → 3)`), derived live from the pending pills —
+so the number you are about to approve can never be mistaken for the
+number the run proposed.
+
+### Added - harvest fills the Schema and Files views
+
+Those pages showed results only after a DIRECT scan, so on the PDC-only
+path they stayed empty. Harvest now returns the same discovery shape, built
+from what the catalog already gave us: **Schema** gets per-table results
+(columns, completeness, uniqueness, PII/CDE, keys, and how much of each
+table arrived with evidence) and **Files** gets its charts (by type, by
+folder, largest, most recent). Two new charts read the estate at a glance:
+**term confidence** and **tables carrying low-confidence terms**, ranked.
+
+### Changed - filter by category first, then search inside it
+
+The free-text box came first, which invited a guess against the whole grid
+(a filter for "rate/tariff" matched nothing). The category picker now leads
+and the text box reads "Then filter within it".
+
+### Changed - one type ramp for every expandable panel
+
+Nested "Under the hood" asides and top-level collapsible cards are the same
+control and now read at the same size and weight; only colour marks the
+aside as subordinate.
+
 ## [1.37.1] - 2026-08-13
 
 ### Fixed - harvest asks for profiling the way that actually works

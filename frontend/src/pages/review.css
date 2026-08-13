@@ -332,3 +332,21 @@ button.rv-aipill:hover { background: color-mix(in srgb, var(--accent) 16%, trans
 /* .rv-thinking (the three-dot busy indicator) moved to index.css when Govern's
    expertise generation adopted it — it is the app-wide "AI working" idiom now,
    not a Review-page detail. */
+
+/* The consolidation, stated where the count lives: "Categories 13 → 5". The
+   completion message said it once and was then replaced; this survives until
+   the pills are accepted or dismissed (field-caught). */
+.rv-catdrop { color: var(--status-good, #2e7d32); }
+.rv-catrise { color: var(--status-critical, #c62828); }
+
+/* "aim for N" — the steward's target category count, beside the button that
+   uses it. Blank means the model decides (its bias is low by design). */
+.rv-cattarget {
+  display: inline-flex; align-items: center; gap: .3rem;
+  font-size: .78rem; color: var(--text-muted);
+}
+.rv-cattarget input {
+  width: 3.4rem; padding: .2rem .3rem; font-size: .8rem;
+  background: var(--surface-1); border: none; border-radius: 6px;
+  color: var(--text-primary);
+}

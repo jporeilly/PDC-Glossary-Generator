@@ -545,7 +545,7 @@ class TestAiCategoriesProposesFromSchema:
     def test_endpoint_returns_proposal_and_aligned_assignments(self, client, monkeypatch):
         from ai import llm as _llm
 
-        def fake(rows, model=None, compute=None):
+        def fake(rows, model=None, compute=None, target=None):
             return ([{"name": "Customer", "definition": "d", "tables": ["customers"]}],
                     ["Customer", None], True)
 
@@ -899,3 +899,53 @@ class TestHarvestCarriesPdcProfiling:
         prose = f({"stats": {"rowCount": 10},
                    "patterns": [{"pattern": "99.9% numeric"}]})
         assert "pattern" not in prose, "a human summary is not a regex"
+
+
+class TestHarvestBuildsDiscoveryViews:
+    def test_harvest_reshapes_into_schema_and_files_views(self, client, monkeypatch):
+        """The Schema page's per-table results and the Files page's charts
+           used to fill only after a DIRECT scan — on a PDC-only path they
+           stayed empty ("would like to see the table results here … same
+           for unstructured"). Harvest now returns the same discovery shape,
+           built from what PDC already gave us."""
+        from sources import pdc_api
+
+        tables = {"customers": [
+            {"table": "customers", "column": "email", "schema": "awc",
+             "type": "text", "pk": False, "fk": False, "notnull": True,
+             "unique": False, "comment": "",
+             "profile": {"rows": 100, "non_null": 98, "distinct": 97,
+                         "completeness": 0.98, "uniq": 0.97, "kind": "email"}},
+            {"table": "customers", "column": "customer_id", "schema": "awc",
+             "type": "int", "pk": True, "fk": False, "notnull": True,
+             "unique": True, "comment": "", "profile": {}},
+        ]}
+        files = [{"rel": "gis/segments.csv", "base": "segments.csv", "folder": "gis",
+                  "ext": "csv", "bytes": 2048, "modified": "2026-05-01"},
+                 {"rel": "compliance/epa.pdf", "base": "epa.pdf", "folder": "compliance",
+                  "ext": "pdf", "bytes": 9000, "modified": "2026-06-01"}]
+        summary = {"tables": 1, "columns": 2, "files": 2, "bucket": "awc-docs",
+                   "already_governed": 0, "governance": {}, "profiled_columns": 1,
+                   "source": "Estate"}
+        monkeypatch.setattr(pdc_api, "harvest_from_catalog",
+                            lambda *a, **k: (tables, files, {}, summary))
+        monkeypatch.setattr("api._pdc_token_and_reauth", lambda *a, **k: ("tok", None))
+
+        d = client.post("/api/pdc/harvest",
+                        json={"base_url": "https://pdc.example", "token": "t"}).json()
+
+        disc = d["discovery"]
+        assert disc["source"] == "harvest" and disc["summary"]["tables"] == 1
+        assert disc["summary"]["columns"] == 2
+        assert disc["summary"]["profiled"] == 1, "evidence coverage is reported"
+        t0 = disc["tables"][0]
+        assert t0["rows"] == 100 and t0["profiled_columns"] == 1
+        assert "low_confidence" in t0, "the weak-terms chart needs this per table"
+        col = next(c for c in t0["columns"] if c["column"] == "email")
+        assert col["completeness"] == 0.98 and col["kind"] == "email"
+
+        docs = d["docs_discovery"]
+        assert docs["summary"]["files"] == 2 and docs["summary"]["folders"] == 2
+        assert {x["ext"] for x in docs["by_type"]} == {"csv", "pdf"}
+        assert docs["largest"][0]["bytes"] == 9000
+        assert docs["by_folder"][0]["folder"] == "compliance"

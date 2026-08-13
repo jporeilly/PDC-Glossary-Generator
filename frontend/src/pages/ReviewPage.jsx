@@ -318,6 +318,10 @@ export default function ReviewPage({ onNavigate }) {
   // strip's highlight to step 2 (Approve). Not persisted: after a reload the
   // highlight falls back to step 1, which is harmless (re-proposing is safe).
   const [catRan, setCatRan] = useState(false)
+  // How many subjects this business has is the steward's judgement, not the
+  // model's: it biases low by design, which is right until it isn't (13 -> 3
+  // where 5 read better). Blank = let the model decide, as before.
+  const [catTarget, setCatTarget] = usePersistentState('review.catTarget', '')
   // Inferred labels, per term — Review shows the CONSEQUENCE of the evidence
   // (what labels this term would carry), Govern decides the policy (which
   // keys to keep). One call to the shared engine, so the logic never forks.
@@ -527,6 +531,26 @@ export default function ReviewPage({ onNavigate }) {
   // (Dictionary syncs at confirm, Govern reads it instead of guessing). If
   // the kept category set drifts from the confirmed list, the button reverts
   // to actionable — drift is visible, never silent.
+  // The consolidation is the whole point of step 1, but it was only ever
+  // stated in the transient completion line — once that message was replaced
+  // the steward could no longer see 13 -> 5 ("somewhere we need to indicate
+  // that its gone from 13 categories down to 5"). Derived live from the
+  // pending pills, so it survives until they are accepted or dismissed.
+  const pendingCats = useMemo(() => {
+    if (!proposals || !proposals.items) return null
+    const after = new Set()
+    let changes = 0
+    rows.forEach((r, i) => {
+      if (!r || !truthy(r.Keep)) return
+      const it = proposals.items[i]
+      const proposed = it && it.patch ? it.patch.Category : undefined
+      if (proposed && proposed !== r.Category) changes += 1
+      const v = String(proposed || r.Category || '').trim()
+      if (v) after.add(v)
+    })
+    return changes ? after.size : null
+  }, [rows, proposals])
+
   const catsConfirmedCurrent = useMemo(() => {
     const c = ws.categoriesConfirmed
     if (!c || !Array.isArray(c.categories)) return false
@@ -910,7 +934,8 @@ export default function ReviewPage({ onNavigate }) {
     setCatBusy(true)
     setMsg('Proposing business categories from the schema\u2026')
     try {
-      const d = await apiPost('/api/ai-categories', { rows })
+      const d = await apiPost('/api/ai-categories',
+        { rows, ...(catTarget ? { target: parseInt(catTarget, 10) } : {}) })
       const cats = (d.categories || []).filter((c) => !c.unassigned)
       const un = (d.categories || []).find((c) => c.unassigned)
       if (!d.used_llm || !cats.length) {
@@ -1524,14 +1549,26 @@ export default function ReviewPage({ onNavigate }) {
                     title="Run FIRST. One call over the schema the scan proved — tables, columns, FK links — proposing an abstract business grouping. Assignments land as Category pills: accept, rename any group, and only then run the AI pass so definitions are written against the final taxonomy.">
               {catBusy ? 'Proposing…' : '1 · AI categories'}
             </button>
+            <label className="rv-cattarget"
+                   title="Roughly how many business subjects this estate should have. Blank lets the model decide (it aims low by design). A number is a target, not a cap — the model lands within one either side unless the estate argues otherwise.">
+              aim for
+              <input type="number" min="2" max="12" placeholder="auto" value={catTarget}
+                     onChange={(e) => setCatTarget(e.target.value)}
+                     aria-label="Target number of categories" />
+            </label>
             <button className={`${agentStep === 2 ? 'primary' : 'ghost'} sm${catsConfirmedCurrent ? ' applied' : ''}`}
                     disabled={catBusy || !cats.kept.length} onClick={confirmCategories}
-                    title="The KEYSTONE. Declare the category set settled: the Dictionary syncs immediately so its queue reflects this taxonomy, Govern keys stewardship to settled names, and Export pack freezes the mapping for future scans. If you change categories afterwards, this asks to be approved again — the drift is visible, never silent.">
+                    title={(pendingCats != null ? `Accept the ${cats.kept.length} → ${pendingCats} Category pills first — approving now would settle the ${cats.kept.length} categories the grid still holds. ` : '') + "The KEYSTONE. Declare the category set settled: the Dictionary syncs immediately so its queue reflects this taxonomy, Govern keys stewardship to settled names, and Export pack freezes the mapping for future scans. If you change categories afterwards, this asks to be approved again — the drift is visible, never silent."}>
               {/* the count is on the button so the number being approved is
                   read BEFORE the click — field: 11 groups quietly became 15 */}
               {catsConfirmedCurrent
                 ? `✓ 2 · Categories approved (${cats.kept.length})`
-                : `2 · Approve categories (${cats.kept.length})`}
+                /* with pills still pending the count is what you would approve
+                   NOW, which is not what the run proposed — show both so the
+                   number cannot mislead (field: "the button is indicating 13") */
+                : (pendingCats != null
+                    ? `2 · Approve categories (${cats.kept.length} → ${pendingCats})`
+                    : `2 · Approve categories (${cats.kept.length})`)}
             </button>
             <button className={`${agentStep === 3 ? 'primary' : 'ghost'} sm`} disabled={aiDisabled} onClick={runAiPass}
                     title="One model call per row for every field the LLM can decide — definition, purpose, a clearer name, governed tags and a blank category. Replaces running Enrich + AI suggest + AI categorize separately (three passes over the same rows, each overwriting the last). Proposals only — accept per pill.">
@@ -1670,7 +1707,17 @@ export default function ReviewPage({ onNavigate }) {
         {rows.length > 0 && (
           <div className="rv-chips">
             <span className="rv-chip">Terms<b>{stats.terms}</b></span>
-            <span className="rv-chip">Categories<b>{stats.categories}</b></span>
+            <span className="rv-chip"
+                  title={pendingCats != null
+                    ? `Accepting the pending Category pills would take the kept grid from ${stats.categories} to ${pendingCats} categories.`
+                    : 'Distinct categories across the kept rows.'}>
+              Categories<b>{stats.categories}</b>
+              {pendingCats != null && (
+                <b className={pendingCats < stats.categories ? 'rv-catdrop' : 'rv-catrise'}>
+                  {' → '}{pendingCats}
+                </b>
+              )}
+            </span>
             <button className={`rv-chip${filters.pii ? ' on' : ''}`}
                     onClick={() => setFilters((f) => ({ ...f, pii: !f.pii }))}
                     title="Toggle the PII-only filter">
@@ -1695,8 +1742,9 @@ export default function ReviewPage({ onNavigate }) {
         {rows.length > 0 && (
           <div className="rv-bar">
             <span className="lbl">FILTER</span>
-            <input className="rv-q" type="text" placeholder="Filter term, definition, source…" value={filters.q}
-                   onChange={(e) => setFilters((f) => ({ ...f, q: e.target.value }))} />
+            {/* category first, then the text box: the steward narrows to a
+                subject and THEN looks inside it — the reverse order invited a
+                free-text guess against the whole grid (field-caught) */}
             <select value={filters.cat} onChange={(e) => setFilters((f) => ({ ...f, cat: e.target.value }))} aria-label="Category filter">
               <option value="">All categories</option>
               {cats.kept.map((c) => <option key={c}>{c}</option>)}
@@ -1706,6 +1754,8 @@ export default function ReviewPage({ onNavigate }) {
                 </optgroup>
               )}
             </select>
+            <input className="rv-q" type="text" placeholder="Then filter within it — term, definition, source…" value={filters.q}
+                   onChange={(e) => setFilters((f) => ({ ...f, q: e.target.value }))} />
             {filters.cat && (
               <button className="ghost sm" onClick={() => renameCategory(filters.cat)}
                       title="Rename this category on every row that carries it - one decision per group, not one per row.">
