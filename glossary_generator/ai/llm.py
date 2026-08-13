@@ -1114,9 +1114,14 @@ def propose_categories(rows, model=None, compute=None, max_categories=9,
         target = int(target) if target else None
     except (TypeError, ValueError):
         target = None
+    lo = 3
     if target:
+        # the stated RANGE wraps the target: merely lifting the ceiling let
+        # the model aim for 3 and land on 6 — "100% over" (field-caught).
+        # Obeying the range now IS obeying the aim.
         target = max(2, min(target, 12))
-        hi = max(hi, target + 1)
+        lo = max(2, target - 1)
+        hi = min(12, target + 1)
     n_cats = hi
     aim = ""
     if target:
@@ -1133,7 +1138,7 @@ def propose_categories(rows, model=None, compute=None, max_categories=9,
         "handful of things this business runs on - e.g. its customers, its\n"
         "operations, its infrastructure, its compliance), NOT a theme per\n"
         "table. Decide how many subjects best tell this business's story\n"
-        "(between 3 and %d - almost always 3-6), then place EVERY table in\n"
+        "(between %d and %d), then place EVERY table in\n"
         "exactly one of them. Each category should hold SEVERAL tables.\n"
         "Your job is CONSOLIDATION: the estate above already has one physical\n"
         "group per table, so returning one category per table adds nothing.\n"
@@ -1146,7 +1151,7 @@ def propose_categories(rows, model=None, compute=None, max_categories=9,
         "business - almost never a single table's name.\n\n"
         'Return JSON: {"categories": [{"name": "1-3 words",\n'
         '  "definition": "one sentence", "tables": ["..."]}]}'
-    ) % ((COMPANY + " ") if COMPANY else "", "\n".join(lines_), cluster_hint, aim, n_cats)
+    ) % ((COMPANY + " ") if COMPANY else "", "\n".join(lines_), cluster_hint, aim, lo, n_cats)
     num_gpu = 0 if compute == "cpu" else (99 if compute == "gpu" else None)
     try:
         _warm(model)

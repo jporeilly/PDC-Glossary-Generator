@@ -298,11 +298,22 @@ def recommend_resolution(members, probes=None):
     if sames:
         return {"action": "merge", "band": "high", "reason": sames[0]}
     piis = {(m.get("PII_Category") or "").strip() for m in members} - {""}
+    # honesty about WHY there was nothing to compare: "no profiled evidence"
+    # on a fully-profiled estate read as a data bug (field-caught) — usually
+    # some members carry value sets and some don't, so no PAIR compares
+    have = sum(1 for m in members
+               if _row_evidence(m)["enums"] or _row_evidence(m)["pat"]
+               or _row_evidence(m)["sig"])
+    if have:
+        why_none = ("value evidence on %d of %d candidates but no comparable pair "
+                    "— the rest are prose or free numbers" % (have, len(members)))
+    else:
+        why_none = "no profiled value sets or formats on any candidate"
     if len(cats) <= 1 or len(piis) <= 1:
         return {"action": "merge", "band": "review",
-                "reason": "no profiled evidence, but identical name and matching context — likely one concept (check the definitions)"}
+                "reason": why_none + "; identical name and matching context — likely one concept (check the definitions)"}
     return {"action": None, "band": "review",
-            "reason": "no profiled evidence to compare — review the definitions manually"}
+            "reason": why_none + " — review the definitions manually"}
 
 
 def recommend_groups(rows):

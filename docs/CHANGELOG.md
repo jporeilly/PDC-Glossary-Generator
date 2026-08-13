@@ -14,6 +14,24 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.38.4] - 2026-08-13
+
+### Fixed - "aim for 3" means 2-4, not 6
+
+The target only lifted the model's ceiling, so aiming for 3 could land on
+6 - "100% over". The stated range now WRAPS the target (aim for N asks
+for between N-1 and N+1), so obeying the range is obeying the aim. Blank
+keeps the default 3-6 behaviour, and a high target still lifts the
+ceiling it needs.
+
+### Changed - the advise rubric counts its evidence
+
+"No profiled evidence" on a fully-profiled estate read as a data bug.
+When members carry value sets but no PAIR is comparable, the reason now
+says so with numbers: "value evidence on 2 of 4 candidates but no
+comparable pair - the rest are prose or free numbers". The blanket
+phrase survives only when literally no candidate carries evidence.
+
 ## [1.38.3] - 2026-08-13
 
 ### Fixed - duplicate resolution you can change your mind about

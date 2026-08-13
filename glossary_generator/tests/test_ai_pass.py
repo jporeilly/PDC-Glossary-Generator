@@ -498,7 +498,7 @@ class TestCategoriesPromptDemandsConsolidation:
         rows = [make_row("A", "s.t1.a"), make_row("B", "s.t2.b")]
         llm.propose_categories(rows)
         p = seen.get("prompt") or ""
-        for token in ("CONSOLIDATION", "SUBJECT", "RENAME", "MERGE", "3-6"):
+        for token in ("CONSOLIDATION", "SUBJECT", "RENAME", "MERGE", "between 3 and 6"):
             assert token in p, f"the consolidation contract lost '{token}'"
 
     def test_fk_links_reach_the_model_as_named_clusters(self, monkeypatch):
@@ -686,9 +686,16 @@ class TestCategoryTargetIsTheStewardsCall:
         llm.propose_categories(rows)
         assert "aiming for about" not in seen["prompt"]
 
-    def test_a_target_lifts_the_ceiling_it_would_otherwise_hit(self, monkeypatch):
-        """A target of 9 on a small estate must not be silently capped at 6."""
+    def test_the_stated_range_wraps_the_target(self, monkeypatch):
+        """Lifting only the ceiling let "aim for 3" land on 6 - 100% over
+           (field-caught). The stated bounds are now target±1, so obeying
+           the range IS obeying the aim; a target of 9 on a small estate is
+           still never capped at 6."""
         seen = self._capture(monkeypatch)
         rows = [make_row("A", "s.t1.a"), make_row("B", "s.t2.b")]
+        llm.propose_categories(rows, target=3)
+        assert "between 2 and 4" in seen["prompt"]
         llm.propose_categories(rows, target=9)
-        assert "between 3 and 10" in seen["prompt"], seen["prompt"][:400]
+        assert "between 8 and 10" in seen["prompt"]
+        llm.propose_categories(rows)
+        assert "between 3 and 6" in seen["prompt"], "no target keeps the default range"
