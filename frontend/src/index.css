@@ -320,7 +320,22 @@ button.version-pill:hover { background: var(--gridline); }
 .page-head .psub { margin-top: .25rem; color: var(--text-muted); font-size: .86rem; }
 .workcycle { color: var(--text-secondary); font-size: .88rem; margin: .6rem 0 0 1.2rem; line-height: 1.7; }
 .workcycle li { margin-top: .35rem; }
-details.card > summary { cursor: pointer; font-weight: 650; font-size: .95rem; }
+/* Collapsible cards read like any other card heading: same size, weight and
+   grey suffix as an h2 + its <span>. Before this the new disclosures carried
+   .summary as well and fought two rules at once (field: "standardize the font
+   size and font for the expandable panels"). */
+details.card > summary {
+  cursor: pointer;
+  font-weight: 650;
+  font-size: 1rem;
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
+}
+details.card > summary b { font-weight: 650; }
+details.card > summary .notes,
+details.card > summary span {
+  color: var(--text-muted); font-weight: 400; font-size: .85rem; margin-left: .6rem;
+}
 .wn-release { border-top: 1px solid var(--gridline); margin-top: .9rem; padding-top: .7rem; }
 .wn-release .md p, .wn-release .md li { font-size: .84rem; }
 .dot-num {

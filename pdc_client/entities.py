@@ -265,9 +265,12 @@ def _profile_from_pdc(pinfo):
     distinct = num(stats, "distinctCount", "uniqueCount", "cardinality",
                    "distinctValues")
     if total:
+        out["rows"] = int(total)
         if nulls is not None:
+            out["non_null"] = int(max(0, total - nulls))
             out["completeness"] = round(max(0.0, min(1.0, (total - nulls) / total)), 3)
         if distinct is not None:
+            out["distinct"] = int(distinct)
             out["uniq"] = round(min(1.0, distinct / total), 3)
 
     # ---- distinct VALUES -> Dictionary rules + allowed-values checks ------
@@ -345,6 +348,7 @@ def harvest_from_catalog(base_url, token, ds_id=None, ds_name=None, version="v2"
 
        Returns (tables, files, overlay, summary)."""
     overlay, governed = {}, 0
+    ent_index, parent_ids = {}, set()      # entity id -> (table, column)
     # governance breakdown — the scan/discovery RESULT view, per entity:
     # identified = Data Identification stamped a sensitivity; trust_scored / term_linked /
     # tagged likewise. sens_dist buckets the identified sensitivities.
@@ -377,6 +381,17 @@ def harvest_from_catalog(base_url, token, ds_id=None, ds_name=None, version="v2"
         col_md, info, feats, attrs, bts = _col_meta(e)
         keytype = str(_aget(attrs, "keyType", "constraintType") or "").upper()
         nullable = col_md.get("isNullable")
+        # remember WHERE this column lives in the catalog: profiling is
+        # fetched by entity/parent id, because resolving a parent by NAME
+        # silently misses document "tables" (a filename), which is how
+        # harvested file columns arrived with no value evidence
+        _eid_ = _eid(e) or e.get("_id") or ""
+        _par_ = (e.get("parentId") or e.get("parentID")
+                 or (e.get("parentIds") or [None])[0])
+        if _eid_:
+            ent_index[str(_eid_)] = (tbl, col)
+        if _par_:
+            parent_ids.add(str(_par_))
         tables.setdefault(tbl, []).append({
             "table": tbl, "column": col, "schema": sch,
             "type": (col_md.get("dataType") or col_md.get("sqlDataType") or col_md.get("typeName")
@@ -433,26 +448,68 @@ def harvest_from_catalog(base_url, token, ds_id=None, ds_name=None, version="v2"
     # --- PDC's own profiling -> the profile dict ---------------------------
     # The catalog already profiled these columns; asking for it here is what
     # lets a harvested grid carry value evidence (dictionaries, patterns, DQ
-    # baselines, deterministic PII) instead of structure alone.
+    # baselines) instead of structure alone. Fetch BY ID: a live probe showed
+    # the by-name route finds nothing for a document store, because its
+    # "table" is a filename — id/parentId answers for both source kinds.
     profiled = 0
     if with_profile and tables:
+        from .jobs import filter_profiling_info, pdc_profile_for_columns  # local: avoids a cycle
+        by_table_col = {}
         try:
-            from .jobs import pdc_profile_for_columns   # local: avoids a cycle
-            specs = [{"schemaName": c.get("schema") or "", "tableName": t,
-                      "columnName": c.get("column") or ""}
-                     for t, cols in tables.items() for c in cols]
-            prof = pdc_profile_for_columns(base_url, token, specs, version=version,
-                                           verify_tls=verify_tls, timeout=timeout)
-            for t, cols in tables.items():
-                for c in cols:
-                    key = ".".join(x for x in (c.get("schema") or "", t,
-                                               c.get("column") or "") if x)
-                    p = _profile_from_pdc(prof.get(key) or {})
-                    if p:
-                        c["profile"] = p
-                        profiled += 1
+            ids = list(ent_index.keys())
+            items = []
+            for i in range(0, len(ids), 200):
+                try:
+                    items += filter_profiling_info(base_url, token, {"ids": ids[i:i + 200]},
+                                                   version, verify_tls, timeout) or []
+                except Exception:
+                    pass
+            if not items and parent_ids:
+                pids = sorted(parent_ids)
+                for i in range(0, len(pids), 50):
+                    try:
+                        items += filter_profiling_info(base_url, token,
+                                                       {"parentIds": pids[i:i + 50],
+                                                        "types": list(dict.fromkeys(_COL_TYPES))},
+                                                       version, verify_tls, timeout) or []
+                    except Exception:
+                        pass
+            for it in items:
+                pinfo = it.get("profilingInfo") or it.get("profiling") or {}
+                if not pinfo:
+                    continue
+                where = ent_index.get(str(_eid(it) or it.get("_id") or ""))
+                if not where:
+                    nm = str(it.get("name") or "").strip().lower()
+                    where = next((v for v in ent_index.values()
+                                  if v[1].strip().lower() == nm), None)
+                if where:
+                    by_table_col[where] = pinfo
         except Exception:
-            pass          # profiling is best-effort; structure still harvests
+            by_table_col = {}
+
+        if not by_table_col:                 # last resort: the by-name route
+            try:
+                specs = [{"schemaName": c.get("schema") or "", "tableName": t_,
+                          "columnName": c.get("column") or ""}
+                         for t_, cols in tables.items() for c in cols]
+                prof = pdc_profile_for_columns(base_url, token, specs, version=version,
+                                               verify_tls=verify_tls, timeout=timeout)
+                for t_, cols in tables.items():
+                    for c in cols:
+                        key = ".".join(x for x in (c.get("schema") or "", t_,
+                                                   c.get("column") or "") if x)
+                        if prof.get(key):
+                            by_table_col[(t_, c.get("column") or "")] = prof[key]
+            except Exception:
+                pass
+
+        for t_, cols in tables.items():
+            for c in cols:
+                p = _profile_from_pdc(by_table_col.get((t_, c.get("column") or "")) or {})
+                if p:
+                    c["profile"] = p
+                    profiled += 1
 
     summary = {"tables": len(tables), "columns": sum(len(v) for v in tables.values()),
                "files": len(files), "bucket": bucket,

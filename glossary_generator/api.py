@@ -3747,6 +3747,10 @@ def api_pdc_profiling_probe(body: dict = Body(default={})):
             # confused with "never asked" (field-caught on a document store:
             # three absent chips that actually meant no columns were resolved)
             "columns_found": len(cols), "columns_sample": cols[:8],
+            # the id/parentId route answers for EVERY column under the parents,
+            # not just the ones we asked about — report both so the chip cannot
+            # claim a sample size the listing plainly exceeds (field-caught)
+            "profiled_returned": len(out),
             "sampled": True, "probe_via": next(
                 (v.get("_via") for v in (prof or {}).values()
                  if isinstance(v, dict) and v.get("_via")), "table-name"),

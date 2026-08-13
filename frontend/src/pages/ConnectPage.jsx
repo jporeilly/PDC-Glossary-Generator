@@ -221,7 +221,7 @@ export default function ConnectPage({ onNavigate }) {
           DQ expectations. The profiling probe above decides whether PDC can
           supply those too — when it can, this panel goes. */}
       <details ref={formRef} className="card" open={!!editing}>
-        <summary className="summary" style={{ cursor: 'pointer' }}>
+        <summary>
           <b>Add a source connection directly</b>
           <span className="notes"> · advanced — only when PDC has not profiled the source,
             or when you need value evidence PDC does not expose</span>
@@ -859,7 +859,7 @@ function ProfilingProbeCard({ rows, pdc }) {
 
   return (
     <details className="card">
-      <summary className="summary" style={{ cursor: 'pointer' }}>
+      <summary>
         <b>Diagnostic — what does PDC&apos;s profiling expose?</b>
         <span className="notes"> · decides whether Harvest alone can feed the policy engine</span>
       </summary>
@@ -901,8 +901,11 @@ function ProfilingProbeCard({ rows, pdc }) {
           </p>
           <p className="summary">
             <span className="badge" style={{ marginRight: '.4rem' }}
-                  title="How many columns this probe SAMPLED (it asks about the first few, by design) — not how many PDC holds.">
-              sampled <b>{res.columns_found ?? 0}</b> column(s)
+                  title="Columns this probe asked about (it samples the first few by design) and how many PDC answered for — the id route replies for every column under the same parent, so the second number is often larger.">
+              asked <b>{res.columns_found ?? 0}</b>
+              {typeof res.profiled_returned === 'number' && res.profiled_returned !== res.columns_found
+                ? <> · PDC answered for <b>{res.profiled_returned}</b></>
+                : null}
             </span>
             {res.probe_via && (
               <span className="badge" style={{ marginRight: '.4rem' }}
@@ -1185,6 +1188,15 @@ function HarvestCard({ pdc, onConnectionsChanged, onNavigate, glossaryName }) {
 
       {msg && <p className="summary">{msg}</p>}
       {scanCards.map((ps, i) => <PdcScanCard key={i} ps={ps} />)}
+      {scanCards.length > 0
+        && scanCards.every((ps) => !((ps.identified || 0) + (ps.trust_scored || 0)
+                                     + (ps.term_linked || 0) + (ps.tagged || 0))) && (
+        <p className="notes">
+          No classifications in PDC yet — <b>Data Identification</b> stamps sensitivity, and
+          trust scores and term links follow it. Harvest still brings the structure and the
+          values PDC profiled; there is simply nothing governed to overlay.
+        </p>
+      )}
       {getWorkspace().rows.length > 0 && scanCards.length > 0 && (
         <div className="actions">
           <button className="ghost" onClick={() => onNavigate('review')}>Review terms →</button>
@@ -1206,7 +1218,12 @@ function HarvestCard({ pdc, onConnectionsChanged, onNavigate, glossaryName }) {
   )
 }
 
-// One line of PDC's own scan & discovery results for a harvested source.
+// One COMPACT line of what PDC holds for a harvested source. The governance
+// counts only earn their place when there IS governance: repeating "0
+// identified means Data Identification has not run" under every source told
+// the steward something they already knew, three lines at a time
+// (field-caught). When nothing is classified anywhere, the parent says so
+// once instead.
 function PdcScanCard({ ps }) {
   if (!ps) return null
   const dist = ps.sens_dist || {}
@@ -1218,17 +1235,21 @@ function PdcScanCard({ ps }) {
     : ''
   const ent = ps.columns ? `${ps.tables} table(s) · ${ps.columns} column(s)` : `${ps.files} file(s)`
   const total = ps.columns || ps.files || 0
+  const governed = (ps.identified || 0) + (ps.trust_scored || 0) + (ps.term_linked || 0) + (ps.tagged || 0)
   return (
     <div className="pdc-scan-card">
-      <b>{ps.source || ''}</b> — PDC scan &amp; discovery results:{' '}
-      ingested <b>{ent}</b> · identified <b>{ps.identified || 0}</b>/{total}{distTxt} ·{' '}
-      trust-scored <b>{ps.trust_scored || 0}</b> · term-linked <b>{ps.term_linked || 0}</b> ·{' '}
-      tagged <b>{ps.tagged || 0}</b>
-      {!ps.identified && total > 0 &&
-        <span className="muted"> — ingest (and profiling) clearly ran, since PDC holds these
-          columns; <b>0 identified</b> means <b>Data Identification</b> has not — that is the
-          step that stamps sensitivity, and trust scores / term links follow it. Harvest still
-          brings the structure; PDC just has no classifications to overlay yet.</span>}
+      <b>{ps.source || ''}</b> — PDC holds <b>{ent}</b>
+      {governed > 0 ? (
+        <>
+          {ps.identified ? <> · classified <b>{ps.identified}</b>/{total}{distTxt}</> : null}
+          {ps.trust_scored ? <> · trust-scored <b>{ps.trust_scored}</b></> : null}
+          {ps.term_linked ? <> · term-linked <b>{ps.term_linked}</b></> : null}
+          {ps.tagged ? <> · tagged <b>{ps.tagged}</b></> : null}
+          <span className="muted"> — harvest overlays this existing work so you don&apos;t overwrite it.</span>
+        </>
+      ) : (
+        <span className="muted"> · no classifications yet</span>
+      )}
     </div>
   )
 }

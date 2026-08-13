@@ -14,6 +14,44 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.37.1] - 2026-08-13
+
+### Fixed - harvest asks for profiling the way that actually works
+
+The live probe settled it: PDC *does* profile document columns, and the
+by-NAME route simply never found them — a document store's "table" is a
+filename, so resolving a parent by name missed every one. Probing by the
+entities' own ids answered for both source kinds (**via parentIds**, with
+stats, values and patterns all present). Harvest now fetches profiling by
+entity id first, falls back to parent ids, and keeps the by-name route only
+as a last resort — so a harvested **document** grid carries the same value
+evidence a database one does. Pinned by a test that fails if the name route
+is ever tried first again.
+
+### Changed - the probe reports honest counts
+
+The id route answers for every column under the same parent, not only the
+ones sampled — so a chip reading "sampled 8" sat above a listing of thirty
+("bit more than 8 samples for unstructured"). It now reports **asked N ·
+PDC answered for M**.
+
+### Changed - PDC scan results stop lecturing
+
+Repeating "0 identified means Data Identification has not run" under every
+harvested source told the steward something they already knew, three lines
+at a time. Each source now states the facts — *PDC holds 9 table(s) · 137
+column(s) · no classifications yet* — zero counts stay silent, and the
+explanation appears once, beneath the cards, only when nothing anywhere is
+classified. When governance does exist, the counts and the sensitivity
+spread return, with a note that harvest overlays existing work.
+
+### Fixed - one type ramp for collapsible panels
+
+The new disclosures carried `.summary` on top of the card-summary rule and
+fought two declarations at once. Collapsible cards now read like any card
+heading (same size, weight, and grey suffix as an `h2` + its `span`), while
+nested "Under the hood" asides stay deliberately subordinate.
+
 ## [1.37.0] - 2026-08-12
 
 ### PDC is the system of record

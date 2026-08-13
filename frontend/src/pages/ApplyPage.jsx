@@ -809,7 +809,7 @@ function DataElementsCard({ rows, glossaryName, de, setDe }) {
           <>
             {actionable.length > 0 && (
               <details>
-                <summary className="summary" style={{ cursor: 'pointer' }}>
+                <summary>
                   <b>{actionable.length}</b> term(s) held back by the mapping policy — set <b>Map</b> = Y (or raise confidence) to link them
                 </summary>
                 <ul className="bucket-list">

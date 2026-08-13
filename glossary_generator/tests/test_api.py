@@ -633,6 +633,42 @@ class TestDraftPoliciesJob:
         assert r.status_code == 404
 
 
+class TestHarvestFetchesProfilingById:
+    def test_id_route_is_tried_before_the_name_route(self, monkeypatch):
+        """A live probe showed the by-NAME route finds no profiling for a
+           document store (its "table" is a filename) while the id/parentId
+           route answers for both source kinds — so harvest must ask by id
+           first, or harvested file columns arrive with no value evidence."""
+        import pdc_client.entities as ents
+        import pdc_client.jobs as jobs
+        calls = []
+
+        def fake_filter_entities(base, token, filters, *a, **kw):
+            if "COLUMN" in (filters.get("types") or []):
+                return [{"_id": "c1", "name": "system_name",
+                         "parentId": "f1",
+                         "fqdnDisplay": "bucket/gis/segments.csv/system_name",
+                         "attributes": {}}]
+            return []
+
+        def fake_profiling(base, token, filters, *a, **kw):
+            calls.append(filters)
+            if "ids" not in filters:
+                return []
+            return [{"_id": "c1", "name": "system_name",
+                     "profilingInfo": {"stats": {"rowCount": 10, "distinctCount": 3},
+                                       "sampling": {"sample": ["Cast Iron", "PVC", "HDPE"]}}}]
+
+        monkeypatch.setattr(ents, "filter_entities", fake_filter_entities)
+        monkeypatch.setattr(jobs, "filter_profiling_info", fake_profiling)
+        tables, files, overlay, summary = ents.harvest_from_catalog(
+            "https://pdc.example", "tok")
+        assert calls and "ids" in calls[0], "the id route must be tried FIRST"
+        assert summary["profiled_columns"] == 1, summary
+        col = tables["segments.csv"][0]
+        assert col["profile"]["enum"] == ["Cast Iron", "HDPE", "PVC"]
+
+
 class TestEstateReport:
     def test_contract_verifies_from_disk_not_ticks(self, client, fresh_dict):
         """The closeout is a CONTRACT CHECK: registry parsed and id-matched,
