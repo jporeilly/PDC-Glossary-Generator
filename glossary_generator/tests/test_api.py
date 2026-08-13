@@ -1068,6 +1068,11 @@ class TestHarvestBuildsDiscoveryViews:
         # which they were overwriting
         assert docs["columns"]["tables"][0]["name"] == "segments.csv"
         assert d["discovery"] is None, "a document harvest is not a database profile"
+        # the profile must JOIN its rows: harvest routes files through the
+        # database suggester ("schema.file.ext.column"), and a naive dot-split
+        # left confidence/PII/sensitivity all zero over live terms
+        conf = docs["columns"]["summary"]["confidence"]
+        assert sum(conf.values()) > 0, f"no doc row joined the profile: {conf}"
 
 
 class TestEstateReport:

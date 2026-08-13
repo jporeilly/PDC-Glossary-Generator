@@ -2727,6 +2727,18 @@ def _parse_source(src):
             return {"schema_name": bucket,
                     "table_name": "/".join(fname.split("/")[:-1]),
                     "column_name": fname.split("/")[-1], "entity_type": "OBJECT"}
+    # db-style dotted path — but a harvested DOCUMENT column arrives here too,
+    # as "schema.file.ext.column" (harvest feeds files through the database
+    # suggester), and a naive dot-split makes the table "file" and the column
+    # "ext.column". Same canonical rule as the slash branch: one split at the
+    # file extension (field: "csv.material" columns re-appeared via harvest)
+    if "." in src:
+        sch0, rest0 = src.split(".", 1)
+        m0 = _FILE_EXT_ANY.search(rest0)
+        if m0 and rest0[m0.end():].startswith("."):
+            return {"schema_name": sch0, "table_name": rest0[:m0.end()],
+                    "column_name": rest0[m0.end():].lstrip("."),
+                    "entity_type": "COLUMN"}
     p = src.split(".")
     if len(p) >= 3:
         return {"schema_name": p[0], "table_name": p[1], "column_name": ".".join(p[2:]),

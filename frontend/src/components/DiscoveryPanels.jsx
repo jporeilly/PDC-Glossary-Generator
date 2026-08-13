@@ -125,7 +125,9 @@ export function ProfilePanel({ profile, onNavigate, kind = 'db' }) {
         <span className="sens-hi">HIGH {sev.HIGH || 0}</span> ·{' '}
         <span className="sens-md">MEDIUM {sev.MEDIUM || 0}</span> ·{' '}
         <span className="sens-lo">LOW {sev.LOW || 0}</span>
-        {s.largest_tables?.length > 0 && (
+        {/* for docs the bucket charts below carry real sizes; this trailer
+            only had zeros to offer ("still messy") */}
+        {!docs && s.largest_tables?.length > 0 && (
           <>
             {'  |  '}<b>Largest:</b>{' '}
             {s.largest_tables.slice(0, 4).map((t) =>

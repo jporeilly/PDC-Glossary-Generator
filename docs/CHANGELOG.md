@@ -14,6 +14,29 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.38.2] - 2026-08-13
+
+### Fixed - the dotted-filename family's last hideout
+
+The Files profile still showed zero confidence over 53 live terms after
+the matcher fix - because the rows themselves were mis-parsed one level
+deeper. Harvest routes document files through the DATABASE suggester, so
+their sources read "schema.file.csv.column" (no slash), and the parser's
+dotted branch made the table "file" and the column "csv.column" - the
+same family of bug fixed at three other junctions, in its fourth hideout.
+The parser now applies the one canonical rule everywhere: a single split
+at the file extension. Nested JSON leaves survive
+("all_systems_snapshot.json" + "export_metadata.classification") and
+database columns are untouched. Pinned at the endpoint level: a document
+harvest whose profile joins no rows now fails the suite. This also
+protected policy drafting, which would have named harvested document
+columns "csv.material" again.
+
+### Changed - the docs profile drops its zero-byte trailer
+
+The "Largest: ... (120 rows, 0 B)" line only had zeros to offer for
+files - the bucket charts below carry the real sizes.
+
 ## [1.38.1] - 2026-08-13
 
 ### Fixed - the Files profile counts its own terms
