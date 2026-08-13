@@ -3894,9 +3894,17 @@ def api_pdc_profiling_probe(body: dict = Body(default={})):
                         "userdefined", "udp", "annotation")))
             blob = json.dumps(ent, default=str)
             labels["sample"] = blob[:3000] + ("…(truncated)" if len(blob) > 3000 else "")
-        fent = next((e for e in probe_ents
-                     if str(e.get("type") or "").upper() == "FILE"
-                     and ((not (ds_id or ds_name)) or pdc_api._under_root(e, ds_id, ds_name))), None)
+        # a DEDICATED FILE query: hunting for a FILE inside the page-capped
+        # all-types listing missed them entirely (field: probe ran on 1.37.7,
+        # no dump appeared) — ask for FILEs alone and the pages are all files
+        fents = pdc_api.filter_entities(base, token, {"types": ["FILE"]},
+                                        version=version, verify_tls=verify,
+                                        timeout=30)
+        fent = next((e for e in fents
+                     if (not (ds_id or ds_name))
+                     or pdc_api._under_root(e, ds_id, ds_name)), None)
+        if fent is None and fents:
+            fent = fents[0]          # any file beats none; the dump says which
         if fent:
             blob = json.dumps(fent, default=str)
             file_sample = blob[:3000] + ("…(truncated)" if len(blob) > 3000 else "")

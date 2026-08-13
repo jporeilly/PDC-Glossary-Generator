@@ -14,6 +14,17 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.37.8] - 2026-08-13
+
+### Fixed - the raw FILE dump actually finds a file
+
+1.37.7's probe still showed no Raw FILE entity: the lookup hunted for a
+FILE inside the page-capped all-types listing, and this source's files sat
+beyond those pages - the columns made it in, the files never did. The
+probe now queries FILE entities directly (so every page is files), scopes
+to the chosen source, and falls back to any file in the catalog rather
+than none - the dump states which file it shows either way.
+
 ## [1.37.7] - 2026-08-13
 
 ### Fixed - the size arbiter is actually visible now
