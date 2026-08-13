@@ -901,6 +901,29 @@ class TestHarvestCarriesPdcProfiling:
         assert "pattern" not in prose, "a human summary is not a regex"
 
 
+class TestFileRecordCarriesSizeAndDate:
+    def test_bytes_and_modified_are_extracted(self):
+        """Harvested files rendered 0 B with "most recent" ordered by nothing
+           - _file_record never asked the entity for size or date."""
+        from pdc_client.entities import _file_record
+        rec, bucket = _file_record({
+            "name": "asset_inventory.csv", "type": "FILE",
+            "fqdnDisplay": "minio:awc-documents/gis/asset_inventory.csv",
+            "metadata": {"file": {"bucket": "awc-documents", "extension": "csv",
+                                  "path": "gis/asset_inventory.csv",
+                                  "size": "20480",
+                                  "lastModified": "2026-05-14T09:00:00Z"}},
+        })
+        assert rec["bytes"] == 20480 and rec["modified"].startswith("2026-05-14")
+        assert rec["folder"] == "gis" and bucket == "awc-documents"
+
+    def test_absent_size_degrades_to_zero(self):
+        from pdc_client.entities import _file_record
+        rec, _ = _file_record({"name": "a.pdf", "type": "FILE",
+                               "fqdnDisplay": "s3:b/x/a.pdf", "metadata": {}})
+        assert rec["bytes"] == 0 and rec["modified"] == ""
+
+
 class TestHarvestBuildsDiscoveryViews:
     """The Schema page's per-table results and the Files page's charts used to
        fill only after a DIRECT scan, so a PDC-only path left them empty. And
@@ -962,6 +985,7 @@ class TestHarvestBuildsDiscoveryViews:
         assert docs["by_folder"][0]["folder"] == "compliance"
         # the panel's vocabulary, exactly: `count` per bucket and `newest`,
         # not `files`/`recent` — that mismatch blanked the Files page
+        assert docs["by_folder"][0]["name"] == "compliance",             "the panel labels folder rows from `name` - bars rendered nameless"
         assert "count" in docs["by_folder"][0], docs["by_folder"][0]
         assert "count" in docs["by_type"][0] and "bytes" in docs["by_type"][0]
         assert "newest" in docs and "recent" not in docs

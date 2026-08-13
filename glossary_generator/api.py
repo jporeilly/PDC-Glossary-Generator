@@ -3609,7 +3609,8 @@ def pdc_harvest(body: dict = Body(default={})):
             ext = (f.get("ext") or "").lower() or "(none)"
             by_type[ext] += 1
             fol = f.get("folder") or "(root)"
-            b = by_folder.setdefault(fol, {"folder": fol, "count": 0,
+            # the panel labels a folder row from `name`
+            b = by_folder.setdefault(fol, {"name": fol, "folder": fol, "count": 0,
                                            "files": 0, "bytes": 0})
             b["count"] += 1          # the panel reads `count`
             b["files"] += 1

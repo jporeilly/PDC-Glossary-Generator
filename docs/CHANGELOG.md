@@ -14,6 +14,18 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.37.4] - 2026-08-13
+
+### Fixed - harvested files carry their sizes, dates and folder names
+
+The Files charts drew, but every object read **0 B**, "most recent" was
+ordered by nothing, and the by-folder bars had no labels ("no file data
+for unstructured"). Two faults: `_file_record` never asked the PDC entity
+for its size or modified date (both ride `metadata.file`, alias-tolerant
+now), and the folder rows were keyed `folder` where the panel labels from
+`name`. If a size still reads 0 B after this, that is the catalog's own
+answer - PDC holds no size for that object - not a dropped field.
+
 ## [1.37.3] - 2026-08-13
 
 ### Fixed - the Files page went blank after a document harvest

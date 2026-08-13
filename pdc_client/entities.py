@@ -230,7 +230,25 @@ def _file_record(ent):
     a = _attrs_of(ent)
     info = a.get("info") if isinstance(a.get("info"), dict) else {}
     owner = info.get("owner") or _aget(a, "owner", "createdBy") or ""
+    # size + modified ride the entity too — without them every harvested file
+    # showed 0 B and "most recent" was ordered by nothing (field-caught)
+    def _num(*vals):
+        for v in vals:
+            try:
+                if v not in (None, ""):
+                    return int(float(v))
+            except (TypeError, ValueError):
+                continue
+        return 0
+    size = _num(mf.get("size"), mf.get("sizeInBytes"), mf.get("contentLength"),
+                mf.get("fileSize"), _aget(a, "size", "sizeInBytes", "contentLength"),
+                info.get("size"))
+    modified = str(mf.get("lastModified") or mf.get("modifiedAt")
+                   or _aget(a, "lastModified", "modifiedAt", "lastModifiedDate")
+                   or info.get("lastModified") or info.get("modifiedAt")
+                   or ent.get("updatedAt") or ent.get("modifiedAt") or "")
     return {"folder": folder, "base": base, "bucket": bucket, "ext": ext,
+            "bytes": size, "modified": modified,
             "owner": owner, "recent": False}, bucket
 
 
