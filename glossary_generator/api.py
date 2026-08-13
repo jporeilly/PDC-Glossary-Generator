@@ -3484,9 +3484,18 @@ def pdc_harvest(body: dict = Body(default={})):
         by_col = {}
         for r in rows:
             sc = str(r.get("Source_Column") or "").split(";")[0].strip()
+            # the canonical parser, not a naive dot-split: a document source
+            # reads "bucket/folder/file.csv.column", and grabbing seg[-2] made
+            # the "table" == "csv" — so no doc row ever matched and the Files
+            # profile showed confidence/PII/sensitivity all zero (field:
+            # "Term confidence 0" over 53 live terms)
+            el = suggester._parse_source(sc)
+            if el and el.get("column_name"):
+                tkey = str(el.get("table_name") or "").split("/")[-1].lower()
+                by_col[(tkey, str(el["column_name"]).lower())] = r
             seg = sc.split(".")
             if len(seg) >= 2:
-                by_col[(seg[-2].lower(), seg[-1].lower())] = r
+                by_col.setdefault((seg[-2].lower(), seg[-1].lower()), r)
         dsum = {"tables": 0, "columns": 0, "rows": 0, "pii": 0, "cde": 0,
                 "pk_cols": 0, "fk_cols": 0, "classified": 0, "empty": 0,
                 "sensitivity": {"HIGH": 0, "MEDIUM": 0, "LOW": 0},

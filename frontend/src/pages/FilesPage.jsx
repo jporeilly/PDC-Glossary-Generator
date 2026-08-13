@@ -230,7 +230,7 @@ export default function FilesPage({ onNavigate }) {
       {ws.docsDiscovery?.columns && (
         <ProfilePanel profile={{ name: ws.docsDiscovery.name || 'this store',
                                  data: ws.docsDiscovery.columns }}
-                      onNavigate={onNavigate} />
+                      kind="docs" onNavigate={onNavigate} />
       )}
 
       {/* object-store connections live HERE, with the browser they power —

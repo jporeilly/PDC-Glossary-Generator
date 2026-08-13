@@ -43,20 +43,25 @@ function MiniBar({ frac }) {
 
 const SENS_CLS = { HIGH: 'sens-hi', MEDIUM: 'sens-md', LOW: 'sens-lo' }
 
-export function ProfilePanel({ profile, onNavigate }) {
+export function ProfilePanel({ profile, onNavigate, kind = 'db' }) {
   const d = profile.data
   const s = d.summary || {}
   const harvested = d.source === 'harvest'
+  // a document store's "tables" are files: keys and empty-table counts are
+  // database concepts and read as noise there ("dont need some of these
+  // metrics for unstructured")
+  const docs = kind === 'docs'
+  const holder = docs ? 'Files' : 'Tables'
   const tiles = [
-    ['Tables', s.tables], ['Columns', s.columns],
+    [holder, s.tables], ['Columns', s.columns],
     ['Total rows', (s.rows || 0).toLocaleString()],
     ...(harvested ? [] : [['Database size', fmtBytes(s.db_bytes || 0)]]),
     ...(s.profiled != null ? [['With evidence', `${s.profiled}/${s.columns || 0}`]] : []),
     ['PII columns', s.pii], ['CDE columns', s.cde],
     ['Classified', s.classified != null ? s.classified : '—'],
     ['Avg complete', s.avg_completeness != null ? pct(s.avg_completeness) : '—'],
-    ['Keys (PK·FK)', `${s.pk_cols || 0}·${s.fk_cols || 0}`],
-    ['Empty tables', s.empty],
+    ...(docs ? [] : [['Keys (PK·FK)', `${s.pk_cols || 0}·${s.fk_cols || 0}`],
+                     ['Empty tables', s.empty]]),
   ]
   const sev = s.sensitivity || {}
   const conf = s.confidence || {}
@@ -73,7 +78,7 @@ export function ProfilePanel({ profile, onNavigate }) {
   return (
     <section className="card">
       <header>
-        <h2>Column profiling <span>{profile.name} — schema {d.schema}</span></h2>
+        <h2>{docs ? 'File column profiling' : 'Column profiling'} <span>{profile.name} — schema {d.schema}</span></h2>
         <button className="ghost" onClick={() => onNavigate('review')}>Review terms →</button>
       </header>
       <p className="hint-line">
@@ -97,7 +102,7 @@ export function ProfilePanel({ profile, onNavigate }) {
             })}
           </div>
           <div className="disc-box">
-            <div className="disc-head"><h3>Tables with low-confidence terms</h3>
+            <div className="disc-head"><h3>{docs ? 'Files' : 'Tables'} with low-confidence terms</h3>
               <span className="disc-count">{weak.length}</span></div>
             {weak.map((w) => (
               <div key={w.name} className="disc-row">

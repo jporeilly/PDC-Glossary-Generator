@@ -14,6 +14,22 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.38.1] - 2026-08-13
+
+### Fixed - the Files profile counts its own terms
+
+"Term confidence 0" over 53 live document terms: the profile's row matcher
+did a naive dot-split, so a document source ("bucket/folder/file.csv.column")
+matched on a "table" called `csv` and no doc row ever joined. The matcher
+now uses the canonical source parser, so confidence, PII and sensitivity
+counts are real on the Files profile.
+
+### Changed - unstructured metrics speak file language
+
+The Files profile drops the database-only tiles (Keys PK-FK, Empty tables),
+counts **Files** rather than "Tables", and titles itself accordingly -
+"dont need some of these metrics for unstructured".
+
 ## [1.38.0] - 2026-08-13
 
 ### Connect deals only with PDC
