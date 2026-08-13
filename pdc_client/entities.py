@@ -240,12 +240,21 @@ def _file_record(ent):
             except (TypeError, ValueError):
                 continue
         return None          # unknown - the UI shows a dash, never "0 B"
-    size = _num(mf.get("size"), mf.get("sizeInBytes"), mf.get("contentLength"),
-                mf.get("fileSize"), _aget(a, "size", "sizeInBytes", "contentLength"),
-                info.get("size"))
+    # PDC's own UI names these "Used Capacity" and "Oldest/Youngest Child
+    # Date" (field: a Contents screenshot proved the catalog holds sizes the
+    # API aliases were missing), so the camelCase forms of the UI's words
+    # lead the list.
+    size = _num(_aget(a, "usedCapacity", "used_capacity", "capacity"),
+                mf.get("usedCapacity"), mf.get("size"), mf.get("sizeInBytes"),
+                mf.get("contentLength"), mf.get("fileSize"),
+                _aget(a, "size", "sizeInBytes", "contentLength"),
+                info.get("usedCapacity"), info.get("size"),
+                ent.get("usedCapacity"))
     modified = str(mf.get("lastModified") or mf.get("modifiedAt")
-                   or _aget(a, "lastModified", "modifiedAt", "lastModifiedDate")
+                   or _aget(a, "lastModified", "modifiedAt", "lastModifiedDate",
+                            "youngestChildDate")
                    or info.get("lastModified") or info.get("modifiedAt")
+                   or ent.get("youngestChildDate")
                    or ent.get("updatedAt") or ent.get("modifiedAt") or "")
     return {"folder": folder, "base": base, "bucket": bucket, "ext": ext,
             "bytes": size, "modified": modified,

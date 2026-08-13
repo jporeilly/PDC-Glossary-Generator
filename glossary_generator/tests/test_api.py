@@ -917,6 +917,20 @@ class TestFileRecordCarriesSizeAndDate:
         assert rec["bytes"] == 20480 and rec["modified"].startswith("2026-05-14")
         assert rec["folder"] == "gis" and bucket == "awc-documents"
 
+    def test_pdc_used_capacity_is_a_size(self):
+        """PDC's UI calls it "Used Capacity" - a Contents screenshot proved
+           the catalog holds sizes while every harvested file read 0 B, so
+           the camelCase of the UI's own words leads the alias list."""
+        from pdc_client.entities import _file_record
+        rec, _ = _file_record({
+            "name": "epa.pdf", "type": "FILE",
+            "fqdnDisplay": "minio:awc-documents/compliance/epa.pdf",
+            "usedCapacity": 18770, "youngestChildDate": "2026-07-30T10:30:00Z",
+            "metadata": {"file": {"extension": "pdf"}},
+        })
+        assert rec["bytes"] == 18770
+        assert rec["modified"].startswith("2026-07-30")
+
     def test_absent_size_is_unknown_not_zero(self):
         """A size the entity never stated must read as a dash, not "0 B" -
            0 B everywhere told the user the data was broken."""

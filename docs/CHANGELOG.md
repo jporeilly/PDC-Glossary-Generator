@@ -14,6 +14,18 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.37.6] - 2026-08-13
+
+### Fixed - file sizes read from the keys PDC actually uses
+
+A Contents screenshot from PDC's own UI settled it: the catalog holds the
+sizes ("Used Capacity" per folder, real child dates) while every harvested
+file read a dash - so the API aliases were simply missing PDC's key names.
+The camelCase of the UI's own words now leads the alias list:
+`usedCapacity` for size, `youngestChildDate` among the date fallbacks.
+Pinned with the entity shape the UI implies; the diagnostic's raw FILE
+dump remains the arbiter if a PDC version spells them differently again.
+
 ## [1.37.5] - 2026-08-13
 
 ### Added - long AI runs survive leaving the page
