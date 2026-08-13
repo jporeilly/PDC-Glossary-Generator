@@ -14,6 +14,28 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.38.0] - 2026-08-13
+
+### Connect deals only with PDC
+
+The information architecture now says what the product means. **Connect**
+carries the catalog-facing work alone: bulk load, harvest, and the
+diagnostic probe. The app-side source connections - the credentials that
+power the DIRECT paths - moved to the pages that still need them:
+
+- **Database connections live on Schema**, beside the live browser, ER
+  diagram, keys write-back and Seed data they power.
+- **Object-store connections live on Files**, beside the bucket browser.
+- Each page shows only its own kind, with the "Add a source connection
+  directly" form demoted to an advanced disclosure beneath - the fallback
+  for sources PDC has not profiled, not a parallel path.
+
+The explainer panels moved with their buttons, and the docs-guard test
+that noticed Connect "losing" them now expects them at their new home.
+(The move initially shipped the form without its defaults constants -
+caught by render-verification as a blank Schema page before release,
+the same trap as the discovery-panel extraction.)
+
 ## [1.37.9] - 2026-08-13
 
 ### Fixed - file sizes, from the key the catalog actually uses

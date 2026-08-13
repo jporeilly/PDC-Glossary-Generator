@@ -103,9 +103,13 @@ def test_build_manifest_versions_agree():
 # is pinned here and grows as the remaining panels are ported back.
 EXPLAINERS = {
     "ConnectPage.jsx": [
-        "Connection types &amp; what each button does",
         "Under the hood — bulk-loading data sources (PDC Public API)",
         "Under the hood — reading PDC's catalog",
+    ],
+    # moved with the connection cards when Connect went PDC-only — the
+    # explainers live where the buttons they explain now live
+    "../components/SourceConnections.jsx": [
+        "Connection types &amp; what each button does",
         "Under the hood — what a database scan runs",
     ],
     "FilesPage.jsx": [

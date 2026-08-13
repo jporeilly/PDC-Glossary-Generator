@@ -68,8 +68,9 @@ patterns present *(a PDC-only path is then viable end to end)*.
 The harvest line reports **profiled columns** — how many came back carrying
 PDC's value evidence. That number is what the policy bundle later depends on.
 
-*(Advanced fallback: if a source is not profiled in PDC, its saved connection
-can still Add to glossary from a direct scan.)*
+*(Advanced fallback: if a source is not profiled in PDC, a direct connection
+can still Add to glossary — database connections live on the Schema page,
+object-store connections on Files, each beside the browser it powers.)*
 
 **Pass-checks:**
 - Structural keys auto-pruned, with reasons on the rows *(~23)*.

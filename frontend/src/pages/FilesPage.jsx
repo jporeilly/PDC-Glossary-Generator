@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { apiGet, apiPost } from './../api.js'
 import { DocsPanel, ProfilePanel } from './../components/DiscoveryPanels.jsx'
+import { SourceConnections } from './../components/SourceConnections.jsx'
 import { setDocsDiscovery, useWorkspace } from './../state.js'
 import './files.css'
 
@@ -231,6 +232,10 @@ export default function FilesPage({ onNavigate }) {
                                  data: ws.docsDiscovery.columns }}
                       onNavigate={onNavigate} />
       )}
+
+      {/* object-store connections live HERE, with the browser they power —
+          Connect deals only with PDC */}
+      <SourceConnections kind="minio" onNavigate={onNavigate} />
     </>
   )
 }

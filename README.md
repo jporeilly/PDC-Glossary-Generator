@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  <img alt="Version 1.37.9" src="https://img.shields.io/badge/version-1.37.9-0F766E">
+  <img alt="Version 1.38.0" src="https://img.shields.io/badge/version-1.38.0-0F766E">
   <img alt="Pentaho Data Catalog 11.0.0" src="https://img.shields.io/badge/Pentaho%20Data%20Catalog-11.0.0-1f6feb">
   <img alt="Public API v3" src="https://img.shields.io/badge/public%20API-v3-1f6feb">
   <img alt="Python 3.9+" src="https://img.shields.io/badge/python-3.9%2B-3776AB">
@@ -27,7 +27,7 @@
 
 ---
 
-**Version:** 1.37.9 · validated against Pentaho Data Catalog 11.0.0 (public API v3).
+**Version:** 1.38.0 · validated against Pentaho Data Catalog 11.0.0 (public API v3).
 
 > [!TIP]
 > **Quick start (Windows 11 host):** one command stands up the whole
@@ -177,9 +177,10 @@ expectations, so the whole downstream flow works from the catalog with **one
 credential and no direct database access**. A built-in diagnostic reports
 exactly what your PDC exposes, per column, with the raw payload.
 
-Direct scanning (PostgreSQL, SQL Server, MySQL/MariaDB, Oracle, MinIO/S3, or
-a plain DDL file) remains available behind an advanced disclosure for
-sources PDC has not profiled. The schema
+Direct source connections now live with the browsers they power — database
+connections on **Schema**, object-store connections on **Files** — behind an
+advanced disclosure for sources PDC has not profiled. Connect itself deals
+only with PDC. The schema
 browser (tables, PK/FK relationships, write-back of missing keys) and the
 MinIO/S3 object browser live on their own **Schema** and **Files**
 sub-pages under Connect. Schema renders as **Cards or an ER diagram**

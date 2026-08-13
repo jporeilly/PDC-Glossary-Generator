@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { apiGet, apiPost } from './../api.js'
 import { ProfilePanel } from './../components/DiscoveryPanels.jsx'
+import { SourceConnections } from './../components/SourceConnections.jsx'
 import { useWorkspace } from './../state.js'
 import './schema.css'
 
@@ -330,6 +331,10 @@ export default function SchemaPage({ onNavigate }) {
       {/* the database discovery profile, rendered where its tables live */}
       {ws.discovery && <ProfilePanel profile={{ name: ws.name || 'this source', data: ws.discovery }}
                                      onNavigate={onNavigate} />}
+
+      {/* database connections live HERE, with the browser they power —
+          Connect deals only with PDC */}
+      <SourceConnections kind="db" onNavigate={onNavigate} />
     </>
   )
 }
