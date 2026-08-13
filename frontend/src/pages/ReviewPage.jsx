@@ -12,7 +12,7 @@
 // applies the selected ones — nothing mutates the grid behind your back.
 import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { apiGet, apiPost, runJob } from './../api.js'
-import { useWorkspace, usePersistentState, getUi, setUi, setRows, patchRow, setGlossaryMeta, setGovernance, setCategoriesConfirmed, setReviewCompleted, save } from './../state.js'
+import { useWorkspace, usePersistentState, useResumableJob, getUi, setUi, setRows, patchRow, setGlossaryMeta, setGovernance, setCategoriesConfirmed, setReviewCompleted, save } from './../state.js'
 import { sameSourceCount, selfFold } from './../rowmerge.js'
 import './review.css'
 
@@ -303,12 +303,13 @@ export default function ReviewPage({ onNavigate }) {
       setXgBusy(false)
     }
   }, [rows, xgConn, setXg])
-  const [reco, setReco] = useState({})             // {name: recommendation} — re-derived on mount
+  const [reco, setReco] = usePersistentState('review.reco', {}) // {name: recommendation} — survives navigation
   const [advising, setAdvising] = useState(false)
   // live narration while the advise job runs — {phase, done, total, detail}
   const [adviseProg, setAdviseProg] = useState(null)
-  const [agent, setAgent] = useState(null)         // {label, done, total, proposed, cancelling}
-  const [proposals, setProposals] = useState(null) // {label, note, items:{rowIndex:{patch, display, issues?}}} — inline pills
+  const [agent, setAgent] = usePersistentState('review.agent', null) // {label, done, total, proposed, cancelling}
+  // pills survive navigation: this is session-cached, not component state
+  const [proposals, setProposals] = usePersistentState('review.proposals', null) // {label, note, items:{rowIndex:{patch, display, issues?}}} — inline pills
   // declared HERE, with its sibling agent states: the silent-heal effect far
   // below reads it in a dependency array, which evaluates during render — a
   // later declaration is a temporal-dead-zone crash that blanks the page
@@ -317,7 +318,7 @@ export default function ReviewPage({ onNavigate }) {
   // session flag: an AI-categories run produced proposals — advances the
   // strip's highlight to step 2 (Approve). Not persisted: after a reload the
   // highlight falls back to step 1, which is harmless (re-proposing is safe).
-  const [catRan, setCatRan] = useState(false)
+  const [catRan, setCatRan] = usePersistentState('review.catRan', false)
   // How many subjects this business has is the steward's judgement, not the
   // model's: it biases low by design, which is right until it isn't (13 -> 3
   // where 5 read better). Blank = let the model decide, as before.
@@ -886,24 +887,27 @@ export default function ReviewPage({ onNavigate }) {
         const c = await apiGet('/api/connections')
         conn = ((c.connections || []).find((x) => x.type === 'db') || {}).config || null
       } catch { /* probe is optional — evidence + AI still apply */ }
-      const d = await runJob('recommend-resolutions',
-        { rows: rowsRef.current, conn, ai: true },
-        (j) => setAdviseProg(j))
-      const m = {}
-      ;(d.groups || []).forEach((g) => { m[g.name] = g })
-      setReco(m)
-      // `used_llm: false` means the model was not NEEDED as often as it means the
-      // model was not AVAILABLE — say which, rather than blaming a healthy Ollama
-      // for a run the data already settled.
-      const probedTxt = d.probed ? `Live-probed ${d.probed} group${d.probed !== 1 ? 's' : ''}` : 'No group needed a live probe'
-      setMsg(d.used_llm
-        ? `AI adjudicated ${d.ambiguous} still-ambiguous group${d.ambiguous !== 1 ? 's' : ''}${d.probed ? ` (live-probed ${d.probed})` : ''}.`
-        : d.ambiguous
-          ? `${probedTxt}; ${d.ambiguous} still ambiguous but the model did not answer — evidence decides. Check the LLM on Settings.`
-          : `${probedTxt} — the data settled every one, so no model call was needed.`)
-    } catch (e) { setError(e.message) }
-    setAdvising(false)
-    setAdviseProg(null)
+      await adviseRun.start('recommend-resolutions', { rows: rowsRef.current, conn, ai: true })
+    } catch (e) {
+      setError(e.message)
+      setAdvising(false)
+      setAdviseProg(null)
+    }
+  }
+
+  function handleAdviseResult(d) {
+    const m = {}
+    ;(d.groups || []).forEach((g) => { m[g.name] = g })
+    setReco(m)
+    // `used_llm: false` means the model was not NEEDED as often as it means the
+    // model was not AVAILABLE — say which, rather than blaming a healthy Ollama
+    // for a run the data already settled.
+    const probedTxt = d.probed ? `Live-probed ${d.probed} group${d.probed !== 1 ? 's' : ''}` : 'No group needed a live probe'
+    setMsg(d.used_llm
+      ? `AI adjudicated ${d.ambiguous} still-ambiguous group${d.ambiguous !== 1 ? 's' : ''}${d.probed ? ` (live-probed ${d.probed})` : ''}.`
+      : d.ambiguous
+        ? `${probedTxt}; ${d.ambiguous} still ambiguous but the model did not answer — evidence decides. Check the LLM on Settings.`
+        : `${probedTxt} — the data settled every one, so no model call was needed.`)
   }
 
   // The scope check. A steward reviewing hundreds of tables in ONE glossary is
@@ -930,12 +934,45 @@ export default function ReviewPage({ onNavigate }) {
   // still discriminate, every table placed in one. Proposals only: the steward
   // confirms, the Rename button adjusts, Export pack freezes the outcome.
   // Tables the model leaves out keep their physical group, visibly.
+  // the job id + start time live in the session cache, NOT component state:
+  // the app renders only the active page, so navigating away unmounts Review —
+  // as a job the model keeps working and mount re-attaches to it
+  // ("can we implement this for all pages? so that the state is maintained")
+  const adviseRun = useResumableJob('review.adviseJob', {
+    onDone: (result) => { setAdvising(false); setAdviseProg(null); handleAdviseResult(result || {}) },
+    onError: (detail) => { setAdvising(false); setAdviseProg(null); setError(String(detail)) },
+    onLost: () => { setAdvising(false); setAdviseProg(null); setMsg('The AI-advise job was lost (backend restarted?) — run it again.') },
+    onBusy: (b) => setAdvising(b),
+    onTick: (j) => setAdviseProg(j),
+  })
+
+  const catRun = useResumableJob('review.catJob', {
+    onDone: (result, meta) => {
+      if (meta?.started) catStartRef.current = meta.started
+      handleCatResult(result || {})
+    },
+    onError: (detail) => setMsg(`AI categories failed: ${detail}`),
+    onLost: () => setMsg('The categorize job was lost (backend restarted?) — run it again.'),
+    // on re-attach the clock resumes from the job's own start time, so the
+    // elapsed display stays truthful across navigation
+    onBusy: (b, meta) => { setCatBusy(b); if (b && meta?.started) catStartRef.current = meta.started },
+  })
+
   async function aiCategories() {
     setCatBusy(true)
-    setMsg('Proposing business categories from the schema\u2026')
+    setMsg('Proposing business categories from the schema…')
+    catStartRef.current = Date.now()
     try {
-      const d = await apiPost('/api/ai-categories',
+      await catRun.start('ai-categories',
         { rows, ...(catTarget ? { target: parseInt(catTarget, 10) } : {}) })
+    } catch (e) {
+      setCatBusy(false)
+      setMsg(`Could not start the categorize job: ${e.message}`)
+    }
+  }
+
+  function handleCatResult(d) {
+    try {
       const cats = (d.categories || []).filter((c) => !c.unassigned)
       const un = (d.categories || []).find((c) => c.unassigned)
       if (!d.used_llm || !cats.length) {
@@ -967,7 +1004,7 @@ export default function ReviewPage({ onNavigate }) {
                      display: [{ field: 'Category', from: cur, to: a[i] }] }
       })
       if (!n) { setCatRan(true); setMsg('Every row already carries its proposed category.'); return }
-      setProposals((prev) => {
+      commitProposals((prev) => {
         const label = 'AI categories (schema)'
         // A fresh categorize run REPLACES the previous one's Category pills
         // everywhere — merging them interleaves two taxonomies (field: rerun
@@ -1074,6 +1111,23 @@ export default function ReviewPage({ onNavigate }) {
   // the inline proposal state — so the click-to-accept pills light up in the
   // grid batch by batch while the run is still going. The grid itself never
   // mutates: pills/Accept-all are the only way a proposal lands.
+  // Write-through setters for state a background loop must be able to update
+  // after this mount is gone ("can we implement this for all pages? so that
+  // the state is maintained"): cache first (survives), setter second (paints
+  // if mounted; harmless no-op if not).
+  function commitProposals(updater) {
+    const prev = getUi('review.proposals', null)
+    const next = typeof updater === 'function' ? updater(prev) : updater
+    setUi('review.proposals', next)
+    setProposals(next)
+  }
+  function commitAgent(updater) {
+    const prev = getUi('review.agent', null)
+    const next = typeof updater === 'function' ? updater(prev) : updater
+    setUi('review.agent', next)
+    setAgent(next)
+  }
+
   async function runChunks(label, call, { offlineBreak = true, chunk = CHUNK, propose = null,
                                           only = null } = {}) {
     const baseRows = rowsRef.current
@@ -1096,7 +1150,7 @@ export default function ReviewPage({ onNavigate }) {
     cancelRef.current = false
     const startedAt = Date.now()
     const batches = Math.ceil(total / chunk)
-    setAgent({ label, done: 0, total, proposed: 0, batch: 0, batches, startedAt, names: [] })
+    commitAgent({ label, done: 0, total, proposed: 0, batch: 0, batches, startedAt, names: [] })
     // NOTE: pending proposals from a previous agent are KEPT — new proposals
     // merge in per row/field below, so running the next agent never forces an
     // Accept all / Dismiss all decision on the last one's pills
@@ -1126,7 +1180,7 @@ export default function ReviewPage({ onNavigate }) {
       const idx = targets.slice(s, s + chunk)
       // announce the batch BEFORE the call — a model batch can take 30s+, and a
       // bar that only moves on completion reads as "stuck"
-      setAgent((a) => (a ? { ...a, batch: Math.floor(s / chunk) + 1,
+      commitAgent((a) => (a ? { ...a, batch: Math.floor(s / chunk) + 1,
                              names: idx.map((i) => (baseRows[i] || {}).Term).filter(Boolean) } : a))
       let add = null
       try {
@@ -1152,7 +1206,7 @@ export default function ReviewPage({ onNavigate }) {
       } catch { failed += idx.length }
       if (add) {
         proposed += Object.keys(add).length
-        setProposals((p) => {
+        commitProposals((p) => {
           // merge per row: a field proposed again is replaced by the newer
           // agent's take; other fields' pending pills survive untouched
           const items = { ...(p ? p.items : {}) }
@@ -1175,9 +1229,9 @@ export default function ReviewPage({ onNavigate }) {
           }
         })
       }
-      setAgent((a) => (a ? { ...a, done: Math.min(s + chunk, total), proposed } : a))
+      commitAgent((a) => (a ? { ...a, done: Math.min(s + chunk, total), proposed } : a))
     }
-    setAgent(null)
+    commitAgent(null)
     return { baseRows, working, targets, offline, failed, proposed, timedOut,
              stopped: cancelRef.current }
   }
@@ -1217,7 +1271,7 @@ export default function ReviewPage({ onNavigate }) {
       }
       patchRow(index, patch)
     }
-    setProposals((prev) => {
+    commitProposals((prev) => {
       if (!prev || !prev.items[index]) return prev
       const cur = prev.items[index]
       const display = field ? cur.display.filter((d) => d.field !== field) : []
@@ -1243,13 +1297,13 @@ export default function ReviewPage({ onNavigate }) {
       rowsHit++
       return { ...r, ...it.patch }
     }))
-    setProposals(null)
+    commitProposals(null)
     structuralReset()
     setMsg(`Applied every proposal from ${p.label} (${rowsHit} row${rowsHit !== 1 ? 's' : ''}). Proposed names land as → chips — click them (or Apply all suggested names) to rename.`)
   }
 
   function dismissProps() {
-    setProposals(null)
+    commitProposals(null)
     setMsg('Proposals dismissed — nothing changed.')
   }
 

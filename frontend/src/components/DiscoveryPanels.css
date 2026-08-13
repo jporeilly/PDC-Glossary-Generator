@@ -1,0 +1,64 @@
+/* Discovery panels — self-contained styles, because these components render
+   on Schema and Files (and wherever next), not just the page whose css
+   happened to define their look. The confidence charts shipped with class
+   names no stylesheet defined — labels, bars and numbers ran together
+   ("could be a lot clearer and prettier with data bars aligned"). */
+
+.disc-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 1rem;
+}
+
+.disc-box {
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: .9rem 1rem 1rem;
+  min-width: 0;
+}
+
+/* one row = label | bar | value, aligned as columns across every row */
+.disc-row {
+  display: grid;
+  grid-template-columns: minmax(7rem, 13rem) 1fr 3.2rem;
+  gap: .6rem;
+  align-items: center;
+  padding: .26rem .3rem;
+  border-radius: 6px;
+  font-size: .86rem;
+}
+
+.disc-row:hover { background: var(--surface-2); }
+
+.disc-lbl {
+  font-weight: 600;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.disc-val {
+  text-align: right;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* the bar itself: a full-width track so every bar starts at the same x and
+   fractions are comparable by eye */
+.disc-row .mini {
+  display: block;
+  height: 8px;
+  border-radius: 99px;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+
+.disc-row .mini i {
+  display: block;
+  height: 100%;
+  border-radius: 99px;
+  background: var(--accent, #2f6fed);
+  min-width: 2px;
+}

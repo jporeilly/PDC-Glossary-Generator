@@ -14,6 +14,45 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.37.5] - 2026-08-13
+
+### Added - long AI runs survive leaving the page
+
+"So state is not held if i browse other pages? back to 0." It wasn't: the
+app renders only the active page, so navigating away unmounted Review and
+a five-minute categorize had nobody left to receive it. Now:
+
+- **AI categories runs as a backend job.** Browse anywhere - the model
+  keeps working server-side; Review re-attaches on return, the elapsed
+  clock resumes from the job's own start time, and the proposals land
+  whenever they are ready. Same for **AI advise**.
+- **Pills, progress and recommendations survive navigation** - proposals,
+  the batch bar, per-cluster advice and the categories-ran flag live in
+  the session cache, not component state.
+- **A mid-flight AI pass keeps landing pills** even while you are on
+  another page: its loop writes through the cache, and the remounted page
+  subscribes - so you come back to more pills than you left, not fewer
+  ("can we implement this for all pages? so that the state is
+  maintained").
+
+### Fixed - unknown file sizes read as a dash, never "0 B"
+
+The catalog stated no size for the harvested objects, and coercing that
+to zero told the user the data was broken ("data for files still not
+fixed"). Unknown now stays unknown end to end - per file, per folder, per
+type, and in the totals. The identical dates on every file are the
+catalog's ingest stamp, not the files' own - the diagnostic now dumps a
+raw FILE entity so what PDC truly stores is read from payload, not
+guessed from aliases.
+
+### Fixed - the discovery charts have their own stylesheet
+
+The confidence and weak-tables charts shipped class names no loaded
+stylesheet defined - labels, bars and numbers ran together. The panels now
+carry their own CSS (they render on Schema and Files, not just the page
+whose stylesheet happened to match): one aligned label | bar | value grid,
+full-width tracks so every bar starts at the same x.
+
 ## [1.37.4] - 2026-08-13
 
 ### Fixed - harvested files carry their sizes, dates and folder names

@@ -917,11 +917,13 @@ class TestFileRecordCarriesSizeAndDate:
         assert rec["bytes"] == 20480 and rec["modified"].startswith("2026-05-14")
         assert rec["folder"] == "gis" and bucket == "awc-documents"
 
-    def test_absent_size_degrades_to_zero(self):
+    def test_absent_size_is_unknown_not_zero(self):
+        """A size the entity never stated must read as a dash, not "0 B" -
+           0 B everywhere told the user the data was broken."""
         from pdc_client.entities import _file_record
         rec, _ = _file_record({"name": "a.pdf", "type": "FILE",
                                "fqdnDisplay": "s3:b/x/a.pdf", "metadata": {}})
-        assert rec["bytes"] == 0 and rec["modified"] == ""
+        assert rec["bytes"] is None and rec["modified"] == ""
 
 
 class TestHarvestBuildsDiscoveryViews:

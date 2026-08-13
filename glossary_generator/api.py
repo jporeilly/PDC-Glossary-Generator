@@ -3611,24 +3611,26 @@ def pdc_harvest(body: dict = Body(default={})):
             fol = f.get("folder") or "(root)"
             # the panel labels a folder row from `name`
             b = by_folder.setdefault(fol, {"name": fol, "folder": fol, "count": 0,
-                                           "files": 0, "bytes": 0})
+                                           "files": 0, "bytes": None})
             b["count"] += 1          # the panel reads `count`
             b["files"] += 1
-            b["bytes"] += int(f.get("bytes") or 0)
-        tot_b = sum(int(f.get("bytes") or 0) for f in files)
+            if f.get("bytes") is not None:
+                b["bytes"] = (b["bytes"] or 0) + int(f["bytes"])
+        known = [int(f["bytes"]) for f in files if f.get("bytes") is not None]
+        tot_b = sum(known) if known else None
         docs_discovery = {
             "bucket": summary.get("bucket") or "", "prefix": "",
             "summary": {"files": len(files), "bytes": tot_b,
                         "types": len(by_type), "folders": len(by_folder),
-                        "avg_bytes": int(tot_b / len(files)) if files else 0},
+                        "avg_bytes": (int(tot_b / len(known)) if known else None)},
             "by_type": [{"ext": e, "count": n,
                          "bytes": sum(int(f.get("bytes") or 0) for f in files
                                       if ((f.get("ext") or "").lower() or "(none)") == e)}
                         for e, n in by_type.most_common()],
-            "by_folder": sorted(by_folder.values(), key=lambda x: -x["bytes"]),
+            "by_folder": sorted(by_folder.values(), key=lambda x: -(x["bytes"] or 0)),
             "largest": sorted(({"key": f.get("rel") or f.get("base"),
-                                "bytes": int(f.get("bytes") or 0)} for f in files),
-                              key=lambda x: -x["bytes"])[:10],
+                                "bytes": f.get("bytes")} for f in files),
+                              key=lambda x: -(x["bytes"] or 0))[:10],
             "newest": [{"key": f.get("rel") or f.get("base"),
                         "modified": str(f.get("modified") or "")}
                        for f in sorted(files, key=lambda f: str(f.get("modified") or ""),
@@ -3870,6 +3872,9 @@ def api_pdc_profiling_probe(body: dict = Body(default={})):
     # PATCH Apply already uses can write them. Dump one entity's real
     # attribute keys so the answer is the catalog's own payload.
     labels = {"attribute_keys": [], "label_like_keys": [], "sample": ""}
+    file_sample = ""   # a raw FILE entity, so size/date questions are settled
+                       # by payload, not alias guessing (field: 0 B everywhere,
+                       # every date identical = the catalog's ingest stamp)
     try:
         probe_ents = pdc_api.filter_entities(
             base, token, {"types": list(dict.fromkeys(pdc_api._COL_TYPES))},
@@ -3887,6 +3892,12 @@ def api_pdc_profiling_probe(body: dict = Body(default={})):
                         "userdefined", "udp", "annotation")))
             blob = json.dumps(ent, default=str)
             labels["sample"] = blob[:3000] + ("…(truncated)" if len(blob) > 3000 else "")
+        fent = next((e for e in probe_ents
+                     if str(e.get("type") or "").upper() == "FILE"
+                     and ((not (ds_id or ds_name)) or pdc_api._under_root(e, ds_id, ds_name))), None)
+        if fent:
+            blob = json.dumps(fent, default=str)
+            file_sample = blob[:3000] + ("…(truncated)" if len(blob) > 3000 else "")
     except Exception as e:
         labels["error"] = str(e)[:200]
 
@@ -3932,7 +3943,8 @@ def api_pdc_profiling_probe(body: dict = Body(default={})):
                 (v.get("_via") for v in (prof or {}).values()
                  if isinstance(v, dict) and v.get("_via")), "table-name"),
             "columns": out, "verdict": verdict,
-            "labels": labels, "labels_verdict": lab_verdict}
+            "labels": labels, "labels_verdict": lab_verdict,
+            "file_sample": file_sample}
 
 
 @app.post("/api/factory-reset")
@@ -4286,6 +4298,29 @@ def api_job_draft_policies(body: dict = Body(default={})):
                  skipped=len(summary.get("skipped") or []),
                  used_llm=summary.get("used_llm"))
     return _start_job("draft-policies", _runner)
+
+@app.post("/api/jobs/ai-categories")
+def api_job_ai_categories(body: dict = Body(default={})):
+    """Job twin of /api/ai-categories. The schema-wide call runs for minutes
+       on a big grid, and the app renders only the active page - so browsing
+       away unmounted Review and the response had nobody to receive it
+       ("state is not held if i browse other pages? back to 0"). As a job the
+       model keeps working server-side; Review re-attaches on mount and the
+       proposals land whenever it finishes."""
+    body = body or {}
+    def _runner(job):
+        job["detail"] = "one call over the whole schema graph"
+        from ai import llm
+        rows = [r for r in (body.get("rows") or []) if isinstance(r, dict)]
+        before = llm.call_failures().get("timeout", 0)
+        proposal, assignments, used = llm.propose_categories(
+            rows, model=body.get("model"), compute=body.get("compute"),
+            target=body.get("target"))
+        timed_out = llm.call_failures().get("timeout", 0) - before
+        job["result"] = {"categories": proposal, "assignments": assignments,
+                         "used_llm": used, "timed_out": max(timed_out, 0)}
+    return _start_job("ai-categories", _runner)
+
 
 @app.get("/api/jobs/{job_id}/zip")
 def api_job_zip(job_id: str):

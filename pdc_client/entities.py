@@ -239,7 +239,7 @@ def _file_record(ent):
                     return int(float(v))
             except (TypeError, ValueError):
                 continue
-        return 0
+        return None          # unknown - the UI shows a dash, never "0 B"
     size = _num(mf.get("size"), mf.get("sizeInBytes"), mf.get("contentLength"),
                 mf.get("fileSize"), _aget(a, "size", "sizeInBytes", "contentLength"),
                 info.get("size"))

@@ -4,6 +4,7 @@
 // that produced them ("can those be displayed for schema - tables and Files -
 // charts?"). Pure presentation: the pages own the data and the actions.
 import { useState } from 'react'
+import './DiscoveryPanels.css'
 
 const fmtBytes = (b) => {
   if (b == null) return '—'
@@ -236,7 +237,7 @@ export function DocsPanel({ docs, onRefilter }) {
               <div className="folder-row" key={f.name}>
                 <span className="fr-name" title={f.name}>{f.name}</span>
                 <span className="fr-count">{(f.count ?? f.files ?? 0).toLocaleString()}</span>
-                <span className="fr-track"><span className="fr-fill" style={{ width: pct(f.bytes / maxFolder), display: 'block' }} /></span>
+                <span className="fr-track"><span className="fr-fill" style={{ width: pct((f.bytes || 0) / maxFolder), display: 'block' }} /></span>
                 <span className="fr-size">{fmtBytes(f.bytes)}</span>
               </div>
             ))}

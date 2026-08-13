@@ -8,7 +8,7 @@
 // to the old UI's endpoint (POST /api/glossaries) and only run once the
 // glossary has an id or a name — a scratch grid is never persisted silently.
 
-import { useCallback, useState, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { apiGet, apiPost } from './api.js'
 
 const ws = {
@@ -70,8 +70,22 @@ export function getUi(key, fallback = null) {
   return uiCache.has(key) ? uiCache.get(key) : fallback
 }
 
+// Subscribers per cache key: a background loop that outlives its page writes
+// through setUi, and the REMOUNTED page needs to repaint when it does — the
+// new mount's state setter is not the one the old loop captured.
+const uiSubs = new Map()
+
 export function setUi(key, value) {
   uiCache.set(key, value)
+  const subs = uiSubs.get(key)
+  if (subs) subs.forEach((fn) => fn(value))
+}
+
+export function subscribeUi(key, fn) {
+  let subs = uiSubs.get(key)
+  if (!subs) uiSubs.set(key, (subs = new Set()))
+  subs.add(fn)
+  return () => subs.delete(fn)
 }
 
 // Drop every cached UI value under a namespace — call when the underlying data
@@ -94,7 +108,61 @@ export function usePersistentState(key, initial) {
       return val
     })
   }, [key])
+  // external writes (setUi from a loop that outlived its page) repaint this
+  // mount too — identical values bail out in React, so no update loops
+  useEffect(() => subscribeUi(key, (val) => setV(val)), [key])
   return [v, set]
+}
+
+/* ---------- resumable jobs ----------
+   A long AI run must survive the page that started it: the app renders only
+   the active page, so navigating away unmounts the component and a plain
+   await loses the response ("state is not held if i browse other pages?").
+   The run itself lives on the BACKEND as a job; this hook keeps the job id
+   in the session cache and re-attaches the poll on whichever mount comes
+   back. Close the page, browse, come back - the result lands when ready. */
+
+export function useResumableJob(cacheKey, { onDone, onError, onLost, onBusy, onTick } = {}) {
+  const [job, setJob] = usePersistentState(cacheKey, null)
+  const cbs = useRef(null)
+  cbs.current = { onDone, onError, onLost, onBusy, onTick }
+  useEffect(() => {
+    if (!job?.id) return undefined
+    let dead = false
+    cbs.current.onBusy?.(true, job)
+    const tick = async () => {
+      let j
+      try {
+        j = await apiGet(`/api/jobs/${job.id}`)
+      } catch {
+        // the backend forgot the job (restart) - tell the page, honestly
+        if (!dead) { setJob(null); cbs.current.onBusy?.(false, job); cbs.current.onLost?.(job) }
+        return
+      }
+      if (dead) return
+      if (j.status === 'done') {
+        setJob(null); cbs.current.onBusy?.(false, job)
+        cbs.current.onDone?.(j.result, job)
+      } else if (j.status === 'error') {
+        setJob(null); cbs.current.onBusy?.(false, job)
+        cbs.current.onError?.(j.detail || 'unknown error', job)
+      } else {
+        cbs.current.onTick?.(j, job)
+        setTimeout(tick, 900)
+      }
+    }
+    tick()
+    return () => { dead = true }
+  }, [job?.id])   // eslint-disable-line react-hooks/exhaustive-deps
+  return {
+    running: !!job?.id,
+    startedAt: job?.started || null,
+    start: async (name, body, meta = {}) => {
+      const d = await apiPost(`/api/jobs/${name}`, body)
+      setJob({ id: d.job, started: Date.now(), ...meta })
+      return d.job
+    },
+  }
 }
 
 /* ---------- mutations (each marks dirty + schedules the autosave) ---------- */
