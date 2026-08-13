@@ -1323,6 +1323,18 @@ export default function ReviewPage({ onNavigate }) {
 
   // The default agent: one call per row covering every LLM-decidable field.
   async function runAiPass() {
+    // categories settle FIRST; prose is written against the settled taxonomy.
+    // With Category pills pending, the pass would define terms against the
+    // OLD categories while the new ones sit unaccepted (field-caught: pass
+    // started at 13 approved with 13 -> 6 pending)
+    const pendingCatPills = proposals?.items
+      && Object.values(proposals.items).some((it) => it?.patch && 'Category' in it.patch)
+    if (pendingCatPills) {
+      setMsg('Category pills are still pending — Accept all (or dismiss) and re-approve '
+        + 'the keystone first, so definitions are written against the taxonomy you chose, '
+        + 'not the one it is replacing.')
+      return
+    }
     const run = await runChunks('AI pass — definitions, purposes, names, categories, tags',
       // no model/compute here: ReviewPage has no settings prop (that was a
       // copy from the Dictionary page and threw ReferenceError before the
@@ -1714,7 +1726,15 @@ export default function ReviewPage({ onNavigate }) {
           </div>
         )}
 
-        {proposals && (
+        {/* while an agent RUNS, an older proposal banner collapses to one
+            line — full-size it reads as the active panel and buried the live
+            progress ("ive clicked on AI pass, but the panel hasnt updated") */}
+        {proposals && agent && (
+          <div className="rv-propstrip rv-propcompact">
+            <span><b>{proposals.label}</b> — {propCount} proposal{propCount !== 1 ? 's' : ''} still pending · Accept or dismiss when the current run finishes</span>
+          </div>
+        )}
+        {proposals && !agent && (
           <div className="rv-propstrip">
             <div className="rv-proptext">
               <div className="rv-propline">

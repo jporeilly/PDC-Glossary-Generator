@@ -633,6 +633,40 @@ class TestDraftPoliciesJob:
         assert r.status_code == 404
 
 
+class TestEntityStatsAreABaselineProfile:
+    def test_metadata_stats_fill_the_profile_without_profiling_info(self, monkeypatch):
+        """A live COLUMN dump showed the entity itself carries metadata.stats
+           (rows, nulls, cardinality, density/uniqueness percentages, and
+           min/max/avg/stdev - the numeric-range evidence). Harvest takes the
+           baseline from the entity; profiling-info only enriches it."""
+        import pdc_client.entities as ents
+        import pdc_client.jobs as jobs
+
+        def fake_filter_entities(base, token, filters, *a, **kw):
+            if "COLUMN" in (filters.get("types") or []):
+                return [{"_id": "c1", "name": "length_feet", "parentId": "p1",
+                         "fqdnDisplay": "Arizona_Water_Documents/gis/pipe_network_segments.csv/length_feet",
+                         "metadata": {"column": {"ordinalPosition": 5},
+                                      "stats": {"rows": 120, "nulls": 0,
+                                                "cardinality": 119,
+                                                "avgValue": 2752.58,
+                                                "minValue": 201, "maxValue": 5095,
+                                                "stdevValue": 1391.5,
+                                                "density": 100,
+                                                "uniqueness": 99.17}}}]
+            return []
+
+        monkeypatch.setattr(ents, "filter_entities", fake_filter_entities)
+        monkeypatch.setattr(jobs, "filter_profiling_info", lambda *a, **k: [])
+        tables, files, overlay, summary = ents.harvest_from_catalog(
+            "https://pdc.example", "tok")
+        col = tables["pipe_network_segments.csv"][0]
+        prof = col["profile"]
+        assert prof["completeness"] == 1.0 and prof["uniq"] == 0.992
+        assert prof["min"] == 201 and prof["max"] == 5095,             "numeric range rides the profile - the range-DQ evidence"
+        assert summary["profiled_columns"] == 1
+
+
 class TestHarvestFetchesProfilingById:
     def test_id_route_is_tried_before_the_name_route(self, monkeypatch):
         """A live probe showed the by-NAME route finds no profiling for a
@@ -916,6 +950,31 @@ class TestFileRecordCarriesSizeAndDate:
         })
         assert rec["bytes"] == 20480 and rec["modified"].startswith("2026-05-14")
         assert rec["folder"] == "gis" and bucket == "awc-documents"
+
+    def test_size_lives_at_metadata_stats_bytes(self):
+        """The live dump settled two rounds of failed aliasing: size is
+           metadata.stats.bytes (a SIBLING of metadata.file), the mtime is
+           metadata.file.modifiedAt, and metadata.document carries title,
+           author and a cp:category class worth keeping."""
+        from pdc_client.entities import _file_record
+        rec, bucket = _file_record({
+            "name": "inspection_apache_junction_main_break.docx", "type": "FILE",
+            "fqdnDisplay": "Arizona_Water_Documents/inspections/inspection_apache_junction_main_break.docx",
+            "metadata": {
+                "file": {"path": "inspections/inspection_apache_junction_main_break.docx",
+                         "bucket": "awc-documents", "extension": "docx",
+                         "modifiedAt": "2026-07-30T09:30:33.754Z"},
+                "document": {"title": "Water Main Break Investigation - Apache Trail",
+                             "author": "Arizona Water Company - Field Operations",
+                             "extended": {"cp:category": "Field Inspection Report"}},
+                "stats": {"bytes": 38003},
+            },
+        })
+        assert rec["bytes"] == 38003
+        assert rec["modified"].startswith("2026-07-30")
+        assert rec["doc_category"] == "Field Inspection Report"
+        assert rec["author"].startswith("Arizona Water")
+        assert bucket == "awc-documents"
 
     def test_pdc_used_capacity_is_a_size(self):
         """PDC's UI calls it "Used Capacity" - a Contents screenshot proved

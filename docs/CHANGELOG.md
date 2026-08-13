@@ -14,6 +14,40 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.37.9] - 2026-08-13
+
+### Fixed - file sizes, from the key the catalog actually uses
+
+Two raw entity dumps from the live estate ended the guessing:
+
+- **Size is `metadata.stats.bytes`** - a SIBLING of `metadata.file`, which
+  is why two rounds of aliasing `metadata.file.*` never found it. Wired,
+  with the old guesses kept as fallbacks for other PDC versions. The
+  file dates were real all along (`metadata.file.modifiedAt` is the true
+  mtime; the catalog record's own updatedAt is separate).
+- **`metadata.document` rides the record now**: title, author, and the
+  `cp:category` class ("Field Inspection Report") - document-class
+  evidence the labels engine can use, captured at harvest.
+
+### Added - a baseline profile straight off the entity
+
+A COLUMN dump showed the entity itself carries `metadata.stats`: rows,
+nulls, cardinality, density and uniqueness percentages, and
+**min/max/avg/stdev**. Harvest now takes a baseline profile from the
+entity before profiling-info is even asked (profiling-info enriches on
+top), so completeness and uniqueness baselines are free - and the numeric
+RANGE evidence (201..5095 on length_feet) now rides the profile, opening
+the door to range DQ checks.
+
+### Changed - two Review guards from a live near-miss
+
+- The AI pass refuses to start while Category pills are pending: prose
+  must be written against the taxonomy you chose, not the one it is
+  replacing (field: pass started at 13 approved with 13 -> 6 pending).
+- While an agent runs, an older proposal banner collapses to a one-line
+  reminder instead of impersonating the active panel ("ive clicked on AI
+  pass, but the panel hasnt updated").
+
 ## [1.37.8] - 2026-08-13
 
 ### Fixed - the raw FILE dump actually finds a file

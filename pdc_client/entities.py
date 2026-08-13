@@ -240,11 +240,13 @@ def _file_record(ent):
             except (TypeError, ValueError):
                 continue
         return None          # unknown - the UI shows a dash, never "0 B"
-    # PDC's own UI names these "Used Capacity" and "Oldest/Youngest Child
-    # Date" (field: a Contents screenshot proved the catalog holds sizes the
-    # API aliases were missing), so the camelCase forms of the UI's words
-    # lead the list.
-    size = _num(_aget(a, "usedCapacity", "used_capacity", "capacity"),
+    # The raw FILE entity (finally dumped from a live estate) settled it:
+    # size lives at metadata.stats.bytes — a sibling of metadata.file, which
+    # is why two rounds of aliasing metadata.file.* never found it. The
+    # guesses stay as fallbacks for other PDC versions.
+    ms = md.get("stats") if isinstance(md.get("stats"), dict) else {}
+    size = _num(ms.get("bytes"), ms.get("size"),
+                _aget(a, "usedCapacity", "used_capacity", "capacity"),
                 mf.get("usedCapacity"), mf.get("size"), mf.get("sizeInBytes"),
                 mf.get("contentLength"), mf.get("fileSize"),
                 _aget(a, "size", "sizeInBytes", "contentLength"),
@@ -256,8 +258,13 @@ def _file_record(ent):
                    or info.get("lastModified") or info.get("modifiedAt")
                    or ent.get("youngestChildDate")
                    or ent.get("updatedAt") or ent.get("modifiedAt") or "")
+    doc = md.get("document") if isinstance(md.get("document"), dict) else {}
+    doc_ext = doc.get("extended") if isinstance(doc.get("extended"), dict) else {}
     return {"folder": folder, "base": base, "bucket": bucket, "ext": ext,
             "bytes": size, "modified": modified,
+            "title": str(doc.get("title") or ""),
+            "author": str(doc.get("author") or ""),
+            "doc_category": str(doc_ext.get("cp:category") or ""),
             "owner": owner, "recent": False}, bucket
 
 
@@ -419,6 +426,31 @@ def harvest_from_catalog(base_url, token, ds_id=None, ds_name=None, version="v2"
             ent_index[str(_eid_)] = (tbl, col)
         if _par_:
             parent_ids.add(str(_par_))
+        # a live dump showed COLUMN entities carry metadata.stats themselves
+        # (rows, nulls, cardinality, density/uniqueness percentages, and
+        # min/max/avg/stdev - the numeric-range evidence): a baseline profile
+        # for free, before profiling-info is even asked
+        _md = e.get("metadata") if isinstance(e.get("metadata"), dict) else {}
+        _st = _md.get("stats") if isinstance(_md.get("stats"), dict) else {}
+        base_prof = {}
+        if _st:
+            rows_n = _st.get("rows")
+            if isinstance(_st.get("density"), (int, float)):
+                base_prof["completeness"] = round(float(_st["density"]) / 100.0, 3)
+            elif isinstance(rows_n, (int, float)) and rows_n and isinstance(_st.get("nulls"), (int, float)):
+                base_prof["completeness"] = round((rows_n - _st["nulls"]) / rows_n, 3)
+            if isinstance(_st.get("uniqueness"), (int, float)):
+                base_prof["uniq"] = round(float(_st["uniqueness"]) / 100.0, 3)
+            elif isinstance(rows_n, (int, float)) and rows_n and isinstance(_st.get("cardinality"), (int, float)):
+                base_prof["uniq"] = round(min(1.0, _st["cardinality"] / rows_n), 3)
+            if isinstance(rows_n, (int, float)):
+                base_prof["rows"] = int(rows_n)
+            for src_k, dst_k in (("minValue", "min"), ("maxValue", "max"),
+                                 ("avgValue", "avg"), ("stdevValue", "stdev")):
+                if isinstance(_st.get(src_k), (int, float)):
+                    base_prof[dst_k] = _st[src_k]
+            if base_prof:
+                base_prof["reason"] = "Profiled by PDC"
         tables.setdefault(tbl, []).append({
             "table": tbl, "column": col, "schema": sch,
             "type": (col_md.get("dataType") or col_md.get("sqlDataType") or col_md.get("typeName")
@@ -432,6 +464,7 @@ def harvest_from_catalog(base_url, token, ds_id=None, ds_name=None, version="v2"
             "unique": bool(_aget(attrs, "unique", "isUnique")),
             "comment": (info.get("description") or info.get("definition") or col_md.get("remarks")
                         or _aget(attrs, "description", "comment", "businessDescription", "definition") or ""),
+            **({"profile": base_prof} if base_prof else {}),
         })
         sens = feats.get("sensitivity") or _aget(attrs, "sensitivity", "sensitivityLevel", "dataSensitivity")
         trust = feats.get("trustScore")
@@ -534,8 +567,9 @@ def harvest_from_catalog(base_url, token, ds_id=None, ds_name=None, version="v2"
         for t_, cols in tables.items():
             for c in cols:
                 p = _profile_from_pdc(by_table_col.get((t_, c.get("column") or "")) or {})
-                if p:
-                    c["profile"] = p
+                if p or c.get("profile"):
+                    # entity baseline first, profiling-info wins on overlap
+                    c["profile"] = {**(c.get("profile") or {}), **p}
                     profiled += 1
 
     summary = {"tables": len(tables), "columns": sum(len(v) for v in tables.values()),
