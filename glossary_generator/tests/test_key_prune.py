@@ -257,3 +257,54 @@ class TestCandidateReferenceLists:
         ids = [f"C{i:03d}" for i in range(10)]
         prof2 = suggester._profile_values("customer_code", ids, len(ids))
         assert not prof2.get("enum"), "near-unique values never become a list"
+
+
+class TestHarvestPathKeyPrune:
+    """PDC's harvest path carries no pk/fk flags, so customer_id and
+       system_id sailed through the structural prune. Evidence stands in:
+       the same id-named column in 2+ tables is a join key IN FACT, and a
+       near-unique id column is a surrogate PK in fact."""
+
+    def _tables(self):
+        def col(t, c, prof=None):
+            return {"table": t, "column": c, "type": "int", "pk": False,
+                    "fk": False, "notnull": True, "unique": False,
+                    "comment": "", **({"profile": prof} if prof else {})}
+        return {
+            "customers": [col("customers", "customer_id",
+                              {"rows": 500, "uniq": 1.0}),
+                          col("customers", "service_city")],
+            "monthly_usage": [col("monthly_usage", "customer_id",
+                                  {"rows": 5000, "uniq": 0.1})],
+            "systems": [col("systems", "asset_tag",
+                            {"rows": 300, "uniq": 0.99,
+                             "pattern": "^AWC-[0-9]{6}$"})],
+        }
+
+    def test_fk_family_prunes_without_declared_flags(self):
+        from engine import suggester
+        rows = suggester.suggest(self._tables())
+        cust = [r for r in rows if r["Term"].lower().replace(" ", "_") == "customer_id"
+                or "customer_id" in str(r.get("Source_Column", ""))]
+        assert cust and all(r["Keep"] == "N" for r in cust),             [f"{r['Source_Column']}:{r['Keep']}" for r in cust]
+        assert any("join key" in r["Prune_Reason"] or "near-unique" in r["Prune_Reason"]
+                   for r in cust), [r["Prune_Reason"] for r in cust]
+
+    def test_a_formatted_natural_key_is_never_pruned(self):
+        """asset_tag is near-unique but carries a VALUE PATTERN - a natural
+           business key, exactly what the glossary is for."""
+        from engine import suggester
+        rows = suggester.suggest(self._tables())
+        tag = next(r for r in rows if "asset_tag" in str(r.get("Source_Column", "")))
+        assert tag["Keep"] == "Y", tag["Prune_Reason"]
+
+    def test_a_lone_low_uniqueness_id_survives(self):
+        """One table, one id column, repeating values, no flags - not enough
+           evidence to call it structural; the steward decides."""
+        from engine import suggester
+        rows = suggester.suggest({"alerts": [
+            {"table": "alerts", "column": "region_id", "type": "int",
+             "pk": False, "fk": False, "notnull": True, "unique": False,
+             "comment": "", "profile": {"rows": 100, "uniq": 0.05}}]})
+        r = next(x for x in rows if "region_id" in str(x.get("Source_Column", "")))
+        assert r["Keep"] == "Y", r["Prune_Reason"]

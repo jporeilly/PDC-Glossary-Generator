@@ -121,7 +121,11 @@ function keyOf(r, i, active) {
   // it never joins a duplicate group — Merge/Disambiguate applies to KEPT
   // business terms only. Ticking Keep restores it to normal clustering.
   if (r.Prune_Reason && !truthy(r.Keep)) return soloKey(i)
-  if (r._grp != null && active.has(r._grp)) return r._grp
+  // DISPLAY clusters by CURRENT NAME, nothing else. The _grp stamp used to
+  // key display too, so a split-product renamed by the AI pass stayed glued
+  // to its old cluster — headers over unrelated rows, counts like
+  // "2 candidates" above Effective Date and Due Date (field-caught). The
+  // stamp survives only as revert bookkeeping inside applyGroupAction.
   return String(r.Term || '').trim()
 }
 
@@ -129,19 +133,35 @@ function keyOf(r, i, active) {
 // next {rows, grp}. The group's base (its live members at first action) is
 // snapshotted so every action is reversible via 'separate'.
 function applyGroupAction(rowsIn, grpIn, name, action) {
+  // MEMORYLESS between decisions. The old machine kept one sticky `base`
+  // per group forever: every later action reused the ORIGINAL snapshot even
+  // after renames/edits, and a revert left a 'separate'+stale-base entry
+  // behind — ghost members, headers over the wrong rows, counts like
+  // "1 candidate" on a 2-row cluster (field-caught). Now: merge/split
+  // snapshot the LIVE members at the moment of THIS action; revert restores
+  // that snapshot and then FORGETS the group entirely, so the next decision
+  // starts from live truth like the first one did.
   const active = activeNames(grpIn)
-  const isMember = (r, i) => r && keyOf(r, i, active) === name
+  // membership: same current name, OR carrying this group's revert stamp —
+  // that is how a revert sweeps up split-products the pass renamed
+  const isMember = (r, i) => r && (keyOf(r, i, active) === name || r._grp === name)
   const live = rowsIn.filter((r, i) => isMember(r, i))
   const prior = grpIn[name]
-  const base = prior && prior.base && prior.base.length ? prior.base : deep(live)
-  if (!base.length) return { rows: rowsIn, grp: grpIn }
+  let base
   let derived
-  if (action === 'merge') {
-    derived = [{ ...mergeMembers(deep(base)), _grp: name }]
-  } else if (action === 'split') {
-    const taken = new Set(rowsIn.filter((r, i) => r && !isMember(r, i)).map((r) => String(r.Term || '').trim()))
-    derived = splitMembersUnique(deep(base), taken).map((r) => ({ ...r, _grp: name }))
+  if (action === 'merge' || action === 'split') {
+    base = deep(live)
+    if (!base.length) return { rows: rowsIn, grp: grpIn }
+    if (action === 'merge') {
+      derived = [{ ...mergeMembers(deep(base)), _grp: name }]
+    } else {
+      const taken = new Set(rowsIn.filter((r, i) => r && !isMember(r, i)).map((r) => String(r.Term || '').trim()))
+      derived = splitMembersUnique(deep(base), taken).map((r) => ({ ...r, _grp: name }))
+    }
   } else {
+    // revert: restore the snapshot the acted-on state came from, else no-op
+    base = prior && prior.base && prior.base.length ? prior.base : deep(live)
+    if (!base.length) return { rows: rowsIn, grp: grpIn }
     derived = deep(base).map((r) => { const { _grp, ...rest } = r; return rest })
   }
   const out = []
@@ -152,7 +172,10 @@ function applyGroupAction(rowsIn, grpIn, name, action) {
     } else out.push(r)
   })
   if (!inserted) derived.forEach((d) => out.push(d))
-  return { rows: out, grp: { ...grpIn, [name]: { action, base } } }
+  const nextGrp = { ...grpIn }
+  if (action === 'merge' || action === 'split') nextGrp[name] = { action, base }
+  else delete nextGrp[name]          // reverted = undecided, fully forgotten
+  return { rows: out, grp: nextGrp }
 }
 
 
@@ -1966,7 +1989,8 @@ export default function ReviewPage({ onNavigate }) {
                 return (
                   <Fragment key={`${k}:${idxs[0]}`}>
                     {cluster && <ClusterHead name={k} count={idxs.length} action={act} rec={rec}
-                                             decided={!!grp[k]} locked={locked} onSet={onGroupSet} />}
+                                             decided={!!grp[k]} locked={locked} onSet={onGroupSet}
+                                             candidates={idxs.map((ci) => rows[ci]).filter(Boolean)} />}
                     {idxs.map((i) => (
                       <Fragment key={i}>
                         <GridRow row={rows[i]} index={i} pos={posOf.get(i)} expanded={expanded === i}
@@ -2455,7 +2479,12 @@ const hasEvidence = (r) => !!(r.Value_Pattern || r.Value_Signature || r.Enum_Val
 // made: the one outcome that ships two terms under one name, highlighted as if
 // it were the advice. Until a steward picks, nothing is selected and the
 // recommendation is the only thing lit.
-function ClusterHead({ name, count, action, rec, locked, decided, onSet }) {
+function ClusterHead({ name, count, action, rec, locked, decided, onSet, candidates = [] }) {
+  // The decision needs the DIFFERENCES in view: comparing candidates meant
+  // scrolling a wide grid, and once a decision folded the rows the evidence
+  // was gone ("as you cant see the other rows its difficult to select the
+  // correct deduplicate strategy"). One line per candidate, right here.
+  const compare = !decided && candidates.length > 1
   const seg = (v, label) => (
     <button key={v} disabled={locked}
             className={(decided && action === v ? 'on' : '')
@@ -2486,6 +2515,28 @@ function ClusterHead({ name, count, action, rec, locked, decided, onSet }) {
           )}
           <span className="rv-gsegs seg">{seg('merge', 'Merge')}{seg('split', 'Disambiguate')}{seg('separate', 'Keep separate')}</span>
         </div>
+        {compare && (
+          <div className="rv-gclcands">
+            {candidates.map((r, ci) => {
+              const src = String(r.Source_Column || '').split(';')[0].trim()
+              const shortSrc = src.split('.').slice(-3).join('.')
+              const def = String(r.Definition || '').trim()
+              const enums = String(r.Enum_Values || '').split(';').filter(Boolean)
+              return (
+                <div className="rv-gclcand" key={ci}>
+                  <code title={src}>{shortSrc || '(no source)'}</code>
+                  <span className="rv-gclcat">{r.Category || '—'}</span>
+                  <span className="rv-gclev">
+                    {r.Value_Pattern ? <code>pattern</code> : null}
+                    {enums.length > 0 ? <code>{enums.length} values</code> : null}
+                    {!r.Value_Pattern && enums.length === 0 ? <span className="muted">no evidence</span> : null}
+                  </span>
+                  <span className="rv-gcldef" title={def}>{def ? def.slice(0, 90) + (def.length > 90 ? '…' : '') : <i>no definition</i>}</span>
+                </div>
+              )
+            })}
+          </div>
+        )}
       </td>
     </tr>
   )

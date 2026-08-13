@@ -357,3 +357,18 @@ button.rv-aipill:hover { background: color-mix(in srgb, var(--accent) 16%, trans
   font-size: .84rem;
   color: var(--text-muted);
 }
+
+/* candidate comparison inside a duplicate cluster header: the decision's
+   evidence in one place, one aligned line per candidate */
+.rv-gclcands { margin: .4rem 0 .2rem .2rem; display: grid; gap: .2rem; }
+.rv-gclcand {
+  display: grid;
+  grid-template-columns: minmax(12rem, 18rem) minmax(7rem, 11rem) 7.5rem 1fr;
+  gap: .7rem; align-items: baseline;
+  font-size: .8rem; padding: .18rem .35rem; border-radius: 6px;
+}
+.rv-gclcand:hover { background: var(--surface-2); }
+.rv-gclcand > code { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rv-gclcat { color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rv-gclev code { margin-right: .3rem; font-size: .72rem; }
+.rv-gcldef { color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

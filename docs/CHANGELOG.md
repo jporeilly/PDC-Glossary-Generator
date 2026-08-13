@@ -14,6 +14,42 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.38.3] - 2026-08-13
+
+### Fixed - duplicate resolution you can change your mind about
+
+Three field-caught faults in one state machine:
+
+- **Reverting a decision now brings everything back.** "Keep separate"
+  restores the candidates AND the header with its buttons and the AI
+  recommendation - re-deciding needs no re-run of AI advise. The machine
+  is memoryless between decisions: merge/split snapshot the LIVE members
+  at the moment of the action, and a revert restores that snapshot and
+  forgets the group.
+- **Headers sit over their own rows.** Display clusters key on the
+  CURRENT term name, nothing else - the revert stamp used to key display
+  too, so a split-product renamed by the AI pass stayed glued to its old
+  cluster ("its not 1 candidate merged into one. in this case its 2").
+- **The decision's evidence is in view.** Each undecided cluster header
+  lists its candidates - source, category, evidence, first line of the
+  definition - one aligned row each, so choosing Merge / Disambiguate /
+  Keep separate no longer means scrolling a wide grid ("as you cant see
+  the other rows its difficult to select the correct strategy").
+
+Proven live: merge -> revert -> re-merge on a seeded duplicate, header,
+recommendation and comparison intact at every step.
+
+### Fixed - keys cannot ride in on the harvest path
+
+"How did Customer ID get through when its a key?" Because PDC's harvest
+carries no PK/FK flags, and the structural prune required them. Evidence
+now stands in where declarations are absent: an id-named column that is
+near-unique is a surrogate key in fact, and the same id-named column in
+two or more tables is a join key in fact - both arrive un-kept, with the
+reason on the row. Formatted natural keys (a real value pattern) and
+identity PII still always survive, and a lone repeating id with no other
+evidence stays for the steward to judge.
+
 ## [1.38.2] - 2026-08-13
 
 ### Fixed - the dotted-filename family's last hideout

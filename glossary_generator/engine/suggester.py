@@ -1444,6 +1444,17 @@ def suggest(tables, schema=None):
     schema = schema or os.environ.get("GLOSSARY_SCHEMA", "public")
     """Build suggested glossary rows from scanned tables (term, definition, sensitivity, rating, DQ dims)."""
     rows, seen, out = [], {}, []
+    # the FK-family signal: the SAME id-named column in 2+ tables is a join
+    # key by construction, whether or not the source declared constraints —
+    # PDC's harvest path carries no pk/fk flags, which is how customer_id and
+    # system_id sailed through the structural prune ("How did Customer ID get
+    # through when its a key?")
+    _id_family = {}
+    for _tn, _cs in tables.items():
+        for _c in _cs:
+            _cl = str(_c.get("column") or "").lower()
+            if re.search(r"(^|_)id$|_id$|identifier", _cl):
+                _id_family.setdefault(_cl, set()).add(_tn)
     for tname, cols in tables.items():
         category = categorize(tname)
         # A file name is a poor proxy for what its columns are about — one SCADA
@@ -1539,7 +1550,15 @@ def suggest(tables, schema=None):
             # prefix match (acct_id) is noise and doesn't block the prune
             _identity_pii = pii in ("GOVERNMENT_ID", "CONTACT_INFO", "PERSONAL_NAME",
                                     "DEMOGRAPHIC", "ADDRESS_INFO")
-            _structural = bool((c["pk"] or c["fk"]) and _surrogate
+            # declared keys, OR the evidence stand-ins the harvest path has:
+            # a near-unique id-named column is a surrogate PK in fact, and an
+            # id-named column shared by 2+ tables is a join key in fact
+            _fk_family = len(_id_family.get(c["column"].lower(), ())) >= 2
+            _uniq_hint = (_surrogate
+                          and float((c.get("profile") or {}).get("uniq") or 0) >= 0.95
+                          and int((c.get("profile") or {}).get("rows") or 0) >= 20)
+            _keyish = bool(c["pk"] or c["fk"] or (_surrogate and _fk_family) or _uniq_hint)
+            _structural = bool(_keyish and _surrogate
                                and not _identity_pii and not _has_shape)
             # A column harvested from a document arrives as a flattened path when
             # Discovery walked a nested file. Those are structure, not concepts —
@@ -1552,7 +1571,12 @@ def suggest(tables, schema=None):
             rows.append({"Keep": ("N" if _pruned else "Y"),
                          "Prune_Reason": (("structural key — surrogate %s, tagged via the "
                                            "term↔column link, not a business term"
-                                           % ("PK" if c["pk"] else "FK reference"))
+                                           % ("PK" if c["pk"]
+                                              else "FK reference" if c["fk"]
+                                              else "join key (same column in %d tables)"
+                                                   % len(_id_family.get(c["column"].lower(), ()))
+                                                   if _fk_family
+                                              else "id (near-unique values)"))
                                           if _structural else (_doc_prune or _col_noise or "")),
                          "Category": row_category, "Term": name,
                          "Source_Column": src,
