@@ -3624,8 +3624,10 @@ def pdc_harvest(body: dict = Body(default={})):
                         "types": len(by_type), "folders": len(by_folder),
                         "avg_bytes": (int(tot_b / len(known)) if known else None)},
             "by_type": [{"ext": e, "count": n,
-                         "bytes": sum(int(f.get("bytes") or 0) for f in files
-                                      if ((f.get("ext") or "").lower() or "(none)") == e)}
+                         "bytes": (lambda ks: sum(ks) if ks else None)(
+                             [int(f["bytes"]) for f in files
+                              if ((f.get("ext") or "").lower() or "(none)") == e
+                              and f.get("bytes") is not None])}
                         for e, n in by_type.most_common()],
             "by_folder": sorted(by_folder.values(), key=lambda x: -(x["bytes"] or 0)),
             "largest": sorted(({"key": f.get("rel") or f.get("base"),

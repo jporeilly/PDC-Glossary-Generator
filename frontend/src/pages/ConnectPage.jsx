@@ -935,6 +935,16 @@ function ProfilingProbeCard({ rows, pdc }) {
               <pre className="code-block" style={{ maxHeight: '240px', overflow: 'auto' }}>{res.labels.sample}</pre>
             </details>
           )}
+          {res.file_sample && (
+            <details style={{ marginTop: '.4rem' }}>
+              <summary>
+                <b>Raw FILE entity</b>
+                <span className="notes"> — the arbiter for sizes and dates: whatever key the
+                  catalog stores them under appears HERE, or the catalog does not hold them</span>
+              </summary>
+              <pre className="code-block" style={{ maxHeight: '260px', overflow: 'auto' }}>{res.file_sample}</pre>
+            </details>
+          )}
           {Object.entries(res.columns || {}).map(([k, v]) => (
             <details key={k} style={{ marginTop: '.4rem' }}>
               <summary><code>{k}</code> <span className="notes">keys: {v.keys.join(', ') || '—'}

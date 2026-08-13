@@ -14,6 +14,30 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.37.7] - 2026-08-13
+
+### Fixed - the size arbiter is actually visible now
+
+`usedCapacity` was the second alias guess to miss, which settles the
+method: no more guessing. The diagnostic captured a raw FILE entity since
+1.37.5 - but the card never rendered it (backend field, no UI). It now
+shows as **Raw FILE entity** in the probe results: whatever key the
+catalog stores sizes and dates under appears there, or the catalog does
+not hold them - either way the next fix is exact. Also: the last two
+"0 B" coercions (the Total-size tile, the by-type rows) now dash honestly
+like the rest.
+
+### Changed - the release train can no longer ship past a failure
+
+1.37.6 released while the suite reported a failure: `set -e -o pipefail`
+is demonstrably inert for piped steps in the environment the trains run
+in, so the guard everyone trusted was decorative. Trains now run
+`scripts/release-train.sh`: an explicit check on every step, full output
+captured to `dist/train-<version>.log` (no more `tail -1` deciding what
+the log gets to know), loud TRAIN_FAIL and halt. The suite failure itself
+was a flake - 2 sightings under heavy build load against 6 verified-clean
+runs; the log capture means its next appearance names itself.
+
 ## [1.37.6] - 2026-08-13
 
 ### Fixed - file sizes read from the keys PDC actually uses

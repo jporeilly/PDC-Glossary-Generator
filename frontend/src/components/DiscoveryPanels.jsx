@@ -210,8 +210,8 @@ export function DocsPanel({ docs, onRefilter }) {
         </div>
       </div>
       <div className="tiles" style={{ marginTop: '1rem' }}>
-        {[['Files', (s.files || 0).toLocaleString()], ['Total size', fmtBytes(s.bytes || 0)],
-          ['File types', s.types], ['Folders', s.folders], ['Avg size', fmtBytes(s.avg_bytes || 0)],
+        {[['Files', (s.files || 0).toLocaleString()], ['Total size', fmtBytes(s.bytes)],
+          ['File types', s.types], ['Folders', s.folders], ['Avg size', fmtBytes(s.avg_bytes)],
         ].map(([l, v]) => (
           <div className="tile" key={l}><div className="value">{String(v ?? '—')}</div><div className="label">{l}</div></div>
         ))}
