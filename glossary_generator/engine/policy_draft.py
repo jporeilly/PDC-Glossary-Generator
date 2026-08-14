@@ -229,6 +229,18 @@ def dq_rules_from_rows(rows, glossary_name="Business Glossary", prefix=None):
             if len(enums) >= 2:
                 checks.append({"check": "allowed_values", "values": enums,
                                "source": "profiled"})
+            # numeric range: min/max observed at profiling time become the
+            # expectation's baseline — a capacity that has lived in 201..5095
+            # arriving as 0 or 500000 is exactly what DQ should catch. The
+            # open numeric-range item, closed by the evidence now riding rows.
+            rng = str(r.get("Value_Range") or "").strip()
+            m_rng = re.match(r"^(-?[0-9.]+)\.\.(-?[0-9.]+)$", rng)
+            if m_rng:
+                lo, hi = float(m_rng.group(1)), float(m_rng.group(2))
+                checks.append({"check": "range",
+                               "min": int(lo) if lo.is_integer() else lo,
+                               "max": int(hi) if hi.is_integer() else hi,
+                               "source": "profiled baseline"})
             d = dims.get(col) or {}
             comp = _floor2(d.get("c"))
             if d.get("nn"):

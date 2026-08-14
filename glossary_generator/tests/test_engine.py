@@ -792,3 +792,26 @@ class TestLabelSuggestions:
         got = labels.suggest_labels(rows)
         assert not any(k["key"] == "domain" for k in got["keys"])
         assert any("too many for a PDC label" in n for n in got["notes"])
+
+
+class TestNumericRangeDQ:
+    def test_profiled_range_becomes_a_dq_check(self):
+        """A numeric column IS profiled - min/max observed become the DQ
+           expectation's baseline ("we know that the data has been ingested
+           and profiled"). Rows without a range mint no range check."""
+        from engine import policy_draft
+        rows = [_row("Capacity", "awc.water_systems.capacity",
+                     Critical_Data_Element="No", PII_Category="",
+                     Value_Range="201..5095"),
+                _row("Notes Text", "awc.water_systems.notes_text",
+                     Critical_Data_Element="No", PII_Category="")]
+        arts = policy_draft.dq_rules_from_rows(rows, "AWC Glossary")
+        cap = next(a for a in arts if a["term"] == "Capacity")
+        checks = [c for e in cap["rule"]["expectations"] for c in e["checks"]]
+        rng = next(c for c in checks if c["check"] == "range")
+        assert rng["min"] == 201 and rng["max"] == 5095
+        assert rng["source"] == "profiled baseline"
+        notes = [a for a in arts if a["term"] == "Notes Text"]
+        if notes:
+            nchecks = [c for e in notes[0]["rule"]["expectations"] for c in e["checks"]]
+            assert not any(c["check"] == "range" for c in nchecks)

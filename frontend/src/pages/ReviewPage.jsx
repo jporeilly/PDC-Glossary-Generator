@@ -2529,7 +2529,10 @@ function ClusterHead({ name, count, action, rec, locked, decided, onSet, candida
                   <span className="rv-gclev">
                     {r.Value_Pattern ? <code>pattern</code> : null}
                     {enums.length > 0 ? <code>{enums.length} values</code> : null}
-                    {!r.Value_Pattern && enums.length === 0 ? <span className="muted">no evidence</span> : null}
+                    {!r.Value_Pattern && enums.length === 0 && r.Value_Range
+                      ? <code title="profiled numeric range — real evidence, but a shared range never identifies a concept">num {r.Value_Range}</code> : null}
+                    {!r.Value_Pattern && enums.length === 0 && !r.Value_Range
+                      ? <span className="muted">no evidence</span> : null}
                   </span>
                   <span className="rv-gcldef" title={def}>{def ? def.slice(0, 90) + (def.length > 90 ? '…' : '') : <i>no definition</i>}</span>
                 </div>

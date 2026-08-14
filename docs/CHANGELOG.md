@@ -14,6 +14,31 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.38.5] - 2026-08-14
+
+### Added - numeric profiling is evidence, and it says so
+
+"We know that the data has been ingested and profiled, so there will be
+sample pattern and values." Correct - and for a numeric column the profile
+is completeness, uniqueness and min/max, which rightly mints no value set
+or pattern. But the UI called that "no evidence" and the steward read a
+fully-profiled estate as broken. Now:
+
+- **`Value_Range` rides the row** ("201..5095"), filled from any profiler
+  that observes min/max - including PDC's own entity stats on the
+  harvest path. Survives merges like the rest of the evidence.
+- **The cluster comparison shows it**: candidates read `num 201..5095`
+  instead of "no evidence".
+- **The advise rubric counts numerics honestly**: "2 of 2 candidates are
+  profiled numerics (201..5095 / 15..480) - a shared range is not a
+  shared concept, so the numbers cannot decide". Identity comparison
+  stays deliberately conservative: ranges never merge concepts (the
+  Paid/Outstanding lesson holds).
+- **Range DQ checks mint at draft time** - the observed min/max become
+  the expectation's baseline (`{"check": "range", "min": 201, "max":
+  5095, "source": "profiled baseline"}`). The open numeric-range item,
+  closed.
+
 ## [1.38.4] - 2026-08-13
 
 ### Fixed - "aim for 3" means 2-4, not 6

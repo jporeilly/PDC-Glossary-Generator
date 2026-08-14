@@ -99,6 +99,7 @@ def _row_evidence(r):
             refs.add(str(k["ref"]).strip().lower())
     return {"sig": (r.get("Value_Signature") or "").strip(),
             "pat": (r.get("Value_Pattern") or "").strip(),
+            "rng": (r.get("Value_Range") or "").strip(),
             "enums": enums, "pii": (r.get("PII_Category") or "").strip(),
             "cols": cols, "refs": refs}
 
@@ -304,9 +305,19 @@ def recommend_resolution(members, probes=None):
     have = sum(1 for m in members
                if _row_evidence(m)["enums"] or _row_evidence(m)["pat"]
                or _row_evidence(m)["sig"])
+    nums = sum(1 for m in members if _row_evidence(m)["rng"])
     if have:
         why_none = ("value evidence on %d of %d candidates but no comparable pair "
                     "— the rest are prose or free numbers" % (have, len(members)))
+    elif nums:
+        # profiled numerics ARE evidence — just not identity evidence: a
+        # shared range never identifies a concept (the Paid/Outstanding
+        # lesson). "No profiled evidence" here read as a data bug when the
+        # estate was fully profiled (field-caught on 'Capacity').
+        rngs = [e for e in (_row_evidence(m)["rng"] for m in members) if e]
+        why_none = ("%d of %d candidates are profiled numerics (%s) — a shared "
+                    "range is not a shared concept, so the numbers cannot decide"
+                    % (nums, len(members), " / ".join(rngs[:3])))
     else:
         why_none = "no profiled value sets or formats on any candidate"
     if len(cats) <= 1 or len(piis) <= 1:

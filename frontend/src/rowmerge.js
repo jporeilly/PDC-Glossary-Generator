@@ -34,7 +34,7 @@ export function foldSources(base, nr) {
   const quality = Math.max(parseInt(base.Suggested_Quality || 0, 10) || 0,
                            parseInt(nr.Suggested_Quality || 0, 10) || 0)
   if (quality) next.Suggested_Quality = quality
-  for (const f of ['Value_Signature', 'Value_Pattern', 'Enum_Values', 'Value_Kind']) {
+  for (const f of ['Value_Signature', 'Value_Pattern', 'Enum_Values', 'Value_Kind', 'Value_Range']) {
     if (!next[f] && nr[f]) next[f] = nr[f]
   }
   return next

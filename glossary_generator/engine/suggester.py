@@ -1440,6 +1440,21 @@ def rate_document(owner=None, ext=None, sensitivity=None, recent=False, has_term
     return max(1, min(5, int(round(score))))
 
 
+def _fmt_range(prof):
+    """Compact numeric-range evidence off a profile: '201..5095'. A numeric
+    column IS profiled - completeness, uniqueness, min/max - even though it
+    rightly gets no value set or pattern; without this field the UI called
+    it "no evidence" and the steward read that as a data bug (field-caught
+    on 'Capacity'). Rides PDC's entity stats and any profiler that fills
+    min/max."""
+    lo, hi = prof.get("min"), prof.get("max")
+    if not isinstance(lo, (int, float)) or not isinstance(hi, (int, float)):
+        return ""
+    def _n(v):
+        return str(int(v)) if float(v).is_integer() else f"{v:g}"
+    return f"{_n(lo)}..{_n(hi)}"
+
+
 def suggest(tables, schema=None):
     schema = schema or os.environ.get("GLOSSARY_SCHEMA", "public")
     """Build suggested glossary rows from scanned tables (term, definition, sensitivity, rating, DQ dims)."""
@@ -1617,6 +1632,7 @@ def suggest(tables, schema=None):
                          # moment the AI pass rewrites the field, and the
                          # drafter then told profiled rows to "re-scan"
                          "Value_Kind": prof.get("kind", ""),
+                         "Value_Range": _fmt_range(prof),
                          "LLM_Enriched": "No"})
     for r in rows:
         key = (r["Category"], r["Term"])
@@ -1630,7 +1646,8 @@ def suggest(tables, schema=None):
                                                 r.get("Suggested_Rating", 0))
             # carry each merged column's own DQ dimensions
             seen[key].setdefault("Source_Quality_Dims", {}).update(r.get("Source_Quality_Dims", {}))
-            for f in ("Value_Signature", "Value_Pattern", "Enum_Values", "Value_Kind"):
+            for f in ("Value_Signature", "Value_Pattern", "Enum_Values", "Value_Kind",
+                      "Value_Range"):
                 if not seen[key].get(f) and r.get(f):
                     seen[key][f] = r[f]
             # A term survives the structural-key prune when ANY of its merged
