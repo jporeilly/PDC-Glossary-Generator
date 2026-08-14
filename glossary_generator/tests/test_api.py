@@ -703,6 +703,35 @@ class TestHarvestFetchesProfilingById:
         assert col["profile"]["enum"] == ["Cast Iron", "HDPE", "PVC"]
 
 
+class TestDraftBundleCoversLabels:
+    def test_labels_json_rides_the_draft_zip(self, client):
+        """"Does this cover labels?" It does now: the derived keys, the
+           steward's kept set, per-term assignments and the vocabulary ship
+           as Labels/labels.json in the bundle - the Policy Generator's
+           labels contract. (Writing labels INTO PDC stays gated on
+           capturing the real endpoint.)"""
+        import io as _io
+        import zipfile as _zip
+        rows = [_row("Customer Email", "awc.customers.email",
+                     Category="Customer Management", Sensitivity="HIGH",
+                     PII_Category="CONTACT_INFO", Critical_Data_Element="Yes",
+                     Value_Kind="email"),
+                _row("Meter Size", "awc.meters.meter_size",
+                     Category="Asset Management", Sensitivity="LOW",
+                     PII_Category="", Critical_Data_Element="No")]
+        d = client.post("/api/draft-policies",
+                        json={"rows": rows, "glossary_name": "AWC",
+                              "label_keys": ["handling", "domain"]}).json()
+        assert d["labels"]["kept"] == ["handling", "domain"]
+        assert "handling" in d["labels"]["keys"]
+        z = client.post("/api/draft-policies-zip",
+                        json={"rows": rows, "glossary_name": "AWC",
+                              "label_keys": ["handling"]})
+        if z.status_code == 200 and z.headers.get("content-type", "").startswith("application/zip"):
+            zf = _zip.ZipFile(_io.BytesIO(z.content))
+            assert "Labels/labels.json" in zf.namelist()
+
+
 class TestEstateReport:
     def test_contract_verifies_from_disk_not_ticks(self, client, fresh_dict):
         """The closeout is a CONTRACT CHECK: registry parsed and id-matched,

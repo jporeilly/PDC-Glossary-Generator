@@ -14,6 +14,19 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.38.6] - 2026-08-14
+
+### Added - the draft bundle covers labels
+
+"Does this cover labels?" It does now. The bundle gains
+**Labels/labels.json**: the evidence-derived keys (handling, access-tier,
+criticality, domain, plus any pack vocabulary such as retention), the
+steward's kept set from Govern, per-term assignments with the terms behind
+each value, and the small governed vocabulary - the Policy Generator's
+labels contract, indexed in INDEX.csv alongside patterns, dictionaries
+and quality. Writing labels INTO PDC remains gated on capturing the real
+endpoint (one DevTools look at an "assign label" call settles it).
+
 ## [1.38.5] - 2026-08-14
 
 ### Added - numeric profiling is evidence, and it says so

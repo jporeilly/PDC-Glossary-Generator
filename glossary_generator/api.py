@@ -2082,6 +2082,22 @@ def _draft_policies_run(body, progress=None):
     # / profiled baselines re-expressed as conformance checks (custom-only).
     draft["quality"] = policy_draft.dq_rules_from_rows(rows, glossary_name=gname,
                                                        prefix=body.get("prefix"))
+    # labels ride the bundle too ("does this cover labels?"): the derived
+    # keys, the steward's kept set from governance, per-term assignments and
+    # the vocabulary - the Policy Generator's labels contract. Writing them
+    # INTO PDC stays gated on capturing the real endpoint; shipping the
+    # evidence is not.
+    from engine import labels as labels_engine
+    _pack = {}
+    try:
+        with open(paths.domain_pack_path(), encoding="utf-8") as f:
+            _pack = json.load(f)
+    except Exception:
+        _pack = {}
+    lab = labels_engine.suggest_labels(rows, pack=_pack)
+    kept_keys = [str(k) for k in (body.get("label_keys") or [])]
+    draft["labels"] = {"kept_keys": kept_keys, "keys": lab["keys"],
+                       "vocabulary": lab["vocabulary"], "notes": lab["notes"]}
     summary = {"patterns": [{"filename": p["filename"], "term": p["term"],
                              "seed": p.get("seed", "profiled"),
                              "name": p["rule"][0]["name"]} for p in draft["patterns"]],
@@ -2092,7 +2108,9 @@ def _draft_policies_run(body, progress=None):
                "quality": [{"filename": q["filename"], "term": q["term"],
                             "name": q["rule"]["name"], "checks": q["checks"]}
                            for q in draft["quality"]],
-               "skipped": draft["skipped"], "used_llm": used_llm}
+               "skipped": draft["skipped"], "used_llm": used_llm,
+               "labels": {"keys": [k["key"] for k in draft["labels"]["keys"]],
+                          "kept": draft["labels"]["kept_keys"]}}
     return draft, summary
 
 

@@ -400,6 +400,8 @@ function GenerateCard({ rows, glossaryName, governance, settings, onNavigate, au
       let jobId = null
       const result = await runJob('draft-policies', {
         rows, glossary_name: glossaryName, ai: draftAi,
+        // the steward's kept label keys ride into the bundle's labels.json
+        label_keys: ws.governance?.labelKeys || [],
         model: settings?.model || null, compute: settings?.compute,
       }, (j) => { jobId = j.id || jobId; setDraftProg(j) })
       setDraft({ ...result, _job: jobId })

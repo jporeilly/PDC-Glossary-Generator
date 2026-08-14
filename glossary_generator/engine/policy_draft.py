@@ -462,6 +462,10 @@ def to_zip_bytes(draft):
         for q in draft.get("quality", []):
             z.writestr("Quality/" + q["filename"], json.dumps(q["rule"], indent=2) + "\n")
             index.append(f"quality,{q['rule']['name']},Quality/{q['filename']},{q['term']}")
+        if draft.get("labels") and draft["labels"].get("keys"):
+            z.writestr("Labels/labels.json", json.dumps(draft["labels"], indent=2) + "\n")
+            for k in draft["labels"]["keys"]:
+                index.append(f"label,{k['key']},Labels/labels.json,")
         z.writestr("INDEX.csv", "\n".join(index) + "\n")
         z.writestr("README.txt",
                    "Drafted by the Glossary Generator from scan evidence.\n"
