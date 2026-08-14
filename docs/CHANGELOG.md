@@ -14,6 +14,24 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.38.8] - 2026-08-14
+
+### Changed - PII Type: the steward's taxonomy becomes the engine's
+
+The steward modelled a data label live in PDC's Create Custom Property
+form - PII Type: Restricted / Confidential / Internal, each with a real
+definition - and it is simply better than the engine's binary "handling"
+key. Adopted verbatim: the engine now tiers the deterministic PII call by
+exposure harm (government ID and financial -> Restricted; names, emails,
+phones -> Confidential; ZIP, city, county quasi-identifiers -> Internal),
+and the per-value descriptions ship into PDC's availableValues so the
+label reads like the steward wrote it - because they did.
+
+Also read off the UI-created record and corrected in the client:
+fieldType is lowercase "select" and the hierarchy maps to scope
+["Entities"]. The Data labels card is idempotent against the hand-made
+PII Type - same name, case-insensitive, reported as existing.
+
 ## [1.38.7] - 2026-08-14
 
 ### Added - labels write into PDC: the endpoint is captured and mapped

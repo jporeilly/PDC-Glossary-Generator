@@ -46,10 +46,16 @@ def list_labels(base_url, token, item_type="Columns", verify_tls=True):
     return out
 
 
-def create_label(base_url, token, name, values, item_type="Columns",
-                 descriptions=None, verify_tls=True):
+def create_label(base_url, token, name, values, item_types=None,
+                 descriptions=None, scope=None, field_type="select",
+                 blank_allowed=True, verify_tls=True):
     """Create one data-label definition with its governed value set.
-    Returns the new _id."""
+
+    Field names proven against the live schema (error-shape probing +
+    the UI's own Create Custom Property form): `itemTypes` is the
+    Columns/Tables/Folders/Schema/Files checkboxes, `scope` is the
+    hierarchy ("Data Canvas"), `fieldType` is lowercase "select" and the hierarchy maps to
+    scope ["Entities"] (read off a UI-created record). Returns the new _id."""
     descriptions = descriptions or {}
     avail = [{"value": str(v),
               "description": str(descriptions.get(v, ""))}
@@ -57,7 +63,11 @@ def create_label(base_url, token, name, values, item_type="Columns",
     d = gql(base_url, token,
             "mutation($r: CreateOneCustomPropertyInput!) {"
             " CustomPropertyCreateUnique(record: $r) { record { _id name } } }",
-            {"r": {"scope": [item_type], "name": str(name),
+            {"r": {"scope": list(scope or ["Entities"]),
+                   "itemTypes": list(item_types or ["Columns"]),
+                   "fieldType": str(field_type),
+                   "isBlankAllowed": bool(blank_allowed),
+                   "name": str(name),
                    "isDataLabel": True, "availableValues": avail}},
             verify_tls=verify_tls)
     rec = ((d.get("CustomPropertyCreateUnique") or {}).get("record")) or {}

@@ -21,6 +21,16 @@ import re
 # evidence it reads and a one-line rationale the steward sees.
 _TRUTHY = ("y", "yes", "true", "1")
 
+# per-value descriptions, shipped into PDC's availableValues so the label
+# reads like the steward wrote it (the PII Type wording IS the steward's)
+_VALUE_DESCRIPTIONS = {
+    "PII Type": {
+        "Restricted": "serious harm if exposed: government ID, financial, full identity sets",
+        "Confidential": "identifies a person on its own: name, email, phone, address, account",
+        "Internal": "quasi-identifiers that only identify in combination: ZIP, city, county, meter ID",
+    },
+}
+
 
 def _kept(r):
     return str(r.get("Keep", "Y")).strip().lower() in _TRUTHY
@@ -70,16 +80,24 @@ def suggest_labels(rows, pack=None):
             return
         out.append({
             "key": key, "why": why, "source": source,
+            "descriptions": _VALUE_DESCRIPTIONS.get(key, {}),
             "values": sorted(({"value": v, "count": len(t), "terms": sorted(t)[:12]}
                               for v, t in vals.items()),
                              key=lambda x: -x["count"]),
         })
 
-    # handling — from the deterministic PII call
-    bucket("handling",
-           "PII category from the scan — restricted where personal data was detected",
+    # PII Type — three tiers from the deterministic PII call, matching the
+    # taxonomy the steward modelled in PDC's own Create Custom Property form
+    # (field-adopted 2026-08-14): Restricted = serious harm if exposed,
+    # Confidential = identifies a person on its own, Internal =
+    # quasi-identifiers that only identify in combination.
+    _PII_TIER = {"GOVERNMENT_ID": "Restricted", "FINANCIAL": "Restricted",
+                 "PERSONAL_NAME": "Confidential", "CONTACT_INFO": "Confidential",
+                 "ADDRESS_INFO": "Internal", "DEMOGRAPHIC": "Internal"}
+    bucket("PII Type",
+           "PII class from the scan, tiered by exposure harm",
            "evidence",
-           lambda r: "restricted" if str(r.get("PII_Category") or "").strip() else "")
+           lambda r: _PII_TIER.get(str(r.get("PII_Category") or "").strip().upper(), ""))
 
     # access-tier — from sensitivity
     tier = {"HIGH": "tier-1", "MEDIUM": "tier-2", "LOW": "tier-3"}

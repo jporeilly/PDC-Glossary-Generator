@@ -758,12 +758,16 @@ class TestLabelSuggestions:
         ]
 
     def test_derived_keys_read_classification(self):
+        """PII Type uses the steward's own three-tier taxonomy (modelled live
+           in PDC's Create Custom Property form): CONTACT_INFO identifies a
+           person on its own -> Confidential."""
         from engine import labels
         got = labels.suggest_labels(self._rows())
         keys = {k["key"]: k for k in got["keys"]}
-        assert set(keys) >= {"handling", "access-tier", "criticality", "domain"}
-        handling = {v["value"]: v["terms"] for v in keys["handling"]["values"]}
-        assert handling["restricted"] == ["Customer Email"], handling
+        assert set(keys) >= {"PII Type", "access-tier", "criticality", "domain"}
+        pii = {v["value"]: v["terms"] for v in keys["PII Type"]["values"]}
+        assert pii["Confidential"] == ["Customer Email"], pii
+        assert keys["PII Type"]["descriptions"]["Restricted"].startswith("serious harm")
         tiers = {v["value"] for v in keys["access-tier"]["values"]}
         assert tiers == {"tier-1", "tier-3"}
 

@@ -713,8 +713,8 @@ class TestPdcLabelsApply:
         made = []
         monkeypatch.setattr("api._pdc_token_and_reauth", lambda *a, **k: ("tok", None))
         monkeypatch.setattr(pdc_api, "list_labels",
-                            lambda *a, **k: [{"_id": "x1", "name": "handling",
-                                              "values": ["restricted"]}])
+                            lambda *a, **k: [{"_id": "x1", "name": "pii type",
+                                              "values": ["Confidential"]}])
         monkeypatch.setattr(pdc_api, "create_label",
                             lambda base, tok, name, vals, **k: (made.append((name, list(vals))) or "new-id"))
         rows = [_row("Customer Email", "awc.customers.email",
@@ -722,9 +722,9 @@ class TestPdcLabelsApply:
                      PII_Category="CONTACT_INFO", Critical_Data_Element="Yes")]
         d = client.post("/api/pdc/labels-apply",
                         json={"base_url": "https://pdc.example", "token": "t",
-                              "keys": ["handling", "access-tier", "retention"],
+                              "keys": ["PII Type", "access-tier", "retention"],
                               "rows": rows}).json()
-        assert [s["key"] for s in d["existing"]] == ["handling"], d
+        assert [s["key"] for s in d["existing"]] == ["PII Type"], d
         assert [c["key"] for c in d["created"]] == ["access-tier"]
         assert made == [("access-tier", ["tier-1"])]
         assert d["no_values"] == ["retention"], "no pack vocabulary - reported, not invented"
@@ -748,9 +748,9 @@ class TestDraftBundleCoversLabels:
                      PII_Category="", Critical_Data_Element="No")]
         d = client.post("/api/draft-policies",
                         json={"rows": rows, "glossary_name": "AWC",
-                              "label_keys": ["handling", "domain"]}).json()
-        assert d["labels"]["kept"] == ["handling", "domain"]
-        assert "handling" in d["labels"]["keys"]
+                              "label_keys": ["PII Type", "domain"]}).json()
+        assert d["labels"]["kept"] == ["PII Type", "domain"]
+        assert "PII Type" in d["labels"]["keys"]
         z = client.post("/api/draft-policies-zip",
                         json={"rows": rows, "glossary_name": "AWC",
                               "label_keys": ["handling"]})

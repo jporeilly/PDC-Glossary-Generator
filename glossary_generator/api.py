@@ -3765,6 +3765,7 @@ def api_pdc_labels_apply(body: dict = Body(default={})):
         pack = {}
     lab = labels_engine.suggest_labels(body.get("rows") or [], pack=pack)
     vocab = lab.get("vocabulary") or {}
+    descs = {k["key"]: (k.get("descriptions") or {}) for k in lab.get("keys") or []}
     try:
         token, _ = _pdc_token_and_reauth(body, base, body.get("version") or "v2",
                                          bool(body.get("verify_tls", False)))
@@ -3782,6 +3783,7 @@ def api_pdc_labels_apply(body: dict = Body(default={})):
                                 "values": existing[k.lower()]["values"]})
                 continue
             lid = pdc_api.create_label(base, token, k, vals,
+                                       descriptions=descs.get(k) or {},
                                        verify_tls=bool(body.get("verify_tls", False)))
             created.append({"key": k, "id": lid, "values": vals})
         _receipt("labels", created=[c["key"] for c in created],
