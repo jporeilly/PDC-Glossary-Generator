@@ -359,6 +359,11 @@ curl -k -X POST 'https://pentaho.io/api/v2/licensing/uploadLicense' -H "Authoriz
 
 ## 8. The other manual steps after a reset
 
+> **Reset day? Use [remote/RESET-RUNBOOK.md](../remote/RESET-RUNBOOK.md)** —
+> the whole cycle as one ordered page of copy-paste commands (preflight,
+> reset, licence, cast, safe list, health, repopulate). This section stays
+> as the reference behind it.
+
 1. Log in at `https://pentaho.io` as **`admin`** — the *username*, not an email.
    11.0.0 seeds the `pdc` realm with stock users. If the password is unknown,
    set it with `kcadm` from the VM console — see

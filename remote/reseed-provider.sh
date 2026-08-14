@@ -13,7 +13,9 @@
 #
 # Usage:
 #   scp reseed-provider.sh pdc@192.168.1.200:/tmp/
-#   ssh pdc@192.168.1.200 bash /tmp/reseed-provider.sh
+#   ssh pdc@192.168.1.200 bash /tmp/reseed-provider.sh          # reseed
+#   ssh pdc@192.168.1.200 bash /tmp/reseed-provider.sh verify   # read-only
+# (or from Windows in one shot: remote\reseed-domains.ps1 [-VerifyOnly])
 set -u
 cd /opt/pentaho/pdc-docker-deployment
 
@@ -54,6 +56,15 @@ echo "== [ok] config templated, azwater.gov present"
 BEFORE=$(curl -s -k "${API}api/internal/css-auth-proxy/v1/provider/${SERVER_VAL_WITHOUT_SCHEME}" \
   --header "Authorization: Bearer ${TOK}")
 echo "== provider before: $(echo "$BEFORE" | jq -c '.data.provider_conf.emailDomains // empty' 2>/dev/null)"
+
+# read-only mode: report and stop - the runbook's verify step
+if [ "${1:-}" = "verify" ]; then
+  rm -f /tmp/pdc-providerConfig.json
+  case "$(echo "$BEFORE" | jq -c '.data.provider_conf.emailDomains // empty' 2>/dev/null)" in
+    *azwater.gov*) echo "== [ok] azwater.gov is on the safe list"; exit 0 ;;
+    *) echo "== [x] azwater.gov NOT on the safe list - run without 'verify' to reseed"; exit 1 ;;
+  esac
+fi
 
 # the PROVEN sequence on PDC 11: the record must be recreated whole - the
 # init only creates on 404, and partial PUTs are ignored or rejected
