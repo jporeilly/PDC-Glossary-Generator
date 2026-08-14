@@ -379,13 +379,23 @@ curl -k -X POST 'https://pentaho.io/api/v2/licensing/uploadLicense' -H "Authoriz
 
    The safe list is NOT in Keycloak (a realm/client/component hunt finds
    nothing — verified 2026-08-14). It lives on the css-auth-proxy provider
-   record, managed over REST with a master-realm admin-cli token:
-   `GET/PUT /css-admin-api/api/internal/css-auth-proxy/v1/provider` — which
-   is why §7.0's probe saw that prefix answer 401. The script merges, never
-   replaces (the vendor doc warns against dropping the stock domains), and
-   verifies with a fresh GET. No restart needed. Vendor reference:
-   docs.pentaho.com pdc-admin, "Add email domains to the safe list in Data
-   Catalog after deployment".
+   record, NESTED at `provider_conf.emailDomains` — which is why the vendor
+   doc's `PUT {id, emailDomains}` is accepted-and-ignored on PDC 11, and
+   why a naive GET reads an empty list. Two working layers, both proven
+   2026-08-14:
+
+   - **Seed (survives resets):** `EMAIL_DOMAINS` in `vendor/.env.default`
+     (line ~187) — the um-css-admin-api-init container templates it into
+     the provider record, but ONLY when the record 404s. azwater.gov is in
+     that seed now (backup: `.env.default.bak-20260814`). Note vendor/ may
+     be replaced by a PDC upgrade — recheck after upgrading.
+   - **Live change:** `remote/reseed-provider.sh`, run ON the VM. It
+     repeats the init's own procedure (token, envsubst, DELETE the record,
+     POST the fresh one) and verifies at the real JSON path. Brief auth
+     window while the record is recreated — seconds.
+
+   `set-valid-domains.ps1` in PDC-Scenarios remains useful as the
+   Windows-side READ (its -Show prints the provider record).
 
 ---
 
