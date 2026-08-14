@@ -368,8 +368,24 @@ curl -k -X POST 'https://pentaho.io/api/v2/licensing/uploadLicense' -H "Authoriz
 3. Reload the lab data and re-register the data sources. The lab stack on
    5433/9000 was *not* touched, but the catalog's record of it was.
 4. Reload the cast into Keycloak, then re-add any custom email domains to the
-   css-auth-proxy allowlist. PDC rejects logins whose email domain is not on
+   css-auth-proxy safe list. PDC rejects logins whose email domain is not on
    that list, and the list lived in a volume that has just been deleted.
+   Both are scripted from Windows (in `C:\Projects\PDC-Scenarios`):
+
+   ```powershell
+   .\load-pdc-users.ps1 -Scenario AWC -BaseUrl https://pentaho.io -SkipTlsCheck -FixPolicy
+   .\set-valid-domains.ps1 -SkipTlsCheck -Add azwater.gov
+   ```
+
+   The safe list is NOT in Keycloak (a realm/client/component hunt finds
+   nothing — verified 2026-08-14). It lives on the css-auth-proxy provider
+   record, managed over REST with a master-realm admin-cli token:
+   `GET/PUT /css-admin-api/api/internal/css-auth-proxy/v1/provider` — which
+   is why §7.0's probe saw that prefix answer 401. The script merges, never
+   replaces (the vendor doc warns against dropping the stock domains), and
+   verifies with a fresh GET. No restart needed. Vendor reference:
+   docs.pentaho.com pdc-admin, "Add email domains to the safe list in Data
+   Catalog after deployment".
 
 ---
 
