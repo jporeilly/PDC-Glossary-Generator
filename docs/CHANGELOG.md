@@ -14,6 +14,45 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.38.9] - 2026-08-14
+
+### Fixed - the Terms half of the draft: harvest reads PDC's REAL shapes
+
+"Just terrible for Terms - great for dq." 138 skips, because the value
+evidence never reached the harvested rows: on this PDC 11 build,
+`dataSampling` is EMPTY and the vendor-documented shapes do not exist.
+Raw payloads pulled straight from the estate settled the truth:
+
+- **Values live in `patternAnalysis.patterns[].sample`** - one real value
+  per shape group. For low-cardinality columns those samples ARE the value
+  list: payment_status -> a complete dictionary (At Risk / Good Standing);
+  service_city -> the actual cities as a candidate list.
+- **Patterns derive from PDC's shape alphabet zipped with its own sample**
+  (A=upper, a=lower, d=digit, literals from the sample):
+  "AAAsAAsdddddd" + "AWC-CG-001001" -> ^[A-Z]{3}-[A-Z]{2}-[0-9]{6}$,
+  with per-shape counts giving honest coverage. Only DISCRIMINATING
+  shapes mint (digits or separators) - word-shapes match every sentence
+  in the estate, and a value list beats a shape anyway.
+- **Stats corrected**: density/uniqueness are percents,
+  `bitsetCardinality` is the true distinct count, and stats.min/max are
+  string LENGTHS unless bindType is numeric - so a status column can no
+  longer contribute a phantom "7..13" value range, while customer_id's
+  real 1001..1010 still feeds range DQ.
+
+All pinned with fixtures captured from the live estate. Legacy shapes
+(documented sampling lists, ready-made regexes) remain as fallbacks for
+other PDC versions.
+
+### Added - detection intent defaults by NATURE
+
+"Dates could automatically be set as map instead of everything auto" -
+and three siblings joined them. mapping_only wherever the nature of the
+data precludes a discriminating shape: dates, personal names, free
+numeric measures, booleans. Coded enums, formatted codes and recognised
+kinds stay Auto - and a no-evidence text column stays Auto too, because
+it might be a dictionary tomorrow. Nature decides, never absence of
+evidence; the steward can flip any row.
+
 ## [1.38.8] - 2026-08-14
 
 ### Changed - PII Type: the steward's taxonomy becomes the engine's

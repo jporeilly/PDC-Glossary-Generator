@@ -633,6 +633,63 @@ class TestDraftPoliciesJob:
         assert r.status_code == 404
 
 
+class TestPdcProfilingRealShapes:
+    """Pinned with payloads captured from a LIVE PDC 11 (2026-08-14). The
+       vendor docs and two rounds of alias guessing were wrong; these shapes
+       were seen in the wild: dataSampling EMPTY, values inside
+       patternAnalysis.patterns[].sample, density/uniqueness as percents,
+       bitsetCardinality as true distinct, stats.min/max = string LENGTHS
+       unless bindType is numeric."""
+
+    def _pi(self, **kw):
+        base = {"bindType": "STRING", "dataSampling": {},
+                "stats": {"rowCount": 10, "nullCount": 0, "density": 100,
+                          "uniqueness": 20, "min": 7, "max": 13,
+                          "isHighCardinality": False},
+                "bitsetCardinality": 2,
+                "patternAnalysis": {"totalSamples": 10, "discardedSamples": 0,
+                                    "patterns": []}}
+        base.update(kw)
+        return base
+
+    def test_enum_from_pattern_samples(self):
+        from pdc_client.entities import _profile_from_pdc
+        pi = self._pi()
+        pi["patternAnalysis"]["patterns"] = [
+            {"pattern": "AaaaWAaaaaaaa", "sample": "Good Standing", "counter": 7},
+            {"pattern": "AaWAaaa", "sample": "At Risk", "counter": 3}]
+        prof = _profile_from_pdc(pi)
+        assert prof["enum"] == ["At Risk", "Good Standing"]
+        assert prof["completeness"] == 1.0 and prof["uniq"] == 0.2
+        assert "pattern" not in prof, "word-shapes never mint a detection pattern"
+        assert "min" not in prof, "string min/max are LENGTHS, not values"
+
+    def test_pattern_from_discriminating_shapes(self):
+        from pdc_client.entities import _profile_from_pdc
+        pi = self._pi()
+        pi["stats"]["uniqueness"] = 100
+        pi["bitsetCardinality"] = 10
+        pi["patternAnalysis"]["patterns"] = [
+            {"pattern": "AAAsAAsdddddd", "sample": "AWC-CG-001001", "counter": 6},
+            {"pattern": "AAAsAAAsdddddd", "sample": "AWC-BIZ-001008", "counter": 4}]
+        prof = _profile_from_pdc(pi)
+        assert "enum" not in prof, "near-unique never becomes a dictionary"
+        assert "[0-9]{6}" in prof["pattern"] and prof["valid"] == 1.0
+        import re as _re
+        assert _re.match(prof["pattern"], "AWC-CG-001001")
+        assert _re.match(prof["pattern"], "AWC-BIZ-001008")
+        assert not _re.match(prof["pattern"], "XX-1")
+
+    def test_numeric_bind_gets_a_real_range(self):
+        from pdc_client.entities import _profile_from_pdc
+        pi = self._pi(bindType="NUMERIC")
+        pi["stats"].update({"min": 1001, "max": 1010, "average": 1005.5,
+                            "uniqueness": 100})
+        pi["bitsetCardinality"] = 10
+        prof = _profile_from_pdc(pi)
+        assert prof["min"] == 1001 and prof["max"] == 1010
+
+
 class TestEntityStatsAreABaselineProfile:
     def test_metadata_stats_fill_the_profile_without_profiling_info(self, monkeypatch):
         """A live COLUMN dump showed the entity itself carries metadata.stats

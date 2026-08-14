@@ -1440,6 +1440,35 @@ def rate_document(owner=None, ext=None, sensitivity=None, recent=False, has_term
     return max(1, min(5, int(round(score))))
 
 
+def _detection_intent(c, prof, pii):
+    """'mapping_only' when data of this nature can never be detected by value
+    shape; '' (Auto) otherwise. Deterministic; per-row steward override wins
+    downstream ("what else would be map instead of auto?")."""
+    typ = str(c.get("type") or "").lower()
+    kind = str(prof.get("kind") or "")
+    has_shape = bool(prof.get("pattern") or prof.get("signature"))
+    enum = prof.get("enum") or []
+    # dates
+    if kind == "date" or re.search(r"date|timestamp|\btime\b", typ):
+        return "mapping_only"
+    # personal names: prose, no shape
+    if str(pii or "").strip().upper() == "PERSONAL_NAME":
+        return "mapping_only"
+    # booleans: a generic pair detects every flag in the estate
+    if re.search(r"\bbool", typ):
+        return "mapping_only"
+    low = {str(v).strip().lower() for v in enum}
+    if low and low <= {"true", "false", "yes", "no", "y", "n", "0", "1", "t", "f"}:
+        return "mapping_only"
+    # free numeric measures: numeric type or numeric kind, with no format and
+    # no coded vocabulary
+    numericish = (kind in ("decimal",)
+                  or re.search(r"\bint|numeric|decimal|float|double|real|money", typ))
+    if numericish and not has_shape and not enum:
+        return "mapping_only"
+    return ""
+
+
 def _fmt_range(prof):
     """Compact numeric-range evidence off a profile: '201..5095'. A numeric
     column IS profiled - completeness, uniqueness, min/max - even though it
@@ -1633,6 +1662,17 @@ def suggest(tables, schema=None):
                          # drafter then told profiled rows to "re-scan"
                          "Value_Kind": prof.get("kind", ""),
                          "Value_Range": _fmt_range(prof),
+                         # mapping-only wherever the NATURE of the data
+                         # precludes a discriminating shape - never merely
+                         # because evidence is absent (an unsampled text column
+                         # might still be a dictionary). Four classes: dates
+                         # (every date matches every date), personal names
+                         # (prose has no shape), free numeric measures (any
+                         # number matches any number - formatted codes and
+                         # coded enums stay Auto), and booleans (a Yes/No
+                         # vocabulary would detect every flag in the estate).
+                         # The steward can flip any row back.
+                         "Detection_Intent": _detection_intent(c, prof, pii),
                          "LLM_Enriched": "No"})
     for r in rows:
         key = (r["Category"], r["Term"])

@@ -1,4 +1,5 @@
 """pdc_api.entities — carved from the original pdc_api.py (see package __init__ for the API contract notes). Import surface is the package: `import pdc_api`."""
+import itertools
 import json
 import re
 import ssl
@@ -268,17 +269,46 @@ def _file_record(ent):
             "owner": owner, "recent": False}, bucket
 
 
-def _profile_from_pdc(pinfo):
-    """Map PDC's own profilingInfo onto the `profile` dict the suggester
-    consumes — the SAME shape a direct value scan produces.
+def _shape_regex(pattern, sample):
+    """PDC's patternAnalysis shape alphabet zipped with its own sample value
+    -> an anchored regex. A=upper, a=lower, d=digit; anything else is taken
+    LITERALLY FROM THE SAMPLE (separators, spaces), so "AAAsAAsdddddd" +
+    "AWC-CG-001001" -> ^[A-Z]{3}-[A-Z]{2}-[0-9]{6}$."""
+    if not pattern or not sample or len(pattern) != len(sample):
+        return ""
+    classes = {"A": "[A-Z]", "a": "[a-z]", "d": "[0-9]"}
+    parts = []
+    idx = 0
+    for ch, grp in itertools.groupby(pattern):
+        n = len(list(grp))
+        cls = classes.get(ch)
+        if cls is None:
+            lit = re.escape(sample[idx:idx + n])
+            parts.append(lit)
+        else:
+            parts.append(cls + ("{%d}" % n if n > 1 else ""))
+        idx += n
+    return "^" + "".join(parts) + "$"
 
-    PDC ran the profiling (that is what its Data Identification and Trust
-    Score work from), so the evidence exists in the catalog; harvest simply
-    never asked for it, which is why harvested grids arrived with no value
-    evidence and no dictionaries or Data Patterns could be drafted from them
-    ("all the data should be there — after all that's what PDC uses").
-    Alias-tolerant like the rest of this client: PDC has spelled these keys
-    differently across versions."""
+
+def _profile_from_pdc(pinfo):
+    """Map PDC's profilingInfo onto the `profile` dict the suggester consumes.
+
+    Shapes read off a LIVE PDC 11 payload (2026-08-14) - the vendor docs and
+    two earlier guesses were wrong, so every key here was seen in the wild:
+      stats.density / stats.uniqueness   percentages (100 = complete/unique)
+      stats.rowCount / nonNullCount      counts
+      stats.min / stats.max              string LENGTHS for text columns -
+                                         only real values when bindType is
+                                         numeric, hence the guard
+      profilingInfo.bitsetCardinality    the TRUE distinct count
+      patternAnalysis.patterns           [{pattern, sample, counter, ...}] -
+                                         shape signatures with one REAL sample
+                                         each; the samples double as the value
+                                         list for low-cardinality columns and
+                                         as recognised-kind evidence
+      dataSampling                       EMPTY on this build - never map it
+    Older key spellings are kept as fallbacks for other PDC versions."""
     if not isinstance(pinfo, dict) or not pinfo:
         return {}
     stats = pinfo.get("stats") or pinfo.get("statistics") or {}
@@ -291,77 +321,104 @@ def _profile_from_pdc(pinfo):
                 return float(v)
         return None
 
-    # ---- counts -> completeness / uniqueness baselines --------------------
-    sampling = pinfo.get("sampling") or pinfo.get("samples") or {}
     total = (num(stats, "rowCount", "totalCount", "count", "sampleSize")
-             or num(sampling, "totalSamples", "sampleCount"))
-    nulls = num(stats, "nullCount", "nulls", "missingCount", "blankCount")
-    distinct = num(stats, "distinctCount", "uniqueCount", "cardinality",
-                   "distinctValues")
+             or num(stats, "nonNullCount"))
+    density = num(stats, "density")
+    if density is not None:
+        out["completeness"] = round(max(0.0, min(1.0, density / 100.0)), 3)
+    else:
+        nulls = num(stats, "nullCount", "nulls", "missingCount", "blankCount")
+        if total and nulls is not None:
+            out["completeness"] = round(max(0.0, min(1.0, (total - nulls) / total)), 3)
+    uniq_pct = num(stats, "uniqueness")
+    distinct = (num(pinfo, "bitsetCardinality")
+                or num(stats, "distinctCount", "uniqueCount", "cardinality"))
+    if uniq_pct is not None:
+        out["uniq"] = round(max(0.0, min(1.0, uniq_pct / 100.0)), 3)
+    elif total and distinct is not None:
+        out["uniq"] = round(min(1.0, distinct / total), 3)
     if total:
         out["rows"] = int(total)
-        if nulls is not None:
-            out["non_null"] = int(max(0, total - nulls))
-            out["completeness"] = round(max(0.0, min(1.0, (total - nulls) / total)), 3)
-        if distinct is not None:
-            out["distinct"] = int(distinct)
-            out["uniq"] = round(min(1.0, distinct / total), 3)
+    if distinct is not None:
+        out["distinct"] = int(distinct)
 
-    # ---- distinct VALUES -> Dictionary rules + allowed-values checks ------
-    # A live probe showed PDC returns these under sampling as
-    # {sample: [...], totalSamples: n, discardedSamples: n} — and tellingly,
-    # `sample` appears for low-cardinality columns (billing_city, phone,
-    # system_type) while high-cardinality ones carry only the counters. That
-    # is exactly the population a reference list should be built from.
-    raw = []
-    if isinstance(sampling, dict):
-        for k in ("sample", "samples", "values", "topValues", "frequentValues"):
-            v = sampling.get(k)
-            if isinstance(v, list) and v:
-                raw = v
-                break
-    elif isinstance(sampling, list):
-        raw = sampling
-    if not raw:
-        for k in ("sampleValues", "topValues", "frequentValues",
-                  "valueDistribution", "distinctValues"):
-            v = pinfo.get(k)
-            if isinstance(v, list) and v:
-                raw = v
-                break
+    # numeric range: ONLY when the binding says numeric - for text columns
+    # stats.min/max are string lengths (field-caught: a status column read
+    # "min 7 max 13", the lengths of its two values)
+    bind = str(pinfo.get("bindType") or stats.get("bindType") or "").upper()
+    if bind and bind not in ("STRING", "TEXT", "CHAR", "VARCHAR", "BOOLEAN", "DATE",
+                             "TIMESTAMP", "DATETIME"):
+        lo, hi = num(stats, "min", "minValue"), num(stats, "max", "maxValue")
+        if lo is not None and hi is not None:
+            out["min"], out["max"] = lo, hi
+        avg = num(stats, "average", "avgValue")
+        if avg is not None:
+            out["avg"] = avg
 
-    vals = []
-    for item in raw[:64]:
-        s = item
-        if isinstance(item, dict):
-            s = (item.get("value") if item.get("value") is not None
-                 else item.get("val") if item.get("val") is not None
-                 else item.get("name"))
-        s = "" if s is None else str(s).strip()
-        if s and s not in vals:
-            vals.append(s)
-    # same rule the app's own profiler keeps: a small repeated set is
-    # reference data; near-unique values are identifiers, never a dictionary
-    if 2 <= len(vals) <= 12 and (out.get("uniq") is None or out["uniq"] < 0.95):
-        out["enum"] = sorted(vals)[:12]
+    # patternAnalysis: shape+sample pairs. Samples are REAL values - the value
+    # list for a low-cardinality column, recognised-kind evidence for the rest
+    pa = pinfo.get("patternAnalysis") or {}
+    pats = ((pa.get("patterns") if isinstance(pa, dict) else None)
+            or pinfo.get("patterns"))
+    samples, shapes = [], []
+    if isinstance(pats, list):
+        for it in pats[:24]:
+            if not isinstance(it, dict):
+                continue
+            s = str(it.get("sample") or "").strip()
+            if s and s not in samples:
+                samples.append(s)
+            rx = _shape_regex(str(it.get("pattern") or ""), str(it.get("sample") or ""))
+            if rx:
+                shapes.append((rx, float(it.get("counter") or 0)))
+    if samples:
+        out["samples"] = samples
+    high_card = bool(stats.get("isHighCardinality"))
+    if (samples and not high_card
+            and distinct is not None and 2 <= distinct <= 12
+            and (out.get("uniq") is None or out["uniq"] < 0.95)):
+        # the samples may be PARTIAL (one per shape group) - still a usable
+        # candidate list; the suggester's gates decide what it becomes
+        out["enum"] = sorted(samples)[:12]
+    # a shape only counts as a DETECTION pattern when it discriminates:
+    # digits or literal separators. Word-shapes ("Aaaaa Aaaaa") match every
+    # sentence in the estate, and a value list beats a shape anyway.
+    discriminating = [(r, c) for r, c in shapes
+                      if "[0-9]" in r or re.search(r"\[^ ]", r)]
+    if discriminating and total and "enum" not in out:
+        covered = sum(c for _, c in discriminating)
+        shapes = discriminating
+        if covered / total >= 0.9:
+            rx = "|".join(r for r, _ in shapes[:6])
+            out["pattern"] = rx if len(shapes) == 1 else "^(?:%s)$" % "|".join(
+                r.strip("^$") for r, _ in shapes[:6])
+            out["valid"] = round(min(1.0, covered / total), 3)
+            out.setdefault("kind", "code")
 
-    # ---- PDC's induced pattern -> a Data Pattern seed ---------------------
-    pats = pinfo.get("patternAnalysis") or pinfo.get("patterns")
-    if isinstance(pats, dict):
-        pats = (pats.get("patterns") or pats.get("items")
-                or pats.get("results") or [])
-    if isinstance(pats, list) and pats:
+    # legacy fallbacks for other PDC versions: a ready-made regex in the
+    # patterns list (the shape the 10.2 docs describe), prose refused
+    if "pattern" not in out and isinstance(pats, list) and pats:
         first = pats[0]
-        rx = first
-        if isinstance(first, dict):
-            rx = (first.get("regex") or first.get("pattern")
-                  or first.get("expression") or first.get("value"))
+        rx = first if not isinstance(first, dict) else (
+            first.get("regex") or first.get("expression") or first.get("value"))
         rx = "" if rx is None else str(rx).strip()
-        # a pattern is only useful if it looks like one — PDC sometimes
-        # returns a human summary ("99.9% numeric") rather than an expression
-        if rx and any(ch in rx for ch in "^$[]\\+*?{}") and len(rx) <= 400:
+        if rx and any(ch in rx for ch in "^$[]\+*?{}") and len(rx) <= 400:
             out["pattern"] = rx
             out.setdefault("kind", "code")
+
+    # legacy fallbacks for other PDC versions (sampling.sample as a list)
+    if "enum" not in out:
+        sampling = pinfo.get("sampling") or pinfo.get("samples") or {}
+        raw = sampling.get("sample") if isinstance(sampling, dict) else sampling
+        if isinstance(raw, list) and raw:
+            vals = []
+            for item in raw[:24]:
+                s = item.get("value") if isinstance(item, dict) else item
+                s = "" if s is None else str(s).strip()
+                if s and s not in vals:
+                    vals.append(s)
+            if 2 <= len(vals) <= 12 and (out.get("uniq") is None or out["uniq"] < 0.95):
+                out["enum"] = sorted(vals)[:12]
 
     if out:
         out.setdefault("reason", "Profiled by PDC")

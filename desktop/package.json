@@ -1,6 +1,6 @@
 {
   "name": "pdc-glossary-desktop",
-  "version": "1.38.8",
+  "version": "1.38.9",
   "private": true,
   "description": "Windows desktop shell for the PDC Glossary Generator",
   "scripts": {

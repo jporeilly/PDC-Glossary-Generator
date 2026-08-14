@@ -308,3 +308,64 @@ class TestHarvestPathKeyPrune:
              "comment": "", "profile": {"rows": 100, "uniq": 0.05}}]})
         r = next(x for x in rows if "region_id" in str(x.get("Source_Column", "")))
         assert r["Keep"] == "Y", r["Prune_Reason"]
+
+
+class TestDatesDefaultToMappingOnly:
+    def test_declared_and_profiled_dates_are_mapping_only(self):
+        """A date can never have a discriminating value shape, so Auto is
+           always the wrong detection default for one - set mapping_only
+           deterministically; the steward can flip it back per row."""
+        from engine import suggester
+        tables = {"billing": [
+            {"table": "billing", "column": "due_date", "type": "DATE",
+             "pk": False, "fk": False, "notnull": True, "unique": False, "comment": ""},
+            {"table": "billing", "column": "effective", "type": "text",
+             "pk": False, "fk": False, "notnull": True, "unique": False,
+             "comment": "", "profile": {"kind": "date", "rows": 50}},
+            {"table": "billing", "column": "total", "type": "DECIMAL",
+             "pk": False, "fk": False, "notnull": True, "unique": False, "comment": ""}]}
+        rows = {str(r["Source_Column"]).rsplit(".", 1)[-1]: r
+                for r in suggester.suggest(tables) if r.get("Source_Column")}
+        assert rows["due_date"]["Detection_Intent"] == "mapping_only"
+        assert rows["effective"]["Detection_Intent"] == "mapping_only"
+        # (Total is DECIMAL: since the nature-classes landed, free numeric
+        # measures map too - the point of this test is the DATE rules)
+        assert rows["total"]["Detection_Intent"] == "mapping_only"
+
+
+class TestDetectionIntentNatureClasses:
+    """mapping_only wherever the NATURE of the data precludes a
+       discriminating shape - never merely because evidence is absent."""
+
+    def _col(self, name, typ, prof=None):
+        return {"table": "t", "column": name, "type": typ, "pk": False,
+                "fk": False, "notnull": True, "unique": False, "comment": "",
+                **({"profile": prof} if prof else {})}
+
+    def test_the_four_classes_and_their_boundaries(self):
+        from engine import suggester
+        tables = {"t": [
+            self._col("due_date", "DATE"),
+            self._col("customer_name", "text", {"kind": "value", "rows": 50}),
+            self._col("tax_amount", "DECIMAL"),
+            self._col("opted_out", "BOOLEAN"),
+            self._col("status", "text", {"kind": "code",
+                                         "enum": ["OPEN", "CLOSED"], "rows": 50}),
+            self._col("account_ref", "text", {"kind": "code",
+                                              "pattern": "^AWC-[0-9]{6}$", "rows": 50}),
+            self._col("service_city", "text", {"kind": "value", "rows": 50}),
+        ]}
+        # key on the COLUMN (via Source_Column), not the display term -
+        # abbreviation expansion may rename ("Account Ref" -> whatever the
+        # pack says), and this test is about intent, not naming
+        rows = {str(r["Source_Column"]).rsplit(".", 1)[-1]: r
+                for r in suggester.suggest(tables) if r.get("Source_Column")}
+        assert rows["due_date"]["Detection_Intent"] == "mapping_only"
+        assert rows["customer_name"]["Detection_Intent"] == "mapping_only", \
+            "PERSONAL_NAME pii -> prose has no shape"
+        assert rows["tax_amount"]["Detection_Intent"] == "mapping_only"
+        assert rows["opted_out"]["Detection_Intent"] == "mapping_only"
+        assert rows["status"]["Detection_Intent"] == "", "coded enums stay Auto"
+        assert rows["account_ref"]["Detection_Intent"] == "", "formatted codes stay Auto"
+        assert rows["service_city"]["Detection_Intent"] == "", \
+            "no-evidence TEXT stays Auto - it might be a dictionary tomorrow"
