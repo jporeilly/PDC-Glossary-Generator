@@ -297,9 +297,17 @@ def _expertise_llm(person, categories, model=None, num_gpu=None):
         f"Available glossary categories: {catline}\n\n"
         'Return ONLY JSON of the form {"keywords": ["..."]} with 4 to 8 short, '
         "lowercase business-domain keywords (single words or two-word phrases) "
-        "describing this person's areas of expertise. Prefer words that overlap the "
-        "available categories above. No full sentences, no personal names, and no "
-        'generic role words such as "steward", "owner", "admin", "user".')
+        "describing THIS person's areas of expertise.\n"
+        "Rules:\n"
+        "- pick the SUBSET of the available categories that fits this person's "
+        "roles and responsibilities - not the whole list, and not the same set "
+        "for everyone;\n"
+        "- when responsibilities are unspecified, choose 2-3 categories that "
+        "plausibly match the roles, plus 1-2 more specific sub-topics;\n"
+        "- use the categories' own wording for category keywords - never a "
+        "table name or a retired variant of a category;\n"
+        "- no full sentences, no personal names, and no generic role words "
+        'such as "steward", "owner", "admin", "user".')
     obj = _complete_json(prompt, model=model, num_gpu=num_gpu)
     if not isinstance(obj, dict):
         return ""

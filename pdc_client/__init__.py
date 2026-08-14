@@ -111,6 +111,12 @@ from .jobs import (
     resolve_document_scope,
     trigger_data_discovery,
 )
+from .labels import (
+    gql,
+    list_labels,
+    create_label,
+    remove_label,
+)
 from .bulkload import (
     CSV_COLUMNS,
     _SECRET_CSV_COLS,

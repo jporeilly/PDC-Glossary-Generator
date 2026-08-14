@@ -579,7 +579,11 @@ export default function GovernPage({ onNavigate }) {
       setExpMsg('No people in the roster yet.')
       return P
     }
-    const ecats = [...new Set(rows.map((r) => r.Category).filter(Boolean))]
+    // KEPT rows only: dropped rows keep their scan-era categories forever
+    // (by design), and feeding those to the LLM salted everyone's expertise
+    // with retired names ("water quality reports" after the rename to
+    // "Water Quality" — field-caught)
+    const ecats = [...new Set(rows.filter(isKept).map((r) => r.Category).filter(Boolean))]
     setExpMsg(`Generating expertise from roles, responsibilities${ecats.length ? ' and scanned categories' : ''}`)
     setExpBusy(true)
     try {

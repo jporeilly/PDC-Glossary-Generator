@@ -3740,6 +3740,57 @@ def data_elements(body: dict = Body(default={})):
             "breakdown": breakdown,
             "policy": {**suggester.DEFAULT_MAP_POLICY, **(policy or {})}}
 
+@app.post("/api/pdc/labels-apply")
+def api_pdc_labels_apply(body: dict = Body(default={})):
+    """Create the steward's KEPT label keys in PDC as data labels (custom
+    properties with isDataLabel=true, over /graphql - field-mapped from a
+    DevTools capture + live probing). Idempotent: existing names are left
+    alone and reported. Values come from the labels engine over the live
+    rows, so the vocabulary written is the one the steward approved.
+    Body: {base_url, token|username+password, keys: [...], rows: [...]}"""
+    from engine import labels as labels_engine
+    from sources import pdc_api
+    body = body or {}
+    base = (body.get("base_url") or "").strip()
+    if not base:
+        return _err("PDC base URL is required", 400)
+    keys = [str(k).strip() for k in (body.get("keys") or []) if str(k).strip()]
+    if not keys:
+        return _err("no label keys - tick the keys to keep on Govern first", 400)
+    pack = {}
+    try:
+        with open(paths.domain_pack_path(), encoding="utf-8") as f:
+            pack = json.load(f)
+    except Exception:
+        pack = {}
+    lab = labels_engine.suggest_labels(body.get("rows") or [], pack=pack)
+    vocab = lab.get("vocabulary") or {}
+    try:
+        token, _ = _pdc_token_and_reauth(body, base, body.get("version") or "v2",
+                                         bool(body.get("verify_tls", False)))
+        existing = {l["name"].strip().lower(): l
+                    for l in pdc_api.list_labels(base, token,
+                                                 verify_tls=bool(body.get("verify_tls", False)))}
+        created, skipped, missing = [], [], []
+        for k in keys:
+            vals = vocab.get(k) or []
+            if not vals:
+                missing.append(k)      # no derived values on the current grid
+                continue
+            if k.lower() in existing:
+                skipped.append({"key": k, "id": existing[k.lower()]["_id"],
+                                "values": existing[k.lower()]["values"]})
+                continue
+            lid = pdc_api.create_label(base, token, k, vals,
+                                       verify_tls=bool(body.get("verify_tls", False)))
+            created.append({"key": k, "id": lid, "values": vals})
+        _receipt("labels", created=[c["key"] for c in created],
+                 existing=[s["key"] for s in skipped])
+        return {"created": created, "existing": skipped, "no_values": missing}
+    except Exception as e:
+        return _err(str(e)[:300], 502)
+
+
 @app.post("/api/labels/suggest")
 def api_labels_suggest(body: dict = Body(default={})):
     """Suggest PDC labels (key/value custom properties) from what the scan

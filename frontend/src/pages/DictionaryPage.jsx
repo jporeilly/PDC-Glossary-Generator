@@ -1031,16 +1031,16 @@ export default function DictionaryPage({ onNavigate }) {
         <div className="actions" role="group" style={{ marginTop: '.6rem' }}
              aria-label="Domain pack — teach the next scan">
           <span className="summary"><b>Domain pack</b> · teach the next scan:</span>
-          <button className={`${!pack ? 'primary' : 'ghost'} mini`} onClick={() => exportPack(false)}
+          <button className={!pack ? 'primary' : 'ghost'} onClick={() => exportPack(false)}
                   title="Distill this review into a domain pack: table mappings, abbreviations, the governed company vocabulary, and curated seeds carrying the induced value patterns / reference lists — detection knowledge specific to THIS company. Merges over the installed pack; where the scan disagrees with the pack, each conflict is listed for you (curated seeds default to the fresher scan evidence).">
             {pack ? '↻ 1 · Regenerate pack' : '1 · Generate pack'}
           </button>
-          <button className="ghost mini" disabled={!pack}
+          <button className="ghost" disabled={!pack}
                   onClick={() => pack && downloadBlob(JSON.stringify(pack.pack, null, 2), 'domain_pack.json')}
                   title="Read exactly what it learned, or carry it to another install — this is the file that goes in the scenario repo's domain_pack/ folder.">
             2 · ⬇ Inspect / ship the pack
           </button>
-          <button className={`${pack && !pack.applied ? 'primary' : 'ghost'} mini`}
+          <button className={pack && !pack.applied ? 'primary' : 'ghost'}
                   disabled={!pack || pack.applied} onClick={() => exportPack(true)}
                   title="The flywheel turn: writes this pack into the app and reseeds the dictionary from it, so the NEXT scan of this estate starts from everything this review taught. Approved vocabulary and rules survive; a backup of the old pack is kept.">
             {pack && pack.applied ? '✓ 3 · Installed as this app’s pack' : '3 · Install as this app’s pack'}

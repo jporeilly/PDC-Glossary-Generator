@@ -703,6 +703,33 @@ class TestHarvestFetchesProfilingById:
         assert col["profile"]["enum"] == ["Cast Iron", "HDPE", "PVC"]
 
 
+class TestPdcLabelsApply:
+    def test_kept_keys_become_data_labels_idempotently(self, client, monkeypatch):
+        """The DevTools capture + live probe mapped PDC labels to GraphQL
+           custom properties (isDataLabel=true). The endpoint creates the
+           steward's kept keys with engine-derived vocabularies, skips names
+           PDC already holds, and reports keys with no derived values."""
+        from sources import pdc_api
+        made = []
+        monkeypatch.setattr("api._pdc_token_and_reauth", lambda *a, **k: ("tok", None))
+        monkeypatch.setattr(pdc_api, "list_labels",
+                            lambda *a, **k: [{"_id": "x1", "name": "handling",
+                                              "values": ["restricted"]}])
+        monkeypatch.setattr(pdc_api, "create_label",
+                            lambda base, tok, name, vals, **k: (made.append((name, list(vals))) or "new-id"))
+        rows = [_row("Customer Email", "awc.customers.email",
+                     Category="Customer Management", Sensitivity="HIGH",
+                     PII_Category="CONTACT_INFO", Critical_Data_Element="Yes")]
+        d = client.post("/api/pdc/labels-apply",
+                        json={"base_url": "https://pdc.example", "token": "t",
+                              "keys": ["handling", "access-tier", "retention"],
+                              "rows": rows}).json()
+        assert [s["key"] for s in d["existing"]] == ["handling"], d
+        assert [c["key"] for c in d["created"]] == ["access-tier"]
+        assert made == [("access-tier", ["tier-1"])]
+        assert d["no_values"] == ["retention"], "no pack vocabulary - reported, not invented"
+
+
 class TestDraftBundleCoversLabels:
     def test_labels_json_rides_the_draft_zip(self, client):
         """"Does this cover labels?" It does now: the derived keys, the

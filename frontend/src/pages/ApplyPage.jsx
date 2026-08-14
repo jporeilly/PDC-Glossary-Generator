@@ -193,6 +193,7 @@ export default function ApplyPage({ onNavigate }) {
       <DataElementsCard rows={ws.rows} glossaryName={glossaryName} de={de} setDe={setDe} />
       <ResolveCard de={de} setDe={setDe} authBody={authBody} glossaryName={glossaryName}
                    rows={ws.rows} settings={settings} />
+      <LabelsCard rows={ws.rows} authBody={authBody} />
       {/* Discovery BEFORE Apply: PDC only mints file-column entities when its
           own Data Discovery runs, so applying first reported every document
           column "not found" (field-caught: "surely this step should come
@@ -1437,6 +1438,47 @@ function ApiPeek({ res, conn, trust }) {
 }
 
 /* ---------- step 4: run PDC Data Discovery (profiling) on the document folders ---------- */
+
+/* ---------- data labels in PDC (GraphQL custom properties) ---------- */
+function LabelsCard({ rows, authBody }) {
+  const ws = useWorkspace()
+  const kept = ws.governance?.labelKeys || []
+  const [busy, setBusy] = useState(false)
+  const [res, setRes] = useState(null)
+  const [err, setErr] = useState(null)
+  return (
+    <section className="card">
+      <h2>Data labels <span>create the kept label keys in PDC — vocabulary from this review</span></h2>
+      <p className="hint-line">
+        Writes each label key you kept on <b>Govern</b> into PDC as a <b>data label</b>
+        (a custom property with a governed value set), with the values derived from this
+        grid. Idempotent — existing labels are reported, never overwritten. Assigning
+        labels to individual columns stays a PDC-side step for now.
+      </p>
+      <div className="actions">
+        <button className="primary" disabled={busy || kept.length === 0}
+                onClick={async () => {
+                  setBusy(true); setErr(null); setRes(null)
+                  try {
+                    setRes(await apiPost('/api/pdc/labels-apply',
+                      { ...authBody(), keys: kept, rows }))
+                  } catch (e) { setErr(e.message) } finally { setBusy(false) }
+                }}>
+          {busy ? 'Creating…' : `Create ${kept.length || ''} label(s) in PDC`}
+        </button>
+        {kept.length === 0 && <span className="notes">tick label keys on Govern first</span>}
+        {err && <span className="warn">{err}</span>}
+      </div>
+      {res && (
+        <p className="summary ok">
+          {res.created.length > 0 && <>created: {res.created.map((c) => <code key={c.key} style={{ marginRight: '.3rem' }}>{c.key} ({c.values.length})</code>)}</>}
+          {res.existing.length > 0 && <> · already in PDC: {res.existing.map((s) => <code key={s.key} style={{ marginRight: '.3rem' }}>{s.key}</code>)}</>}
+          {res.no_values.length > 0 && <> · no derived values on this grid: {res.no_values.join(', ')}</>}
+        </p>
+      )}
+    </section>
+  )
+}
 
 function ProfilingCard({ de, authBody }) {
   const [busy, setBusy] = useState(false)

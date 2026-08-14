@@ -14,6 +14,38 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.38.7] - 2026-08-14
+
+### Added - labels write into PDC: the endpoint is captured and mapped
+
+One DevTools capture of the UI's getDataLabels call ended the long-standing
+gap: PDC labels are CUSTOM PROPERTIES with isDataLabel=true over
+POST /graphql, and a bearer token works. Introspection is off, but Apollo's
+"did you mean" suggestions named the mutations, and live probing proved
+create and delete end to end (including cleaning up the probe's own stray).
+New pdc_client.labels module (gql/list/create/remove), and an Apply-page
+**Data labels** card that writes the steward's kept keys as data labels
+with their engine-derived vocabularies - idempotent, existing names
+reported and never overwritten. Assigning labels to individual columns
+remains a PDC-side step until that call is captured too.
+
+### Fixed - expertise speaks the settled taxonomy, per person
+
+Suggest expertise fed the LLM categories from ALL rows - and dropped rows
+keep their scan-era names forever, so retired categories ("water quality
+reports" after the rename to "Water Quality") salted everyone's keywords,
+and the whole roster got one identical list with no Infrastructure in
+sight. The vocabulary is now KEPT rows only (the settled taxonomy), and
+the prompt demands the SUBSET that fits each person's roles - different
+per person, the categories' own wording, never a table name or a retired
+variant.
+
+### Changed - the Domain pack steps are proper buttons
+
+Standard-size buttons (same as Save dictionary), one primary at a time as
+the state advances - the flywheel's most important turn no longer hides
+in mini pills.
+
 ## [1.38.6] - 2026-08-14
 
 ### Added - the draft bundle covers labels
