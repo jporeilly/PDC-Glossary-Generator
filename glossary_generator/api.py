@@ -3867,7 +3867,7 @@ def api_pdc_profiling_probe(body: dict = Body(default={})):
                         if par and str(par) not in parent_ids:
                             parent_ids.append(str(par))
                 total_available += 1
-                if len(cols) >= 8:
+                if len(cols) >= int(body.get("sample_columns") or 24):
                     break
         if not cols:                   # last resort: the grid's kept columns
             for r in (body.get("rows") or []):
@@ -3883,7 +3883,7 @@ def api_pdc_profiling_probe(body: dict = Body(default={})):
                         "sources in Harvest), or pass columns:[schema.table.column]", 400)
 
         specs = []
-        for c in cols[:12]:
+        for c in cols[:32]:
             p = c.split(".")
             specs.append({"schemaName": p[0] if len(p) >= 3 else "",
                           "tableName": p[-2], "columnName": p[-1]})
