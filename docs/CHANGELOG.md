@@ -14,6 +14,18 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.38.10] - 2026-08-15
+
+### Fixed - the Draft click itself crashed with "ws is not defined"
+
+The cruellest possible place: a fully fueled grid, 142 terms exported
+clean - and the Draft button threw. The 1.38.6 label-keys edit referenced
+the workspace inside GenerateCard, which receives `governance` as a PROP
+and has no `ws` in scope. One line; verified by driving the exact failing
+click on a live preview (draft starts, seeds collect, no error). The
+probe also samples 24 columns now (sample_columns overridable) - 8 kept
+hiding the interesting ones.
+
 ## [1.38.9] - 2026-08-14
 
 ### Fixed - the Terms half of the draft: harvest reads PDC's REAL shapes
