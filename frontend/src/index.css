@@ -81,6 +81,10 @@ button.nav.active { text-decoration: underline; }
 .stepper button {
   display: flex; align-items: center; gap: .75rem; background: none; border: none;
   cursor: pointer; padding: .55rem .7rem; border-radius: 8px; text-align: left;
+  /* min-width 0 + hidden: without these the nowrap hints spill OUT of a
+     shrunken flex item and the green connector bars draw straight across
+     the spilled text and circles (field-caught on the Apply stepper) */
+  min-width: 0; overflow: hidden;
 }
 .stepper button:disabled { cursor: not-allowed; opacity: .45; }
 .stepper button:not(:disabled):hover { background: var(--surface-2); }
@@ -92,9 +96,11 @@ button.nav.active { text-decoration: underline; }
 .stepper li.active .dot { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
 .stepper li.done .dot { background: transparent; color: var(--status-good); border-color: var(--status-good); }
 .step-text { display: flex; flex-direction: column; line-height: 1.35; min-width: 0; gap: .1rem; }
-.step-label { font-size: .95rem; font-weight: 650; color: var(--text-primary); }
+.step-label { font-size: .95rem; font-weight: 650; color: var(--text-primary);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .stepper li.locked .step-label { color: var(--text-muted); }
-.step-hint { font-size: .74rem; color: var(--text-muted); white-space: nowrap; }
+.step-hint { font-size: .74rem; color: var(--text-muted); white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; }
 .stepper .bar { flex: 1; height: 2px; background: var(--gridline); margin: 0 .9rem; min-width: 18px; border-radius: 1px; }
 .stepper li.done .bar { background: var(--status-good); }
 

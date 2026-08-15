@@ -354,7 +354,7 @@ def draft_from_rows(rows, glossary_name="Business Glossary", prefix=None,
     prefix = (prefix or "").strip() or re.sub(r"\s+", " ", str(glossary_name or "")).split(" ")[0] or "Rule"
     hints = hints or {}
     gov = {str(t).strip().lower() for t in (governed_tags or [])}
-    patterns, dictionaries, skipped = [], [], []
+    patterns, dictionaries, skipped, mapping_only = [], [], [], []
     seen = set()
     # Curated seeds from the versioned domain pack (source 'curated') — the
     # custom-only program's generic baseline for concepts profiling can't induce.
@@ -375,6 +375,16 @@ def draft_from_rows(rows, glossary_name="Business Glossary", prefix=None,
         src = str(r.get("Source_Column") or "").strip()
         if not src:
             skipped.append({"term": term, "why": "table-level term — no physical column to identify"})
+            continue
+        # mapping-only is a DECLARATION, not a failure: this term is governed
+        # by its term↔column links and no detection method is expected. The
+        # skip list exists to name missing evidence - listing intentional
+        # mapping terms there was exactly the noise the intent flag was built
+        # to end (caught by the end-to-end run)
+        if str(r.get("Detection_Intent") or "").strip() == "mapping_only":
+            mapping_only.append({"term": term,
+                                 "why": "mapping-only by design — governed via "
+                                        "term↔column links; no detection method expected"})
             continue
         vp = (r.get("Value_Pattern") or "").strip()
         sig = (r.get("Value_Signature") or "").strip() or None
@@ -442,7 +452,7 @@ def draft_from_rows(rows, glossary_name="Business Glossary", prefix=None,
                 "rule": _dictionary_rule(name, category, col_rx, tags, term),
                 "csv": "term\n" + "\n".join(enums) + "\n",
             })
-    return {"patterns": patterns, "dictionaries": dictionaries, "skipped": skipped,
+    return {"patterns": patterns, "dictionaries": dictionaries, "skipped": skipped, "mapping_only": mapping_only,
             "glossary": glossary_name, "prefix": prefix}
 
 

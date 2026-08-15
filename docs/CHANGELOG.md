@@ -14,6 +14,26 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.38.11] - 2026-08-15
+
+### Fixed - found by running the workflow end to end
+
+A scripted end-to-end (scan -> evidence -> save -> pack -> generate ->
+data elements -> draft job -> bundle zip -> labels -> estate report, 24
+checks, no LLM, no PDC writes) plus a click-through of every page:
+
+- **The skip list now honours Detection_Intent.** Mapping-only terms
+  (dates, names, free numbers, flags) no longer clutter the draft's skip
+  list - they report in their own quiet line: "N term(s) mapping-only by
+  design". The skip list is back to naming genuinely missing evidence.
+- **The stepper no longer draws green dashes across completed steps** -
+  nowrap hints spilled out of shrunken flex items and the connector bars
+  drew straight across the spill; step buttons now clip with ellipsis
+  (verified by bounding-box intersection: zero overlaps).
+
+Everything else held: 24/24 end-to-end checks pass, all ten pages render
+with a loaded workspace, suite at 330.
+
 ## [1.38.10] - 2026-08-15
 
 ### Fixed - the Draft click itself crashed with "ws is not defined"

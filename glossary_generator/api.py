@@ -2108,7 +2108,9 @@ def _draft_policies_run(body, progress=None):
                "quality": [{"filename": q["filename"], "term": q["term"],
                             "name": q["rule"]["name"], "checks": q["checks"]}
                            for q in draft["quality"]],
-               "skipped": draft["skipped"], "used_llm": used_llm,
+               "skipped": draft["skipped"],
+               "mapping_only": draft.get("mapping_only") or [],
+               "used_llm": used_llm,
                "labels": {"keys": [k["key"] for k in draft["labels"]["keys"]],
                           "kept": draft["labels"]["kept_keys"]}}
     return draft, summary

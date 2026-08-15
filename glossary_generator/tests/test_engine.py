@@ -819,3 +819,22 @@ class TestNumericRangeDQ:
         if notes:
             nchecks = [c for e in notes[0]["rule"]["expectations"] for c in e["checks"]]
             assert not any(c["check"] == "range" for c in nchecks)
+
+
+class TestMappingOnlySkipsNothing:
+    def test_mapping_only_terms_leave_the_skip_list(self):
+        """mapping-only is a DECLARATION, not a failure: the skip list names
+           missing evidence, and an intentional mapping term is not missing
+           anything (found by the end-to-end run - dates/booleans/amounts
+           cluttered the skips their intent flag existed to silence)."""
+        from engine import policy_draft
+        rows = [_row("Service Start Date", "awc.customers.service_start_date",
+                     Critical_Data_Element="No", PII_Category="",
+                     Detection_Intent="mapping_only"),
+                _row("Notes Text", "awc.customers.notes_text",
+                     Critical_Data_Element="No", PII_Category="")]
+        d = policy_draft.draft_from_rows(rows, glossary_name="X")
+        assert [m["term"] for m in d["mapping_only"]] == ["Service Start Date"]
+        skip_terms = [s["term"] for s in d["skipped"]]
+        assert "Service Start Date" not in skip_terms
+        assert "Notes Text" in skip_terms, "evidence-less Auto rows still report honestly"

@@ -559,6 +559,13 @@ function GenerateCard({ rows, glossaryName, governance, settings, onNavigate, au
           {(draft.quality || []).map((q) => (
             <div key={q.filename}>· dq <code>{q.filename}</code> — {q.term} ({q.checks} check{q.checks !== 1 ? 's' : ''})</div>
           ))}
+          {(draft.mapping_only || []).length > 0 && (
+            <div className="notes" style={{ marginTop: '.5rem' }}>
+              <b>{draft.mapping_only.length} term(s) mapping-only by design</b> — governed via
+              their term↔column links; no detection method expected (dates, names, free numbers,
+              flags): {draft.mapping_only.map((m) => m.term).join(', ')}
+            </div>
+          )}
           {(draft.skipped || []).length > 0 && (
             <div className="notes" style={{ marginTop: '.5rem' }}>
               <b>{draft.skipped.length} term(s) skipped</b> — a rule needs a value <i>shape</i> (a
