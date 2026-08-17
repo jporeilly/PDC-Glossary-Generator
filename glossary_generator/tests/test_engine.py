@@ -943,6 +943,42 @@ class TestNameAnchoredMeasureRules:
         assert re.match(crx, "7.2") and re.match(crx, "-3")
         assert not re.match(crx, "acidic"), "the RANGE lives in DQ; the rule only asserts numeric shape"
 
+    def test_signature_does_not_gate_the_flip(self):
+        """A profiled date CARRIES a shape signature (dddd-dd-dd), and the
+        mint used to hide behind 'no signature' — a flipped Payment Date
+        landed in 'no stable shape' on the live mass-flip walk. The
+        name-anchor check now comes first; the signature rides the rule's
+        contentPatterns at weight 0, informative and inert."""
+        from engine import policy_draft
+        rows = [_row("Payment Date", "awc.payments.payment_date",
+                     Critical_Data_Element="No", PII_Category="",
+                     Value_Kind="date", Value_Signature="dddd-dd-dd",
+                     Detection_Intent="")]
+        d = policy_draft.draft_from_rows(rows, glossary_name="X")
+        assert [p["term"] for p in d["patterns"]] == ["Payment Date"], d["skipped"]
+        assert d["patterns"][0]["seed"] == "name-anchored"
+        rule = d["patterns"][0]["rule"][0]
+        assert rule["contentPatterns"] == [{"pattern": "dddd-dd-dd"}]
+        assert rule["contentPatternWeight"] == 0.0
+
+    def test_unit_named_measures_default_to_auto_at_suggest_time(self):
+        """"I thought this would be done automatically" — a bounded measure
+        whose name carries its unit (class knowledge) now arrives AUTO from
+        the nature classifier; generic numerics keep the safe mapping-only
+        default."""
+        from engine import sug_suggest
+        rng = {"min": 6.1, "max": 8.4}
+        assert sug_suggest._detection_intent(
+            {"name": "ph_level", "type": "numeric"}, dict(rng), "") == ""
+        assert sug_suggest._detection_intent(
+            {"name": "lead_ppb", "type": "numeric"}, dict(rng), "") == ""
+        assert sug_suggest._detection_intent(
+            {"name": "amount_paid", "type": "numeric"}, dict(rng), "") == "mapping_only"
+        # unit name WITHOUT range evidence stays mapping-only — the shape
+        # half of the conjunction must exist before Auto means anything
+        assert sug_suggest._detection_intent(
+            {"name": "ph_level", "type": "numeric"}, {}, "") == "mapping_only"
+
     def test_mapping_only_marks_safe_flip_candidates(self):
         """"we're flipping to auto when we could have done this before" — the
         draft now pre-sorts the queue: a bounded measure whose name carries

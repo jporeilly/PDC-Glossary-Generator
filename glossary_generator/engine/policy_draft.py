@@ -365,16 +365,11 @@ def _kind_patterns():
             "card": _sug.RX_CC.pattern}
 
 
-# Units are CLASS knowledge (ppm means parts-per-million in any estate), so
-# recognising a unit-bearing measure name is not estate-specific hardcoding —
-# the same doctrine that allows email/zip shapes. Used only to SORT the
-# mapping-only queue: a bounded measure whose name carries its unit (pH,
-# lead_ppb, turbidity_ntu) is a safe name-anchor candidate, and the draft
-# says so instead of leaving the steward to scan 70 terms. The flip itself
-# stays the steward's click — this recommends, never decides.
-_UNIT_NAME = re.compile(
-    r"\((?:ppm|ppb|ntu|psi|gpm|mg/?l|ug/?l|kwh|%|percent)\)"
-    r"|(?:^|_)(?:ph|ppm|ppb|ntu|psi|gpm|kwh|pct|percent)(?:_|$)", re.I)
+# The unit-name recogniser lives in sug_shared (1.38.19): the nature
+# classifier now uses it to default unit-named bounded measures to AUTO at
+# suggest time, and this drafter stars the same class as recommended flips
+# for rows harvested before that default existed.
+from engine.sug_shared import UNIT_NAME as _UNIT_NAME
 
 
 def _auto_candidate(r):
@@ -474,7 +469,7 @@ def draft_from_rows(rows, glossary_name="Business Glossary", prefix=None,
             elif not any(c.count(".") >= 2 for c in _cols_of(r)):
                 skipped.append({"term": term, "why": "document term — identify documents with vocabulary dictionaries, not value shapes"})
                 continue
-            elif not sig and not (r.get("Enum_Values") or "").strip():
+            else:
                 # NAME-ANCHORED MEASURE: the steward flipped this row to Auto
                 # despite its nature (a date, a bounded measure like pH or
                 # Lead ppb). The range alone never discriminates - every
@@ -482,21 +477,25 @@ def draft_from_rows(rows, glossary_name="Business Glossary", prefix=None,
                 # makes name + shape TOGETHER a legitimate rule: column-name
                 # regex carries identity, content regex carries sanity
                 # (date shape, or numeric shape with the range in DQ).
-                # Only an EXPLICIT Auto choice reaches here; the nature
-                # default stays mapping-only ("Im also sure some of these
-                # can be auto ... pH level can only go to 14").
+                # This check comes BEFORE the signature gate: a profiled date
+                # carries a dddd-dd-dd SIGNATURE, and gating the mint behind
+                # "no signature" sent a flipped Payment Date to the skips
+                # (field-caught on the mass-flip walk). A signature rides the
+                # rule's contentPatterns at weight 0 - informative, inert.
                 _rng = str(r.get("Value_Range") or "").strip()
                 _vk = str(r.get("Value_Kind") or "").strip().lower()
                 if ((_rng or _vk == "date")
                         and column_name_regex(_col_names(r))):
-                    # the nature classes default these to mapping-only, and
                     # mapping-only rows never reach this ladder — so an Auto
-                    # row here IS the steward's explicit flip, and it
-                    # overrides the _NO_SHAPE name heuristic (payment_date
-                    # has "date" in its name by definition). No name regex
-                    # -> no anchor -> still a skip.
+                    # row here IS the steward's flip (or the suggest-time
+                    # unit-name default), and it overrides the _NO_SHAPE name
+                    # heuristic (payment_date has "date" in its name by
+                    # definition). No name regex -> no anchor -> still a skip.
                     vp = _DATE_SHAPE if _vk == "date" else _NUM_SHAPE
                     seed_kind = "name-anchored"
+                elif sig or (r.get("Enum_Values") or "").strip():
+                    skipped.append({"term": term, "why": "no stable shape in the data (free text, names, amounts, dates)"})
+                    continue
                 elif _no_value_shape(_cols_of(r)):
                     skipped.append({"term": term, "why": "tagged via the term↔column link, not a value pattern — a surrogate id / date / name / amount has no value shape to detect (expected)"})
                     continue
@@ -511,9 +510,6 @@ def draft_from_rows(rows, glossary_name="Business Glossary", prefix=None,
                 else:
                     skipped.append({"term": term, "why": "no profiled evidence on the row — re-scan the live source with value profiling on to induce a custom pattern, or add a curated seed for this term to the domain pack"})
                     continue
-            else:
-                skipped.append({"term": term, "why": "no stable shape in the data (free text, names, amounts, dates)"})
-                continue
         h = hints.get(term) or {}
         col_rx = h.get("column_regex")
         if not (_valid_regex(col_rx)):

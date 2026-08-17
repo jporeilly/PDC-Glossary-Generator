@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { apiGet, apiPost } from './../api.js'
 import { DocsPanel, ProfilePanel } from './../components/DiscoveryPanels.jsx'
 import { SourceConnections } from './../components/SourceConnections.jsx'
-import { setDocsDiscovery, useWorkspace } from './../state.js'
+import { setDocsDiscovery, usePersistentState, useWorkspace } from './../state.js'
 import './files.css'
 
 // Files page — the S3/MinIO object browser, split out of Connect as its own
@@ -66,11 +66,11 @@ export default function FilesPage({ onNavigate }) {
   const ws = useWorkspace()
   const [conns, setConns] = useState(null)
   const [connsError, setConnsError] = useState(null)
-  const [connId, setConnId] = useState('')
-  const [data, setData] = useState(null)
+  const [connId, setConnId] = usePersistentState('files.connId', '')
+  const [data, setData] = usePersistentState('files.data', null)
   const [msg, setMsg] = useState('')
   const [busy, setBusy] = useState(false)
-  const [openFile, setOpenFile] = useState(null)
+  const [openFile, setOpenFile] = usePersistentState('files.openFile', null)
 
   useEffect(() => {
     apiGet('/api/connections')

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { apiGet, apiPost } from './../api.js'
 import { ProfilePanel } from './../components/DiscoveryPanels.jsx'
 import { SourceConnections } from './../components/SourceConnections.jsx'
-import { useWorkspace } from './../state.js'
+import { usePersistentState, useWorkspace } from './../state.js'
 import './schema.css'
 
 // Schema page — the schema browser, split out of Connect as its own
@@ -77,15 +77,15 @@ export default function SchemaPage({ onNavigate }) {
   const ws = useWorkspace()
   const [conns, setConns] = useState(null)
   const [connsError, setConnsError] = useState(null)
-  const [connId, setConnId] = useState('')
-  const [graph, setGraph] = useState(null)
-  const [ddlText, setDdlText] = useState('')
-  const [keysOnly, setKeysOnly] = useState(false)
+  const [connId, setConnId] = usePersistentState('schema.connId', '')
+  const [graph, setGraph] = usePersistentState('schema.graph', null)
+  const [ddlText, setDdlText] = usePersistentState('schema.ddlText', '')
+  const [keysOnly, setKeysOnly] = usePersistentState('schema.keysOnly', false)
   const [msg, setMsg] = useState('')
   const [busy, setBusy] = useState(false)
-  const [openTable, setOpenTable] = useState(null)
-  const [keysOut, setKeysOut] = useState(null)   // {mode:'plan'|'applied', data} | {error}
-  const [viewMode, setViewMode] = useState('cards') // 'cards' | 'er'
+  const [openTable, setOpenTable] = usePersistentState('schema.openTable', null)
+  const [keysOut, setKeysOut] = usePersistentState('schema.keysOut', null)   // {mode:'plan'|'applied', data} | {error}
+  const [viewMode, setViewMode] = usePersistentState('schema.viewMode', 'cards') // 'cards' | 'er'
   const [scanSeq, setScanSeq] = useState(0)      // bumps per load → remounts ErDiagram
   const erStore = useRef({})                     // session-local ER positions/viewport
   const [ddlFile, setDdlFile] = useState(null)   // {name, size} of a dropped script

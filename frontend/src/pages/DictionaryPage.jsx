@@ -7,7 +7,7 @@
 // conflict review. The "Acting as" actor is recorded on every save/approve.
 import { useEffect, useRef, useState } from 'react'
 import { apiGet, apiPost } from './../api.js'
-import { useWorkspace } from './../state.js'
+import { usePersistentState, useWorkspace } from './../state.js'
 import './dictionary.css'
 
 function downloadBlob(content, filename, type = 'application/json') {
@@ -59,20 +59,20 @@ export default function DictionaryPage({ onNavigate }) {
   const [actor, setActorState] = useState(() => {
     try { return localStorage.getItem('gg_steward') || '' } catch { return '' }
   })
-  const [advice, setAdvice] = useState({})
+  const [advice, setAdvice] = usePersistentState('dict.advice', {})
   const [reviewing, setReviewing] = useState(false)
   const [prog, setProg] = useState(null)        // {done, total}
   const cancelRef = useRef(false)
-  const [fold, setFold] = useState(null)        // {pairs, governed}
+  const [fold, setFold] = usePersistentState('dict.fold', null)        // {pairs, governed}
   const [foldBusy, setFoldBusy] = useState(false)
-  const [pack, setPack] = useState(null)        // /api/export-pack response
-  const [resolutions, setResolutions] = useState({})
+  const [pack, setPack] = usePersistentState('dict.pack', null)        // /api/export-pack response
+  const [resolutions, setResolutions] = usePersistentState('dict.resolutions', {})
   const [rowsShown, setRowsShown] = useState(() => {
     try { return parseInt(localStorage.getItem('gg_td_rows'), 10) || 7 } catch { return 7 }
   })
-  const [newTerm, setNewTerm] = useState({ name: '', sens: 'LOW', aliases: '', tags: '' })
-  const [newTag, setNewTag] = useState({ name: '', floor: '' })
-  const [newRule, setNewRule] = useState({ pattern: '', tags: '' })
+  const [newTerm, setNewTerm] = usePersistentState('dict.newTerm', { name: '', sens: 'LOW', aliases: '', tags: '' })
+  const [newTag, setNewTag] = usePersistentState('dict.newTag', { name: '', floor: '' })
+  const [newRule, setNewRule] = usePersistentState('dict.newRule', { pattern: '', tags: '' })
   const [audit, setAudit] = useState(null)
   const [auditErr, setAuditErr] = useState(null)
 

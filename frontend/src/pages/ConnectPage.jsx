@@ -92,7 +92,7 @@ export default function ConnectPage({ onNavigate }) {
   // the form — it is needed once to mint the token and should not outlive that.
   const [pdc, setPdc] = usePersistentState('connect.pdc',
     { base: '', user: '', token: '', ver: 'v2', verify: false })
-  const [pdcPass, setPdcPass] = useState('')
+  const [pdcPass, setPdcPass] = usePersistentState('pdc.pass', '')
 
   const refreshConns = () =>
     apiGet('/api/connections')
@@ -272,7 +272,7 @@ const BL_BADGE = {
 }
 
 function BulkLoadCard({ pdc, onConnectionsChanged }) {
-  const [csv, setCsv] = useState('')
+  const [csv, setCsv] = usePersistentState('connect.blCsv', '')
   // profile defaults ON. Registering a source without analysing it leaves PDC
   // holding tables/files with no columns, statistics or sensitivity - which
   // looks like a broken load rather than a skipped step, because every badge
@@ -284,7 +284,7 @@ function BulkLoadCard({ pdc, onConnectionsChanged }) {
   // through Data Profiling, an object store's files through Data Discovery.
   // The file-level switches are options ON that discovery pass, which is where
   // PDC's own Configure Process dialog puts them.
-  const [opts, setOpts] = useState({
+  const [opts, setOpts] = usePersistentState('connect.blOpts', {
     ingest: true, replace: false,
     profile: true,                                     // databases -> Data Profiling
     discover: true, profileFiles: true, header: true, docMeta: true,  // object stores
@@ -293,7 +293,7 @@ function BulkLoadCard({ pdc, onConnectionsChanged }) {
   const [msg, setMsg] = useState('')
   const [running, setRunning] = useState(false)
   const [progress, setProgress] = useState(null)   // {done, total}
-  const [table, setTable] = useState(null)          // {dryRun, rows: {index: result}}
+  const [table, setTable] = usePersistentState('connect.blTable', null)          // {dryRun, rows: {index: result}}
   const [inspectName, setInspectName] = useState('')
   const [inspectOut, setInspectOut] = useState(null)
   const [importPanel, setImportPanel] = useState(false)
@@ -727,9 +727,9 @@ function ProfilingProbeCard({ rows, pdc }) {
   // Same entry point as Harvest: list PDC's data sources, pick one, and let
   // the catalog say which columns it holds ("its from the List data sources
   // in Harvest from PDC") — no hand-typed paths.
-  const [sources, setSources] = useState(null)
-  const [ds, setDs] = useState('')
-  const [res, setRes] = useState(null)
+  const [sources, setSources] = usePersistentState('connect.probeSources', null)
+  const [ds, setDs] = usePersistentState('connect.probeDs', '')
+  const [res, setRes] = usePersistentState('connect.probeRes', null)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState(null)
 
@@ -866,14 +866,14 @@ function ProfilingProbeCard({ rows, pdc }) {
 const hvKey = (s) => s.fqdn || s.id
 
 function HarvestCard({ pdc, onConnectionsChanged, onNavigate, glossaryName }) {
-  const [sources, setSources] = useState(null)
-  const [sel, setSel] = useState(new Set())
-  const [query, setQuery] = useState('')
+  const [sources, setSources] = usePersistentState('connect.hvSources', null)
+  const [sel, setSel] = usePersistentState('connect.hvSel', () => new Set())
+  const [query, setQuery] = usePersistentState('connect.hvQuery', '')
   const [msg, setMsg] = useState('')
   const [busy, setBusy] = useState(false)
-  const [notes, setNotes] = useState({})       // per-source status: key -> {tone, text}
-  const [scanCards, setScanCards] = useState([])  // pdc_summary result cards
-  const [glossName, setGlossName] = useState('')
+  const [notes, setNotes] = usePersistentState('connect.hvNotes', {})       // per-source status: key -> {tone, text}
+  const [scanCards, setScanCards] = usePersistentState('connect.hvCards', [])  // pdc_summary result cards
+  const [glossName, setGlossName] = usePersistentState('connect.hvGloss', '')
   const [glossMsg, setGlossMsg] = useState('')
 
   const note = (k, tone, text) => setNotes((n) => ({ ...n, [k]: { tone, text } }))

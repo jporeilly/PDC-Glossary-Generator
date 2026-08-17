@@ -10,7 +10,7 @@
 // into the JSONL by the Apply page's Generate card.
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import { apiGet, apiPost } from './../api.js'
-import { setGlossaryMeta, setGovernance, setRows, useWorkspace } from './../state.js'
+import { setGlossaryMeta, setGovernance, setRows, usePersistentState, useWorkspace } from './../state.js'
 import './govern.css'
 
 /* ====================================================================
@@ -341,20 +341,24 @@ export default function GovernPage({ onNavigate }) {
   const [people, setPeople] = useState(null)
   const [settings, setSettings] = useState(null)
   const [rosterDirty, setRosterDirty] = useState(false)
-  const [defaults, setDefaults] = useState(null)
-  const [overrides, setOverrides] = useState({})
+  // unbaked stewardship edits survive navigation (session cache) — the
+  // seeding/hydration effects below already guard on existing values, so a
+  // cached copy simply wins over re-seeding ("all pages should maintain
+  // their state"). 'govern.' clears when a different glossary loads.
+  const [defaults, setDefaults] = usePersistentState('govern.defaults', null)
+  const [overrides, setOverrides] = usePersistentState('govern.overrides', {})
   // Saved per-category overrides whose category no longer exists on kept rows
   // — renamed or folded on Review AFTER stewardship was assigned. Preserved
   // across bakes and surfaced below instead of being silently destroyed on
   // the next visit (which is what used to happen): stewardship feeds the
   // JSONL and resolve, so a steward decision must never evaporate because
   // the taxonomy settled around it.
-  const [orphans, setOrphans] = useState({})
+  const [orphans, setOrphans] = usePersistentState('govern.orphans', {})
   // Labels: PDC key/value custom properties, SUGGESTED from what the scan
   // proved (labels read classification, never change it). The steward keeps
   // the keys; values are recomputed from the live grid at export time.
   const [labels, setLabels] = useState(null)
-  const [labelKeys, setLabelKeys] = useState(
+  const [labelKeys, setLabelKeys] = usePersistentState('govern.labelKeys',
     () => ((ws.governance && ws.governance.labelKeys) || []))
   useEffect(() => {
     if (!rows.length) { setLabels(null); return }
@@ -363,9 +367,9 @@ export default function GovernPage({ onNavigate }) {
       .catch(() => setLabels(null))
   }, [rows])
   const [autoInfo, setAutoInfo] = useState({})
-  const [openCats, setOpenCats] = useState({})
-  const [autoFallback, setAutoFallback] = useState(true)
-  const [autoRespect, setAutoRespect] = useState(true)
+  const [openCats, setOpenCats] = usePersistentState('govern.openCats', {})
+  const [autoFallback, setAutoFallback] = usePersistentState('govern.autoFallback', true)
+  const [autoRespect, setAutoRespect] = usePersistentState('govern.autoRespect', true)
 
   const [kMsg, setKMsg] = useState('')
   const [rosterMsg, setRosterMsg] = useState('')

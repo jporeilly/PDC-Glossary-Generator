@@ -14,6 +14,44 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.38.19] - 2026-08-17
+
+### Fixed / Added - pages hold their state, the flip closes its last gaps
+
+- **"All pages should be able to maintain their state if another page is
+  selected and you go back"** — they do now, for the session: results and
+  inputs across Apply (auth, data elements, generate output, draft, staged
+  flips, resolve/apply reports, labels & stamp reports), Connect (harvest
+  sources/selections/notes, bulk-load CSV + dry-run table, probe), Schema
+  (connection, graph, open table, keys plan, view mode), Files (bucket,
+  listing, open file), Govern (unbaked stewardship defaults/overrides/
+  orphans, label keys), Dictionary (AI advice, fold plan, pack export,
+  resolutions, add-forms) ride the session cache; busy flags and anything
+  refetched on mount stay transient. Auth lives under 'pdc.' and survives
+  a glossary switch; glossary-derived state ('apply.', 'govern.') clears
+  when a different glossary loads.
+- **The draft and the stamp are RESUMABLE jobs**: leave the page mid-run
+  and the poll re-attaches on return with live progress, the result
+  landing in the cached view — "guess i had to wait" (a mass-flip redraft
+  polishing ~40 extra rules looked like a stale page) becomes a visible
+  progress line instead of a mystery.
+- **A signature no longer gates the flip** (field-caught on the mass-flip
+  walk): a profiled date CARRIES a dddd-dd-dd signature, and the
+  name-anchored mint hid behind "no signature" — a flipped Payment Date
+  landed in "no stable shape". The name-anchor check now comes first; the
+  signature rides the rule's contentPatterns at weight 0.
+- **Unit-named bounded measures arrive AUTO** ("I thought this would be
+  done automatically"): the nature classifier now defaults a measure whose
+  name carries its unit (pH, lead_ppb, turbidity_ntu — units are class
+  knowledge) to Auto detection at suggest time, minting name-anchored
+  rules with no steward click. Generic numerics keep the safe mapping-only
+  default; the drafter's ★ recommended flips remain for rows harvested
+  before this default.
+
+Suite grows to 353. Verified live: draft → navigate to Review → return,
+the draft (stars included) still on screen; all nine pages render clean
+with zero console errors.
+
 ## [1.38.18] - 2026-08-17
 
 ### Changed - the suggester carve: 3,144 lines become seven role modules

@@ -753,6 +753,15 @@ def _detection_intent(c, prof, pii):
     numericish = (kind in ("decimal",)
                   or re.search(r"int(?!erval)|numeric|decimal|float|double|real|money|serial", typ))
     if numericish and not has_shape and not enum:
+        # bounded measure whose NAME carries its unit (pH, lead_ppb,
+        # turbidity_ntu): the draft's recommended flip, applied at suggest
+        # time — "I thought this would be done automatically" — so these
+        # arrive AUTO and mint name-anchored rules without a steward click.
+        # Everything else numeric stays mapping-only: the safe posture.
+        from engine.sug_shared import UNIT_NAME
+        nm = re.sub(r"[^A-Za-z0-9]+", "_", str(c.get("name") or ""))
+        if UNIT_NAME.search(nm) and _fmt_range(prof):
+            return ""
         return "mapping_only"
     return ""
 

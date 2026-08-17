@@ -1,11 +1,11 @@
 {
   "draft": {
-    "at": "2026-08-17T14:21:51",
-    "glossary": "E2E Glossary",
-    "patterns": 4,
-    "dictionaries": 2,
-    "quality": 9,
-    "skipped": 3,
+    "at": "2026-08-17T16:18:49",
+    "glossary": "AWC Verify",
+    "patterns": 2,
+    "dictionaries": 0,
+    "quality": 5,
+    "skipped": 0,
     "used_llm": false
   },
   "generate": {

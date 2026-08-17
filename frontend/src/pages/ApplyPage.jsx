@@ -9,7 +9,7 @@
 // legacy SSE streams.
 import { useEffect, useRef, useState } from 'react'
 import { apiGet, apiPost, runJob } from './../api.js'
-import { patchRow, setPdcSession, useWorkspace } from './../state.js'
+import { patchRow, setPdcSession, usePersistentState, useResumableJob, useWorkspace } from './../state.js'
 import './apply.css'
 
 const truthy = (v) => ['y', 'yes', 'true', '1'].includes(String(v ?? 'Y').toLowerCase())
@@ -69,10 +69,15 @@ function CheckBlock({ check }) {
 export default function ApplyPage({ onNavigate }) {
   const ws = useWorkspace()
   const [settings, setSettings] = useState(null)
-  const [conn, setConn] = useState({
+  // "all pages should be able to maintain their state if another page is
+  // selected and you go back" — results and inputs ride the session cache
+  // (usePersistentState); busy flags and anything refetched on mount stay
+  // transient. Auth lives under 'pdc.' so a glossary switch (which clears
+  // 'apply.') keeps the sign-in.
+  const [conn, setConn] = usePersistentState('pdc.applyConn', {
     base: '', ver: 'v3', realm: 'pdc', user: '', pass: '', token: '', verify: false,
   })
-  const [de, setDe] = useState(null) // /api/data-elements response; Resolve stamps ids into de.json
+  const [de, setDe] = usePersistentState('apply.de', null) // /api/data-elements response; Resolve stamps ids into de.json
 
   useEffect(() => {
     apiGet('/api/settings')
@@ -228,14 +233,14 @@ function GenerateCard({ rows, glossaryName, governance, settings, onNavigate, au
     !gDef
     && !String(((gCats[r.Category] || {}).businessSteward) || '').trim()
     && !String(r.Business_Steward_ID || r.Business_Steward || '').trim()).length
-  const [gen, setGen] = useState(null)
+  const [gen, setGen] = usePersistentState('apply.gen', null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
   // PDC-tree preflight: what does PDC hold under this glossary that the
   // export no longer carries? Imports update terms in place but never REMOVE
   // categories, so earlier eras linger in the tree unless deleted first
   // (field-caught: three naming generations in one glossary).
-  const [tree, setTree] = useState(null)
+  const [tree, setTree] = usePersistentState('apply.tree', null)
   const [treeBusy, setTreeBusy] = useState(false)
 
   async function checkTree() {
@@ -254,16 +259,25 @@ function GenerateCard({ rows, glossaryName, governance, settings, onNavigate, au
       setTreeBusy(false)
     }
   }
-  const [draft, setDraft] = useState(null)
+  const [draft, setDraft] = usePersistentState('apply.draft', null)
   const [draftBusy, setDraftBusy] = useState(false)
   // live narration while the draft job runs — {phase, done, total, detail}
   const [draftProg, setDraftProg] = useState(null)
-  const [draftAi, setDraftAi] = useState(true)
+  const [draftAi, setDraftAi] = usePersistentState('apply.draftAi', true)
+  // the draft runs as a RESUMABLE job: navigate away mid-draft and the poll
+  // re-attaches on return, the result landing in the session-cached `draft`
+  const draftJob = useResumableJob('apply.draftJob', {
+    onBusy: (b) => setDraftBusy(b),
+    onTick: (j) => setDraftProg(j),
+    onDone: (result, job) => { setDraft({ ...result, _job: job.id }); setDraftProg(null) },
+    onError: (e) => { setError(e); setDraftProg(null) },
+    onLost: () => setDraftProg(null),
+  })
   // In-place detection flips — "is there an easy way to flip without having
   // to go back and forth between pages?" The draft's own mapping-only and
   // skip lists carry the flip button, the row updates right here (same
   // autosaving mutation Review uses), and the next Draft honours it.
-  const [flipped, setFlipped] = useState({})   // {term: '' (Auto) | 'mapping_only'}
+  const [flipped, setFlipped] = usePersistentState('apply.flipped', {})   // {term: '' (Auto) | 'mapping_only'}
   function flipTerm(term, intent) {
     const i = rows.findIndex((r) => String(r.Term || '').trim() === term)
     if (i < 0) return
@@ -273,7 +287,7 @@ function GenerateCard({ rows, glossaryName, governance, settings, onNavigate, au
   const flipCount = Object.keys(flipped).length
   // "Send to lab": upload the artifact to the lab MinIO over a saved connection
   const [labConns, setLabConns] = useState([])
-  const [labConn, setLabConn] = useState('')
+  const [labConn, setLabConn] = usePersistentState('pdc.labConn', '')
   const [labBusy, setLabBusy] = useState(false)
   const [labMsg, setLabMsg] = useState(null)
   const [labStatus, setLabStatus] = useState(null)  // {state:'checking'|'ok'|'bad', message}
@@ -287,7 +301,9 @@ function GenerateCard({ rows, glossaryName, governance, settings, onNavigate, au
         const lab = stores.find((c) => c.id === 'lab-minio')
           || stores.find((c) => String(c.name || '').toLowerCase() === 'lab minio')
           || stores[0]
-        if (lab) setLabConn(lab.id || lab.name)
+        // default only when nothing is picked — a session-cached pick from a
+        // previous visit must survive the remount
+        if (lab) setLabConn((cur) => cur || lab.id || lab.name)
       })
       .catch(() => {})
   }, [])
@@ -402,27 +418,23 @@ function GenerateCard({ rows, glossaryName, governance, settings, onNavigate, au
   }
 
   async function draftPolicies() {
-    setDraftBusy(true)
     setError(null)
     setFlipped({})   // the new draft reads the flipped rows — staged marks are spent
     setDraftProg({ phase: 'starting', done: 0, total: 0, detail: '' })
     try {
-      // Job twin, not the sync route: the AI polish is one model call per
-      // rule and used to run for minutes behind a silent "Drafting…" —
-      // the job narrates seeds → polish (n of m · term) → assemble. The job
-      // id rides along so the bundle downloads from the job WITH the polish.
-      let jobId = null
-      const result = await runJob('draft-policies', {
+      // Resumable job, not an awaited poll: the AI polish is one model call
+      // per rule and can run for minutes — leave the page and the poll
+      // re-attaches on return, the result landing in the cached draft. The
+      // job id rides along so the bundle downloads from the job WITH the
+      // polish.
+      await draftJob.start('draft-policies', {
         rows, glossary_name: glossaryName, ai: draftAi,
         // the steward's kept label keys ride into the bundle's labels.json
         label_keys: governance?.labelKeys || [],
         model: settings?.model || null, compute: settings?.compute,
-      }, (j) => { jobId = j.id || jobId; setDraftProg(j) })
-      setDraft({ ...result, _job: jobId })
+      })
     } catch (e) {
       setError(e.message)
-    } finally {
-      setDraftBusy(false)
       setDraftProg(null)
     }
   }
@@ -765,9 +777,9 @@ function ConnectionCard({ conn, setConn, saveConn }) {
 /* ---------- step 1: Data Elements (term↔column links) ---------- */
 
 function DataElementsCard({ rows, glossaryName, de, setDe }) {
-  const [policy, setPolicy] = useState('default')
-  const [dq, setDq] = useState(true)
-  const [w, setW] = useState({ wc: 0.4, wu: 0.3, wv: 0.3 })
+  const [policy, setPolicy] = usePersistentState('apply.dePolicy', 'default')
+  const [dq, setDq] = usePersistentState('apply.deDq', true)
+  const [w, setW] = usePersistentState('apply.deWeights', { wc: 0.4, wu: 0.3, wv: 0.3 })
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
 
@@ -908,12 +920,12 @@ function DataElementsCard({ rows, glossaryName, de, setDe }) {
 function ResolveCard({ de, setDe, authBody, glossaryName, rows, settings }) {
   const [busy, setBusy] = useState(false)
   const [prog, setProg] = useState(null) // {pct, label}
-  const [res, setRes] = useState(null)
+  const [res, setRes] = usePersistentState('apply.resolveRes', null)
   const [error, setError] = useState(null)
-  const [outstanding, setOutstanding] = useState([])
-  const [fuzzy, setFuzzy] = useState(null) // {name: {match, id, glossaryId, source, reason}}
+  const [outstanding, setOutstanding] = usePersistentState('apply.resolveOutstanding', [])
+  const [fuzzy, setFuzzy] = usePersistentState('apply.resolveFuzzy', null) // {name: {match, id, glossaryId, source, reason}}
   const [fuzzyBusy, setFuzzyBusy] = useState(false)
-  const [bound, setBound] = useState([]) // messages for successful binds
+  const [bound, setBound] = usePersistentState('apply.resolveBound', []) // messages for successful binds
 
   async function resolve() {
     if (!de?.json) {
@@ -1181,10 +1193,10 @@ function ProbeBlock({ probe, kind }) {
 /* ---------- step 3: apply to PDC (job twin) with dry-run first ---------- */
 
 function ApplyCard({ de, authBody, glossaryName, rows, conn }) {
-  const [opts, setOpts] = useState({ dry: true, rollup: true, desc: 'fill', trust: false, skip: true })
+  const [opts, setOpts] = usePersistentState('apply.applyOpts', { dry: true, rollup: true, desc: 'fill', trust: false, skip: true })
   const [busy, setBusy] = useState(false)
   const [prog, setProg] = useState(null)
-  const [res, setRes] = useState(null)
+  const [res, setRes] = usePersistentState('apply.applyRes', null)
   const [error, setError] = useState(null)
 
   const setOpt = (patch) => setOpts((o) => {
@@ -1511,24 +1523,31 @@ function LabelsCard({ rows, authBody }) {
   const ws = useWorkspace()
   const kept = ws.governance?.labelKeys || []
   const [busy, setBusy] = useState(false)
-  const [res, setRes] = useState(null)
+  const [res, setRes] = usePersistentState('apply.labelsRes', null)
   const [err, setErr] = useState(null)
   // the stamp flow: dry-run plan first, then the real write — same
-  // propose → apply posture as the term-links Apply card
+  // propose → apply posture as the term-links Apply card. Resumable: leave
+  // the page mid-stamp and the poll re-attaches, the report landing in the
+  // session-cached `stamp`.
   const [stampBusy, setStampBusy] = useState(false)
   const [stampTick, setStampTick] = useState(null)
-  const [stamp, setStamp] = useState(null)       // last job result (plan or write)
+  const [stamp, setStamp] = usePersistentState('apply.labelsStamp', null) // last job result (plan or write)
   const [stampErr, setStampErr] = useState(null)
+  const stampJob = useResumableJob('apply.stampJob', {
+    onBusy: (b) => setStampBusy(b),
+    onTick: (j) => setStampTick(j),
+    onDone: (r) => { setStamp(r); setStampTick(null) },
+    onError: (e) => { setStampErr(e); setStampTick(null) },
+    onLost: () => setStampTick(null),
+  })
 
   async function runStamp(dry) {
-    setStampBusy(true); setStampErr(null); setStampTick(null)
+    setStampErr(null); setStampTick(null)
     if (!dry) setStamp(null)
     try {
-      const r = await runJob('labels-stamp',
-        { ...authBody(), keys: kept, rows, dry_run: dry },
-        (j) => setStampTick(j))
-      setStamp(r)
-    } catch (e) { setStampErr(e.message) } finally { setStampBusy(false); setStampTick(null) }
+      await stampJob.start('labels-stamp',
+        { ...authBody(), keys: kept, rows, dry_run: dry })
+    } catch (e) { setStampErr(e.message) }
   }
 
   const planReady = stamp?.dry_run && (stamp.planned || 0) > 0
@@ -1607,11 +1626,11 @@ function LabelsCard({ rows, authBody }) {
 
 function ProfilingCard({ de, authBody }) {
   const [busy, setBusy] = useState(false)
-  const [msg, setMsg] = useState(null)     // JSX | string
-  const [check, setCheck] = useState(null)
+  const [msg, setMsg] = usePersistentState('apply.profMsg', null)     // JSX | string
+  const [check, setCheck] = usePersistentState('apply.profCheck', null)
   const [job, setJob] = useState(null)     // {job_id}
-  const [jobMsg, setJobMsg] = useState(null)
-  const [watch, setWatch] = useState(null) // {profiled, total}
+  const [jobMsg, setJobMsg] = usePersistentState('apply.profJobMsg', null)
+  const [watch, setWatch] = usePersistentState('apply.profWatch', null) // {profiled, total}
   const cancelRef = useRef(false)
 
   useEffect(() => () => { cancelRef.current = true }, [])
@@ -1847,7 +1866,7 @@ const pctOrRaw = (v) => (v == null ? '—' : v <= 1 ? fmtPct(v) : v)
 function CompareCard({ discovery, authBody }) {
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState(null)
-  const [profiles, setProfiles] = useState(null)
+  const [profiles, setProfiles] = usePersistentState('apply.compareProfiles', null)
 
   async function compare() {
     if (!authBody().base_url) {

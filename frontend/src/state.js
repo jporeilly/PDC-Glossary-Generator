@@ -250,6 +250,9 @@ export function clearWorkspace() {
   ws.categoriesConfirmed = null; ws.reviewCompleted = null
   ws.dirty = false; ws.savedAt = null; ws.saveError = null
   clearUi('review.')
+  clearUi('apply.')   // glossary-derived Apply state (de, gen, draft, stamp…);
+                      // 'pdc.' (auth, lab pick) deliberately survives
+  clearUi('govern.')
   emit()
 }
 
@@ -280,6 +283,8 @@ export async function openGlossary(id) {
   ws.savedAt = g.savedAt || null
   ws.saveError = null
   clearUi('review.')   // a different glossary — its filters/resolutions don't apply
+  clearUi('apply.')    // …nor its data elements / draft / stamp reports
+  clearUi('govern.')   // …nor its unbaked stewardship edits
   emit()
   return g
 }
