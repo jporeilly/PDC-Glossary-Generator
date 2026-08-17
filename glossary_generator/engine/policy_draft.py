@@ -365,6 +365,30 @@ def _kind_patterns():
             "card": _sug.RX_CC.pattern}
 
 
+# Units are CLASS knowledge (ppm means parts-per-million in any estate), so
+# recognising a unit-bearing measure name is not estate-specific hardcoding —
+# the same doctrine that allows email/zip shapes. Used only to SORT the
+# mapping-only queue: a bounded measure whose name carries its unit (pH,
+# lead_ppb, turbidity_ntu) is a safe name-anchor candidate, and the draft
+# says so instead of leaving the steward to scan 70 terms. The flip itself
+# stays the steward's click — this recommends, never decides.
+_UNIT_NAME = re.compile(
+    r"\((?:ppm|ppb|ntu|psi|gpm|mg/?l|ug/?l|kwh|%|percent)\)"
+    r"|(?:^|_)(?:ph|ppm|ppb|ntu|psi|gpm|kwh|pct|percent)(?:_|$)", re.I)
+
+
+def _auto_candidate(r):
+    """True when a mapping-only row is a SAFE Auto-flip candidate: numeric
+    range evidence + a unit-bearing name. Everything else (generic amounts,
+    dates, names) stays an unmarked steward call."""
+    if not str(r.get("Value_Range") or "").strip():
+        return False
+    for h in [str(r.get("Term") or "")] + _col_names(r):
+        if _UNIT_NAME.search(re.sub(r"[^A-Za-z0-9]+", "_", h.strip())):
+            return True
+    return False
+
+
 def _no_value_shape(cols):
     """True when EVERY source column is a kind with no detectable value shape, so
     the term is a link-only concern rather than a not-yet-profiled one. Column
@@ -423,7 +447,8 @@ def draft_from_rows(rows, glossary_name="Business Glossary", prefix=None,
         if str(r.get("Detection_Intent") or "").strip() == "mapping_only":
             mapping_only.append({"term": term,
                                  "why": "mapping-only by design — governed via "
-                                        "term↔column links; no detection method expected"})
+                                        "term↔column links; no detection method expected",
+                                 "auto_candidate": _auto_candidate(r)})
             continue
         vp = (r.get("Value_Pattern") or "").strip()
         sig = (r.get("Value_Signature") or "").strip() or None

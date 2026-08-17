@@ -9,7 +9,7 @@
 // legacy SSE streams.
 import { useEffect, useRef, useState } from 'react'
 import { apiGet, apiPost, runJob } from './../api.js'
-import { setPdcSession, useWorkspace } from './../state.js'
+import { patchRow, setPdcSession, useWorkspace } from './../state.js'
 import './apply.css'
 
 const truthy = (v) => ['y', 'yes', 'true', '1'].includes(String(v ?? 'Y').toLowerCase())
@@ -259,6 +259,18 @@ function GenerateCard({ rows, glossaryName, governance, settings, onNavigate, au
   // live narration while the draft job runs — {phase, done, total, detail}
   const [draftProg, setDraftProg] = useState(null)
   const [draftAi, setDraftAi] = useState(true)
+  // In-place detection flips — "is there an easy way to flip without having
+  // to go back and forth between pages?" The draft's own mapping-only and
+  // skip lists carry the flip button, the row updates right here (same
+  // autosaving mutation Review uses), and the next Draft honours it.
+  const [flipped, setFlipped] = useState({})   // {term: '' (Auto) | 'mapping_only'}
+  function flipTerm(term, intent) {
+    const i = rows.findIndex((r) => String(r.Term || '').trim() === term)
+    if (i < 0) return
+    patchRow(i, { Detection_Intent: intent })
+    setFlipped((f) => ({ ...f, [term]: intent }))
+  }
+  const flipCount = Object.keys(flipped).length
   // "Send to lab": upload the artifact to the lab MinIO over a saved connection
   const [labConns, setLabConns] = useState([])
   const [labConn, setLabConn] = useState('')
@@ -392,6 +404,7 @@ function GenerateCard({ rows, glossaryName, governance, settings, onNavigate, au
   async function draftPolicies() {
     setDraftBusy(true)
     setError(null)
+    setFlipped({})   // the new draft reads the flipped rows — staged marks are spent
     setDraftProg({ phase: 'starting', done: 0, total: 0, detail: '' })
     try {
       // Job twin, not the sync route: the AI polish is one model call per
@@ -559,13 +572,38 @@ function GenerateCard({ rows, glossaryName, governance, settings, onNavigate, au
           {(draft.quality || []).map((q) => (
             <div key={q.filename}>· dq <code>{q.filename}</code> — {q.term} ({q.checks} check{q.checks !== 1 ? 's' : ''})</div>
           ))}
-          {(draft.mapping_only || []).length > 0 && (
-            <div className="notes" style={{ marginTop: '.5rem' }}>
-              <b>{draft.mapping_only.length} term(s) mapping-only by design</b> — governed via
-              their term↔column links; no detection method expected (dates, names, free numbers,
-              flags): {draft.mapping_only.map((m) => m.term).join(', ')}
-            </div>
-          )}
+          {(draft.mapping_only || []).length > 0 && (() => {
+            const recs = draft.mapping_only.filter((m) => m.auto_candidate && flipped[m.term] === undefined)
+            const sorted = [...draft.mapping_only].sort((a, b) => (b.auto_candidate ? 1 : 0) - (a.auto_candidate ? 1 : 0))
+            return (
+              <div className="notes" style={{ marginTop: '.5rem' }}>
+                <b>{draft.mapping_only.length} term(s) mapping-only by design</b> — governed via
+                their term↔column links; no detection method expected (dates, names, free numbers,
+                flags). Flip one to <b>Auto</b> and the next draft mints a name-anchored rule
+                (column-name identity + sanity shape; the range stays in DQ).
+                {recs.length > 0 && (
+                  <> ★ = a <b>recommended</b> flip — a bounded measure whose name carries its unit:{' '}
+                    <button className="ghost mini"
+                            title="Flip every starred term to Auto in one click — bounded measures with unit-bearing names (pH, lead ppb, turbidity ntu). The flip is still yours: this stages it, the next draft mints it."
+                            onClick={() => recs.forEach((m) => flipTerm(m.term, ''))}>
+                      ★ Flip all recommended ({recs.length})
+                    </button>
+                  </>
+                )}
+                <div style={{ marginTop: '.25rem' }}>
+                  {sorted.map((m) => (
+                    <span key={m.term} style={{ display: 'inline-flex', alignItems: 'center', gap: '.2rem', marginRight: '.55rem', whiteSpace: 'nowrap' }}>
+                      {m.auto_candidate ? <span title="Recommended: bounded measure, unit-bearing name">★</span> : null}{m.term}
+                      {flipped[m.term] === ''
+                        ? <b title="Flipped — run Draft policies again to mint its rule">Auto ✓</b>
+                        : <button className="ghost mini" title="Flip this term to Auto detection — the next draft mints a name-anchored rule."
+                                  onClick={() => flipTerm(m.term, '')}>→ Auto</button>}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )
+          })()}
           {(draft.skipped || []).length > 0 && (
             <div className="notes" style={{ marginTop: '.5rem' }}>
               <b>{draft.skipped.length} term(s) skipped</b> — a rule needs a value <i>shape</i> (a
@@ -575,10 +613,32 @@ function GenerateCard({ rows, glossaryName, governance, settings, onNavigate, au
                 const term = typeof s === 'string' ? s : s.term
                 ;(m[why] = m[why] || []).push(term)
                 return m
-              }, {})).map(([why, terms]) => (
-                <div key={why} style={{ marginTop: '.25rem' }}>· <b>{why}</b> — {terms.join(', ')}</div>
-              ))}
+              }, {})).map(([why, terms]) => {
+                // free-text / shapeless columns can go QUIET in place — the
+                // structural groups (table-level, document, link-expected)
+                // have nothing to flip
+                const flippable = /induce no shape|no stable shape/.test(why)
+                return (
+                  <div key={why} style={{ marginTop: '.25rem' }}>· <b>{why}</b> —{' '}
+                    {terms.map((t) => (
+                      <span key={t} style={{ display: 'inline-flex', alignItems: 'center', gap: '.2rem', marginRight: '.55rem', whiteSpace: 'nowrap' }}>
+                        {t}
+                        {flippable && (flipped[t] === 'mapping_only'
+                          ? <b title="Flipped — run Draft policies again and it moves to the quiet mapping-only line">Mapping-only ✓</b>
+                          : <button className="ghost mini" title="Declare this term mapping-only — governed via its term↔column links; the next draft lists it quietly instead of as a skip."
+                                    onClick={() => flipTerm(t, 'mapping_only')}>→ Mapping-only</button>)}
+                      </span>
+                    ))}
+                  </div>
+                )
+              })}
             </div>
+          )}
+          {flipCount > 0 && (
+            <p className="summary" style={{ marginTop: '.4rem' }}>
+              <b>{flipCount} flip(s) staged</b> and saved to the grid — run <b>Draft policies</b> again
+              to honour them, then send the fresh bundle to the lab.
+            </p>
           )}
         </div>
       )}

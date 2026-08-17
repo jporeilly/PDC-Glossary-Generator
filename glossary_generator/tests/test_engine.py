@@ -914,6 +914,30 @@ class TestNameAnchoredMeasureRules:
         assert re.match(crx, "7.2") and re.match(crx, "-3")
         assert not re.match(crx, "acidic"), "the RANGE lives in DQ; the rule only asserts numeric shape"
 
+    def test_mapping_only_marks_safe_flip_candidates(self):
+        """"we're flipping to auto when we could have done this before" — the
+        draft now pre-sorts the queue: a bounded measure whose name carries
+        its unit (class knowledge — ppm is ppm in any estate) is starred as
+        a recommended flip; generic amounts and dates stay unmarked. The
+        flip itself remains the steward's click."""
+        from engine import policy_draft
+        rows = [_row("pH Level", "awc.water_quality.ph_level",
+                     Critical_Data_Element="No", PII_Category="",
+                     Value_Range="6.1..8.4", Detection_Intent="mapping_only"),
+                _row("Lead (ppb)", "awc.water_quality.lead_ppb",
+                     Critical_Data_Element="No", PII_Category="",
+                     Value_Range="0..12", Detection_Intent="mapping_only"),
+                _row("Amount Paid", "awc.billing.amount_paid",
+                     Critical_Data_Element="No", PII_Category="",
+                     Value_Range="10..900", Detection_Intent="mapping_only"),
+                _row("Payment Date", "awc.payments.payment_date",
+                     Critical_Data_Element="No", PII_Category="",
+                     Value_Kind="date", Detection_Intent="mapping_only")]
+        d = policy_draft.draft_from_rows(rows, glossary_name="X")
+        flags = {m["term"]: m["auto_candidate"] for m in d["mapping_only"]}
+        assert flags == {"pH Level": True, "Lead (ppb)": True,
+                         "Amount Paid": False, "Payment Date": False}, flags
+
     def test_default_natures_still_divert_and_skip(self):
         """The mint fires ONLY on the explicit flip: mapping-only rows divert
         before the ladder, and Auto rows without range/date evidence skip."""

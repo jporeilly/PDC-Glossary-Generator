@@ -14,6 +14,33 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.38.16] - 2026-08-17
+
+### Added - flip where you read: the draft's own lists become the control
+
+"is there an easy way to flip without having to go back and forth between
+pages?" - yes, now the draft results ARE the flip surface:
+
+- **In-place flips on Apply**: every term on the mapping-only line carries
+  a **→ Auto** button, and the free-text skip groups ("values induce no
+  shape", "no stable shape") carry **→ Mapping-only** - the row updates in
+  place (same autosaving mutation Review uses), a "N flip(s) staged" line
+  confirms, and the next **Draft policies** click honours them. Flip,
+  re-draft, send to the lab - one page.
+- **The draft recommends its own flips**: mapping-only entries are starred
+  **auto_candidate** when they are a bounded measure whose name carries
+  its unit (pH, lead_ppb, turbidity_ntu, "(ppm)" suffixes) - units are
+  CLASS knowledge (ppm is ppm in any estate), same doctrine as email/zip
+  shapes. Starred terms sort first and **★ Flip all recommended (N)**
+  stages them in one click. Generic amounts and dates stay unmarked: the
+  name-anchored form makes the column name authoritative estate-wide, and
+  that assertion stays the steward's consent - the engine sorts the queue,
+  it never decides. (Live-verified: pH Level and Lead (ppb) starred,
+  Payment Date and Amount Paid not; flip-all → re-draft minted both,
+  mapping-only line dropped 3 → 1.)
+
+Suite grows to 349 (auto-candidate pins).
+
 ## [1.38.15] - 2026-08-17
 
 ### Added - labels close the loop: the assignment wire, mapped and driven

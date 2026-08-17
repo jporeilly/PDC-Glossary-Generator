@@ -230,12 +230,15 @@ those with one click.)
   measures sit on the quiet **mapping-only** line, not in the skips — they
   are governed by their term↔column links by design.
 
-- [ ] *(Optional, 1.38.14)* **Flip a measure to Auto** — on Review, set the
-      **Detection** filter to *Mapping-only*, flip a term with a real
-      name+shape case (pH Level, Payment Date, Lead) to **Auto**, and
-      re-draft: it mints a **name-anchored rule** (column-name identity +
-      sanity shape at 0.5/0.5, range still in the DQ rule) instead of a
-      skip.
+- [ ] *(Optional, 1.38.16)* **Flip a measure to Auto — right on the draft
+      results**: starred terms (★) on the mapping-only line are the
+      recommended flips (bounded measures with unit-bearing names — pH,
+      lead ppb, turbidity ntu). Click **★ Flip all recommended**, then
+      **Draft policies** again: each mints a **name-anchored rule**
+      (column-name identity + sanity shape at 0.5/0.5, range still in the
+      DQ rule) instead of sitting in the mapping-only list. Free-text
+      skips flip the other way (**→ Mapping-only**) to go quiet. The
+      Review page's Detection filter remains for grid-side review.
 
 > **Talk track** — *"Watch what the flip does: the engine defaulted pH to
 > mapping-only because a 0–14 shape would match every small number in the
