@@ -14,6 +14,32 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.38.13] - 2026-08-15
+
+### Fixed - the recognised kinds learn their manners
+
+1.38.12's sample-driven kinds worked - and immediately showed three new
+faults against the live payloads, all fixed and pinned:
+
+- **Dates first, and dates mint NOTHING**: 2026-05-14 is digits-and-dashes,
+  so the phone shape swallowed alert_date; and a nullable date column
+  yields ONE sample, below the two-vote floor - if every sample is a date,
+  it is a date, and no date ever gets a pattern.
+- **A format is FEW shapes describing many values** (account_number: 2
+  shapes / 10 values). Many shapes is prose wearing digits - addresses and
+  descriptions minted over-matching unions before the shape-count gate.
+- **Bare short digit runs are not formats**: ^[0-9]{4}$ matches every year
+  and count in the estate.
+
+Also: Detection_Intent joins the merge fill-list, so re-harvests carry new
+quiet-defaults onto existing rows (Population Served-class columns).
+
+Honestly refused, verified against live payloads: per-row-unique
+descriptive text (source_type on an 8-row table - a dictionary that grows
+by one value per row is not a dictionary), comma-packed lists
+(service_cities), single-value snapshots (tiered_rates.status). Those are
+steward calls: seed a vocabulary in the domain pack, or set mapping-only.
+
 ## [1.38.12] - 2026-08-15
 
 ### Fixed - the 48-skip draft named its own causes; all four fixed

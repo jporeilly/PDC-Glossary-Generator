@@ -1689,7 +1689,7 @@ def suggest(tables, schema=None):
             # carry each merged column's own DQ dimensions
             seen[key].setdefault("Source_Quality_Dims", {}).update(r.get("Source_Quality_Dims", {}))
             for f in ("Value_Signature", "Value_Pattern", "Enum_Values", "Value_Kind",
-                      "Value_Range"):
+                      "Value_Range", "Detection_Intent"):
                 if not seen[key].get(f) and r.get(f):
                     seen[key][f] = r[f]
             # A term survives the structural-key prune when ANY of its merged

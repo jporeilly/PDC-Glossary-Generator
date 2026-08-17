@@ -384,8 +384,36 @@ def _profile_from_pdc(pinfo):
             samples.append(v)
     if samples:
         out["samples"] = samples
+
+    # recognised kinds from the samples, DATE FIRST: 2026-05-14 is digits-
+    # and-dashes, so the phone shape would swallow every date (field-caught:
+    # alert_date minted as kind phone). Canonical class shapes only - the
+    # samples vote, nothing is stored.
+    if samples:
+        import re as _re
+        _KIND_RX = [
+            ("date", _re.compile(r"^\d{4}-\d{2}-\d{2}([T ].*)?$|^\d{1,2}/\d{1,2}/\d{2,4}$")),
+            ("email", _re.compile(r"^[^@\s]+@[^@\s]+\.[A-Za-z]{2,}$")),
+            ("ssn", _re.compile(r"^[0-9]{3}-[0-9]{2}-[0-9]{4}$")),
+            ("zip", _re.compile(r"^[0-9]{5}(-[0-9]{4})?$")),
+            ("phone", _re.compile(r"^\+?[0-9][0-9()\-. ]{6,}[0-9]$")),
+        ]
+        for kind_name, rx in _KIND_RX:
+            hits = sum(1 for s in samples if rx.match(s))
+            # dates: a nullable column often yields ONE sample (one shape) -
+            # if every sample is a date, it is a date. Other kinds keep the
+            # two-vote floor against single-sample coincidences.
+            floor = 1 if kind_name == "date" else 2
+            if hits == len(samples) and hits >= floor:
+                out["kind"] = kind_name
+                break
+            if hits >= max(2, int(0.8 * len(samples))):
+                out["kind"] = kind_name
+                break
+
     high_card = bool(stats.get("isHighCardinality"))
     if (len(samples) >= 2 and not high_card
+            and out.get("kind") not in ("date",)
             and distinct is not None and 2 <= distinct <= 12
             and (out.get("uniq") is None or out["uniq"] < 0.95)):
         # the samples may be PARTIAL (one per shape group) - still a usable
@@ -394,29 +422,23 @@ def _profile_from_pdc(pinfo):
         # blocked the zips' perfectly good ddddd pattern (field-caught)
         out["enum"] = sorted(samples)[:12]
 
-    # recognised kinds from the samples themselves: shape-multiplicity broke
-    # email (9 shapes, none at 90% coverage) even though every sample is
-    # plainly an email. Canonical RXs duplicated from the suggester on
-    # purpose - pdc_client stays standalone.
-    if samples and "kind" not in out:
-        import re as _re
-        _KIND_RX = {
-            "email": _re.compile(r"^[^@\s]+@[^@\s]+\.[A-Za-z]{2,}$"),
-            "phone": _re.compile(r"^\+?[0-9][0-9()\-. ]{6,}[0-9]$"),
-            "zip": _re.compile(r"^[0-9]{5}(-[0-9]{4})?$"),
-            "ssn": _re.compile(r"^[0-9]{3}-[0-9]{2}-[0-9]{4}$"),
-        }
-        for kind_name, rx in _KIND_RX.items():
-            hits = sum(1 for s in samples if rx.match(s))
-            if hits >= max(2, int(0.8 * len(samples))):
-                out["kind"] = kind_name
-                break
-    # a shape only counts as a DETECTION pattern when it discriminates:
-    # digits or literal separators. Word-shapes ("Aaaaa Aaaaa") match every
-    # sentence in the estate, and a value list beats a shape anyway.
+    # a shape only counts as a DETECTION pattern when it discriminates
+    # (digits or literal separators) AND reads as a FORMAT: a few shapes
+    # describing many values (account_number: 2 shapes / 10 values). Many
+    # shapes is prose wearing digits - addresses and descriptions minted
+    # over-matching unions before this gate (field-caught). Dates never
+    # mint: every date matches every date's shape.
+    def _weak_digit_run(r):
+        # a bare short digit run ("^[0-9]{4}$") matches every year and count
+        # in the estate - a format needs more to discriminate
+        m = re.fullmatch(r"\^\[0-9\]\{(\d+)\}\$", r)
+        return bool(m and int(m.group(1)) <= 5)
     discriminating = [(r, c) for r, c in shapes
-                      if "[0-9]" in r or re.search(r"\[^ ]", r)]
-    if discriminating and total and "enum" not in out:
+                      if ("[0-9]" in r or re.search(r"\[^ ]", r))
+                      and not _weak_digit_run(r)]
+    if (discriminating and total and "enum" not in out
+            and out.get("kind") not in ("date",)
+            and len(discriminating) <= 3):
         covered = sum(c for _, c in discriminating)
         shapes = discriminating
         if covered / total >= 0.9:

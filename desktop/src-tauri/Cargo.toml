@@ -1,6 +1,6 @@
 [package]
 name = "pdc-glossary-desktop"
-version = "1.38.12"
+version = "1.38.13"
 description = "Desktop shell for the PDC Glossary Generator"
 edition = "2021"
 rust-version = "1.77"

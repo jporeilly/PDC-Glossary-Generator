@@ -729,6 +729,34 @@ class TestPdcProfilingKindRecovery:
             lex=("Running", "Stopped")))
         assert prof["enum"] == ["Running", "Stopped"]
 
+    def test_dates_never_mint_even_from_one_sample(self):
+        """A nullable date column yields ONE sample (one shape) - it is
+           still a date, and dates mint NOTHING: kind phone swallowed
+           2026-05-14 and resolved_date shipped an over-matching pattern
+           before these gates (live-payload caught)."""
+        from pdc_client.entities import _profile_from_pdc
+        prof = _profile_from_pdc(self._pi(
+            [{"pattern": "dddd-dd-dd", "sample": "2026-05-14", "counter": 4}], 4, 40))
+        assert prof.get("kind") == "date"
+        assert "pattern" not in prof and "enum" not in prof
+
+    def test_prose_with_digits_never_becomes_a_format(self):
+        """A format is FEW shapes describing many values; addresses are many
+           shapes wearing digits and minted over-matching unions before the
+           shape-count gate."""
+        from pdc_client.entities import _profile_from_pdc
+        pats = [{"pattern": "dddd" + "a" * (8 + i), "sample": "%d Elm Street %d" % (1000 + i, i),
+                 "counter": 2} for i in range(5)]
+        prof = _profile_from_pdc(self._pi(pats, 10, 100))
+        assert "pattern" not in prof
+
+    def test_bare_short_digit_runs_are_not_formats(self):
+        """^[0-9]{4}$ matches every year and count in the estate."""
+        from pdc_client.entities import _profile_from_pdc
+        prof = _profile_from_pdc(self._pi(
+            [{"pattern": "dddd", "sample": "2026", "counter": 10}], 5, 50))
+        assert "pattern" not in prof
+
     def test_a_true_single_value_column_stays_quiet(self):
         from pdc_client.entities import _profile_from_pdc
         prof = _profile_from_pdc(self._pi(
