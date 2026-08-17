@@ -10,6 +10,7 @@
 
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { apiGet, apiPost } from './api.js'
+import { mergeBySource } from './rowmerge.js'
 
 const ws = {
   id: null,          // saved-glossary id (null until first save)
@@ -283,6 +284,38 @@ export async function openGlossary(id) {
   return g
 }
 
+// Land scanned/harvested rows. A landing on an EMPTY grid while saved
+// glossaries exist is almost always an accident — the fresh-scan fork that
+// produced two "Arizona Water"s, one settled and one raw, with the raw twin
+// winning auto-resume (field-caught 2026-08-17: "so now its a mess!") — so
+// offer to load the most recent save and fold the fresh evidence into the
+// settled review instead of silently starting a parallel universe. A
+// non-empty grid merges by source identity exactly as before.
+export async function landScanRows(newRows) {
+  if (ws.rows.length > 0) {
+    const { rows, added, dup } = mergeBySource(ws.rows, newRows)
+    setRows(rows)
+    return { mode: 'merged', added, dup }
+  }
+  let latest = null
+  try {
+    const d = await apiGet('/api/glossaries')
+    latest = (d.glossaries || [])[0] || null
+  } catch { latest = null }
+  if (latest && window.confirm(
+      `Your saved glossary "${latest.name}" (${latest.kept ?? '?'} kept term(s), saved ${latest.savedAt || '?'}) is NOT loaded — `
+      + 'landing this scan here would start a separate, parallel grid with none of your review work.\n\n'
+      + 'OK — load it and fold this scan into the settled review (recommended)\n'
+      + 'Cancel — keep this scan as a fresh, separate grid')) {
+    await openGlossary(latest.id)
+    const { rows, added, dup } = mergeBySource(ws.rows, newRows)
+    setRows(rows)
+    return { mode: 'folded', added, dup, name: latest.name }
+  }
+  setRows(newRows)
+  return { mode: 'fresh', added: (newRows || []).length, dup: 0 }
+}
+
 // Persist the workspace: POST /api/glossaries (save-or-overwrite by id).
 export async function save() {
   if (wiped || !ws.rows.length || !canAutosave()) return null
@@ -296,12 +329,15 @@ export async function save() {
       rows: ws.rows,
       governance: ws.governance || undefined,
       discovery: ws.discovery || undefined,
-    docs_discovery: ws.docsDiscovery || undefined,
       docs_discovery: ws.docsDiscovery || undefined,
       categories_confirmed: ws.categoriesConfirmed || undefined,
       review_completed: ws.reviewCompleted || undefined,
     })
     ws.id = r.id
+    // adopt a server-side rename: a NEW save colliding with an existing
+    // glossary's name comes back suffixed ("Arizona Water (2)") so the
+    // fork is visible everywhere, including this workspace's own title
+    if (r.name && r.name !== ws.name) ws.name = r.name
     ws.savedAt = r.savedAt
     ws.dirty = false
     ws.saveError = null

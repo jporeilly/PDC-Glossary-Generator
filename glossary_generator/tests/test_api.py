@@ -862,6 +862,29 @@ class TestPdcLabelsApply:
         assert d["no_values"] == ["retention"], "no pack vocabulary - reported, not invented"
 
 
+class TestGlossarySaveNameCollision:
+    """The fresh-scan fork saved a raw twin under the SAME name — two
+       "Arizona Water"s, indistinguishable in the Home list, and auto-resume
+       (last saved wins) picked the raw one. A NEW save colliding with an
+       existing name now comes back visibly suffixed; re-saves of an
+       existing id keep their name."""
+
+    def test_new_save_with_colliding_name_is_suffixed(self, client):
+        rows = [_row("T1", "s.t.c1")]
+        a = client.post("/api/glossaries", json={"name": "Twin Test", "rows": rows}).json()
+        assert a["name"] == "Twin Test"
+        b = client.post("/api/glossaries", json={"name": "Twin Test", "rows": rows}).json()
+        assert b["name"] == "Twin Test (2)", b
+        c = client.post("/api/glossaries", json={"name": "Twin Test", "rows": rows}).json()
+        assert c["name"] == "Twin Test (3)", c
+        # a RE-save of an existing id keeps its own name untouched
+        again = client.post("/api/glossaries",
+                            json={"id": a["id"], "name": "Twin Test", "rows": rows}).json()
+        assert again["name"] == "Twin Test"
+        for gid in (a["id"], b["id"], c["id"]):
+            client.delete(f"/api/glossaries/{gid}")
+
+
 class TestPdcLabelAssignment:
     """The last wire, mapped live 2026-08-17: assignment is NOT GraphQL —
        PATCH /api/public/v3/entities/{id} with attributes.customProperties,

@@ -112,6 +112,14 @@ def _normalize_doc(d):
 # use for "Metering", and offering it as governed vocabulary implies
 # somebody chose it. A domain pack supplies whatever a company actually
 # needs; extra_tags puts it straight into the allow-list.
+# The load-bearing CORE of the baseline — the six tags engine code paths
+# stand on (guard_pii_row reads pii; the drafter's structural-skip set reads
+# maskable/identifier/record/table-level; the CDE flag flows through cde).
+# These stay unretirable with a WHY the UI can show; every other generic
+# tag/term is retirable with the same durable tombstone as company items
+# ("cant retire generic tags" — the silent refusal was the real bug).
+_CORE_TAGS = {"pii", "maskable", "identifier", "cde", "record", "table-level"}
+
 _SEED_TAGS = {
     "pii":              {"label": "PII", "sensitivity_floor": "HIGH"},
     "personal-data":    {"label": "Personal data", "sensitivity_floor": "HIGH"},
@@ -316,7 +324,9 @@ def _merge_seed(d):
     for t, meta in seed["tags"].items():
         cur = d["tags"].get(t)
         if not cur:
-            if meta.get("layer") != "generic" and t in _rt_tags:
+            # a steward tombstone holds for generic and company seeds alike —
+            # only the load-bearing core always comes back
+            if t in _rt_tags and t not in _CORE_TAGS:
                 continue                              # steward retired it — stays retired
             d["tags"][t] = meta                       # restore a removed seed tag
         elif meta.get("layer") == "generic":
@@ -334,7 +344,7 @@ def _merge_seed(d):
     for n, meta in seed["terms"].items():
         cur = d["terms"].get(n)
         if not cur:
-            if meta.get("layer") != "generic" and n in _rt_terms:
+            if n in _rt_terms:
                 continue                              # steward retired it — stays retired
             d["terms"][n] = meta                      # restore a removed seed term
         elif meta.get("layer") == "generic":
@@ -445,9 +455,12 @@ def reset(preserve_approved=True):
                                 "terms": list(ret.get("terms") or [])}
             for kind in ("tags", "terms"):
                 for nm in _DICT["retired"][kind]:
-                    m = (_DICT.get(kind) or {}).get(nm) or {}
-                    if m.get("layer") != "generic":
-                        _DICT[kind].pop(nm, None)
+                    # tombstones hold across the reseed for generic and
+                    # company entries alike — only the load-bearing core
+                    # tags always return
+                    if kind == "tags" and nm in _CORE_TAGS:
+                        continue
+                    _DICT[kind].pop(nm, None)
             for kind in ("tags", "terms"):
                 for nm, meta in (prev.get(kind) or {}).items():
                     m = meta or {}
@@ -489,10 +502,12 @@ def _guardrail(doc):
     _merge_seed(doc)
     for t in sorted(set(doc["tags"]) - before_tags):
         if doc["tags"][t].get("layer") == "generic":
-            warnings.append(f"restored protected generic tag '{t}' (can't be removed)")
+            warnings.append(f"restored core generic tag '{t}' (load-bearing — can't be removed)"
+                            if t in _CORE_TAGS else
+                            f"restored missing generic tag '{t}' (retire it on the Dictionary page if unwanted)")
     for n in sorted(set(doc["terms"]) - before_terms):
         if doc["terms"][n].get("layer") == "generic":
-            warnings.append(f"restored protected generic term '{n}' (can't be removed)")
+            warnings.append(f"restored missing generic term '{n}' (retire it on the Dictionary page if unwanted)")
     # every rule tag must exist in the vocabulary (else the rule would emit a
     # tag the registry can't govern — a drift source). Auto-add as company.
     for r in doc.get("rules", []):
@@ -661,8 +676,14 @@ def review(kind, names, action="approve", target=None):
     with _LOCK:
         for nm in (names or []):
             meta = coll.get(nm)
-            if not meta or meta.get("layer") == "generic":
+            if not meta:
                 continue
+            if meta.get("layer") == "generic":
+                # generic entries are retirable like company ones (durable
+                # tombstone) — EXCEPT the load-bearing core, and only the
+                # reject action makes sense on an already-governed layer
+                if action != "reject" or (kind == "tag" and nm in _CORE_TAGS):
+                    continue
             if action == "alias" and kind == "term":
                 # resolve the target case-insensitively — an exact-key miss
                 # used to silently no-op while the UI reported success, which
@@ -697,6 +718,15 @@ def review(kind, names, action="approve", target=None):
                     for tmeta in (d.get("terms") or {}).values():
                         if isinstance(tmeta, dict) and nm in (tmeta.get("tags") or []):
                             tmeta["tags"] = [t for t in tmeta["tags"] if t != nm]
+                    # rules that emit the retired tag lose it, and a rule with
+                    # no tags left is dropped — the rules-reference-governed-
+                    # tags invariant holds for seed and company rules alike
+                    rules = d.get("rules") or []
+                    for ru in rules:
+                        if isinstance(ru, dict) and nm in (ru.get("tags") or []):
+                            ru["tags"] = [t for t in ru["tags"] if t != nm]
+                    d["rules"] = [ru for ru in rules
+                                  if not isinstance(ru, dict) or ru.get("tags")]
                 else:
                     dropped_terms.append(nm)
                 # tombstone: an explicit steward retire is DURABLE — the load-
@@ -1094,6 +1124,7 @@ def summary():
         meta = meta or {}
         tags.append({"tag": t, "label": meta.get("label", t), "layer": meta.get("layer", "company"),
                      "status": ("generic" if meta.get("layer") == "generic" else meta.get("status", "approved")),
+                     "core": t in _CORE_TAGS,
                      "sensitivity_floor": meta.get("sensitivity_floor"),
                      "count": len(usage.get(t) or ()), "examples": d.get("examples", {}).get(t, [])})
     terms = []

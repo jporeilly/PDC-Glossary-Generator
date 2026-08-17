@@ -14,6 +14,35 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.38.17] - 2026-08-17
+
+### Fixed - three guards from one morning's field walk
+
+- **The fresh-scan fork can't happen silently anymore** ("so now its a
+  mess!"): every scan/harvest now lands through one guarded path
+  (state.js landScanRows). A landing on an EMPTY grid while a saved
+  glossary exists asks first — load the settled glossary and fold the
+  fresh evidence in (recommended), or knowingly start a separate grid.
+  Non-empty grids merge by source identity exactly as before.
+- **Same-name saves get a visible suffix**: a NEW glossary colliding with
+  an existing name saves as "Name (2)" — the fork that made two identical
+  "Arizona Water"s (with the raw twin stealing auto-resume) is now legible
+  in the Home list at a glance. Re-saves of an existing id keep their name;
+  the workspace adopts the server's suffix so every surface agrees.
+- **Generic tags are retirable** ("cant retire generic tags"): the same
+  durable tombstone company items get — it survives the load-time
+  re-inject AND Reseed — and retiring a tag strips it from every rule
+  that emits it (a rule left with no tags is dropped), so the
+  rules-reference-governed-tags invariant holds. The exception is the
+  load-bearing core six (pii, maskable, identifier, cde, record,
+  table-level): engine code paths stand on those, and their Retire button
+  is now visibly disabled WITH the reason — the silent refusal was the
+  real bug.
+
+Suite grows to 351 (generic-retire lifecycle incl. tombstone-through-
+reseed and the core-six refusal; save-collision suffix; the landing-path
+shape pin follows the merge into state.js).
+
 ## [1.38.16] - 2026-08-17
 
 ### Added - flip where you read: the draft's own lists become the control

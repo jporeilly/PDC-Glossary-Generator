@@ -941,15 +941,24 @@ export default function DictionaryPage({ onNavigate }) {
                 <tr key={t.tag}>
                   <td>
                     <b>{t.tag}</b>
-                    {t.layer === 'company' && (
-                      <span className="vocab-actions">
+                    {/* every tag is retirable except the load-bearing core six
+                        — and those say WHY instead of silently refusing
+                        ("cant retire generic tags", field-caught) */}
+                    <span className="vocab-actions">
+                      {t.core ? (
+                        <button className="ghost mini act" disabled
+                                aria-label={`Tag ${t.tag} is load-bearing`}
+                                title="Load-bearing: engine code paths stand on this tag (PII guard-rails, the drafter's structural skips, the CDE flag), so retiring it would orphan them. It never lands on a row unless the evidence puts it there.">
+                          ✕ Retire
+                        </button>
+                      ) : (
                         <button className="ghost mini act" aria-label={`Retire tag ${t.tag}`}
-                                title="Retire from the allow-list. Durable across reseeds (tombstoned); Export domain pack will offer to remove it from the pack. A rule that still emits it re-adds it with a warning."
+                                title="Retire from the allow-list. Durable across reseeds (tombstoned); rules that emit this tag lose it (a rule left with no tags is dropped). Export domain pack will offer to remove it from the pack."
                                 onClick={() => tagRetire(t)}>
                           ✕ Retire
                         </button>
-                      </span>
-                    )}
+                      )}
+                    </span>
                   </td>
                   <td><LayerBadge status={t.status} /></td>
                   <td>{t.sensitivity_floor ? <SevBadge s={t.sensitivity_floor} /> : <span className="notes">—</span>}</td>

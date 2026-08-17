@@ -7,14 +7,7 @@
 // the browsers' keys, not the glossary's.
 import { useEffect, useRef, useState } from 'react'
 import { apiGet, apiPost, apiDelete } from './../api.js'
-import { getWorkspace, setRows, setDiscovery, setDocsDiscovery } from './../state.js'
-import { mergeBySource } from './../rowmerge.js'
-
-function mergeIntoWorkspace(newRows) {
-  const { rows, added, dup } = mergeBySource(getWorkspace().rows, newRows)
-  setRows(rows)
-  return { added, dup }
-}
+import { getWorkspace, landScanRows, setDiscovery, setDocsDiscovery } from './../state.js'
 
 // POST /api/scan body for a saved connection (same dispatch as the old UI).
 function scanBody(c) {
@@ -401,20 +394,21 @@ function ConnCard({ conn, onEdit, onChanged, onDiscoverDb, onDiscoverDocs, onNav
     say('', adding ? 'Scanning to add…' : 'Scanning…')
     try {
       const d = await apiPost('/api/scan', scanBody(c))
-      if (adding || getWorkspace().rows.length > 0) {
-        // Scanning source X must NEVER delete source Y's rows: the plain Scan
-        // used to REPLACE the whole workspace, so "JDBC added, then Scan on
-        // Documents" silently wiped the JDBC cohort before Add was ever
-        // clicked (field-caught). A non-empty grid always merges — identity
-        // is source-based so rescans refresh evidence instead of duplicating
-        // — and a from-scratch grid is what Reset all is for.
-        const { added, dup } = mergeIntoWorkspace(d.rows || [])
-        say('good', `${adding ? 'Added' : 'Merged'} ${added} term(s)${dup ? ` · ${dup} existing term(s) gained this source's columns & evidence` : ''} — other sources' rows are untouched (Reset all first for a from-scratch grid).`)
+      // Landing rules (both field-caught): a non-empty grid always MERGES by
+      // source identity — scanning source X must never delete source Y's rows
+      // — and a landing on an EMPTY grid while a saved glossary exists asks
+      // to fold into it first (the fresh-scan fork made a raw twin of the
+      // settled glossary and stole auto-resume). landScanRows owns both.
+      const res = await landScanRows(d.rows || [])
+      if (res.mode === 'fresh') {
+        say('good', `Scanned — ${res.added} candidate term(s). Review and prune them next.`)
+        setCheck(d.check || null)
+      } else if (res.mode === 'folded') {
+        say('good', `Loaded "${res.name}" and folded the scan in — ${res.added} new term(s)${res.dup ? ` · ${res.dup} settled term(s) gained this source's columns & evidence` : ''}.`)
         setCheck(null)
       } else {
-        setRows(d.rows || [])
-        say('good', `Scanned — ${(d.rows || []).length} candidate term(s). Review and prune them next.`)
-        setCheck(d.check || null)
+        say('good', `${adding ? 'Added' : 'Merged'} ${res.added} term(s)${res.dup ? ` · ${res.dup} existing term(s) gained this source's columns & evidence` : ''} — other sources' rows are untouched (Reset all first for a from-scratch grid).`)
+        setCheck(null)
       }
     } catch (err) {
       say('bad', `Scan failed: ${err.message}`)

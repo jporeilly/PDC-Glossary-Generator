@@ -43,6 +43,35 @@ class TestTagdict:
         assert tagdict.lift_sensitivity("LOW", [], term="Member Number") == "HIGH"
         assert tagdict.lift_sensitivity("HIGH", [], term=None) == "HIGH"
 
+    def test_generic_tags_retire_with_tombstones_except_core(self, fresh_dict):
+        """"cant retire generic tags" — now they can, durably, EXCEPT the
+        load-bearing core six the engine stands on (those refuse and the UI
+        says why). Retiring a tag also strips it from every rule that emits
+        it — a rule left with no tags is dropped — so the rules-reference-
+        governed-tags invariant holds without special-casing the layer."""
+        tagdict = fresh_dict
+        d = tagdict.load()
+        assert (d["tags"].get("temporal") or {}).get("layer") == "generic"
+        d.setdefault("rules", []).append(
+            {"pattern": "_ts$", "tags": ["temporal"], "layer": "company"})
+        assert tagdict.review("tag", ["temporal"], "reject") == 1
+        d2 = tagdict.load()
+        assert "temporal" not in d2.get("tags", {})
+        assert "temporal" in (d2.get("retired") or {}).get("tags", [])
+        assert all("temporal" not in (r.get("tags") or []) for r in d2.get("rules", [])), \
+            "rules that emitted the retired tag lose it"
+        assert not any(r.get("pattern") == "_ts$" for r in d2.get("rules", [])), \
+            "a rule with no tags left is dropped, not left inert"
+        # the tombstone survives BOTH the load-time re-inject and a Reseed
+        tagdict.reset(preserve_approved=True)
+        assert "temporal" not in tagdict.load().get("tags", {})
+        assert "temporal" in (tagdict.load().get("retired") or {}).get("tags", [])
+        # the load-bearing core refuses — nothing changes, nothing tombstones
+        assert tagdict.review("tag", ["pii"], "reject") == 0
+        d3 = tagdict.load()
+        assert (d3["tags"].get("pii") or {}).get("layer") == "generic"
+        assert "pii" not in (d3.get("retired") or {}).get("tags", [])
+
     def test_pack_seeded_vocabulary_and_durable_retire(self, fresh_dict):
         tagdict = fresh_dict
         # pack-seeded vocabulary is company/approved and STAYS so across loads

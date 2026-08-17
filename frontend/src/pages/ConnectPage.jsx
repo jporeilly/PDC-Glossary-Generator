@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { apiGet, apiPost, apiDelete, runJob } from './../api.js'
-import { getWorkspace, setRows, setDiscovery, setDocsDiscovery, setPdcSession, useWorkspace, usePersistentState } from './../state.js'
-import { mergeBySource } from './../rowmerge.js'
+import { getWorkspace, landScanRows, setDiscovery, setDocsDiscovery, setPdcSession, useWorkspace, usePersistentState } from './../state.js'
 import './connect.css'
 
 // Connect page — the React port of the old UI's Connections page: the PDC
@@ -44,17 +43,6 @@ const splitKey = (key) => {
 }
 
 const splitCols = (s) => String(s || '').split(';').map((t) => t.trim()).filter(Boolean)
-
-// Merge scanned/harvested rows into the shared workspace BY SOURCE IDENTITY
-// (rowmerge.js). The old Category|Term key broke the moment the steward
-// settled the taxonomy — renamed categories changed every key, so a
-// re-ingestion appended the whole estate again (133 kept became 248,
-// field-caught). A row is its source columns; labels are the steward's.
-function mergeIntoWorkspace(newRows) {
-  const { rows, added, dup } = mergeBySource(getWorkspace().rows, newRows)
-  setRows(rows)
-  return { added, dup }
-}
 
 function MiniBar({ frac }) {
   return <span className="mini"><i style={{ width: pct(frac) }} /></span>
@@ -945,10 +933,14 @@ function HarvestCard({ pdc, onConnectionsChanged, onNavigate, glossaryName }) {
     // after a direct scan
     if (d.discovery) setDiscovery(d.discovery)
     if (d.docs_discovery) setDocsDiscovery({ ...d.docs_discovery, name: s.name || s.id })
-    const { added, dup } = mergeIntoWorkspace(d.rows || [])
+    // landScanRows carries the empty-grid guard: a harvest landing while the
+    // settled glossary sits unloaded offers to fold into it instead of
+    // silently forking a raw twin (field-caught). Non-empty grids merge as
+    // before; in a multi-source harvest only the first landing can ask.
+    const res = await landScanRows(d.rows || [])
     const gov = d.scanned?.already_governed || 0
-    note(k, 'good', `✓ added ${added} term(s)${dup ? ` · ${dup} merged into existing` : ''}${gov ? ` · ${gov} already governed in PDC` : ''}`)
-    return { added, gov }
+    note(k, 'good', `✓ ${res.mode === 'folded' ? `loaded "${res.name}" · ` : ''}added ${res.added} term(s)${res.dup ? ` · ${res.dup} merged into existing` : ''}${gov ? ` · ${gov} already governed in PDC` : ''}`)
+    return { added: res.added, gov }
   }
 
   async function harvestSelected() {

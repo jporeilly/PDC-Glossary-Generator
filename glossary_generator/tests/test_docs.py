@@ -206,9 +206,17 @@ def test_row_identity_is_evidence_not_labels():
     rm = _read(os.path.join(base, "rowmerge.js"))
     assert "IDENTITY IS EVIDENCE, NOT LABELS" in rm
     assert "mergeBySource" in rm and "selfFold" in rm and "sameSourceCount" in rm
+    # 1.38.17: the landing moved into state.js (landScanRows) so the empty-
+    # grid guard wraps EVERY scan/harvest landing — Connect and the source
+    # connections delegate to it, and the source-identity merge lives behind it
+    st = _read(os.path.join(base, "state.js"))
+    assert "mergeBySource" in st and "landScanRows" in st, \
+        "state.js must own the guarded landing over the source-identity merge"
     cp = _read(os.path.join(base, "pages", "ConnectPage.jsx"))
-    assert "mergeBySource" in cp, "Connect's workspace merge must use source identity"
+    assert "landScanRows" in cp, "Connect's harvest must land through the guarded merge"
     assert "rowKey" not in cp, "the Category|Term row key must not survive"
+    sc = _read(os.path.join(base, "components", "SourceConnections.jsx"))
+    assert "landScanRows" in sc, "direct scans must land through the guarded merge"
     rv = _read(os.path.join(base, "pages", "ReviewPage.jsx"))
     assert "selfFold" in rv and "SILENT auto-heal" in rv, \
         "Review must heal old-key damage behind the scenes"

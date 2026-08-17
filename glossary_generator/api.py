@@ -1046,6 +1046,21 @@ def save_glossary(body: dict = Body(default={})):
                     "retry in a moment or check %s" % (e, GLOSS_FILE), 503)
     gid = body.get("id") or uuid.uuid4().hex[:12]
     body["id"] = gid
+    # A NEW glossary whose name collides with an existing one gets a visible
+    # suffix. The fresh-scan fork saved a raw twin under the SAME name — the
+    # Home list showed two identical "Arizona Water"s and auto-resume (last
+    # saved wins) picked the raw one (field-caught: "so now its a mess!").
+    # The suffix makes the fork legible at a glance; renaming stays the
+    # steward's call. Re-saves of an existing id keep their name untouched.
+    if gid not in g:
+        want = str(body.get("name") or "").strip()
+        taken = {str(v.get("name") or "").strip().lower()
+                 for k, v in g.items() if isinstance(v, dict) and k != gid}
+        if want and want.lower() in taken:
+            n = 2
+            while f"{want} ({n})".lower() in taken:
+                n += 1
+            body["name"] = f"{want} ({n})"
     body["savedAt"] = datetime.datetime.now().isoformat(timespec="seconds")
     g[gid] = body
     _save_gloss(g)
