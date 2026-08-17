@@ -3795,6 +3795,138 @@ def api_pdc_labels_apply(body: dict = Body(default={})):
         return _err(str(e)[:300], 502)
 
 
+def _labels_stamp_impl(body, progress=None):
+    """The auto-stamp flow: put label VALUES on the column entities themselves,
+    driven by the reviewed grid. Assignment is NOT GraphQL (mapped live
+    2026-08-17): PATCH /api/public/v3/entities/{id} with
+    attributes.customProperties, replaces-wholesale — pdc_api.assign_labels
+    does the read-merge-write so labels this app never derived survive.
+
+    Per kept row: derive {key: value} from the labels engine (same evidence
+    the create step used), validate each value against the family PDC
+    actually holds (a hand-drifted family is reported, never guessed at),
+    resolve every real source column to its entity, and stamp one merged
+    assignment per entity. dry_run (default) plans and reports only."""
+    from engine import labels as labels_engine
+    from engine.suggester import _parse_source
+    from sources import pdc_api
+    body = body or {}
+    base = (body.get("base_url") or "").strip()
+    if not base:
+        raise RuntimeError("PDC base URL is required")
+    keys = [str(k).strip() for k in (body.get("keys") or []) if str(k).strip()]
+    if not keys:
+        raise RuntimeError("no label keys - tick the keys to keep on Govern first")
+    dry = bool(body.get("dry_run", True))
+    verify = bool(body.get("verify_tls", False))
+    version = body.get("version") or "v2"
+    kept = [r for r in (body.get("rows") or []) if isinstance(r, dict)
+            and str(r.get("Keep", "Y")).strip().lower() in ("y", "yes", "true", "1")]
+    pack = {}
+    try:
+        with open(paths.domain_pack_path(), encoding="utf-8") as f:
+            pack = json.load(f)
+    except Exception:
+        pack = {}
+    token, reauth = _pdc_token_and_reauth(body, base, version, verify)
+    tok = {"t": token}
+
+    def _authed(fn):
+        try:
+            return fn()
+        except pdc_api.TokenExpired:
+            if not reauth:
+                raise
+            tok["t"] = reauth()
+            return fn()
+
+    families = {l["name"].strip().lower(): l
+                for l in _authed(lambda: pdc_api.list_labels(base, tok["t"], verify_tls=verify))}
+    missing = [k for k in keys if k.lower() not in families]
+    usable = [k for k in keys if k.lower() in families]
+
+    # plan: one merged assignment per physical column, across every kept row
+    # that maps to it (a term on 3 columns stamps all 3)
+    plan, mismatches = {}, []
+    for r in kept:
+        vals = labels_engine.labels_for_row(r, usable, pack=pack)
+        if not vals:
+            continue
+        ok = {}
+        for k, v in vals.items():
+            fam = families[k.lower()]
+            if fam.get("values") and v not in fam["values"]:
+                # the family in PDC drifted from the engine's vocabulary
+                # (hand-edited values, or created before a category rename) —
+                # report it; writing an ungoverned value would corrupt the axis
+                mismatches.append({"term": str(r.get("Term") or ""), "key": k,
+                                   "value": v, "allowed": fam["values"]})
+                continue
+            ok[k] = {"id": fam["_id"], "value": v}
+        if not ok:
+            continue
+        for src in str(r.get("Source_Column") or "").split(";"):
+            de = _parse_source(src.strip())
+            if not de:
+                continue
+            ckey = (de["schema_name"], de["table_name"], de["column_name"], de["entity_type"])
+            entry = plan.setdefault(ckey, {"assign": {}, "labels": {}, "terms": []})
+            entry["assign"].update({a["id"]: a["value"] for a in ok.values()})
+            entry["labels"].update({k: a["value"] for k, a in ok.items()})
+            t = str(r.get("Term") or "").strip()
+            if t and t not in entry["terms"]:
+                entry["terms"].append(t)
+
+    results, unresolved = [], []
+    stamped = planned = 0
+    table_cache = {}
+    total = len(plan)
+    for i, (ckey, entry) in enumerate(sorted(plan.items())):
+        sch, tbl, col, etype = ckey
+        label = ".".join(x for x in (sch, tbl, col) if x)
+        if progress:
+            try:
+                progress({"phase": "stamp", "done": i, "total": total, "column": label})
+            except Exception:
+                pass
+        rec = {"type": etype, "schemaName": sch, "tableName": tbl, "columnName": col}
+        row = {"column": label, "labels": dict(entry["labels"]),
+               "terms": entry["terms"][:6], "status": "pending"}
+        try:
+            ent = _authed(lambda: pdc_api.resolve_column_entity(
+                base, tok["t"], rec, version, verify, 30, table_cache))
+            eid = pdc_api._eid(ent) if ent else None
+            if not eid:
+                row["status"] = "not-found"
+                unresolved.append(label)
+                results.append(row)
+                continue
+            row["id"] = eid
+            if dry:
+                row["status"] = "planned"
+                planned += 1
+            else:
+                _authed(lambda: pdc_api.assign_labels(
+                    base, tok["t"], eid,
+                    [{"id": fid, "value": v} for fid, v in entry["assign"].items()],
+                    verify_tls=verify))
+                row["status"] = "stamped"
+                stamped += 1
+        except Exception as e:
+            row["status"] = "error"
+            row["message"] = str(e)[:300]
+        results.append(row)
+    if progress:
+        try:
+            progress({"phase": "done", "done": total, "total": total})
+        except Exception:
+            pass
+    return {"dry_run": dry, "total_columns": total,
+            "stamped": stamped, "planned": planned,
+            "missing_families": missing, "mismatches": mismatches[:40],
+            "unresolved": unresolved[:40], "results": results[:400]}
+
+
 @app.post("/api/labels/suggest")
 def api_labels_suggest(body: dict = Body(default={})):
     """Suggest PDC labels (key/value custom properties) from what the scan
@@ -4360,6 +4492,23 @@ def api_job_bulk_load(body: dict = Body(default={})):
                 job["status"] = "error"
                 job["detail"] = ev.get("message", "")
     return _start_job("bulk-load", _runner)
+
+@app.post("/api/jobs/labels-stamp")
+def api_job_labels_stamp(body: dict = Body(default={})):
+    """Stamp label values onto column entities from the reviewed grid (the
+       assignment wire: PATCH entities attributes.customProperties, read-
+       merge-write). dry_run (default true) resolves and plans without
+       writing; poll /api/jobs/{id} for per-column progress and the report."""
+    body = body or {}
+    def _runner(job):
+        res = _labels_stamp_impl(body, progress=_job_progress(job))
+        job["result"] = res
+        if not body.get("dry_run", True):
+            _receipt("labels-stamp", stamped=res.get("stamped", 0),
+                     columns=res.get("total_columns", 0),
+                     unresolved=len(res.get("unresolved") or []))
+    return _start_job("labels-stamp", _runner)
+
 
 @app.post("/api/jobs/draft-policies")
 def api_job_draft_policies(body: dict = Body(default={})):

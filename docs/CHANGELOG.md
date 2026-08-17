@@ -14,6 +14,45 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.38.15] - 2026-08-17
+
+### Added - labels close the loop: the assignment wire, mapped and driven
+
+The per-column label assignment - the one capture that kept "labels" a
+definitions-only feature - turned out not to be GraphQL at all. The user's
+DevTools session showed the READ side (the entity's
+`attributes.customProperties`), and error-shape probing found the write:
+
+- **The wire**: `PATCH /api/public/v3/entities/{id}` with
+  `{"attributes": {"customProperties": [{"id": <definition _id>,
+  "value": "Confidential"}]}}`. The array replaces WHOLESALE (proven by
+  clear-and-restore on the live customers.phone column), so
+  `pdc_client.assign_labels` is read-merge-write: labels this app never
+  derived survive, and a blank value removes exactly one. No entity-update
+  mutation exists in the GraphQL schema - which is why no `graphql` filter
+  ever caught it.
+- **The auto-stamp flow** (`/api/jobs/labels-stamp` + the Data labels card
+  on Apply): per kept row, the labels engine derives {key: value} from the
+  same evidence the create step used; every real source column resolves to
+  its entity (the same resolver the term-links apply uses); one merged
+  assignment lands per column. **Dry-run first** - the same propose→apply
+  posture as the rest of the page - with per-column progress and honest
+  reporting: families missing from PDC, columns with no matching entity,
+  and **drifted families** (a value the engine derived that PDC's family no
+  longer lists is reported, never written - the live PII Type had been
+  hand-edited down to one value, which is exactly the corruption this
+  guard exists for).
+- **Create aligned to the UI's own capture**: `defaultValue: ""` and
+  itemTypes default `["Columns","Folders","Files"]` - a label that can't
+  land on files is half a label in a document-bearing estate.
+- Docs: GUIDE grows "Data labels - tags vs labels" (a tag answers "is this
+  in the set?", a label answers "which one is it?") plus the assignment
+  wire; REFERENCE carries the endpoint and the PDC labels wire note;
+  WALKTHROUGH gains the flip-a-measure-to-Auto demo step.
+
+Suite grows to 348 (assignment client pins, stamp-flow pins including the
+drifted-family guard).
+
 ## [1.38.14] - 2026-08-17
 
 ### Added - the steward's Auto flip is honoured with a name-anchored rule

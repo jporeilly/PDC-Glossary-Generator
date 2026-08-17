@@ -356,12 +356,24 @@ nudge per run.
 | `POST /api/qa-definitions`  | lint + AI-judge definitions (stamps QA_Issues / QA_Suggestion) |
 | `POST /api/ai-categorize`   | AI files uncategorized terms into known categories |
 | `POST /api/draft-policies`  | draft PDC pattern/dictionary rules from detection seeds (`format=zip` downloads the bundle) |
+| `POST /api/pdc/labels-apply` | create the kept label families in PDC as data labels (custom properties over `/graphql`) — idempotent by name |
+| `POST /api/jobs/labels-stamp` | stamp label values onto column entities from the reviewed grid (dry_run default; read-merge-write PATCH per entity; poll `/api/jobs/{id}`) |
 | `POST /api/resolve-fuzzy`   | match outstanding (renamed) term names against PDC's real terms — similarity + AI adjudication |
 | `POST /api/export-pack`     | generate a domain pack from the reviewed scan results (merges over the installed pack; curated_seeds from induced patterns/enums) |
 | `POST /api/discovery-progress` | terminal-aware Data Discovery progress: per-entity profiled map + the discovery job's own status, so the Apply watcher stops when the worker finishes |
 | `POST /api/lab-export`      | upload a just-generated artifact (import JSONL / drafted-policies zip) to the lab MinIO over a saved **write-capable** MinIO/S3 connection — bucket `pdc-exports`, timestamped key |
 
 PDC API version: the app speaks v1/v2/v3 (selector on Apply & harvest; default **v3**, PDC 11's native version). Every request shape is validated against the official v3 OpenAPI spec by the committed pytest suite (`pytest -q tests/test_v3_shapes.py`) — see docs/REVIEW.md §1 for the audit table.
+
+**PDC labels wire** (mapped live, introspection disabled — error-shape probing):
+label *definitions* are custom properties with `isDataLabel: true` over
+`POST /graphql` — read `CustomPropertiesMany`, create
+`CustomPropertyCreateUnique`, delete `CustomPropertyRemoveById`. Label
+*assignment* is **not** GraphQL: `PATCH /api/public/v3/entities/{entity_id}`
+with `{"attributes": {"customProperties": [{"id": <definition _id>,
+"value": "..."}]}}` — the array replaces wholesale, so
+`pdc_client/labels.py::assign_labels` is read-merge-write (blank value =
+remove); `entity_labels` reads assignments back off the entity GET.
 | `POST /api/generate`        | build import-ready JSONL from the kept rows        |
 
 ---

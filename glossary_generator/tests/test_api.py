@@ -862,6 +862,142 @@ class TestPdcLabelsApply:
         assert d["no_values"] == ["retention"], "no pack vocabulary - reported, not invented"
 
 
+class TestPdcLabelAssignment:
+    """The last wire, mapped live 2026-08-17: assignment is NOT GraphQL —
+       PATCH /api/public/v3/entities/{id} with attributes.customProperties,
+       and the array replaces WHOLESALE (proven by clear-and-restore on the
+       live customers.phone column), so the client must read-merge-write."""
+
+    def _capture(self, monkeypatch, current):
+        from pdc_client import labels as L
+        calls = []
+
+        def fake_req(method, url, token=None, body=None, **k):
+            calls.append({"method": method, "url": url, "body": body})
+            if method == "GET":
+                return {"data": {"attributes": {"customProperties": current}}}
+            return {}
+        monkeypatch.setattr(L, "_req", fake_req)
+        return L, calls
+
+    def test_assign_merges_and_preserves_other_labels(self, monkeypatch):
+        L, calls = self._capture(monkeypatch, [
+            {"id": "pii-def", "value": "Internal"},
+            {"id": "tier-def", "value": "tier-2"}])
+        out = L.assign_labels("https://pdc.example", "tok", "ent-1",
+                              [{"id": "pii-def", "value": "Confidential"}])
+        patch = [c for c in calls if c["method"] == "PATCH"]
+        assert len(patch) == 1
+        assert "/api/public/v3/entities/ent-1" in patch[0]["url"]
+        got = {a["id"]: a["value"]
+               for a in patch[0]["body"]["attributes"]["customProperties"]}
+        assert got == {"pii-def": "Confidential", "tier-def": "tier-2"}, \
+            "new value wins; the label it did not touch survives the wholesale replace"
+        assert {a["id"]: a["value"] for a in out} == got
+
+    def test_blank_value_removes_that_label_only(self, monkeypatch):
+        L, calls = self._capture(monkeypatch, [
+            {"id": "pii-def", "value": "Confidential"},
+            {"id": "tier-def", "value": "tier-2"}])
+        L.assign_labels("https://pdc.example", "tok", "ent-1",
+                        [{"id": "pii-def", "value": ""}])
+        patch = [c for c in calls if c["method"] == "PATCH"][0]
+        got = patch["body"]["attributes"]["customProperties"]
+        assert got == [{"id": "tier-def", "value": "tier-2"}]
+
+    def test_entity_labels_unwraps_envelope_and_junk(self, monkeypatch):
+        L, _ = self._capture(monkeypatch, [
+            {"id": "pii-def", "value": "Confidential"}, {"value": "orphan"}, None])
+        got = L.entity_labels("https://pdc.example", "tok", "ent-1")
+        assert got == [{"id": "pii-def", "value": "Confidential"}], \
+            "entries without a definition id are noise, not assignments"
+
+
+class TestLabelsStampFlow:
+    """The auto-stamp flow (.15): kept rows -> engine label values -> entity
+       resolution -> merged assignment per column, with the same propose ->
+       apply posture as the term-links Apply (dry_run default) and honest
+       reporting for drifted families, missing families and unresolved
+       columns."""
+
+    def _wire(self, monkeypatch, families, resolved=None):
+        import api
+        from sources import pdc_api
+        assigned, resolves = [], []
+        monkeypatch.setattr(api, "_pdc_token_and_reauth",
+                            lambda *a, **k: ("tok", None))
+        monkeypatch.setattr(pdc_api, "list_labels", lambda *a, **k: families)
+
+        def fake_resolve(base, tok, rec, version, verify, timeout, cache):
+            resolves.append(rec)
+            key = ".".join(x for x in (rec.get("schemaName"), rec.get("tableName"),
+                                       rec.get("columnName")) if x)
+            rid = (resolved or {}).get(key, "missing")
+            if rid == "missing":
+                return {"id": "ent-" + rec.get("columnName", "x")}
+            return {"id": rid} if rid else None
+        monkeypatch.setattr(pdc_api, "resolve_column_entity", fake_resolve)
+        monkeypatch.setattr(pdc_api, "assign_labels",
+                            lambda base, tok, eid, arr, **k: assigned.append((eid, arr)) or arr)
+        return assigned, resolves
+
+    def _pii_family(self, values=("Restricted", "Confidential", "Internal")):
+        return [{"_id": "fam-pii", "name": "PII Type", "values": list(values)}]
+
+    def test_dry_run_plans_without_writing(self, monkeypatch):
+        import api
+        assigned, _ = self._wire(monkeypatch, self._pii_family())
+        rows = [_row("Customer Email", "awc.customers.email",
+                     PII_Category="CONTACT_INFO", Critical_Data_Element="No")]
+        res = api._labels_stamp_impl({"base_url": "https://pdc.example",
+                                      "token": "t", "keys": ["PII Type"],
+                                      "rows": rows})
+        assert res["dry_run"] is True and res["planned"] == 1 and res["stamped"] == 0
+        assert assigned == [], "a dry run must never PATCH"
+        assert res["results"][0]["labels"] == {"PII Type": "Confidential"}
+
+    def test_real_run_stamps_each_resolved_column(self, monkeypatch):
+        import api
+        assigned, _ = self._wire(monkeypatch, self._pii_family())
+        rows = [_row("Customer Email", "awc.customers.email;awc.billing.email_addr",
+                     PII_Category="CONTACT_INFO", Critical_Data_Element="No")]
+        res = api._labels_stamp_impl({"base_url": "https://pdc.example",
+                                      "token": "t", "keys": ["PII Type"],
+                                      "rows": rows, "dry_run": False})
+        assert res["stamped"] == 2, "a term on two columns stamps both entities"
+        for _eid, arr in assigned:
+            assert arr == [{"id": "fam-pii", "value": "Confidential"}]
+
+    def test_drifted_family_reports_never_guesses(self, monkeypatch):
+        """The live trap this pins: the user's hand-edited PII Type held one
+           value — writing 'Confidential' into a family that no longer lists
+           it would corrupt the axis, so it must land in mismatches."""
+        import api
+        assigned, _ = self._wire(monkeypatch, self._pii_family(values=("Restricted",)))
+        rows = [_row("Customer Email", "awc.customers.email",
+                     PII_Category="CONTACT_INFO", Critical_Data_Element="No")]
+        res = api._labels_stamp_impl({"base_url": "https://pdc.example",
+                                      "token": "t", "keys": ["PII Type"],
+                                      "rows": rows, "dry_run": False})
+        assert res["stamped"] == 0 and assigned == []
+        assert res["mismatches"] and res["mismatches"][0]["key"] == "PII Type"
+        assert res["mismatches"][0]["allowed"] == ["Restricted"]
+
+    def test_missing_family_and_unresolved_column_are_reported(self, monkeypatch):
+        import api
+        assigned, _ = self._wire(monkeypatch, self._pii_family(),
+                                 resolved={"awc.customers.email": None})
+        rows = [_row("Customer Email", "awc.customers.email",
+                     PII_Category="CONTACT_INFO", Critical_Data_Element="No")]
+        res = api._labels_stamp_impl({"base_url": "https://pdc.example",
+                                      "token": "t",
+                                      "keys": ["PII Type", "Regulatory Scope"],
+                                      "rows": rows, "dry_run": False})
+        assert res["missing_families"] == ["Regulatory Scope"]
+        assert res["unresolved"] == ["awc.customers.email"]
+        assert res["stamped"] == 0 and assigned == []
+
+
 class TestDraftBundleCoversLabels:
     def test_labels_json_rides_the_draft_zip(self, client):
         """"Does this cover labels?" It does now: the derived keys, the

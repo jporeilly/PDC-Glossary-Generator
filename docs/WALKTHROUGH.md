@@ -225,9 +225,25 @@ those with one click.)
 
   **Pass-check:** dictionaries minted for your reference-data columns; the
   skip list holds only the honest cases — numerics/free text ("profiled,
-  but no shape"), dates/names/ids (tagged via the term↔column link),
-  document terms, table-level records, and barely-repeating columns that
-  genuinely need a curated seed.
+  but no shape"), document terms, table-level records, and barely-repeating
+  columns that genuinely need a curated seed. Dates/names/booleans/free
+  measures sit on the quiet **mapping-only** line, not in the skips — they
+  are governed by their term↔column links by design.
+
+- [ ] *(Optional, 1.38.14)* **Flip a measure to Auto** — on Review, set the
+      **Detection** filter to *Mapping-only*, flip a term with a real
+      name+shape case (pH Level, Payment Date, Lead) to **Auto**, and
+      re-draft: it mints a **name-anchored rule** (column-name identity +
+      sanity shape at 0.5/0.5, range still in the DQ rule) instead of a
+      skip.
+
+> **Talk track** — *"Watch what the flip does: the engine defaulted pH to
+> mapping-only because a 0–14 shape would match every small number in the
+> estate — that's the industry posture. When I, the steward, say 'detect
+> it anyway', it doesn't hand me a reckless rule: it anchors identity on
+> the column name and keeps the shape as a sanity check, so it only fires
+> where name AND content agree — and the actual range check stays in data
+> quality, where it belongs."*
 
 > **Talk track** — *"This is the bridge from glossary to enforcement. Every
 > value pattern the scan induced becomes a Data Pattern the catalog can

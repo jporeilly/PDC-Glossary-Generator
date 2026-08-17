@@ -12,8 +12,17 @@ Apollo's "did you mean" suggestions name the real mutations):
   update  CustomPropertyUpdateById
   delete  CustomPropertyRemoveById(_id)
 
-Assigning a label to a specific entity is a separate mutation not yet
-captured — create/read/delete of label DEFINITIONS is what ships here.
+Assignment (mapped live 2026-08-17, error-shape probing after the UI's
+graphql filter never showed a write): it is NOT GraphQL at all — a label
+value lands on an entity via the public REST API,
+
+  PATCH /api/public/v3/entities/{entity_id}
+        {"attributes": {"customProperties": [{"id": <definition _id>,
+                                              "value": "<tier>"}]}}
+
+and the array REPLACES wholesale (proven by clear-and-restore on a live
+column), so assign_labels below is read-merge-write. The entity GET
+carries the same array back under attributes.customProperties.
 """
 from .core import _req, clean_base
 
@@ -64,14 +73,50 @@ def create_label(base_url, token, name, values, item_types=None,
             "mutation($r: CreateOneCustomPropertyInput!) {"
             " CustomPropertyCreateUnique(record: $r) { record { _id name } } }",
             {"r": {"scope": list(scope or ["Entities"]),
-                   "itemTypes": list(item_types or ["Columns"]),
+                   # the UI's own createProperty capture (user-provided,
+                   # 2026-08-17) checks Columns+Folders+Files for PII Type —
+                   # a label that can't land on files is half a label in a
+                   # document-bearing estate
+                   "itemTypes": list(item_types or ["Columns", "Folders", "Files"]),
                    "fieldType": str(field_type),
+                   "defaultValue": "",
                    "isBlankAllowed": bool(blank_allowed),
                    "name": str(name),
                    "isDataLabel": True, "availableValues": avail}},
             verify_tls=verify_tls)
     rec = ((d.get("CustomPropertyCreateUnique") or {}).get("record")) or {}
     return rec.get("_id") or ""
+
+
+def entity_labels(base_url, token, entity_id, verify_tls=True, timeout=30):
+    """Current label assignments on one entity: [{"id", "value"}], where id
+    is the label DEFINITION's _id. Empty list = nothing assigned."""
+    url = clean_base(base_url) + f"/api/public/v3/entities/{entity_id}"
+    out = _req("GET", url, token=token, verify_tls=verify_tls, timeout=timeout)
+    d = (out or {}).get("data") or out or {}
+    return [a for a in ((d.get("attributes") or {}).get("customProperties") or [])
+            if isinstance(a, dict) and a.get("id")]
+
+
+def assign_labels(base_url, token, entity_id, assignments, verify_tls=True,
+                  timeout=30):
+    """Assign label values to one entity, preserving whatever other labels
+    are already on it — the PATCH replaces the customProperties array
+    wholesale, so this reads, merges by definition id (new value wins), and
+    writes back. `assignments`: [{"id": <definition _id>, "value": "..."}];
+    a blank value REMOVES that label. Returns the array as written."""
+    merged = {str(a["id"]): str(a.get("value") or "")
+              for a in entity_labels(base_url, token, entity_id,
+                                     verify_tls=verify_tls, timeout=timeout)}
+    for a in assignments or []:
+        if a and a.get("id"):
+            merged[str(a["id"])] = str(a.get("value") or "")
+    arr = [{"id": k, "value": v} for k, v in merged.items() if v]
+    url = clean_base(base_url) + f"/api/public/v3/entities/{entity_id}"
+    _req("PATCH", url, token=token,
+         body={"attributes": {"customProperties": arr}},
+         verify_tls=verify_tls, timeout=timeout)
+    return arr
 
 
 def remove_label(base_url, token, label_id, verify_tls=True):

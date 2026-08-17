@@ -116,6 +116,8 @@ from .labels import (
     list_labels,
     create_label,
     remove_label,
+    entity_labels,
+    assign_labels,
 )
 from .bulkload import (
     CSV_COLUMNS,

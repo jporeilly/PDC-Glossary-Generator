@@ -944,13 +944,82 @@ Since 1.11.0 every Registry concept states its **detection intent**:
 exists, so the Policy Generator stops expecting a detection method), or the
 field is **absent** (no seeds, no decision). The flag lives on the Review
 grid: open a row's editor and use the **Detection: Auto / Mapping-only** seg
-in the evidence strip. When the Policy Generator loads a Registry whose
+in the evidence strip.
+
+Since 1.38.13 the scan sets the flag itself by **nature class**: dates,
+personal names, booleans and free numeric measures arrive **Mapping-only**,
+because their content shape alone never discriminates — every date column
+matches a date shape, and a pH range of 0–14 also matches any 1–10 rating.
+This is the industry posture (Purview's own Date-of-Birth classifier is
+column-name-only; no major catalog uses a numeric range as identification
+evidence — ranges belong to data quality). The Review filter row has a
+**Detection** dropdown (All / Auto / Mapping-only) so "check the map-only
+terms" is one click.
+
+Flipping such a row to **Auto** is honoured, not ignored (1.38.14): the
+draft mints a **name-anchored rule** — the column-name regex carries
+identity, a sanity shape carries content (a date shape, or a bare numeric
+shape with the real range still enforced by the DQ rule), weighted 0.5/0.5
+so the rule fires only when **name AND shape agree** (PDC's condition
+vocabulary cannot express that conjunction any other way), plus a
+`columnCardinality > 5` guard from Pentaho's own shipped template. Honest
+expectation: a badly-named date column still won't be caught — that is the
+deliberate trade against false positives. A flipped row with no derivable
+column-name regex still lands in the skips: no anchor, no rule. When the Policy Generator loads a Registry whose
 concepts have neither seeds nor intent, it writes `seed-request.json` beside
 the Registry; the Review page picks it up as a banner — **Show these terms**
 filters the grid to the requested names, then either re-scan with **Profile
 data** on (columns that should have a shape) or mark free-text terms
 **Mapping-only**, **Generate** again, and **Mark handled** to retire the
 request (the file is renamed `*.handled.json`, keeping the paper trail).
+
+### Data labels — tags vs labels, and what the app writes
+
+PDC has two classification vocabularies and the app drives both, so keep
+the distinction sharp:
+
+- A **tag** is a flat marker an asset either has or doesn't — `pii`,
+  `maskable`, `cde`. Tags answer *"is this in the set?"*, coexist freely,
+  and are what Data Identification rules stamp automatically (the drafted
+  rules' `applyTags` action).
+- A **label** (a PDC custom property with `isDataLabel: true`) is a
+  **named axis with a governed value set** — it answers *"which one is
+  it?"*. "PII Type" takes exactly one of Restricted / Confidential /
+  Internal, each value carrying a steward-written description. Two answers
+  at once is impossible by construction, which is exactly what you want
+  for tiers, retention classes and regulatory scopes.
+
+One column carries both kinds of truth: `customers.email` is tagged `pii`
+*(membership)* and labelled **PII Type = Confidential** *(the tier)*.
+
+The engine derives label families from the same reviewed evidence as the
+tags — the built-in **PII Type** taxonomy maps PII categories to tiers
+(government id / financial → Restricted; name / email / phone / address →
+Confidential; ZIP / city / demographic quasi-identifiers → Internal). The
+**Data labels card on Apply** creates the kept families in PDC over
+`/graphql` (custom properties, `isDataLabel: true`) — idempotent **by
+name**: a family PDC already holds is skipped, never overwritten, so if
+you hand-edited one into a drifted state, delete it in PDC and let the
+card recreate it complete. The drafted-policies bundle ships the same
+contract as `Labels/labels.json`.
+
+Assignment — putting a *value on a column* — is not GraphQL at all: it is
+the same public entities API the term-link apply path already uses,
+`PATCH /api/public/v3/entities/{id}` with
+`{"attributes": {"customProperties": [{"id": <definition _id>, "value":
+"Confidential"}]}}`. The array **replaces wholesale**, so the app's client
+reads, merges by definition id and writes back — other labels on the
+entity survive, and a blank value removes just that one.
+
+**Stamp** (the same card, since 1.38.15) drives that wire from the grid:
+per kept row the engine derives the label values, every real source column
+resolves to its entity, and one merged assignment lands per column —
+**Preview (dry run) first**, then the write. The report is honest by
+construction: families not yet in PDC ("run Create first"), columns with
+no matching entity, and **drifted families** — a value the engine derived
+that PDC's family no longer lists is reported, never written, because
+stamping an ungoverned value would corrupt the axis. If a family drifted
+(hand-edited values), delete it in PDC and re-Create, then stamp again.
 
 ### The pack generator (Dictionary → Export domain pack)
 

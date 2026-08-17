@@ -1453,14 +1453,35 @@ function LabelsCard({ rows, authBody }) {
   const [busy, setBusy] = useState(false)
   const [res, setRes] = useState(null)
   const [err, setErr] = useState(null)
+  // the stamp flow: dry-run plan first, then the real write — same
+  // propose → apply posture as the term-links Apply card
+  const [stampBusy, setStampBusy] = useState(false)
+  const [stampTick, setStampTick] = useState(null)
+  const [stamp, setStamp] = useState(null)       // last job result (plan or write)
+  const [stampErr, setStampErr] = useState(null)
+
+  async function runStamp(dry) {
+    setStampBusy(true); setStampErr(null); setStampTick(null)
+    if (!dry) setStamp(null)
+    try {
+      const r = await runJob('labels-stamp',
+        { ...authBody(), keys: kept, rows, dry_run: dry },
+        (j) => setStampTick(j))
+      setStamp(r)
+    } catch (e) { setStampErr(e.message) } finally { setStampBusy(false); setStampTick(null) }
+  }
+
+  const planReady = stamp?.dry_run && (stamp.planned || 0) > 0
   return (
     <section className="card">
-      <h2>Data labels <span>create the kept label keys in PDC — vocabulary from this review</span></h2>
+      <h2>Data labels <span>create the kept label keys in PDC, then stamp them onto the columns</span></h2>
       <p className="hint-line">
         Writes each label key you kept on <b>Govern</b> into PDC as a <b>data label</b>
         (a custom property with a governed value set), with the values derived from this
-        grid. Idempotent — existing labels are reported, never overwritten. Assigning
-        labels to individual columns stays a PDC-side step for now.
+        grid. Idempotent — existing labels are reported, never overwritten. <b>Stamp</b>
+        then assigns each column its values (PII Type tier, access tier…) on the entity
+        itself — merged, so labels this app never derived survive; preview first, and
+        any family whose values drifted in PDC is reported, never guessed at.
       </p>
       <div className="actions">
         <button className="primary" disabled={busy || kept.length === 0}
@@ -1473,8 +1494,24 @@ function LabelsCard({ rows, authBody }) {
                 }}>
           {busy ? 'Creating…' : `Create ${kept.length || ''} label(s) in PDC`}
         </button>
+        <button className="ghost" disabled={stampBusy || kept.length === 0}
+                onClick={() => runStamp(true)}>
+          {stampBusy && stamp?.dry_run !== false ? 'Planning…' : 'Preview stamp (dry run)'}
+        </button>
+        {planReady && (
+          <button className="primary" disabled={stampBusy}
+                  onClick={() => runStamp(false)}>
+            {stampBusy ? 'Stamping…' : `Stamp ${stamp.planned} column(s)`}
+          </button>
+        )}
         {kept.length === 0 && <span className="notes">tick label keys on Govern first</span>}
         {err && <span className="warn">{err}</span>}
+        {stampErr && <span className="warn">{stampErr}</span>}
+        {stampBusy && stampTick && (
+          <span className="notes">
+            {stampTick.phase || 'working'} · {stampTick.done ?? 0}/{stampTick.total ?? '…'}
+          </span>
+        )}
       </div>
       {res && (
         <p className="summary ok">
@@ -1482,6 +1519,27 @@ function LabelsCard({ rows, authBody }) {
           {res.existing.length > 0 && <> · already in PDC: {res.existing.map((s) => <code key={s.key} style={{ marginRight: '.3rem' }}>{s.key}</code>)}</>}
           {res.no_values.length > 0 && <> · no derived values on this grid: {res.no_values.join(', ')}</>}
         </p>
+      )}
+      {stamp && (
+        <>
+          <p className={`summary ${stamp.unresolved?.length || stamp.mismatches?.length || stamp.missing_families?.length ? '' : 'ok'}`}>
+            {stamp.dry_run
+              ? <><b>{stamp.planned}</b> of {stamp.total_columns} column(s) ready to stamp</>
+              : <><b>{stamp.stamped}</b> of {stamp.total_columns} column(s) stamped ✓</>}
+            {(stamp.missing_families?.length ?? 0) > 0 &&
+              <> · not in PDC yet (run Create first): {stamp.missing_families.join(', ')}</>}
+            {(stamp.unresolved?.length ?? 0) > 0 &&
+              <> · no matching entity: {stamp.unresolved.slice(0, 4).join(', ')}{stamp.unresolved.length > 4 ? '…' : ''}</>}
+          </p>
+          {(stamp.mismatches?.length ?? 0) > 0 && (
+            <p className="summary warn">
+              value not in the PDC family (drifted — delete the label in PDC and re-Create, or fix its values):{' '}
+              {stamp.mismatches.slice(0, 5).map((m, i) => (
+                <code key={i} style={{ marginRight: '.3rem' }}>{m.key}={m.value} ({m.term})</code>
+              ))}{stamp.mismatches.length > 5 ? '…' : ''}
+            </p>
+          )}
+        </>
       )}
     </section>
   )
