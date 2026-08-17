@@ -261,7 +261,7 @@ const rowLLM = (r) => r.LLM_Enriched === 'Yes' || LLM_FIELD_FLAGS.some((f) => r[
 
 // `names` is the seed-request focus filter (Set of lowercased term names) —
 // only the Policy Generator banner's "Show these terms" sets it.
-const EMPTY_FILTERS = { q: '', cat: '', sev: '', conf: '', tag: '', pii: false, kept: false, names: null }
+const EMPTY_FILTERS = { q: '', cat: '', sev: '', conf: '', tag: '', det: '', pii: false, kept: false, names: null }
 
 export default function ReviewPage({ onNavigate }) {
   const ws = useWorkspace()
@@ -461,6 +461,11 @@ export default function ReviewPage({ onNavigate }) {
       if (filters.sev && r.Sensitivity !== filters.sev) return
       if (filters.conf && r.Confidence !== filters.conf) return
       if (filters.tag && !splitList(r.Suggested_Tags).includes(filters.tag)) return
+      // "please also check the map only Terms" — one click filters to the
+      // mapping-only rows so flip-to-Auto candidates (pH, payment dates,
+      // lead ppb) can be reviewed as a set
+      if (filters.det === 'mapping' && r.Detection_Intent !== 'mapping_only') return
+      if (filters.det === 'auto' && r.Detection_Intent === 'mapping_only') return
       if (filters.pii && !r.PII_Category) return
       if (filters.kept && !truthy(r.Keep)) return
       if (filters.names && !filters.names.has(String(r.Term || '').trim().toLowerCase())) return
@@ -1866,6 +1871,11 @@ export default function ReviewPage({ onNavigate }) {
             <select value={filters.conf} onChange={(e) => setFilters((f) => ({ ...f, conf: e.target.value }))} aria-label="Confidence filter">
               <option value="">All confidence</option>
               <option>High</option><option>Medium</option><option>Low</option>
+            </select>
+            <select value={filters.det || ''} onChange={(e) => setFilters((f) => ({ ...f, det: e.target.value }))} aria-label="Detection filter">
+              <option value="">All detection</option>
+              <option value="auto">Auto</option>
+              <option value="mapping">Mapping-only</option>
             </select>
             <select value={filters.tag} onChange={(e) => setFilters((f) => ({ ...f, tag: e.target.value }))} aria-label="Tag filter">
               <option value="">All tags</option>

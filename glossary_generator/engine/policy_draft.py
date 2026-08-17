@@ -29,9 +29,36 @@ _DICT_CONFIDENCE = {"+": [
     {"*": [{"var": "similarity"}, 0.8]},
     {"*": [{"var": "metadataScore"}, 0.2]},
 ]}
-_DICT_CONDITION = {"or": [
-    {">=": [{"var": "confidenceScore"}, "0.6"]},
-    {">=": [{"var": "metadataScore"}, "0.7"]},
+_DICT_CONDITION = {"and": [
+    # the shipped Pentaho "Personal Data Identifier" template's exact shape —
+    # (confidence OR name-hint) AND a cardinality guard. The template guards
+    # at > 5; ours mints dictionaries from the column's OWN profiled
+    # vocabulary (2..12 distinct), so > 1 mirrors the mint's enum floor
+    # without vetoing a legitimate 3-value LOW/MEDIUM/HIGH.
+    {"or": [
+        {">=": [{"var": "confidenceScore"}, "0.6"]},
+        {">=": [{"var": "metadataScore"}, "0.7"]},
+    ]},
+    {">": [{"var": "columnCardinality"}, "1"]},
+]}
+
+# Name-anchored measure rules (steward flipped a mapping-only nature to Auto):
+# the content shape carries SANITY only — the range lives in the DQ rule — so
+# identity must come from the column name. The weights rebalance to name 0.5 +
+# content regex 0.5: under the standard 0.3/0.4/0.3 blend a rule with no
+# contentPatterns can never clear the 0.7 gate (0.3 + 0.3 = 0.6), while 0.5/0.5
+# makes the rule a strict name AND shape conjunction — neither alone reaches 0.7.
+_DATE_SHAPE = r"^\d{4}-\d{2}-\d{2}([T ].*)?$|^\d{1,2}/\d{1,2}/\d{2,4}$"  # mirrors the profiler's date kind
+_NUM_SHAPE = r"^-?[0-9]+(\.[0-9]+)?$"
+_NAME_ANCHOR_WEIGHTS = (0.5, 0.0, 0.5)
+# regexScore is NOT a PDC condition variable (only confidenceScore,
+# metadataScore, similarity, columnCardinality are) — so the name-AND-shape
+# conjunction can only live in the blended confidenceScore, which is what the
+# 0.5/0/0.5 weights do. The cardinality guard is PDC's own template guard: a
+# constant or near-constant column can never satisfy a sanity shape.
+_NAME_ANCHOR_CONDITION = {"and": [
+    {">=": [{"var": "confidenceScore"}, "0.7"]},
+    {">": [{"var": "columnCardinality"}, "5"]},
 ]}
 
 
@@ -89,7 +116,19 @@ def _tags_of(r, limit=3):
     return [t for t in tags if t not in skip][:limit]
 
 
-def _pattern_rule(name, category, col_rx, signature, content_rx, tags, term):
+def _pattern_rule(name, category, col_rx, signature, content_rx, tags, term,
+                  weights=None, condition=None):
+    w_name, w_pat, w_rx = weights or (0.3, 0.4, 0.3)
+    if weights is None:
+        conf = _PATTERN_CONFIDENCE
+    else:
+        # the confidence blend must mirror the weight fields — a rebalanced
+        # rule keeping the stock 0.3/0.4/0.3 formula could never fire
+        parts = [{"*": [{"var": "metadataScore"}, w_name]}]
+        if w_pat:
+            parts.append({"*": [{"var": "patternScore"}, w_pat]})
+        parts.append({"*": [{"var": "regexScore"}, w_rx]})
+        conf = {"+": parts}
     rule = {
         "__typename": "patternsRules",
         "type": "Pattern",
@@ -97,13 +136,13 @@ def _pattern_rule(name, category, col_rx, signature, content_rx, tags, term):
         "category": category,
         "status": "enabled",
         "columnNameRegex": ([{"regex": col_rx, "score": 1.0}] if col_rx else []),
-        "columnNameWeight": 0.3,
+        "columnNameWeight": w_name,
         "contentPatterns": ([{"pattern": signature}] if signature else []),
-        "contentPatternWeight": 0.4,
+        "contentPatternWeight": w_pat,
         "contentRegex": [{"regex": content_rx}],
-        "contentRegexWeight": 0.3,
-        "confidenceScore": _PATTERN_CONFIDENCE,
-        "condition": _PATTERN_CONDITION,
+        "contentRegexWeight": w_rx,
+        "confidenceScore": conf,
+        "condition": condition or _PATTERN_CONDITION,
         "actions": [{"applyTags": [{"k": t} for t in tags]}] if tags else [],
     }
     if term:
@@ -411,17 +450,42 @@ def draft_from_rows(rows, glossary_name="Business Glossary", prefix=None,
                 skipped.append({"term": term, "why": "document term — identify documents with vocabulary dictionaries, not value shapes"})
                 continue
             elif not sig and not (r.get("Enum_Values") or "").strip():
-                if _no_value_shape(_cols_of(r)):
+                # NAME-ANCHORED MEASURE: the steward flipped this row to Auto
+                # despite its nature (a date, a bounded measure like pH or
+                # Lead ppb). The range alone never discriminates - every
+                # 1-10 rating matches "0-14" - but PDC's blended scoring
+                # makes name + shape TOGETHER a legitimate rule: column-name
+                # regex carries identity, content regex carries sanity
+                # (date shape, or numeric shape with the range in DQ).
+                # Only an EXPLICIT Auto choice reaches here; the nature
+                # default stays mapping-only ("Im also sure some of these
+                # can be auto ... pH level can only go to 14").
+                _rng = str(r.get("Value_Range") or "").strip()
+                _vk = str(r.get("Value_Kind") or "").strip().lower()
+                if ((_rng or _vk == "date")
+                        and column_name_regex(_col_names(r))):
+                    # the nature classes default these to mapping-only, and
+                    # mapping-only rows never reach this ladder — so an Auto
+                    # row here IS the steward's explicit flip, and it
+                    # overrides the _NO_SHAPE name heuristic (payment_date
+                    # has "date" in its name by definition). No name regex
+                    # -> no anchor -> still a skip.
+                    vp = _DATE_SHAPE if _vk == "date" else _NUM_SHAPE
+                    seed_kind = "name-anchored"
+                elif _no_value_shape(_cols_of(r)):
                     skipped.append({"term": term, "why": "tagged via the term↔column link, not a value pattern — a surrogate id / date / name / amount has no value shape to detect (expected)"})
+                    continue
                 elif kind == "date":
                     skipped.append({"term": term, "why": "recognised as date values — every date column matches a date shape, so a date Data Pattern would over-match; dates are tagged via the term↔column link (expected)"})
+                    continue
                 elif _was_profiled(r):
                     # the row WAS profiled — telling the steward to re-scan
                     # is wrong advice; the values simply induce no shape
                     skipped.append({"term": term, "why": "profiled, but the values induce no shape (numeric or free-form content) — add a curated seed for this term to the domain pack if it should be detectable"})
+                    continue
                 else:
                     skipped.append({"term": term, "why": "no profiled evidence on the row — re-scan the live source with value profiling on to induce a custom pattern, or add a curated seed for this term to the domain pack"})
-                continue
+                    continue
             else:
                 skipped.append({"term": term, "why": "no stable shape in the data (free text, names, amounts, dates)"})
                 continue
@@ -441,7 +505,10 @@ def draft_from_rows(rows, glossary_name="Business Glossary", prefix=None,
                 "filename": f"{_slug(prefix)}_{_slug(term)}.json",
                 "term": term,
                 "seed": seed_kind,
-                "rule": _pattern_rule(name, category, col_rx, sig, vp, tags, term),
+                "rule": _pattern_rule(
+                    name, category, col_rx, sig, vp, tags, term,
+                    weights=_NAME_ANCHOR_WEIGHTS if seed_kind == "name-anchored" else None,
+                    condition=_NAME_ANCHOR_CONDITION if seed_kind == "name-anchored" else None),
             })
         else:
             dictionaries.append({

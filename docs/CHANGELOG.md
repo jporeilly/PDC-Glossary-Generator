@@ -14,6 +14,49 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.38.14] - 2026-08-17
+
+### Added - the steward's Auto flip is honoured with a name-anchored rule
+
+"Im also sure some of these mappings can be auto ... pH level can only go
+to 14?, payment date, will have a pattern" - correct, and the discriminator
+is name + shape TOGETHER, which is exactly what PDC's blended scoring can
+express. Design cross-checked two ways before landing: against PDC's own
+docs (the confidence formula, the shipped Personal Data Identifier
+template) and against the industry (Purview's own Date-of-Birth classifier
+is column-name-only; Informatica's "match data AND column name" mode is
+the same conjunction; no surveyed product uses a numeric range as
+identification evidence - ranges live in DQ everywhere).
+
+- **Name-anchored measure rules**: a row whose nature defaulted to
+  mapping-only (a date, a bounded measure) that the steward flips to Auto
+  now mints a Data Pattern instead of landing in the skips: the column-name
+  regex carries identity, a sanity shape carries content (the profiler's
+  date union for dates, `^-?[0-9]+(\.[0-9]+)?$` for measures), and the
+  RANGE still rides the DQ rule where it belongs.
+- **Weights rebalance to 0.5 name / 0.5 regex** for this form - under the
+  stock 0.3/0.4/0.3 blend a rule with no contentPatterns can never clear
+  the 0.7 gate (0.3 + 0.3 = 0.6). And since regexScore is NOT a PDC
+  condition variable, the blend is the only place the name-AND-shape
+  conjunction can live: neither name alone nor shape alone reaches 0.7.
+- **columnCardinality guards** (from Pentaho's shipped template): the
+  name-anchored condition requires cardinality > 5 - a constant column can
+  never satisfy a sanity shape; dictionary conditions now carry the
+  template's exact (confidence OR name-hint) AND cardinality shape,
+  guarded at > 1 to match the enum floor instead of the template's > 5
+  (which would veto a legitimate 3-value LOW/MEDIUM/HIGH).
+- **Review page Detection filter** (All / Auto / Mapping-only) in the
+  filter row - "please also check the map only Terms" is now one click:
+  filter to Mapping-only, flip the pH/payment-date/lead-class rows, and
+  the next draft honours them. Render-verified live: 3 mapping-only and
+  2 Auto rows partition a 5-row grid correctly both ways.
+- The nature DEFAULT stays mapping-only - the safe posture is unchanged;
+  only an explicit steward flip mints the name-anchored form. A flipped
+  row with no derivable column-name regex still skips: no anchor, no rule.
+
+Suite grows to 341 (name-anchored mint pins, dictionary-template pin,
+and the date-kind pin rewritten for the flip semantics).
+
 ## [1.38.13] - 2026-08-15
 
 ### Fixed - the recognised kinds learn their manners

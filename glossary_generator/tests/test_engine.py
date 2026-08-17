@@ -375,16 +375,24 @@ class TestPolicyDraft:
         assert RX_EMAIL.pattern in blob, \
             "the rule carries the profiler's own shape — one definition"
 
-    def test_date_kind_stays_link_only(self):
-        """A date Data Pattern would match every date column in the estate —
-           date-kind rows stay tagged via the term↔column link, with the
-           reason saying exactly that."""
+    def test_date_kind_never_mints_bare_date_pattern(self):
+        """A BARE date Data Pattern would match every date column in the
+           estate. The nature default keeps dates mapping-only; a date row
+           arriving Auto is the steward's explicit flip and mints the
+           name-anchored form — identity on the column name, the date shape
+           as sanity only — never a bare date shape."""
         rows = [_row("Effective", "awc.rates.effective",
                      Suggested_Reason="LLM: when the rate starts",
+                     Value_Kind="date", Detection_Intent="mapping_only"),
+                _row("Payment Date", "awc.payments.payment_date",
                      Value_Kind="date")]
         art = policy_draft.draft_from_rows(rows, prefix="AWC")
-        why = {s["term"]: s["why"] for s in art["skipped"]}
-        assert "would over-match" in why.get("Effective", ""), why
+        assert [m["term"] for m in art["mapping_only"]] == ["Effective"]
+        pats = {p["term"]: p for p in art["patterns"]}
+        assert set(pats) == {"Payment Date"}
+        rule = pats["Payment Date"]["rule"][0]
+        assert rule["columnNameRegex"], "the mint must ride the name anchor"
+        assert rule["columnNameWeight"] == 0.5
 
     def test_draft_zips_into_import_bundle(self):
         import io
@@ -838,3 +846,85 @@ class TestMappingOnlySkipsNothing:
         skip_terms = [s["term"] for s in d["skipped"]]
         assert "Service Start Date" not in skip_terms
         assert "Notes Text" in skip_terms, "evidence-less Auto rows still report honestly"
+
+
+class TestNameAnchoredMeasureRules:
+    """A steward-flipped Auto row with a date kind or a numeric range must be
+    honoured with a name-anchored rule, not dumped in the skips ("Im also sure
+    some of these mappings can be auto ... pH level can only go to 14"). The
+    content shape is sanity only - identity rides the column name, the range
+    rides the DQ rule - and the weights must rebalance to 0.5/0/0.5 because a
+    rule with no contentPatterns can never clear 0.7 under the stock blend."""
+
+    def test_flipped_date_mints_name_anchored_pattern(self):
+        from engine import policy_draft
+        import re
+        rows = [_row("Payment Date", "awc.payments.payment_date",
+                     Critical_Data_Element="No", PII_Category="",
+                     Value_Kind="date", Detection_Intent="")]
+        d = policy_draft.draft_from_rows(rows, glossary_name="X")
+        assert [p["term"] for p in d["patterns"]] == ["Payment Date"]
+        p = d["patterns"][0]
+        assert p["seed"] == "name-anchored"
+        rule = p["rule"][0]
+        assert rule["columnNameWeight"] == 0.5
+        assert rule["contentPatternWeight"] == 0.0
+        assert rule["contentRegexWeight"] == 0.5
+        assert rule["columnNameRegex"], "no name anchor would over-match every date column"
+        crx = rule["contentRegex"][0]["regex"]
+        assert re.match(crx, "2026-05-14") and re.match(crx, "5/14/2026")
+        assert not re.match(crx, "not a date")
+        import json
+        conf = json.dumps(rule["confidenceScore"])
+        assert "patternScore" not in conf, "zero-weight term must leave the blend"
+        # regexScore is not a PDC condition variable, so the name-AND-shape
+        # conjunction lives in the blend; the condition adds PDC's own
+        # template guard - a constant column can never satisfy a sanity shape
+        cond = json.dumps(rule["condition"])
+        assert "columnCardinality" in cond, cond
+        assert "Payment Date" not in [s["term"] for s in d["skipped"]]
+
+    def test_dictionary_condition_matches_pdc_template(self):
+        """The shipped Pentaho Personal Data Identifier template wraps the
+        (confidence OR name-hint) branch with a cardinality guard - our
+        dictionaries carry the same shape, guarded at > 1 to match the
+        enum floor instead of the template's > 5 (which would veto a
+        legitimate 3-value LOW/MEDIUM/HIGH vocabulary)."""
+        from engine import policy_draft
+        import json
+        rows = [_row("Risk Rating", "cscu_core.kyc.risk_cd",
+                     Critical_Data_Element="No", PII_Category="",
+                     Enum_Values="LOW;MEDIUM;HIGH")]
+        d = policy_draft.draft_from_rows(rows, glossary_name="X")
+        rule = d["dictionaries"][0]["rule"][0]
+        cond = json.dumps(rule["condition"])
+        assert "columnCardinality" in cond, cond
+        assert '"or"' in cond and '"and"' in cond, cond
+
+    def test_flipped_measure_mints_numeric_sanity_rule(self):
+        from engine import policy_draft
+        import re
+        rows = [_row("pH Level", "awc.water_quality.ph_level",
+                     Critical_Data_Element="No", PII_Category="",
+                     Value_Range="6.1..8.4", Detection_Intent="")]
+        d = policy_draft.draft_from_rows(rows, glossary_name="X")
+        assert [p["term"] for p in d["patterns"]] == ["pH Level"]
+        rule = d["patterns"][0]["rule"][0]
+        crx = rule["contentRegex"][0]["regex"]
+        assert re.match(crx, "7.2") and re.match(crx, "-3")
+        assert not re.match(crx, "acidic"), "the RANGE lives in DQ; the rule only asserts numeric shape"
+
+    def test_default_natures_still_divert_and_skip(self):
+        """The mint fires ONLY on the explicit flip: mapping-only rows divert
+        before the ladder, and Auto rows without range/date evidence skip."""
+        from engine import policy_draft
+        rows = [_row("Collected Date", "awc.samples.collected_date",
+                     Critical_Data_Element="No", PII_Category="",
+                     Value_Kind="date", Detection_Intent="mapping_only"),
+                _row("Recommended Action", "awc.alerts.recommended_action",
+                     Critical_Data_Element="No", PII_Category="",
+                     Detection_Intent="")]
+        d = policy_draft.draft_from_rows(rows, glossary_name="X")
+        assert d["patterns"] == []
+        assert [m["term"] for m in d["mapping_only"]] == ["Collected Date"]
+        assert "Recommended Action" in [s["term"] for s in d["skipped"]]
