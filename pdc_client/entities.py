@@ -357,6 +357,11 @@ def _profile_from_pdc(pinfo):
 
     # patternAnalysis: shape+sample pairs. Samples are REAL values - the value
     # list for a low-cardinality column, recognised-kind evidence for the rest
+    lex = []
+    for k in ("lexicalMin", "lexicalMax"):
+        v = stats.get(k)
+        if isinstance(v, str) and v.strip():
+            lex.append(v.strip())
     pa = pinfo.get("patternAnalysis") or {}
     pats = ((pa.get("patterns") if isinstance(pa, dict) else None)
             or pinfo.get("patterns"))
@@ -371,15 +376,41 @@ def _profile_from_pdc(pinfo):
             rx = _shape_regex(str(it.get("pattern") or ""), str(it.get("sample") or ""))
             if rx:
                 shapes.append((rx, float(it.get("counter") or 0)))
+    # lexicalMin/Max are true values on string columns and often recover the
+    # value a one-sample-per-shape listing missed (pump_status: Running and
+    # Stopped share one shape, so patterns carried only one of them)
+    for v in lex:
+        if v not in samples:
+            samples.append(v)
     if samples:
         out["samples"] = samples
     high_card = bool(stats.get("isHighCardinality"))
-    if (samples and not high_card
+    if (len(samples) >= 2 and not high_card
             and distinct is not None and 2 <= distinct <= 12
             and (out.get("uniq") is None or out["uniq"] < 0.95)):
         # the samples may be PARTIAL (one per shape group) - still a usable
-        # candidate list; the suggester's gates decide what it becomes
+        # candidate list; the suggester's gates decide what it becomes.
+        # len >= 2: a single sample is NOT a value list, and claiming it
+        # blocked the zips' perfectly good ddddd pattern (field-caught)
         out["enum"] = sorted(samples)[:12]
+
+    # recognised kinds from the samples themselves: shape-multiplicity broke
+    # email (9 shapes, none at 90% coverage) even though every sample is
+    # plainly an email. Canonical RXs duplicated from the suggester on
+    # purpose - pdc_client stays standalone.
+    if samples and "kind" not in out:
+        import re as _re
+        _KIND_RX = {
+            "email": _re.compile(r"^[^@\s]+@[^@\s]+\.[A-Za-z]{2,}$"),
+            "phone": _re.compile(r"^\+?[0-9][0-9()\-. ]{6,}[0-9]$"),
+            "zip": _re.compile(r"^[0-9]{5}(-[0-9]{4})?$"),
+            "ssn": _re.compile(r"^[0-9]{3}-[0-9]{2}-[0-9]{4}$"),
+        }
+        for kind_name, rx in _KIND_RX.items():
+            hits = sum(1 for s in samples if rx.match(s))
+            if hits >= max(2, int(0.8 * len(samples))):
+                out["kind"] = kind_name
+                break
     # a shape only counts as a DETECTION pattern when it discriminates:
     # digits or literal separators. Word-shapes ("Aaaaa Aaaaa") match every
     # sentence in the estate, and a value list beats a shape anyway.
@@ -402,7 +433,7 @@ def _profile_from_pdc(pinfo):
         rx = first if not isinstance(first, dict) else (
             first.get("regex") or first.get("expression") or first.get("value"))
         rx = "" if rx is None else str(rx).strip()
-        if rx and any(ch in rx for ch in "^$[]\+*?{}") and len(rx) <= 400:
+        if rx and any(ch in rx for ch in "^$[]\\+*?{}") and len(rx) <= 400:
             out["pattern"] = rx
             out.setdefault("kind", "code")
 

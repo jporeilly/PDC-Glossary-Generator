@@ -14,6 +14,34 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.38.12] - 2026-08-15
+
+### Fixed - the 48-skip draft named its own causes; all four fixed
+
+Live payloads for each named miss, then structural fixes - nothing
+estate-specific (canonical class shapes and payload semantics only;
+customer knowledge stays in the domain pack):
+
+- **Recognised kinds from samples**: shape-multiplicity broke email (nine
+  shapes, none at 90% coverage) even though every sample is plainly an
+  email. When >=80% of a column's own samples match a canonical class
+  shape (email/phone/zip/ssn), the kind is set and the drafter mints the
+  recognised custom pattern - the harvest path finally has the same
+  recognised-kind power the direct scan always had.
+- **A single sample is not a value list**: the one-value "enum" ['85122']
+  claimed the zips and blocked their perfectly good ddddd pattern. Enum
+  now requires two distinct samples.
+- **lexicalMin/Max recover missed values**: Running and Stopped share one
+  shape, so the one-sample-per-shape listing carried only one; the
+  lexical bounds are true values on string columns and complete the
+  pair. True single-value columns stay quiet.
+- **bigint is numeric**: the word-boundary regex missed bigint/int8, so
+  population_served-class columns never inherited the free-numeric
+  mapping-only default.
+
+All pinned with the live shapes. Comma-list columns (service_cities) and
+single-value columns stay honestly skipped.
+
 ## [1.38.11] - 2026-08-15
 
 ### Fixed - found by running the workflow end to end

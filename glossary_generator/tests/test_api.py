@@ -690,6 +690,53 @@ class TestPdcProfilingRealShapes:
         assert prof["min"] == 1001 and prof["max"] == 1010
 
 
+class TestPdcProfilingKindRecovery:
+    """The 48-skip draft named these exactly (2026-08-15 live payloads):
+       shape-multiplicity broke email, a one-sample enum blocked the zips'
+       pattern, and lexicalMin/Max carry values the one-sample-per-shape
+       listing missed."""
+
+    def _pi(self, patterns, card, uniq, lex=None):
+        stats = {"rowCount": 10, "nullCount": 0, "density": 100,
+                 "uniqueness": uniq, "isHighCardinality": False}
+        if lex:
+            stats["lexicalMin"], stats["lexicalMax"] = lex
+        return {"bindType": "STRING", "dataSampling": {}, "stats": stats,
+                "bitsetCardinality": card,
+                "patternAnalysis": {"totalSamples": 10, "patterns": patterns}}
+
+    def test_email_kind_from_samples_despite_shape_multiplicity(self):
+        from pdc_client.entities import _profile_from_pdc
+        pats = [{"pattern": "a" * len(s.split("@")[0]) + "@aaaaa.aaa",
+                 "sample": s, "counter": 1}
+                for s in ("garcia@email.com", "smith@email.com", "retail@biz.com")]
+        prof = _profile_from_pdc(self._pi(pats, 10, 100))
+        assert prof["kind"] == "email"
+        assert "enum" not in prof
+
+    def test_single_sample_never_blocks_a_pattern(self):
+        from pdc_client.entities import _profile_from_pdc
+        prof = _profile_from_pdc(self._pi(
+            [{"pattern": "ddddd", "sample": "85122", "counter": 10}], 8, 80,
+            lex=("85120", "86351")))
+        assert prof["kind"] == "zip"
+        assert prof["enum"] == ["85120", "85122", "86351"],             "lexical bounds recover values the shapes missed"
+
+    def test_lexical_bounds_complete_a_two_value_vocabulary(self):
+        from pdc_client.entities import _profile_from_pdc
+        prof = _profile_from_pdc(self._pi(
+            [{"pattern": "Aaaaaaa", "sample": "Running", "counter": 10}], 2, 20,
+            lex=("Running", "Stopped")))
+        assert prof["enum"] == ["Running", "Stopped"]
+
+    def test_a_true_single_value_column_stays_quiet(self):
+        from pdc_client.entities import _profile_from_pdc
+        prof = _profile_from_pdc(self._pi(
+            [{"pattern": "Aaaaaa", "sample": "Active", "counter": 10}], 1, 20,
+            lex=("Active", "Active")))
+        assert "enum" not in prof and "pattern" not in prof
+
+
 class TestEntityStatsAreABaselineProfile:
     def test_metadata_stats_fill_the_profile_without_profiling_info(self, monkeypatch):
         """A live COLUMN dump showed the entity itself carries metadata.stats

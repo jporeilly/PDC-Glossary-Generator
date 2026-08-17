@@ -1462,8 +1462,10 @@ def _detection_intent(c, prof, pii):
         return "mapping_only"
     # free numeric measures: numeric type or numeric kind, with no format and
     # no coded vocabulary
+    # substring 'int' (interval excluded): \bint missed bigint/int8/smallint,
+    # so population_served-class columns never went quiet (field-caught)
     numericish = (kind in ("decimal",)
-                  or re.search(r"\bint|numeric|decimal|float|double|real|money", typ))
+                  or re.search(r"int(?!erval)|numeric|decimal|float|double|real|money|serial", typ))
     if numericish and not has_shape and not enum:
         return "mapping_only"
     return ""
