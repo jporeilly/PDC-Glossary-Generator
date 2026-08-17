@@ -14,6 +14,45 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.38.18] - 2026-08-17
+
+### Changed - the suggester carve: 3,144 lines become seven role modules
+
+Pure structural move, its own train so it stays bisectable from every
+behaviour change around it ("does the suggester getting too big. might be
+worth refactoring for the different roles?" - it was, and it did). The
+file's own section banners were the cut lines:
+
+- `sug_harvest` (441) - relational harvest: DDL/live schema walk, keys,
+  graph, sampling
+- `sug_profile` (266) - value profiling: signatures, induced patterns,
+  profile_live, discover
+- `sug_suggest` (994) - term suggestion: naming, categorising,
+  classify/define/tags/ratings, quality, detection intent, suggest()
+- `sug_docs` (963) - document store: MinIO/S3, harvest, previews, the
+  document DQ profiler and document term suggesters
+- `sug_links` (392) - enhance & links: glossary/source parsing,
+  deterministic ids, mapping policy, data-element links
+- `sug_generate` (308) - JSONL records + build/scan checks
+- `sug_shared` - cross-module constants (SENS_RANK/RANK_SENS relocated
+  here: they were the single edge making suggest→generate→links→suggest
+  a cycle)
+
+`suggester.py` remains the import surface - a facade re-exporting every
+public and single-underscore name (the same shim pattern sources/pdc_api.py
+uses over pdc_client), so no call site anywhere changed. Cross-module
+imports were derived by pyflakes on a simulated split before the real one.
+
+Caveat that matters: MONKEYPATCH THE OWNING MODULE - rebinding a name on
+the facade does not reach the module whose functions read it (exactly one
+test needed retargeting: CAT_KEYWORDS -> sug_suggest; api.py's
+`suggester._s3_client`/`_load_domain_pack` call sites read through the
+facade and stay patchable there).
+
+Verified beyond the suite (351): CLI imports, and the 24-check
+deterministic E2E against the live estate - scan → invariants → draft →
+bundle → labels → estate report - ALL PASS on the carved code.
+
 ## [1.38.17] - 2026-08-17
 
 ### Fixed - three guards from one morning's field walk

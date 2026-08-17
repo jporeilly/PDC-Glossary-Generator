@@ -1,11 +1,21 @@
 {
   "draft": {
-    "at": "2026-08-17T13:01:41",
-    "glossary": "AWC Verify",
+    "at": "2026-08-17T14:21:51",
+    "glossary": "E2E Glossary",
     "patterns": 4,
-    "dictionaries": 0,
-    "quality": 5,
-    "skipped": 0,
+    "dictionaries": 2,
+    "quality": 9,
+    "skipped": 3,
     "used_llm": false
+  },
+  "generate": {
+    "at": "2026-08-17T14:21:51",
+    "glossary": "E2E Glossary",
+    "lines": 17,
+    "kept": 14,
+    "categories": 2,
+    "terms": 14,
+    "registry": "C:\\Projects\\PDC-Glossary\\glossary_generator\\registries\\registry.5ccb1f0e-7f2e-5c4e-825b-c8950823902c.json",
+    "check_tone": "ok"
   }
 }

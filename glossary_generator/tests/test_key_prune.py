@@ -210,8 +210,11 @@ class TestDocumentColumnCategory:
        Water Quality, leaving two rows that can never merge (Category + Term)."""
 
     def _cats(self, monkeypatch, pairs):
-        from engine import suggester
-        monkeypatch.setattr(suggester, "CAT_KEYWORDS",
+        # patch the OWNING module — categorize_column reads its own module's
+        # global, and a facade rebinding never reaches it (suggester.py is a
+        # re-export shim since the 1.38.18 carve)
+        from engine import sug_suggest, suggester
+        monkeypatch.setattr(sug_suggest, "CAT_KEYWORDS",
                             [("turbidity", "Water Quality"), ("chlorine", "Water Quality"),
                              ("system", "Water System")])
         return {c: suggester.categorize_column(c) for c in pairs}
@@ -229,9 +232,9 @@ class TestDocumentColumnCategory:
     def test_it_never_consults_table_category(self, monkeypatch):
         """TABLE_CATEGORY is keyed on table names; matching a column against it
            would categorise by accident."""
-        from engine import suggester
-        monkeypatch.setattr(suggester, "CAT_KEYWORDS", [])
-        monkeypatch.setitem(suggester.TABLE_CATEGORY, "customers", "Customer")
+        from engine import sug_suggest, suggester
+        monkeypatch.setattr(sug_suggest, "CAT_KEYWORDS", [])
+        monkeypatch.setitem(sug_suggest.TABLE_CATEGORY, "customers", "Customer")
         assert suggester.categorize_column("customers") is None
 
     def test_empty_input_is_safe(self):
