@@ -1210,6 +1210,7 @@ def lab_export(body: dict = Body(default={})):
        endpoint, hint}."""
     import base64
     import datetime
+    import re
     body = body or {}
     filename = (body.get("filename") or "").strip().replace("\\", "/").rsplit("/", 1)[-1]
     filename = "-".join(filename.split())      # spaces make `mc cp` keys awkward
@@ -1243,7 +1244,13 @@ def lab_export(body: dict = Body(default={})):
                     "(id or name): " + ", ".join(c.get("name", "?") for c in stores), 400)
     cfg = conn.get("config") or {}
     bucket = (body.get("bucket") or "pdc-exports").strip()
-    key = datetime.datetime.now().strftime("%Y%m%d-%H%M%S") + "-" + filename
+    # a caller whose filename is ALREADY timestamped (the generation archive)
+    # passes key_prefix for a browsable per-glossary path instead of a second
+    # timestamp: glossary/<slug>/<ts>-glossary-import.jsonl
+    key_prefix = re.sub(r"[^A-Za-z0-9/_-]+", "-",
+                        str(body.get("key_prefix") or "")).strip("/")
+    key = (key_prefix + "/" + filename) if key_prefix \
+        else datetime.datetime.now().strftime("%Y%m%d-%H%M%S") + "-" + filename
     ctype = (body.get("content_type") or "").strip() or suggester._guess_ctype(filename)
     try:
         s3 = suggester._s3_client(cfg)
@@ -4414,6 +4421,34 @@ def generate(body: dict = Body(default={})):
     except Exception:
         registry_path = None  # never let Registry authoring break the export
     check = suggester.glossary_build_check(rows, recs, name)
+    # ---- generation archive: every export lands in the app's own history,
+    # timestamped, and the download carries the SAME name — so "which file
+    # did I import?" is always answerable (field-caught: a pre-edit
+    # "glossary-import (n).jsonl" from Downloads went into PDC and the
+    # recategorisation silently didn't carry)
+    import glob as _glob
+    import time as _time
+    slug = suggester._slug(name)
+    archived, generations = None, []
+    try:
+        exp_dir = os.path.join(paths.state_dir(), "exports", slug)
+        os.makedirs(exp_dir, exist_ok=True)
+        archived = _time.strftime("%Y%m%d-%H%M%S") + "-glossary-import.jsonl"
+        # newline="" — the archive must be byte-identical to the download
+        # (Windows text mode would rewrite \n as \r\n)
+        with open(os.path.join(exp_dir, archived), "w", encoding="utf-8", newline="") as f:
+            f.write(jsonl)
+        files = sorted((os.path.basename(p) for p in
+                        _glob.glob(os.path.join(exp_dir, "*-glossary-import.jsonl"))),
+                       reverse=True)
+        for old in files[20:]:                      # keep the last 20 generations
+            try:
+                os.remove(os.path.join(exp_dir, old))
+            except OSError:
+                pass
+        generations = files[:5]
+    except Exception:
+        archived = None                             # never let archiving break the export
     _receipt("generate", glossary=name, lines=len(recs), kept=kept,
              categories=sum(1 for r in recs if r["type"] == "category"),
              terms=sum(1 for r in recs if r["type"] == "term"),
@@ -4421,10 +4456,26 @@ def generate(body: dict = Body(default={})):
     return {"jsonl": jsonl,
             "registry": registry_path,
             "check": check,
+            "archived": archived, "generations": generations, "slug": slug,
             "stats": {"glossary": name, "lines": len(recs),
                       "categories": sum(1 for r in recs if r["type"] == "category"),
                       "terms": sum(1 for r in recs if r["type"] == "term"),
                       "kept": kept, "dropped": len(rows) - kept}}
+
+
+@app.get("/api/exports/{gslug}/{fname}")
+def export_generation_download(gslug: str, fname: str):
+    """Download one archived generation. Names are basenames by construction;
+    anything path-like is refused."""
+    if any(ch in gslug + fname for ch in ("/", "\\", "..")):
+        return _err("bad name", 400)
+    path = os.path.join(paths.state_dir(), "exports", gslug, fname)
+    if not os.path.isfile(path):
+        return _err("no such generation", 404)
+    with open(path, "rb") as f:
+        data = f.read()
+    return Response(data, media_type="application/x-ndjson",
+                    headers={"Content-Disposition": f'attachment; filename="{fname}"'})
 
 # --------------------------------------------------------------------------- #
 #  Start/poll job endpoints (additive — the forward path for the React UI).

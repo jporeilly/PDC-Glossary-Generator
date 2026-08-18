@@ -87,6 +87,23 @@ class TestScanPipeline:
         lines = [json.loads(x) for x in out["jsonl"].splitlines() if x.strip()]
         assert {x["type"] for x in lines} >= {"category", "term"}
 
+    def test_generate_archives_each_generation(self, client):
+        """"i want to keep backed up versions" — every Generate writes a
+           timestamped copy into the app's own exports history, the download
+           carries that same name, and an archived generation is
+           re-downloadable byte-for-byte (field-caught: a pre-edit Downloads
+           file went into PDC and the recategorisation silently vanished)."""
+        scan = client.post("/api/scan", json={"ddl_text": self.DDL}).json()
+        out = client.post("/api/generate",
+                          json={"rows": scan["rows"], "glossary_name": "Archive G"}).json()
+        assert out["archived"] and out["archived"].endswith("-glossary-import.jsonl")
+        assert out["slug"] and out["archived"] in out["generations"]
+        got = client.get(f"/api/exports/{out['slug']}/{out['archived']}")
+        assert got.status_code == 200 and got.text == out["jsonl"]
+        # traversal-shaped names are refused, missing generations are honest
+        assert client.get(f"/api/exports/{out['slug']}/..%5Csecrets").status_code in (400, 404)
+        assert client.get(f"/api/exports/{out['slug']}/20200101-000000-glossary-import.jsonl").status_code == 404
+
     def test_data_elements_links(self, client):
         scan = client.post("/api/scan", json={"ddl_text": self.DDL}).json()
         out = client.post("/api/data-elements",

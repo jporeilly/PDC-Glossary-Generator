@@ -236,6 +236,10 @@ function GenerateCard({ rows, glossaryName, governance, settings, onNavigate, au
   const [gen, setGen] = usePersistentState('apply.gen', null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
+  // versioned backups: archive each generation to the lab MinIO (on when a
+  // lab connection exists); the result line names the key it landed under
+  const [archiveLab, setArchiveLab] = usePersistentState('apply.archiveLab', true)
+  const [genArch, setGenArch] = usePersistentState('apply.genArch', null)
   // PDC-tree preflight: what does PDC hold under this glossary that the
   // export no longer carries? Imports update terms in place but never REMOVE
   // categories, so earlier eras linger in the tree unless deleted first
@@ -406,10 +410,29 @@ function GenerateCard({ rows, glossaryName, governance, settings, onNavigate, au
     try {
       // include the Govern page's stewardship (shared workspace) when set —
       // same `governance` key the legacy UI sends to POST /api/generate
-      setGen(await apiPost('/api/generate', {
+      const d = await apiPost('/api/generate', {
         rows, glossary_name: glossaryName,
         ...(governance ? { governance } : {}),
-      }))
+      })
+      setGen(d)
+      // versioned backup: each generation ships to the lab MinIO under a
+      // per-glossary prefix, its already-timestamped name as the key —
+      // "i want to keep backed up versions in minIO". Failure is reported
+      // but never blocks the export.
+      if (archiveLab && labConn && d.archived) {
+        try {
+          const up = await apiPost('/api/lab-export', {
+            filename: d.archived, text: d.jsonl,
+            content_type: 'application/x-ndjson', connection: labConn,
+            key_prefix: `glossary/${d.slug || 'glossary'}`,
+          })
+          setGenArch({ ok: true, key: `${up.bucket}/${up.key}` })
+        } catch (e) {
+          setGenArch({ ok: false, error: e.message })
+        }
+      } else {
+        setGenArch(null)
+      }
     } catch (e) {
       setError(e.message)
     } finally {
@@ -512,13 +535,34 @@ function GenerateCard({ rows, glossaryName, governance, settings, onNavigate, au
           {busy ? 'Generating…' : `Generate JSONL (${kept})`}
         </button>
         {gen && (
-          <button className="ghost" onClick={() => downloadBlob(gen.jsonl, 'glossary-import.jsonl', 'application/x-ndjson')}>
-            ⬇ Download {gen.stats?.glossary || 'glossary'}.jsonl
+          <button className="ghost"
+                  onClick={() => downloadBlob(gen.jsonl, gen.archived || 'glossary-import.jsonl', 'application/x-ndjson')}
+                  title="The download carries the generation's timestamped name — the filename IS the version, so a stale file in Downloads can never masquerade as the current one.">
+            ⬇ Download {gen.archived || `${gen.stats?.glossary || 'glossary'}.jsonl`}
           </button>
         )}
         {gen && labExportControls('jsonl')}
+        <label className="rv-cbx" title="Back up every generation to the lab MinIO automatically — bucket pdc-exports, key glossary/<name>/<timestamp>. Off = local archive only.">
+          <input type="checkbox" checked={archiveLab} disabled={!labConn}
+                 onChange={(e) => setArchiveLab(e.target.checked)} /> Back up generations to MinIO
+        </label>
         <button className="ghost" onClick={() => onNavigate('govern')}>← Govern &amp; stewardship</button>
       </div>
+      {gen?.archived && (
+        <p className="notes">
+          Archived as <code>{gen.archived}</code>
+          {genArch?.ok && <> · backed up to MinIO <code>{genArch.key}</code></>}
+          {genArch && !genArch.ok && <> · <span className="warn">MinIO backup failed: {genArch.error}</span></>}
+          {(gen.generations || []).length > 1 && (
+            <> · previous:{' '}
+              {gen.generations.slice(1).map((f) => (
+                <a key={f} href={`/api/exports/${gen.slug}/${f}`} style={{ marginRight: '.4rem' }}
+                   title="Download this earlier generation">{f.slice(0, 15)}…</a>
+              ))}
+            </>
+          )}
+        </p>
+      )}
       {gen && (
         <p className="summary">
           <b>{gen.stats.lines}</b> line(s) — <b>{gen.stats.categories}</b> categories,{' '}

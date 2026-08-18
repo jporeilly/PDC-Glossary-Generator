@@ -14,6 +14,32 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.38.21] - 2026-08-18
+
+### Added - every generation is a version: local archive + MinIO backup
+
+"i want to keep backed up versions in minIO" — and the morning's stale-
+import incident proved why: a pre-edit "glossary-import (n).jsonl" from
+Downloads went into PDC and looked identical to the fresh one.
+
+- **Generation archive**: every Generate writes a timestamped copy into
+  the app's own exports history (state dir, exports/<glossary>/
+  <ts>-glossary-import.jsonl, last 20 kept), the Generate card lists the
+  previous generations with re-download links, and the **Download button
+  carries the generation's timestamped name — the filename IS the
+  version**, so a stale file can never masquerade as the current one.
+  Byte-identical guarantee pinned (Windows text-mode \r\n rewrite caught
+  by the test).
+- **MinIO backup**: with the lab connection up, each generation ships
+  automatically to pdc-exports under a browsable per-glossary prefix
+  (glossary/<slug>/<timestamped-name>; lab-export gains key_prefix for
+  already-stamped filenames), with an on-by-default toggle and the landed
+  key named on the card. Backup failure is reported, never blocks the
+  export. Verified live: archive line, timestamped download, and the real
+  object landing in the lab MinIO.
+
+Suite 355.
+
 ## [1.38.20] - 2026-08-18
 
 ### Added - the existing-terms check fingerprints the CATEGORY
