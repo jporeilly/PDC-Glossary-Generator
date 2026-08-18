@@ -467,11 +467,35 @@ export default function ReviewPage({ onNavigate }) {
 
   /* ---------- filtering + clustering ---------- */
 
+  // FROZEN WHILE TYPING (membership too). Grouping already froze mid-edit,
+  // but FILTER membership still read the live row — so with the category
+  // filter set to "Customer Management", the first keystroke into a row's
+  // Category cell made the row stop matching, unmount, and take the input
+  // with it (field-caught: "the focus is lost and the Category is blank").
+  // While focus is inside the grid, membership is judged on the snapshot
+  // taken at edit start; the re-filter applies on the way out.
+  const [gridEditing, setGridEditing] = useState(false)
+  const frozenRowsRef = useRef(rows)
+  const onGridFocusIn = useCallback((e) => {
+    const t = e.target
+    if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT')) {
+      setGridEditing((was) => {
+        if (!was) frozenRowsRef.current = rowsRef.current
+        return true
+      })
+    }
+  }, [])
+  const onGridFocusOut = useCallback((e) => {
+    if (!e.currentTarget.contains(e.relatedTarget)) setGridEditing(false)
+  }, [])
+
   const shown = useMemo(() => {
     const q = filters.q.trim().toLowerCase()
     const out = []
-    rows.forEach((r, i) => {
-      if (!r) return
+    const judge = gridEditing ? frozenRowsRef.current : rows
+    rows.forEach((liveRow, i) => {
+      if (!liveRow) return
+      const r = judge[i] || liveRow
       if (filters.cat && r.Category !== filters.cat) return
       if (filters.sev && r.Sensitivity !== filters.sev) return
       if (filters.conf && r.Confidence !== filters.conf) return
@@ -491,28 +515,13 @@ export default function ReviewPage({ onNavigate }) {
       out.push(i)
     })
     return out
-  }, [rows, filters])
+  }, [rows, filters, gridEditing])
 
-  // FROZEN WHILE TYPING. The duplicate clusters key on the row's own text, and
-  // that key ends up in the Fragment key of the row's subtree - so every
-  // keystroke in Term or Category renamed the React key, unmounted the input
-  // mid-word, and the cursor was gone: one letter at a time. Grouping now works
-  // from a snapshot taken when focus enters the grid and regroups on the way
-  // out, when losing the element costs nothing.
-  const [gridEditing, setGridEditing] = useState(false)
-  const frozenRowsRef = useRef(rows)
-  const onGridFocusIn = useCallback((e) => {
-    const t = e.target
-    if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT')) {
-      setGridEditing((was) => {
-        if (!was) frozenRowsRef.current = rowsRef.current
-        return true
-      })
-    }
-  }, [])
-  const onGridFocusOut = useCallback((e) => {
-    if (!e.currentTarget.contains(e.relatedTarget)) setGridEditing(false)
-  }, [])
+  // The duplicate clusters key on the row's own text, and that key ends up
+  // in the Fragment key of the row's subtree - so every keystroke in Term or
+  // Category renamed the React key, unmounted the input mid-word, and the
+  // cursor was gone: one letter at a time. Grouping works from the same
+  // frozen-while-typing snapshot the filter uses above.
   const groupingRows = gridEditing ? frozenRowsRef.current : rows
 
   const clusters = useMemo(() => {

@@ -14,6 +14,37 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.38.22] - 2026-08-18
+
+### Added / Fixed - glossary versions, and editing under a filter
+
+- **Saved-glossary versioning (copy-on-write)**: the FIRST edit after
+  loading a saved glossary archives the loaded state as a version — same
+  name, ORIGINAL savedAt, immutable — before the debounced autosave can
+  overwrite it ("the old Glossary is just timestamped and archived. still
+  there in the list"). One version per load-session (a harvest folding
+  into a loaded glossary counts, so the pre-harvest state is always
+  recoverable); the last 10 versions per glossary are kept. Home's Saved
+  glossaries table folds "N earlier version(s)" under each live row —
+  timestamped, openable, deletable. Opening a version loads it as a
+  working COPY (versions are immutable; saving the copy creates a new
+  entry via the collision suffix, and archived versions deliberately
+  don't participate in that suffix). Proven in the wild during
+  verification: the first sim edit to a loaded glossary minted its
+  version unprompted.
+- **Editing the field a filter matches on no longer evicts the row**
+  (field-caught: "when i go to type in the new Category the focus is
+  lost"): with the category filter set to Customer Management, the first
+  keystroke into a row's Category made the row stop matching, unmount,
+  and take the input with it. Grouping already froze mid-edit; FILTER
+  MEMBERSHIP now freezes on the same snapshot — while focus is inside
+  the grid, rows hold their place; the re-filter applies on the way out.
+  Verified per-keystroke: input alive and row held through a full
+  category rename under an active filter, row correctly re-filtered on
+  blur.
+
+Suite 357.
+
 ## [1.38.21] - 2026-08-18
 
 ### Added - every generation is a version: local archive + MinIO backup

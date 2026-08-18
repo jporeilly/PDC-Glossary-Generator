@@ -256,8 +256,22 @@ export function clearWorkspace() {
   emit()
 }
 
+let snapshotPending = false
+
 export function markDirty() {
   ws.dirty = true
+  // Copy-on-write versioning: the FIRST change after loading a saved
+  // glossary archives the loaded state as a timestamped version, BEFORE the
+  // debounced autosave can overwrite it ("the old Glossary is just
+  // timestamped and archived. still there in the list"). One version per
+  // load-session; failure never blocks editing.
+  if (ws.id && !ws.snapshotDone && !snapshotPending) {
+    snapshotPending = true
+    apiPost(`/api/glossaries/${ws.id}/snapshot`, {})
+      .then(() => { ws.snapshotDone = true })
+      .catch(() => {})
+      .finally(() => { snapshotPending = false })
+  }
   emit()
   scheduleSave()
 }
@@ -267,7 +281,11 @@ export function markDirty() {
 // Open a saved glossary: GET /api/glossaries/{id} -> {id, name, rows, …}.
 export async function openGlossary(id) {
   const g = await apiGet(`/api/glossaries/${id}`)
-  ws.id = g.id
+  // an archived VERSION opens as a working COPY: versions are immutable, so
+  // the id is dropped — the first save creates a fresh entry (the collision
+  // suffix makes the fork visible) and the version stays untouched
+  ws.id = g.archived ? null : g.id
+  ws.snapshotDone = !!g.archived
   ws.name = g.name || ''
   // Fall back to the saved-glossary name so the Govern "Glossary name" field is
   // pre-filled instead of blank when the glossary was saved without an explicit

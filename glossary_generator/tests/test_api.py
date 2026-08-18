@@ -937,6 +937,48 @@ class TestGlossarySaveNameCollision:
             client.delete(f"/api/glossaries/{gid}")
 
 
+class TestGlossaryVersionSnapshots:
+    """Copy-on-write versioning: the first edit after a load archives the
+       loaded state as a timestamped version — same name, ORIGINAL savedAt —
+       so the autosave can never silently destroy "the glossary as I loaded
+       it" ("the old Glossary is just timestamped and archived. still there
+       in the list")."""
+
+    def test_snapshot_archives_and_prunes(self, client):
+        rows = [_row("T1", "s.t.c1")]
+        live = client.post("/api/glossaries", json={"name": "Ver G", "rows": rows}).json()
+        s1 = client.post(f"/api/glossaries/{live['id']}/snapshot").json()
+        assert s1["snapshot"] and s1["savedAt"] == live["savedAt"]
+        lst = client.get("/api/glossaries").json()["glossaries"]
+        arch = [g for g in lst if g["archived"] and g["name"] == "Ver G"]
+        alive = [g for g in lst if not g["archived"] and g["name"] == "Ver G"]
+        assert len(arch) == 1 and len(alive) == 1
+        assert arch[0]["savedAt"] == live["savedAt"], "a version keeps the ORIGINAL timestamp"
+        assert client.post(f"/api/glossaries/{s1['snapshot']}/snapshot").status_code == 400, \
+            "versions are immutable"
+        assert client.post("/api/glossaries/nope/snapshot").status_code == 404
+        for _ in range(12):
+            client.post(f"/api/glossaries/{live['id']}/snapshot")
+        lst = client.get("/api/glossaries").json()["glossaries"]
+        assert len([g for g in lst if g["archived"] and g["name"] == "Ver G"]) == 10, \
+            "the last 10 versions are kept, the rest pruned"
+        for g in lst:
+            if g["name"] == "Ver G":
+                client.delete(f"/api/glossaries/{g['id']}")
+
+    def test_archived_versions_do_not_suffix_new_saves(self, client):
+        rows = [_row("T1", "s.t.c1")]
+        live = client.post("/api/glossaries", json={"name": "Ver H", "rows": rows}).json()
+        client.post(f"/api/glossaries/{live['id']}/snapshot")
+        client.delete(f"/api/glossaries/{live['id']}")
+        again = client.post("/api/glossaries", json={"name": "Ver H", "rows": rows}).json()
+        assert again["name"] == "Ver H", \
+            "only LIVE entries collide — versions share their glossary's name by design"
+        for g in client.get("/api/glossaries").json()["glossaries"]:
+            if g["name"] == "Ver H":
+                client.delete(f"/api/glossaries/{g['id']}")
+
+
 class TestPdcLabelAssignment:
     """The last wire, mapped live 2026-08-17: assignment is NOT GraphQL —
        PATCH /api/public/v3/entities/{id} with attributes.customProperties,

@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  <img alt="Version 1.38.21" src="https://img.shields.io/badge/version-1.38.21-0F766E">
+  <img alt="Version 1.38.22" src="https://img.shields.io/badge/version-1.38.22-0F766E">
   <img alt="Pentaho Data Catalog 11.0.0" src="https://img.shields.io/badge/Pentaho%20Data%20Catalog-11.0.0-1f6feb">
   <img alt="Public API v3" src="https://img.shields.io/badge/public%20API-v3-1f6feb">
   <img alt="Python 3.9+" src="https://img.shields.io/badge/python-3.9%2B-3776AB">
@@ -27,7 +27,7 @@
 
 ---
 
-**Version:** 1.38.21 · validated against Pentaho Data Catalog 11.0.0 (public API v3).
+**Version:** 1.38.22 · validated against Pentaho Data Catalog 11.0.0 (public API v3).
 
 > [!TIP]
 > **Quick start (Windows 11 host):** one command stands up the whole

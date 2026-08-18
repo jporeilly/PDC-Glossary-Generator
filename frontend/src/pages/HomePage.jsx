@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import { apiGet, apiDelete } from './../api.js'
 import { openGlossary, useWorkspace } from './../state.js'
 import WorkflowDiagram from './../components/WorkflowDiagram.jsx'
@@ -170,26 +170,61 @@ function SavedGlossaries({ onNavigate }) {
               </tr>
             </thead>
             <tbody>
-              {items.map((g) => (
-                <tr key={g.id} className="row-link" title={`Load ${g.name}`}
-                    onClick={() => busyId == null && load(g.id)}>
-                  <td className="mapping-link cell-clip">{busyId === g.id ? 'Loading…' : g.name}</td>
-                  <td className="cell-clip">
-                    {g.glossary_name
-                      ?? <span className="notes" title="Not named yet — set the Glossary name on the Govern page before Generate">—</span>}
-                  </td>
-                  <td className="num">{g.terms}</td>
-                  <td className="num">{g.kept}</td>
-                  <td>{g.has_discovery ? <span className="badge neutral">profile</span> : <span className="notes">—</span>}</td>
-                  <td className="notes">{g.savedAt}</td>
-                  <td>
-                    <button className="ghost" title="Delete this saved glossary"
-                            onClick={(e) => { e.stopPropagation(); remove(g.id) }}>
-                      ✕
-                    </button>
-                  </td>
-                </tr>
-              ))}
+              {/* live glossaries as rows; each one's archived VERSIONS
+                  (copy-on-write snapshots taken at the first edit after a
+                  load) fold underneath — "the old Glossary is just
+                  timestamped and archived. still there in the list" */}
+              {items.filter((g) => !g.archived).map((g) => {
+                const vers = items.filter((v) => v.archived
+                  && String(v.name || '').toLowerCase() === String(g.name || '').toLowerCase())
+                return (
+                  <Fragment key={g.id}>
+                    <tr className="row-link" title={`Load ${g.name}`}
+                        onClick={() => busyId == null && load(g.id)}>
+                      <td className="mapping-link cell-clip">{busyId === g.id ? 'Loading…' : g.name}</td>
+                      <td className="cell-clip">
+                        {g.glossary_name
+                          ?? <span className="notes" title="Not named yet — set the Glossary name on the Govern page before Generate">—</span>}
+                      </td>
+                      <td className="num">{g.terms}</td>
+                      <td className="num">{g.kept}</td>
+                      <td>{g.has_discovery ? <span className="badge neutral">profile</span> : <span className="notes">—</span>}</td>
+                      <td className="notes">{g.savedAt}</td>
+                      <td>
+                        <button className="ghost" title="Delete this saved glossary"
+                                onClick={(e) => { e.stopPropagation(); remove(g.id) }}>
+                          ✕
+                        </button>
+                      </td>
+                    </tr>
+                    {vers.length > 0 && (
+                      <tr key={g.id + '-vers'}>
+                        <td colSpan="7" style={{ paddingTop: 0 }}>
+                          <details>
+                            <summary className="notes" style={{ cursor: 'pointer' }}>
+                              {vers.length} earlier version(s)
+                            </summary>
+                            {vers.map((v) => (
+                              <div key={v.id} className="notes"
+                                   style={{ display: 'flex', gap: '.6rem', alignItems: 'center', padding: '.15rem 0 .15rem 1.1rem' }}>
+                                <span>saved {v.savedAt}</span>
+                                <span>· {v.terms} term(s), {v.kept} kept</span>
+                                <button className="ghost mini"
+                                        title="Open this version as a working COPY — versions are immutable; saving the copy creates a new entry, the version stays."
+                                        onClick={() => busyId == null && load(v.id)}>
+                                  {busyId === v.id ? 'Loading…' : 'Open copy'}
+                                </button>
+                                <button className="ghost mini" title="Delete this version"
+                                        onClick={() => remove(v.id)}>✕</button>
+                              </div>
+                            ))}
+                          </details>
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
+                )
+              })}
             </tbody>
           </table>
         </div>

@@ -1029,10 +1029,47 @@ def list_glossaries():
               "savedAt": v.get("savedAt"), "terms": len(v.get("rows", [])),
               "categories": len({r.get("Category") for r in v.get("rows", [])}),
               "kept": sum(1 for r in v.get("rows", []) if str(r.get("Keep", "Y")).lower() in ("y", "yes", "true", "1")),
+              "archived": bool(v.get("archived")), "archivedAt": v.get("archivedAt"),
               "has_discovery": bool(v.get("discovery"))}
              for k, v in g.items()]
     items.sort(key=lambda x: x.get("savedAt") or "", reverse=True)
     return {"glossaries": items}
+
+
+@app.post("/api/glossaries/{gid}/snapshot")
+def snapshot_glossary(gid: str):
+    """Copy-on-write versioning: archive the CURRENT stored state of a live
+    glossary as a timestamped version (same name, original savedAt kept).
+    Called by the UI at the FIRST dirtying edit after a load — the autosave
+    overwrites continuously, so the end of a session is too late to save
+    "the glossary as I loaded it". One version per load-session; the last
+    10 versions per name are kept."""
+    import datetime
+    try:
+        g = _load_gloss(strict=True)
+    except Exception as e:
+        return _err("glossary store unreadable (%s)" % e, 503)
+    src = g.get(gid)
+    if not isinstance(src, dict):
+        return _err("unknown glossary", 404)
+    if src.get("archived"):
+        return _err("already an archived version — versions are immutable", 400)
+    snap = json.loads(json.dumps(src))
+    sid = uuid.uuid4().hex[:12]
+    snap["id"] = sid
+    snap["archived"] = True
+    snap["archivedAt"] = datetime.datetime.now().isoformat(timespec="seconds")
+    g[sid] = snap
+    nm = str(src.get("name") or "").strip().lower()
+    same = sorted(((k, v) for k, v in g.items()
+                   if isinstance(v, dict) and v.get("archived")
+                   and str(v.get("name") or "").strip().lower() == nm),
+                  key=lambda kv: kv[1].get("archivedAt") or "", reverse=True)
+    for k, _v in same[10:]:
+        g.pop(k, None)
+    _save_gloss(g)
+    return {"snapshot": sid, "savedAt": snap.get("savedAt"),
+            "archivedAt": snap["archivedAt"]}
 
 @app.post("/api/glossaries")
 def save_glossary(body: dict = Body(default={})):
@@ -1054,8 +1091,11 @@ def save_glossary(body: dict = Body(default={})):
     # steward's call. Re-saves of an existing id keep their name untouched.
     if gid not in g:
         want = str(body.get("name") or "").strip()
+        # archived VERSIONS share the live glossary's name by design — only
+        # live entries participate in the collision suffix
         taken = {str(v.get("name") or "").strip().lower()
-                 for k, v in g.items() if isinstance(v, dict) and k != gid}
+                 for k, v in g.items()
+                 if isinstance(v, dict) and k != gid and not v.get("archived")}
         if want and want.lower() in taken:
             n = 2
             while f"{want} ({n})".lower() in taken:
