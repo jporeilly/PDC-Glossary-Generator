@@ -358,6 +358,10 @@ nudge per run.
 | `POST /api/draft-policies`  | draft PDC pattern/dictionary rules from detection seeds (`format=zip` downloads the bundle) |
 | `POST /api/pdc/labels-apply` | create the kept label families in PDC as data labels (custom properties over `/graphql`) — idempotent by name |
 | `POST /api/jobs/labels-stamp` | stamp label values onto column entities from the reviewed grid (dry_run default; read-merge-write PATCH per entity; poll `/api/jobs/{id}`) |
+| `POST /api/glossaries/{id}/snapshot` | archive a live glossary's stored state as an immutable timestamped version (copy-on-write — called at the first edit after a load; last 10 kept) |
+| `GET /api/exports/{glossary}/{file}` | download an archived generation from the app's exports history (every Generate writes one, timestamped) |
+| `POST /api/pdc/terms/existing` | Review-time cross-glossary check; with `terms:[{name,category}]` + `glossary_name` it fingerprints each term's CATEGORY against PDC's deterministic ids (stale import generations named) |
+| `POST /api/estate-report` | the closing report — now carries detection coverage (drafter buckets), evidence depth, DQ readiness, label families, estate footprint and stewardship alongside the handoff contract |
 | `POST /api/resolve-fuzzy`   | match outstanding (renamed) term names against PDC's real terms — similarity + AI adjudication |
 | `POST /api/export-pack`     | generate a domain pack from the reviewed scan results (merges over the installed pack; curated_seeds from induced patterns/enums) |
 | `POST /api/discovery-progress` | terminal-aware Data Discovery progress: per-entity profiled map + the discovery job's own status, so the Apply watcher stops when the worker finishes |

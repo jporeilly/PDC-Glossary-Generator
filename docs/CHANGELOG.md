@@ -14,6 +14,44 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.38.25] - 2026-08-18
+
+### Added - the Estate Report grows up: data-rich, explained, and honest
+### about Refresh
+
+"the report can be alot better and more data rich, with detailed
+explanations. Refresh doesnt seen to work."
+
+- **Six new report sections**, every number derived from the same rows and
+  artifacts (no new scans), each with its explanation in place:
+  **Detection coverage** (the drafter's own buckets — patterns by seed
+  kind, dictionaries, mapping-only by design, skips grouped by reason);
+  **Evidence depth** (formats / vocabularies / recognised kinds / numeric
+  ranges / signatures / none — with the range-is-DQ-not-identification
+  posture stated); **Data-quality readiness** (format, allowed-values and
+  range checks + the scan's quality scores, low scorers flagged);
+  **Label families** (PII Type tiers and friends, straight from the labels
+  engine); **Estate footprint** (columns / tables / schemas / document
+  columns); **Stewardship** (default steward, per-category overrides, kept
+  label keys — ReportPage now sends the governance block). The exported
+  HTML report carries all of it.
+- **Refresh tells you what it did**: busy state while compiling, a
+  "compiled HH:MM:SS" stamp after — recomputing over unchanged facts used
+  to look identical to doing nothing (field-read as "Refresh doesnt seen
+  to work"). Stale artifacts now get their own banner naming the artifact,
+  the reason, and a Regenerate-on-Apply link — with the honest note that
+  Refresh re-reads facts and cannot un-stale one.
+- Docs swept for 1.38.19-1.38.25: GUIDE gains saved-glossary versions,
+  session-held page state, generation versioning + MinIO backup, delta
+  apply and the rename/recategorise checklist (with the category-
+  fingerprint check); REFERENCE gains the snapshot/exports/terms-existing/
+  estate-report entries; WALKTHROUGH's import step carries the two
+  field-proven checkpoints.
+
+First BUILT installer to carry 1.38.24's seed-ladder unification (that
+release was committed by the Policy Generator session without a build).
+Suite 369.
+
 ## [1.38.24] - 2026-08-18
 
 ### Fixed - the Registry now carries what the drafter mints (one seed ladder)

@@ -937,6 +937,39 @@ class TestGlossarySaveNameCollision:
             client.delete(f"/api/glossaries/{gid}")
 
 
+class TestEstateReportRichness:
+    def test_report_carries_the_data_rich_sections(self, client):
+        """"the report can be alot better and more data rich, with detailed
+           explanations" — the payload now carries detection coverage (the
+           drafter's own buckets), evidence depth, DQ readiness, label
+           families, the estate footprint and stewardship — all derived
+           from the same rows, no new scans."""
+        rows = [_row("Customer Email", "awc.customers.email",
+                     PII_Category="CONTACT_INFO", Critical_Data_Element="Yes",
+                     Value_Kind="email",
+                     Value_Pattern="^[^@]+@[^@]+$"),
+                _row("pH Level", "awc.wq.ph_level",
+                     PII_Category="", Critical_Data_Element="No",
+                     Value_Range="6.1..8.4", Detection_Intent="mapping_only"),
+                _row("Risk Rating", "awc.kyc.risk_cd",
+                     PII_Category="", Critical_Data_Element="No",
+                     Enum_Values="LOW;MEDIUM;HIGH")]
+        s = client.post("/api/estate-report",
+                        json={"rows": rows, "glossary_name": "Rich X",
+                              "governance": {"default": {"businessSteward": "u1"},
+                                             "categories": {},
+                                             "labelKeys": ["PII Type"]}}).json()["stats"]
+        det = s["detection"]
+        assert det["patterns"] >= 1 and det["dictionaries"] == 1, det
+        assert det["mapping_only"] == 1
+        assert s["evidence"]["enum"] == 1 and s["evidence"]["range"] == 1
+        assert s["dq"]["allowed_value_checks"] == 1 and s["dq"]["range_checks"] == 1
+        assert any(k["key"] == "PII Type" for k in s["labels"]), s["labels"]
+        assert s["sources"]["tables"] == 3 and s["sources"]["columns"] == 3
+        assert s["governance"]["default_steward"] is True
+        assert s["governance"]["label_keys"] == ["PII Type"]
+
+
 class TestGlossaryVersionSnapshots:
     """Copy-on-write versioning: the first edit after a load archives the
        loaded state as a timestamped version — same name, ORIGINAL savedAt —

@@ -259,7 +259,16 @@ those with one click.)
 > rather than a guessed one. No rule in this bundle is invented; every one
 > traces to sampled evidence."*
 
-- [ ] Import the JSONL in PDC (Glossary → Actions → Import).
+- [ ] Import the JSONL in PDC (Glossary → Actions → Import). **Use the file
+      Generate just produced** — its timestamped name IS the version (1.38.21),
+      so never fish an older `glossary-import (n).jsonl` out of Downloads.
+      **After renames or recategorisations** (both mint NEW term ids): delete
+      the glossary root in PDC first and **refresh to confirm it is gone**,
+      import, then refresh again and confirm a moved term sits in its new
+      category — both checkpoints exist because skipping them shipped a stale
+      generation twice in one morning (field-caught). The Review page's
+      **Check PDC for existing terms** shows "IN PDC ✓ / category differs"
+      per term if you're ever unsure what PDC holds.
 - [ ] Back in the app: **Resolve term ids**.
 - [ ] **Check Data Discovery on documents** (step 3 on the page). A
       bulk-loaded estate (discovery ticked) already had PDC discover the

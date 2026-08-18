@@ -4349,6 +4349,120 @@ def api_estate_report(body: dict = Body(default={})):
                                  or r.get("Value_Kind"))),
     }
 
+    # ---- data-rich sections ("the report can be alot better and more data
+    # rich, with detailed explanations") — every number derives from the same
+    # rows and artifacts, no new scans; each block is optional-on-failure so
+    # a partial estate still reports.
+
+    # Detection coverage: the drafter's own buckets, deterministic (no AI)
+    try:
+        from engine import policy_draft
+        d = policy_draft.draft_from_rows(rows, glossary_name=name)
+        seed_counts = Counter((p.get("seed") or "profiled")
+                              for p in d.get("patterns") or [])
+        skip_groups = Counter()
+        for sk in d.get("skipped") or []:
+            why = str(sk.get("why") or "other")
+            skip_groups[why.split(" — ")[0].split(" - ")[0][:90]] += 1
+        stats["detection"] = {
+            "patterns": len(d.get("patterns") or []),
+            "patterns_by_seed": dict(seed_counts),
+            "dictionaries": len(d.get("dictionaries") or []),
+            "mapping_only": len(d.get("mapping_only") or []),
+            "skipped": len(d.get("skipped") or []),
+            "skip_groups": [{"reason": k, "count": n}
+                            for k, n in skip_groups.most_common()],
+        }
+    except Exception:
+        stats["detection"] = None
+
+    # Evidence depth: what profiling actually induced, facet by facet
+    def _has(r, k):
+        return bool(str(r.get(k) or "").strip())
+    stats["evidence"] = {
+        "pattern": sum(1 for r in kept if _has(r, "Value_Pattern")),
+        "enum": sum(1 for r in kept if _has(r, "Enum_Values")),
+        "kind": sum(1 for r in kept if _has(r, "Value_Kind")),
+        "range": sum(1 for r in kept if _has(r, "Value_Range")),
+        "signature": sum(1 for r in kept if _has(r, "Value_Signature")),
+        "none": sum(1 for r in kept
+                    if not any(_has(r, k) for k in
+                               ("Value_Pattern", "Enum_Values", "Value_Kind",
+                                "Value_Range", "Value_Signature"))),
+    }
+
+    # Label families + PII tiers: the same engine the Apply labels card uses
+    try:
+        from engine import labels as labels_engine
+        pack = {}
+        try:
+            with open(paths.domain_pack_path(), encoding="utf-8") as f:
+                pack = json.load(f)
+        except Exception:
+            pack = {}
+        lab = labels_engine.suggest_labels(kept, pack=pack)
+        stats["labels"] = [{"key": k["key"], "why": k.get("why", ""),
+                            "values": [{"value": v["value"], "count": v["count"]}
+                                       for v in k.get("values") or []]}
+                           for k in lab.get("keys") or []]
+    except Exception:
+        stats["labels"] = []
+
+    # Sources footprint
+    try:
+        import re
+        from engine.suggester import _parse_source
+        schemas, tabs = set(), set()
+        col_count = doc_count = 0
+        for r in kept:
+            for c0 in str(r.get("Source_Column") or "").split(";"):
+                c0 = c0.strip()
+                if not c0:
+                    continue
+                de = _parse_source(c0)
+                if not de:
+                    continue
+                col_count += 1
+                schemas.add(de.get("schema_name") or "—")
+                tabs.add((de.get("schema_name"), de.get("table_name")))
+                if "/" in c0 or re.search(
+                        r"\.(csv|jsonl?|txt|pdf|docx?|xlsx?)(\.|$)", c0, re.I):
+                    doc_count += 1
+        stats["sources"] = {"schemas": len(schemas), "tables": len(tabs),
+                           "columns": col_count, "document_columns": doc_count}
+    except Exception:
+        stats["sources"] = None
+
+    # DQ readiness: the checks the bundle derives + the scan's quality scores
+    qual = []
+    for r in kept:
+        try:
+            q = int(float(r.get("Suggested_Quality")))
+            if q:
+                qual.append(q)
+        except (TypeError, ValueError):
+            pass
+    stats["dq"] = {
+        "format_checks": stats["evidence"]["pattern"],
+        "allowed_value_checks": stats["evidence"]["enum"],
+        "range_checks": stats["evidence"]["range"],
+        "quality_scored": len(qual),
+        "quality_mean": (round(sum(qual) / len(qual)) if qual else None),
+        "quality_low": sum(1 for q in qual if q < 70),
+    }
+
+    # Governance coverage (ReportPage sends the workspace governance block)
+    gov = body.get("governance") or {}
+    stats["governance"] = {
+        "present": bool(gov),
+        "default_steward": bool(str(((gov.get("default") or {})
+                                     .get("businessSteward")) or "").strip()),
+        "category_overrides": sum(
+            1 for o in (gov.get("categories") or {}).values()
+            if str((o or {}).get("businessSteward") or "").strip()),
+        "label_keys": [str(k) for k in (gov.get("labelKeys") or [])],
+    }
+
     receipts = _read_json(RECEIPTS_FILE, {})
     saved_at = ""
     for g in (_load_gloss() or {}).values():

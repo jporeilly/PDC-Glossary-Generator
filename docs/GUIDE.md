@@ -737,6 +737,24 @@ governance settings and the data-discovery profile — to `glossaries.json`.
 Reload it anytime from **Home → Saved glossaries** or the **Load saved…** dropdown;
 the grid, summary, discovery panel and governance selections are all restored.
 
+**Versions (1.38.22, copy-on-write).** The FIRST change after loading a saved
+glossary archives the loaded state as an immutable **version** — same name,
+original saved timestamp — *before* the debounced autosave can overwrite it.
+One version per load-session (a harvest folding into a loaded glossary counts,
+so the pre-harvest state is always recoverable); the last 10 per glossary are
+kept. Home folds "*N earlier version(s)*" under each live row — open one and it
+loads as a working **copy** (saving the copy creates a new entry; the version
+itself never changes). A new save whose name collides with a LIVE glossary
+gets a visible suffix ("Name (2)"); versions share their glossary's name by
+design and never trigger the suffix.
+
+**Page state (1.38.19).** Every page holds its results and inputs for the
+session — navigate away and back and your draft, data elements, stamp reports,
+harvest selections and unbaked stewardship are still there. Long runs (the
+policy draft, the label stamp) are resumable jobs: leave mid-run and the poll
+re-attaches on return. Glossary-derived state clears when a different glossary
+loads; the PDC sign-in survives it.
+
 ---
 
 ### 8. Seeding sample data
@@ -795,6 +813,33 @@ is reduced to the keys PDC's schema accepts — `id`, `glossaryId`, `name`,
 `glossary` display name) are dropped; sending them makes PDC reject the PATCH with a
 `400`. Existing links on the column are preserved — new terms are unioned in,
 never replaced.
+
+**Delta apply (1.38.23).** A column whose merge reproduces exactly what PDC
+already holds is **skipped** — the row reports "unchanged =" (in dry-run and
+real runs alike) and the summary counts "already up to date". Re-applying
+after a small grid change touches only the columns that actually changed, and
+the trust-score job scopes to real writes. Unchanged columns still feed the
+table rollups (the table mean needs every member).
+
+**Generation versioning (1.38.21).** Every **Generate** writes a timestamped
+copy into the app's own exports history and — with the lab MinIO connection up
+and the "Back up generations" toggle on — ships it to `pdc-exports` under
+`glossary/<name>/<timestamp>-glossary-import.jsonl`. The Download button
+carries the generation's timestamped name: **the filename IS the version**, so
+a stale file in Downloads can never masquerade as the current one (that exact
+failure sent a pre-edit export into PDC and silently dropped a
+recategorisation — field-caught). Previous generations re-download from the
+Generate card.
+
+**Rename/recategorise checklist** (term ids derive from glossary+category+name,
+so both changes mint NEW ids): re-approve categories → Generate fresh → in PDC
+**delete the glossary root and CONFIRM it is gone from the tree** → Import the
+file you just generated → confirm a moved term sits in its new category →
+Resolve (a clean sweep is the receipt the import took) → Apply. The Review
+page's **Check PDC for existing terms** (1.38.20) fingerprints every term's
+category against PDC's ids — "IN PDC ✓" means same category, "IN PDC ·
+category differs (X)" names a stale import generation with the remedy in the
+tooltip.
 
 ---
 

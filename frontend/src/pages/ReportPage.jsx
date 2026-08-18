@@ -59,13 +59,21 @@ export default function ReportPage({ onNavigate }) {
   const ws = useWorkspace()
   const [rep, setRep] = useState(null)
   const [err, setErr] = useState(null)
+  // Refresh used to give ZERO feedback — recomputing over unchanged facts
+  // looks identical, which read as "Refresh doesn't work" (field-caught).
+  // Now the button shows busy and stamps the time of the last compile.
+  const [busy, setBusy] = useState(false)
+  const [refreshedAt, setRefreshedAt] = useState(null)
   const glossaryName = (ws.glossaryName || ws.name || '').trim()
 
   const load = () => {
     setErr(null)
-    apiPost('/api/estate-report', { rows: ws.rows || [], glossary_name: glossaryName })
-      .then(setRep)
+    setBusy(true)
+    apiPost('/api/estate-report', { rows: ws.rows || [], glossary_name: glossaryName,
+                                    governance: ws.governance || undefined })
+      .then((d) => { setRep(d); setRefreshedAt(new Date().toLocaleTimeString()) })
       .catch((e) => setErr(e.message))
+      .finally(() => setBusy(false))
   }
   useEffect(() => { load() }, [])   // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -95,6 +103,21 @@ export default function ReportPage({ onNavigate }) {
 <h2>Terms by category</h2>${(s.categories || []).map((c) => bar(c, maxCat)).join('')}
 <h2>Sensitivity</h2><p>${Object.entries(s.sensitivity || {}).map(([k, v]) => `<b>${esc(k)}</b> ${v}`).join(' · ')}</p>
 <h2>Top tags</h2><p>${(s.tags_top || []).map((t) => `${esc(t.tag)} (${t.count})`).join(' · ')}</p>
+${s.detection ? `<h2>Detection coverage</h2>
+<p><b>${s.detection.patterns}</b> Data Pattern(s) (${esc(Object.entries(s.detection.patterns_by_seed || {}).map(([k, v]) => `${v} ${k}`).join(', '))}) ·
+<b>${s.detection.dictionaries}</b> dictionar(ies) · <b>${s.detection.mapping_only}</b> mapping-only by design (links are first-class detection for dates/names/free measures) ·
+<b>${s.detection.skipped}</b> skip(s):</p>
+<p style="color:#555">${(s.detection.skip_groups || []).map((g) => `${esc(g.reason)} — ${g.count}`).join('<br>')}</p>` : ''}
+${s.evidence ? `<h2>Evidence depth</h2>
+<p>${s.evidence.pattern} format(s) · ${s.evidence.enum} vocabular(ies) · ${s.evidence.kind} recognised kind(s) · ${s.evidence.range} numeric range(s) (DQ, never identification) · ${s.evidence.signature} signature(s) · ${s.evidence.none} with no value evidence (links/vocabularies govern those)</p>` : ''}
+${s.dq ? `<h2>Data-quality readiness</h2>
+<p>${s.dq.format_checks} format · ${s.dq.allowed_value_checks} allowed-values · ${s.dq.range_checks} range check(s), every one traced to sampled data. Quality scored on ${s.dq.quality_scored} column(s)${s.dq.quality_mean != null ? ` (mean ${s.dq.quality_mean})` : ''}${s.dq.quality_low ? `, ${s.dq.quality_low} below 70` : ''}.</p>` : ''}
+${(s.labels || []).length ? `<h2>Label families</h2>
+<p>${s.labels.map((k) => `<b>${esc(k.key)}</b>: ${(k.values || []).map((v) => `${esc(v.value)} (${v.count})`).join(', ')}`).join('<br>')}</p>` : ''}
+${s.sources ? `<h2>Estate footprint</h2>
+<p>${s.sources.columns} column(s) across ${s.sources.tables} table(s)/file(s) in ${s.sources.schemas} schema(s)/store(s); ${s.sources.document_columns} document column(s).</p>` : ''}
+${s.governance ? `<h2>Stewardship</h2>
+<p>${s.governance.present ? `default steward: ${s.governance.default_steward ? 'set' : 'NOT SET'} · ${s.governance.category_overrides} category override(s)${(s.governance.label_keys || []).length ? ` · label keys: ${esc(s.governance.label_keys.join(', '))}` : ''}` : 'not set'}</p>` : ''}
 <h2>Handoff contract — Policy Generator</h2>
 <table style="border-collapse:collapse;width:100%">${(rep.contract || []).map((c) =>
   `<tr style="border-bottom:1px solid #ddd"><td style="padding:4px 8px">${c.ok ? '✅' : '❌'}</td>
@@ -115,12 +138,22 @@ export default function ReportPage({ onNavigate }) {
         <p className={`summary ${rep.ready ? 'ok' : 'warn'}`}>
           {rep.ready ? '✓ ' : '⚠ '}{rep.verdict}
         </p>
+        {(rep.contract || []).filter((c) => c.stale).map((c) => (
+          <p key={c.key} className="hint-line">
+            ⚠ <b>{c.label}</b> is stale — {String(c.detail || '').split('· ').pop()}{' '}
+            <button className="nav" onClick={() => onNavigate('apply')}>Regenerate on Apply →</button>
+            {' '}(Refresh only re-reads the facts; it cannot un-stale an artifact.)
+          </p>
+        ))}
         <div className="actions">
-          <button className="ghost" onClick={load}>↻ Refresh</button>
+          <button className="ghost" onClick={load} disabled={busy}>
+            {busy ? '↻ Compiling…' : '↻ Refresh'}
+          </button>
           <button className="primary" onClick={exportHtml}
                   title="One self-contained HTML file — the per-estate report to commit next to the pack (print it for PDF).">
             ⬇ Export report (HTML)
           </button>
+          {refreshedAt && <span className="notes">compiled {refreshedAt}</span>}
         </div>
         <p className="summary">
           {chips.map(([l, v]) => <span key={l} className="badge" style={{ marginRight: '.4rem' }}>{l} <b>{v}</b></span>)}
@@ -138,6 +171,101 @@ export default function ReportPage({ onNavigate }) {
 
         <h3 className="subhead">Top tags</h3>
         <Bars items={(s.tags_top || []).map((t) => ({ name: t.tag, count: t.count }))} />
+
+        {s.detection && (
+          <>
+            <h3 className="subhead">Detection coverage</h3>
+            <p className="hint-line">
+              How each kept term will be FOUND in the estate. <b>{s.detection.patterns}</b> Data
+              Pattern(s) ({Object.entries(s.detection.patterns_by_seed || {})
+                .map(([k, v]) => `${v} ${k}`).join(', ')}) and{' '}
+              <b>{s.detection.dictionaries}</b> dictionar(ies) detect by value evidence;{' '}
+              <b>{s.detection.mapping_only}</b> term(s) are governed by their term↔column links
+              by design — dates, names and free measures, whose content shape cannot discriminate
+              (the industry posture; links are first-class detection, not a gap). <b>{s.detection.skipped}</b> skip(s)
+              remain, each with its reason:
+            </p>
+            <Bars items={(s.detection.skip_groups || []).map((g) => ({ name: g.reason, count: g.count }))} />
+          </>
+        )}
+
+        {s.evidence && (
+          <>
+            <h3 className="subhead">Evidence depth</h3>
+            <p className="hint-line">
+              What profiling actually induced, facet by facet: <b>{s.evidence.pattern}</b> value
+              format(s), <b>{s.evidence.enum}</b> reference vocabular(ies), <b>{s.evidence.kind}</b>{' '}
+              recognised kind(s) (email/ZIP/date…), <b>{s.evidence.range}</b> numeric range(s)
+              (ranges drive data-quality checks, never identification), <b>{s.evidence.signature}</b>{' '}
+              shape signature(s). <b>{s.evidence.none}</b> kept term(s) carry no value evidence —
+              typically table-level records and document terms, which are governed by links and
+              vocabularies instead.
+            </p>
+          </>
+        )}
+
+        {s.dq && (
+          <>
+            <h3 className="subhead">Data-quality readiness</h3>
+            <p className="hint-line">
+              The drafted bundle re-expresses the same evidence as DQ expectations:{' '}
+              <b>{s.dq.format_checks}</b> format check(s), <b>{s.dq.allowed_value_checks}</b>{' '}
+              allowed-values check(s), <b>{s.dq.range_checks}</b> range check(s) — every one traces
+              to sampled data, none invented. The scan quality-scored <b>{s.dq.quality_scored}</b>{' '}
+              column(s){s.dq.quality_mean != null && <> (mean <b>{s.dq.quality_mean}</b>)</>}
+              {s.dq.quality_low > 0 && <>, of which <b className="warn">{s.dq.quality_low}</b> score
+              below 70 — worth a look before they feed the Trust Score</>}.
+            </p>
+          </>
+        )}
+
+        {(s.labels || []).length > 0 && (
+          <>
+            <h3 className="subhead">Label families</h3>
+            <p className="hint-line">
+              Governed key/value classifications derived from this review — created in PDC and
+              stamped onto columns from the Apply page's Data labels card. A tag answers
+              “is this in the set?”; a label answers “which one is it?”.
+            </p>
+            {s.labels.map((k) => (
+              <p className="notes" key={k.key}>
+                <b>{k.key}</b> — {(k.values || []).map((v) => `${v.value} (${v.count})`).join(' · ')}
+              </p>
+            ))}
+          </>
+        )}
+
+        {s.sources && (
+          <>
+            <h3 className="subhead">Estate footprint</h3>
+            <p className="hint-line">
+              The kept terms bind to <b>{s.sources.columns}</b> physical column(s) across{' '}
+              <b>{s.sources.tables}</b> table(s)/file(s) in <b>{s.sources.schemas}</b> schema(s)
+              or store(s); <b>{s.sources.document_columns}</b> of those columns live in documents
+              (CSV/JSON/PDF in the object store) rather than database tables.
+            </p>
+          </>
+        )}
+
+        {s.governance && (
+          <>
+            <h3 className="subhead">Stewardship</h3>
+            <p className="hint-line">
+              {s.governance.present ? (
+                <>Stewardship is set: {s.governance.default_steward
+                  ? <>a <b>default Business Steward</b> covers every category</>
+                  : <b className="warn">no default steward — terms may export unowned</b>}
+                {s.governance.category_overrides > 0 && <>, with <b>{s.governance.category_overrides}</b>{' '}
+                  per-category override(s)</>}
+                {(s.governance.label_keys || []).length > 0 && <>; kept label keys:{' '}
+                  {s.governance.label_keys.join(', ')}</>}.</>
+              ) : (
+                <>No stewardship set yet — the Govern page binds steward/owner/custodian, and it
+                bakes into the export.</>
+              )}
+            </p>
+          </>
+        )}
       </section>
 
       <section className="card">
