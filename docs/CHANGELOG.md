@@ -14,6 +14,22 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.38.23] - 2026-08-18
+
+### Changed - Apply is a DELTA: unchanged columns are skipped and say so
+
+"be better if this did just the delta, i.e those where there is no match"
+- re-applying 70 columns when only a handful changed re-PATCHed all 70.
+Now, when the merge reproduces exactly what the entity already carries,
+the PATCH is skipped: the row reports **unchanged =** (dry-run and real
+alike), the summary counts "already up to date (skipped - delta apply)",
+and the trust job scopes to real writes. The comparison is conservative -
+server-side junk is cleaned from both sides before comparing, and any
+normalisation doubt reads as changed (the merge is idempotent, so an
+unnecessary PATCH is safe; a skipped necessary one would not be).
+Unchanged rows still contribute to the table rollups - the table mean
+needs every member. Suite 358.
+
 ## [1.38.22] - 2026-08-18
 
 ### Added / Fixed - glossary versions, and editing under a filter

@@ -40,6 +40,31 @@ def _clean_term(bt):
     return {k: bt[k] for k in _BT_KEYS if bt.get(k) not in (None, "")}
 
 
+def _attrs_unchanged(current, merged):
+    """True when the merge reproduces EXACTLY what the entity already carries
+    for every key the PATCH would send — the write would be a no-op, so the
+    delta apply skips it ("be better if this did just the delta, i.e those
+    where there is no match"). Conservative by construction: any
+    normalisation doubt reads as changed and the PATCH goes out (the merge
+    is idempotent anyway)."""
+    def norm(block, keys):
+        out = {}
+        for k in keys:
+            v = (block or {}).get(k)
+            if k == "businessTerms":
+                v = sorted((_clean_term(t) for t in (v or []) if isinstance(t, dict)),
+                           key=lambda t: str(t.get("name") or t.get("id") or "").lower())
+            if v in (None, {}, []):
+                v = None
+            out[k] = v
+        try:
+            return json.dumps(out, sort_keys=True, default=str)
+        except Exception:
+            return object()          # uncomparable — always reads as changed
+    keys = sorted(merged.keys())
+    return norm(current, keys) == norm(merged, keys)
+
+
 def merge_attributes(current, incoming):
     """Merge incoming businessTerms + features onto the column's current attributes.
        businessTerms: union by id-or-name (incoming overlays so resolved ids land).
@@ -305,6 +330,17 @@ def apply_to_pdc(base_url, token, api_json, version="v2", verify_tls=True,
                     object_store_keys.add(tkey)
                 table_quality.setdefault(tkey, []).append(qv)
 
+            # DELTA APPLY (columns): when the merge reproduces exactly what
+            # PDC already holds, skip the PATCH and say so — re-runs touch
+            # only the columns that actually changed, and the trust job
+            # scopes to real writes. (The row still contributed to the table
+            # rollups above — the table mean needs every member.)
+            if _attrs_unchanged(current, merged):
+                row["status"] = "unchanged"
+                row["message"] = "PDC already holds exactly this — nothing to write"
+                results.append(row)
+                continue
+
             if dry_run:
                 row["status"] = "planned"
                 touched_ids.append(eid)
@@ -506,6 +542,7 @@ def apply_to_pdc(base_url, token, api_json, version="v2", verify_tls=True,
         "not_found": sum(1 for r in results if r["status"] == "not-found"),
         "applied": sum(1 for r in results if r["status"] == "applied"),
         "planned": sum(1 for r in results if r["status"] == "planned"),
+        "unchanged": sum(1 for r in results if r["status"] == "unchanged"),
         "errors": sum(1 for r in results if r["status"] == "error"),
         "ids": sorted(set(touched_ids)),
         "table_results": table_results,

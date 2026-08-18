@@ -90,6 +90,7 @@ from .apply import (
     _BT_KEYS,
     _SENS_DN,
     _SENS_UP,
+    _attrs_unchanged,
     _clean_term,
     _retry_auth,
     _term_key,

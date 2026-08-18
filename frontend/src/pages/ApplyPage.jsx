@@ -28,6 +28,7 @@ function StatusBadge({ s }) {
   const map = {
     planned: ['accent', 'planned'],
     applied: ['good', 'applied ✓'],
+    unchanged: ['neutral', 'unchanged ='],
     'file-level': ['good', 'files ✓'],
     'not-found': ['warning', 'not found'],
     error: ['serious', 'error'],
@@ -1382,6 +1383,7 @@ function ApplyResults({ d }) {
       <p className="summary">
         <b>{d.found}</b>/<b>{d.total}</b> columns resolved ·{' '}
         {d.dry_run ? <><b>{d.planned}</b> change(s) planned</> : <><b>{d.applied}</b> {verb}</>}
+        {d.unchanged ? <> · <b>{d.unchanged}</b> already up to date (skipped — delta apply)</> : null}
         {d.tables_rated ? <> · <b>{d.tables_rated}</b> table(s) rated</> : null}
         {d.objectstore_folders ? <> · <b>{d.objectstore_folders}</b> object-store folder(s) — files carry Trust Score directly</> : null}
         {d.terms_resolved_on_apply ? <> · <b>{d.terms_resolved_on_apply}</b> term link(s) auto-resolved</> : null}

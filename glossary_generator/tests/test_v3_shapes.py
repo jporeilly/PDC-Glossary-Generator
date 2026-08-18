@@ -101,6 +101,29 @@ class TestApplyPatchBodies:
                  "info": {"description": "A single member record."}})
         check_patch_attrs(tattrs, strict=True)
 
+    def test_delta_apply_detects_no_op_merges(self):
+        """"be better if this did just the delta" — a merge that reproduces
+        exactly what the entity already carries is a no-op and the PATCH is
+        skipped; any real difference (a new term, a changed rating) reads as
+        changed. Conservative: server-side junk on the current terms is
+        cleaned on BOTH sides before comparing."""
+        current = {"businessTerms": [{"name": "Member Number", "id": "x",
+                                      "glossaryId": "g", "glossary": "junk",
+                                      "confidenceScore": 0.9}],
+                   "features": {"sensitivity": "HIGH", "qualityScore": 92},
+                   "extended": {"isPrimaryKey": True}}
+        same = pdc_api.merge_attributes(current, {
+            "businessTerms": [{"name": "Member Number", "id": "x", "glossaryId": "g"}],
+            "features": {"sensitivity": "HIGH"}})
+        assert pdc_api._attrs_unchanged(current, same) is True
+        changed = pdc_api.merge_attributes(current, {
+            "businessTerms": [{"name": "Card Number", "id": "y", "glossaryId": "g"}],
+            "features": {"sensitivity": "HIGH"}})
+        assert pdc_api._attrs_unchanged(current, changed) is False
+        rating = pdc_api.merge_attributes(current, {
+            "features": {"rating": {"value": 4}}})
+        assert pdc_api._attrs_unchanged(current, rating) is False
+
 
 class TestFilterAndSearchShapes:
     def test_search_body_keys(self):
