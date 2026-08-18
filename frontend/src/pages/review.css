@@ -164,6 +164,9 @@ tr.rv-exprow > td {
 /* the term already exists in PDC, in this or another glossary — reuse, don't
    re-author. Accent rather than warning: it is good news, not a problem. */
 .rv-xgbadge { color: var(--accent); border-color: var(--accent); margin-left: .3rem; }
+/* stale-generation warning: the term exists in PDC under a DIFFERENT
+   category — the import predates the grid's categorisation */
+.rv-xgstale { color: var(--warn, #b45309); border-color: var(--warn, #b45309); }
 .rv-xg { margin: .6rem 0 .2rem; }
 .rv-xgform {
   display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; margin-top: .4rem;

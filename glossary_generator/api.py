@@ -3344,6 +3344,13 @@ def pdc_terms_existing(body: dict = Body(default={})):
     version = body.get("version") or "v2"
     verify = bool(body.get("verify_tls", False))
     names = [str(n).strip() for n in (body.get("names") or []) if str(n).strip()]
+    # optional category fingerprinting ("be useful if the Term was also
+    # checked against the Category"): terms may arrive as [{name, category}]
+    # with the glossary name, and the deterministic UUID5 ids do the rest
+    row_cat = {str(t.get("name") or "").strip(): str(t.get("category") or "").strip()
+               for t in (body.get("terms") or []) if isinstance(t, dict)}
+    names = names or [n for n in row_cat if n]
+    gname = (body.get("glossary_name") or "").strip()
     if not base:
         return _err("PDC base URL is required", 400)
     if not names:
@@ -3371,8 +3378,35 @@ def pdc_terms_existing(body: dict = Body(default={})):
                 gloss_names[gid] = (e or {}).get("name") or ""
             except Exception:
                 gloss_names[gid] = ""     # id still tells the steward it exists
-        found[nm] = {"id": m.get("id"), "glossaryId": gid,
-                     "glossary": gloss_names.get(gid, "")}
+        entry = {"id": m.get("id"), "glossaryId": gid,
+                 "glossary": gloss_names.get(gid, "")}
+        # Category fingerprint: term ids are UUID5(glossary, category, term),
+        # so comparing PDC's id against the derivation for the ROW's category
+        # detects a stale-generation import with ZERO extra API calls.
+        # Field-caught: PDC held Billing Address under Customer Management
+        # while the grid said Billing and Revenue — the flat IN PDC badge
+        # hid it. category_ok: True = same category; False = same glossary
+        # lineage, different category (pdc_category names it when it matches
+        # a category on the current grid); absent = foreign glossary or
+        # hand-authored id, nothing to fingerprint against.
+        if gname and row_cat.get(nm):
+            from engine import suggester as _sg
+            expect = _sg.det_term_id(gname, row_cat[nm], nm)
+            if m.get("id") == expect:
+                entry["category_ok"] = True
+            else:
+                # the live estate returns glossaryId null from /search, so
+                # lineage is proven the other way round: if the found id
+                # derives from ANY category on the current grid, it is OUR
+                # glossary's term under a stale category (field-caught:
+                # Billing Address rode a null glossaryId and the stale badge
+                # never fired)
+                hit = next((c for c in sorted({v for v in row_cat.values() if v})
+                            if _sg.det_term_id(gname, c, nm) == m.get("id")), "")
+                if hit or (gid and gid == _sg.det_glossary_id(gname)):
+                    entry["category_ok"] = False
+                    entry["pdc_category"] = hit
+        found[nm] = entry
     return {"found": found, "checked": len(names), "hits": len(found)}
 
 

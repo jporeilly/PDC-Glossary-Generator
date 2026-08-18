@@ -14,6 +14,35 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.38.20] - 2026-08-18
+
+### Added - the existing-terms check fingerprints the CATEGORY
+
+"be useful if the Term was also checked against the Category" — it is now,
+and with zero extra API calls. Field-caught the same morning: PDC held
+Billing Address under Customer Management while the grid said Billing and
+Revenue, because the import had used a pre-edit JSONL — and the flat
+IN PDC badge hid it completely.
+
+- Term ids are deterministic UUID5(glossary, category, name), so the
+  Review-time **Check PDC for existing terms** now compares the id PDC
+  returns against the derivation for the ROW's category:
+  **IN PDC ✓** = same category; **IN PDC · category differs (X)** = the
+  same glossary's term under a STALE category — a previous import
+  generation, named when it matches a category on the current grid, with
+  the remediation in the tooltip (regenerate, delete the glossary in PDC,
+  re-import). A foreign glossary or hand-authored term keeps the neutral
+  badge — nothing to fingerprint against.
+- Lineage is proven from the id alone (any current-grid category whose
+  derivation matches) because the live estate's /search returns
+  glossaryId null — the first cut leaned on glossaryId and the stale
+  badge never fired (live-caught during verification).
+- The check's summary line counts the drifted terms and says what to do.
+
+Verified against the live estate: the pre-edit import generation shows
+"IN PDC · category differs (Customer Management)" on exactly the moved
+terms; matching terms show ✓. Suite 354.
+
 ## [1.38.19] - 2026-08-17
 
 ### Fixed / Added - pages hold their state, the flip closes its last gaps

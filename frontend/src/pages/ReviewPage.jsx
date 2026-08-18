@@ -12,7 +12,7 @@
 // applies the selected ones — nothing mutates the grid behind your back.
 import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { apiGet, apiPost, runJob } from './../api.js'
-import { useWorkspace, usePersistentState, useResumableJob, getUi, setUi, setRows, patchRow, setGlossaryMeta, setGovernance, setCategoriesConfirmed, setReviewCompleted, save } from './../state.js'
+import { getWorkspace, useWorkspace, usePersistentState, useResumableJob, getUi, setUi, setRows, patchRow, setGlossaryMeta, setGovernance, setCategoriesConfirmed, setReviewCompleted, save } from './../state.js'
 import { sameSourceCount, selfFold } from './../rowmerge.js'
 import './review.css'
 
@@ -305,20 +305,35 @@ export default function ReviewPage({ onNavigate }) {
   }, [xgOpen])
 
   const checkExisting = useCallback(async () => {
-    const names = [...new Set(rows.filter((r) => r && truthy(r.Keep))
-                                  .map((r) => String(r.Term || '').trim()).filter(Boolean))]
-    if (!names.length) { setMsg('No kept terms to check.'); return }
+    // name + category per kept term: the backend fingerprints PDC's
+    // deterministic term ids against the row's category, so a term that
+    // exists under a STALE category (an old import generation) is flagged
+    // instead of hiding behind a flat IN PDC badge (field-caught: "be
+    // useful if the Term was also checked against the Category")
+    const seen = new Set()
+    const terms = []
+    for (const r of rows) {
+      if (!r || !truthy(r.Keep)) continue
+      const name = String(r.Term || '').trim()
+      if (!name || seen.has(name)) continue
+      seen.add(name)
+      terms.push({ name, category: String(r.Category || '').trim() })
+    }
+    if (!terms.length) { setMsg('No kept terms to check.'); return }
     if (!xgConn.base.trim()) { setMsg('PDC base URL is required.'); return }
-    setXgBusy(true); setMsg(`Checking ${names.length} term(s) against PDC…`)
+    setXgBusy(true); setMsg(`Checking ${terms.length} term(s) against PDC…`)
     try {
+      const wsNow = getWorkspace()
       const d = await apiPost('/api/pdc/terms/existing', {
         base_url: xgConn.base.trim(), version: xgConn.ver,
         realm: (xgConn.realm || 'pdc').trim(), username: xgConn.user,
-        password: xgConn.pass, verify_tls: !!xgConn.verify, names,
+        password: xgConn.pass, verify_tls: !!xgConn.verify,
+        terms, glossary_name: (wsNow.glossaryName || wsNow.name || '').trim(),
       })
       setXg(d)
+      const stale = Object.values(d.found || {}).filter((f) => f.category_ok === false).length
       setMsg(d.hits
-        ? `${d.hits} of ${d.checked} term(s) already exist in PDC — reuse rather than re-author.`
+        ? `${d.hits} of ${d.checked} term(s) already exist in PDC${stale ? ` — ${stale} under a DIFFERENT category (stale import: regenerate, delete the glossary in PDC, re-import)` : ' — reuse rather than re-author.'}`
         : `None of the ${d.checked} term(s) exist in PDC yet.`)
     } catch (e) {
       setMsg(`Check failed: ${e.message}`)
@@ -2253,11 +2268,15 @@ const GridRow = memo(function GridRow({ row: r, index, pos, expanded, prop, onAc
         <input type="text" value={r.Term || ''} title={r.Term || ''}
                onChange={(e) => onField(index, 'Term', e.target.value)} aria-label="Term" />
         {tt && <span className="rv-ttbadge" title="Table-level record term — links to the whole table; always kept.">TABLE</span>}
-        {existsIn && (
-          <span className="rv-ttbadge rv-xgbadge"
-                title={`Already in PDC${existsIn.glossary ? ` — glossary "${existsIn.glossary}"` : ''}. Apply will link to the existing term rather than create a second one, so the definition PDC already holds is the one that stands. Reuse it, or rename this row if you mean a different concept.`}>
-            IN PDC{existsIn.glossary ? ` · ${existsIn.glossary}` : ''}
-          </span>
+        {existsIn && (existsIn.category_ok === false
+          ? <span className="rv-ttbadge rv-xgbadge rv-xgstale"
+                  title={`PDC holds this term under a DIFFERENT category${existsIn.pdc_category ? ` ("${existsIn.pdc_category}")` : ''} — the imported glossary predates this grid's categorisation (term ids derive from glossary+category+name). Regenerate the JSONL, delete the glossary in PDC, and re-import.`}>
+              IN PDC · category differs{existsIn.pdc_category ? ` (${existsIn.pdc_category})` : ''}
+            </span>
+          : <span className="rv-ttbadge rv-xgbadge"
+                  title={`Already in PDC${existsIn.glossary ? ` — glossary "${existsIn.glossary}"` : ''}${existsIn.category_ok ? ' under this same category' : ''}. Apply will link to the existing term rather than create a second one, so the definition PDC already holds is the one that stands. Reuse it, or rename this row if you mean a different concept.`}>
+              IN PDC{existsIn.glossary ? ` · ${existsIn.glossary}` : ''}{existsIn.category_ok ? ' ✓' : ''}
+            </span>
         )}
         {!keptRow && r.Prune_Reason && (
           <span className="rv-ttbadge rv-keybadge"

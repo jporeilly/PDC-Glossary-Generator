@@ -184,6 +184,41 @@ class TestStreamingContracts:
         assert r.status_code == 200
         assert r.json() == {"found": {}, "checked": 0, "hits": 0}
 
+    def test_existing_check_fingerprints_the_category(self, client, monkeypatch):
+        """"be useful if the Term was also checked against the Category" —
+           term ids are UUID5(glossary, category, name), so the check can
+           tell SAME category (ok) from SAME-glossary-DIFFERENT-category
+           (a stale import generation — the Billing Address case) from a
+           foreign glossary (nothing to fingerprint), with zero extra API
+           calls."""
+        from engine import suggester
+        from sources import pdc_api
+        gname = "Arizona Water"
+        gid = suggester.det_glossary_id(gname)
+        same = suggester.det_term_id(gname, "Billing and Revenue", "Amount Paid")
+        stale = suggester.det_term_id(gname, "Customer Management", "Billing Address")
+        monkeypatch.setattr("api._pdc_token_and_reauth", lambda *a, **k: ("tok", None))
+        # glossaryId None on the stale hit: the live estate's /search returns
+        # null glossaryIds, so lineage must be provable from the id alone
+        monkeypatch.setattr(pdc_api, "resolve_terms", lambda *a, **k: {
+            "Amount Paid": {"id": same, "glossaryId": gid},
+            "Billing Address": {"id": stale, "glossaryId": None},
+            "Customer Email": {"id": "hand-made-id", "glossaryId": "other-gloss"}})
+        monkeypatch.setattr(pdc_api, "get_entity",
+                            lambda *a, **k: {"data": {"name": gname}})
+        d = client.post("/api/pdc/terms/existing", json={
+            "base_url": "https://pdc.example", "glossary_name": gname,
+            "terms": [{"name": "Amount Paid", "category": "Billing and Revenue"},
+                      {"name": "Billing Address", "category": "Billing and Revenue"},
+                      {"name": "Customer Email", "category": "Customer Management"}]}).json()
+        f = d["found"]
+        assert f["Amount Paid"]["category_ok"] is True
+        assert f["Billing Address"]["category_ok"] is False
+        assert f["Billing Address"]["pdc_category"] == "Customer Management", \
+            "the stale generation is NAMED when it matches a category on the grid"
+        assert "category_ok" not in f["Customer Email"], \
+            "a foreign/hand-authored id has nothing to fingerprint against"
+
     def test_apply_stream_preflight_400(self, client):
         r = client.post("/api/apply-to-pdc-stream", json={"json": []})
         assert r.status_code == 400 and "error" in r.json()
