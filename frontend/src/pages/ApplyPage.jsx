@@ -578,6 +578,9 @@ function GenerateCard({ rows, glossaryName, governance, settings, onNavigate, au
         The Policy Generator's first mile: induced value patterns become PDC Data Patterns,
         profiled reference lists become Dictionaries (+ values CSV). Deterministic core; with AI
         on, the local LLM polishes each rule's column regex and tag pick (guard-railed).
+        The bundle is <b>evidence to review, not an import package</b> — every decision in it
+        travels to the Policy Generator inside the Registry, and the zip PDC imports is
+        authored there.
       </p>
       <div className="actions">
         <button className="ghost" onClick={draftPolicies} disabled={draftBusy || rows.length === 0}>

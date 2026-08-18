@@ -14,6 +14,45 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.38.24] - 2026-08-18
+
+### Fixed - the Registry now carries what the drafter mints (one seed ladder)
+
+The Policy Generator authors from the Classification Registry and nothing
+else, so evidence the Registry cannot express never reaches PDC. Two classes
+of it were being lost: a profiler-**recognised** kind, and - the expensive one
+- the steward's **Auto flip** on a mapping-only nature (a date, a bounded
+measure like pH or Lead ppb). The drafter minted rules for both; the bridge
+emitted only the row's raw profiled fields. The Arizona Water walk drafted 88
+patterns and handed over a Registry worth 18, and the only way to notice was
+to count both by hand.
+
+The row -> seed decision now lives ONCE, in `engine/policy_seed.py`
+(`seeds_for_row`), and both callers use it: the drafter mints from the best
+seed, the bridge carries them all into `detect`. Same rows in, same seeds out
+- pinned by `test_policy_seed.py`, which fails if the two ever disagree again.
+
+- **Name-anchored seeds travel** with `identity: "column_name"`, so the
+  authoring side knows the column NAME carries identity and the content regex
+  is only a sanity check (the Policy Generator weights them 0.5/0.5 with a
+  cardinality guard - see its 1.10.1).
+- **A one-value reference list is no longer a seed.** It marked a concept
+  `seeded` while the authoring side, which needs 2+ values, silently dropped
+  it: four Arizona Water concepts claimed evidence that could never yield a
+  method.
+- **A mapping-only declaration still keeps its evidence** (only the intent
+  changes, as before) but never picks up a name-anchored mint - a declaration
+  is the opposite of a flip.
+- **The drafted bundle stops claiming it is importable.** Its README told
+  stewards to import `Patterns/` and `Dictionaries/` through PDC's Data
+  Identification screens, which its folder layout cannot satisfy - PDC takes a
+  flat zip of pattern JSON and one nested zip per dictionary, which is what
+  the Policy Generator authors. The bundle is review evidence; the README and
+  the Apply card now say so.
+
+Arizona Water, same rows: Registry detect went 18 patterns + 31 dictionaries
+-> 88 patterns + 27 dictionaries, matching the draft exactly. Suite 368.
+
 ## [1.38.23] - 2026-08-18
 
 ### Changed - Apply is a DELTA: unchanged columns are skipped and say so

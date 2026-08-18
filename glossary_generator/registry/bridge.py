@@ -87,6 +87,9 @@ def _curated_seeds():
 
 def build_registry(rows, glossary_name: str, glossary_id: str = None) -> dict:
     """rows -> Registry dict (one concept per kept term)."""
+    # lazy, like this module's other engine imports: registry/ stays importable
+    # on its own (the Policy Generator reads the artifact, never this code)
+    from engine.policy_seed import seeds_for_row
     concepts, seen = [], set()
     vocab = _tag_vocabulary()
     allow = set(vocab.get("allow_list") or [])
@@ -104,33 +107,16 @@ def build_registry(rows, glossary_name: str, glossary_id: str = None) -> dict:
         tags = _tags(r)
         # governance flag: any tag outside the controlled allow-list (drift risk)
         off = [t for t in tags if allow and t not in allow]
-        # scan evidence -> detection seeds: the Policy Generator can author a
-        # Data Pattern (regex + signature) or a Dictionary (value list) for this
-        # concept directly from the profiled data behind the term.
-        detect = []
-        vp = (r.get('Value_Pattern') or '').strip()
-        if vp:
-            detect.append({"type": "pattern", "regex": vp,
-                           "signature": (r.get('Value_Signature') or '').strip() or None,
-                           "source": "profiled"})
-        enum_vals = [v.strip() for v in (r.get('Enum_Values') or '').split(';') if v.strip()]
-        if enum_vals:
-            detect.append({"type": "dictionary", "values": enum_vals, "source": "profiled"})
-        # curated seeds fill the gaps profiling can't induce — but profiled
-        # evidence always wins over a canonical shape for the same seed type
-        for s in curated.get(term.lower(), []):
-            kind = s.get("type")
-            if kind not in ("pattern", "dictionary"):
-                continue
-            if any(d.get("type") == kind for d in detect):
-                continue
-            if kind == "pattern" and not (s.get("regex") or "").strip():
-                continue
-            if kind == "dictionary" and len(s.get("values") or []) < 2:
-                continue
-            seed = dict(s)
-            seed["source"] = "curated"
-            detect.append(seed)
+        # scan evidence -> detection seeds, through the ladder this module now
+        # SHARES with the drafter (engine.policy_seed). It used to read only the
+        # row's raw profiled fields here, so two classes of evidence the drafter
+        # honoured never reached the Registry — a profiler-recognised kind, and
+        # the steward's Auto flip on a mapping-only nature (a date, a bounded
+        # measure). The Policy Generator authors from this contract alone, so
+        # what the bridge cannot express PDC never sees: the walk that drafted
+        # 88 patterns handed over a Registry worth 18. Seeds arrive best-first;
+        # the Registry carries them all.
+        detect, _skip, _mapping = seeds_for_row(r, curated)
         # physical key facts per source column — relationship context for the
         # Policy Generator (which columns are identity vs reference joins)
         keys = {sc: {"pk": bool(k.get("pk")), "fk": bool(k.get("fk")),
@@ -143,8 +129,9 @@ def build_registry(rows, glossary_name: str, glossary_id: str = None) -> dict:
         # Policy Generator stops expecting a detection method for it. The flag
         # always wins. Otherwise "seeded" when detection seeds exist; when
         # neither, the field is omitted (legacy shape — Policy may then write a
-        # seed-request asking the steward to decide).
-        intent = str(r.get('Detection_Intent') or '').strip().lower()
+        # seed-request asking the steward to decide). The ladder already read
+        # the flag, so the answer comes from there rather than from a second
+        # reading of the row.
         concepts.append({
             "concept": concept,
             "term_name": term,
@@ -158,7 +145,7 @@ def build_registry(rows, glossary_name: str, glossary_id: str = None) -> dict:
             "sources": [c.strip() for c in str(r.get('Source_Column') or '').split(';') if c.strip()],
             "keys": keys,
             "method": None,
-            **({"detection_intent": "mapping_only"} if intent == 'mapping_only'
+            **({"detection_intent": "mapping_only"} if _mapping
                else {"detection_intent": "seeded"} if detect else {}),
         })
     # Physical model — the schema/relationship layer. Built from EVERY scanned

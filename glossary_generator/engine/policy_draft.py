@@ -10,11 +10,24 @@ the Technical Track teaches —
 The core is deterministic (same rows -> same files); the AI agent (llm.policy_hints_rows)
 only polishes the column-name regex and the tag pick when Ollama is available, and its
 proposals are guard-railed here (regex must compile, tags must stay governed). Nothing
-is imported anywhere by this module — the output is files for PDC's Data Identification
-import screens, which the steward reviews first.
+is imported anywhere by this module — the output is EVIDENCE the steward reviews. The
+import package itself is the Policy Generator's job: the same decisions travel there
+inside the Classification Registry (see registry/bridge.py and engine/policy_seed.py),
+which is the one contract between the two apps.
 """
 from __future__ import annotations
 import io, json, re, zipfile
+
+# The row -> detection-seed ladder is SHARED with the Registry bridge (1.38.24):
+# this module mints a rule from the best seed, the bridge carries them all into
+# the Registry, and neither decides what counts as evidence on its own any more.
+from engine.policy_seed import (
+    DATE_SHAPE as _DATE_SHAPE, NUM_SHAPE as _NUM_SHAPE, NO_SHAPE as _NO_SHAPE,
+    cols_of as _cols_of, col_names as _col_names, column_name_regex,
+    kind_patterns as _kind_patterns, was_profiled as _was_profiled,
+    auto_candidate as _auto_candidate, no_value_shape as _no_value_shape,
+    seeds_for_row,
+)
 
 _NON = re.compile(r"[^A-Za-z0-9]+")
 
@@ -48,8 +61,6 @@ _DICT_CONDITION = {"and": [
 # content regex 0.5: under the standard 0.3/0.4/0.3 blend a rule with no
 # contentPatterns can never clear the 0.7 gate (0.3 + 0.3 = 0.6), while 0.5/0.5
 # makes the rule a strict name AND shape conjunction — neither alone reaches 0.7.
-_DATE_SHAPE = r"^\d{4}-\d{2}-\d{2}([T ].*)?$|^\d{1,2}/\d{1,2}/\d{2,4}$"  # mirrors the profiler's date kind
-_NUM_SHAPE = r"^-?[0-9]+(\.[0-9]+)?$"
 _NAME_ANCHOR_WEIGHTS = (0.5, 0.0, 0.5)
 # regexScore is NOT a PDC condition variable (only confidenceScore,
 # metadataScore, similarity, columnCardinality are) — so the name-AND-shape
@@ -68,44 +79,6 @@ def _slug(s):
 
 def _kept(r):
     return str(r.get("Keep", "Y")).strip().lower() in ("y", "yes", "true", "1")
-
-
-def _cols_of(r):
-    return [c.strip() for c in str(r.get("Source_Column") or "").split(";") if c.strip()]
-
-
-def _col_names(r):
-    """Bare column names off the row's physical columns — through the ONE
-    canonical source splitter, so a document column yields its real column
-    name and a JSONL leaf keeps its dotted path ("record.customer.id"),
-    instead of split('.')[-1] shredding it to "id" and the rule regex
-    over-matching every id column in the estate (the dotted-filename trap's
-    third sibling — field-caught: "this will also affect the draft
-    policies")."""
-    from engine.suggester import _parse_source
-    out = []
-    for c in _cols_of(r):
-        de = _parse_source(c)
-        name = ((de or {}).get("column_name") or c.split(".")[-1]).strip()
-        if name and name not in out:
-            out.append(name)
-    return out
-
-
-def column_name_regex(names):
-    """Deterministic column-name hint from the physical names the scan actually
-    saw: a case-insensitive alternation with flexible separators, e.g.
-    ['mbr_no', 'member_no'] -> (?i)(mbr_?no|member_?no)."""
-    parts = []
-    for n in names:
-        toks = [re.escape(t) for t in re.split(r"[^A-Za-z0-9]+", n) if t]
-        if toks:
-            p = "_?".join(toks)
-            if p not in parts:
-                parts.append(p)
-    if not parts:
-        return None
-    return "(?i)(" + "|".join(parts) + ")"
 
 
 def _tags_of(r, limit=3):
@@ -320,85 +293,6 @@ def dq_rules_from_rows(rows, glossary_name="Business Glossary", prefix=None):
     return out
 
 
-# Column kinds whose VALUES carry no detectable shape — a surrogate integer key,
-# a date, a person/free-text name, or a raw amount. You can't recognise an
-# "Account ID" or a date by its value (any integer/date could be one), so these
-# are governed by the term↔column link (tagged on Apply), never a value pattern.
-# Deliberately narrow: codes/statuses and formatted numbers (account_no,
-# routing, zip, phone, ssn, email…) are NOT here — those become dictionaries /
-# patterns once profiled.
-_NO_SHAPE = re.compile(
-    r"(^|_)id$|_id$|identifier"                 # surrogate-key ids
-    r"|(^|_)dt$|date|dob|birth"                 # dates
-    r"|(^|_)nm$|name"                           # names / free text
-    r"|amount|(^|_)amt$|balance|(^|_)bal$",     # raw amounts
-    re.I)
-
-
-def _was_profiled(r):
-    """Did profiling touch this row? The prose marker (Suggested_Reason
-    'Profiled: …') dies the moment the AI pass rewrites that field — the
-    profile's own DATA on the row is the durable witness (field-caught:
-    enriched rows were told to 're-scan with profiling on')."""
-    if str(r.get("Suggested_Reason") or "").startswith("Profiled"):
-        return True
-    if r.get("Suggested_Quality") is not None:
-        return True
-    if r.get("Source_Quality_Dims"):
-        return True
-    return bool(str(r.get("Value_Kind") or "").strip())
-
-
-# Kinds the profiler RECOGNISED in this estate's actual values (>=60% of the
-# sample matched) — each mints a CUSTOM Data Pattern using the profiler's own
-# shape, so there is ONE definition of "email" in the codebase. Clarified in
-# the field: custom-only means WE ship every policy (PDC's inbuilt set stays
-# unused) — it never meant generic concepts go undetected. The recognition
-# came from this estate's data; the deployment is ours; the policy is custom.
-# "date" deliberately absent: every date column matches a date shape, so a
-# date Data Pattern would over-match — dates stay tagged via the term↔column
-# link.
-def _kind_patterns():
-    from engine import suggester as _sug
-    return {"email": _sug.RX_EMAIL.pattern, "phone": _sug.RX_PHONE.pattern,
-            "zip": _sug.RX_ZIP.pattern, "ssn": _sug.RX_SSN.pattern,
-            "card": _sug.RX_CC.pattern}
-
-
-# The unit-name recogniser lives in sug_shared (1.38.19): the nature
-# classifier now uses it to default unit-named bounded measures to AUTO at
-# suggest time, and this drafter stars the same class as recommended flips
-# for rows harvested before that default existed.
-from engine.sug_shared import UNIT_NAME as _UNIT_NAME
-
-
-def _auto_candidate(r):
-    """True when a mapping-only row is a SAFE Auto-flip candidate: numeric
-    range evidence + a unit-bearing name. Everything else (generic amounts,
-    dates, names) stays an unmarked steward call."""
-    if not str(r.get("Value_Range") or "").strip():
-        return False
-    for h in [str(r.get("Term") or "")] + _col_names(r):
-        if _UNIT_NAME.search(re.sub(r"[^A-Za-z0-9]+", "_", h.strip())):
-            return True
-    return False
-
-
-def _no_value_shape(cols):
-    """True when EVERY source column is a kind with no detectable value shape, so
-    the term is a link-only concern rather than a not-yet-profiled one. Column
-    names come through the canonical source splitter — split('.')[-1] turned a
-    document column into its file extension's neighbour and misclassified it."""
-    from engine.suggester import _parse_source
-    names = []
-    for c in (cols or []):
-        if not c:
-            continue
-        de = _parse_source(str(c))
-        names.append(((de or {}).get("column_name") or str(c).split(".")[-1]))
-    return bool(names) and all(_NO_SHAPE.search(n) for n in names)
-
-
 def draft_from_rows(rows, glossary_name="Business Glossary", prefix=None,
                     hints=None, governed_tags=None):
     """rows -> {'patterns': [...], 'dictionaries': [...], 'skipped': [...]}.
@@ -430,86 +324,30 @@ def draft_from_rows(rows, glossary_name="Business Glossary", prefix=None,
         if not term or term in seen:
             continue
         seen.add(term)
-        src = str(r.get("Source_Column") or "").strip()
-        if not src:
-            skipped.append({"term": term, "why": "table-level term — no physical column to identify"})
+        # The row -> seed ladder lives in policy_seed and is shared with the
+        # Registry bridge: it hands back every seed the row supports, best
+        # evidence first. This drafter mints ONE artifact per term, so it takes
+        # the first; the Registry carries them all.
+        seeds, skip, mo = seeds_for_row(r, curated)
+        if skip:
+            # a missing physical column outranks the declaration: a table-level
+            # term has nothing to link OR to detect, and saying so is the useful
+            # message (the order the ladder itself keeps)
+            skipped.append({"term": term, "why": skip})
             continue
-        # mapping-only is a DECLARATION, not a failure: this term is governed
-        # by its term↔column links and no detection method is expected. The
-        # skip list exists to name missing evidence - listing intentional
-        # mapping terms there was exactly the noise the intent flag was built
-        # to end (caught by the end-to-end run)
-        if str(r.get("Detection_Intent") or "").strip() == "mapping_only":
+        if mo:
+            # the row may still carry evidence — the Registry keeps it, this
+            # drafter mints nothing, which is what mapping-only means
             mapping_only.append({"term": term,
                                  "why": "mapping-only by design — governed via "
                                         "term↔column links; no detection method expected",
-                                 "auto_candidate": _auto_candidate(r)})
+                                 "auto_candidate": mo["auto_candidate"]})
             continue
-        vp = (r.get("Value_Pattern") or "").strip()
-        sig = (r.get("Value_Signature") or "").strip() or None
-        seed_kind = "profiled"
-        enums = [v.strip() for v in str(r.get("Enum_Values") or "").split(";") if v.strip()]
-        if not vp and len(enums) < 2:
-            # Profiled evidence wins; otherwise fall back to a CURATED seed from
-            # the versioned domain pack (the generic baseline). Still no
-            # inbuilt/hardcoded shapes — the seed lives in the user's pack.
-            cur = curated.get(term.lower(), [])
-            cp = next((s for s in cur if s.get("type") == "pattern" and (s.get("regex") or "").strip()), None)
-            cd = next((s for s in cur if s.get("type") == "dictionary" and len([v for v in (s.get("values") or []) if str(v).strip()]) >= 2), None)
-            kind = str(r.get("Value_Kind") or "").strip().lower()
-            if cp:
-                vp, sig, seed_kind = cp["regex"].strip(), (cp.get("signature") or "").strip() or None, "curated"
-            elif cd:
-                enums, seed_kind = [str(v).strip() for v in cd["values"] if str(v).strip()], "curated"
-            elif kind in _kind_patterns():
-                # the profiler recognised the estate's own values as this
-                # kind — mint the CUSTOM pattern (PDC's inbuilt set is unused
-                # by design, so the coverage must ship from here)
-                vp, seed_kind = _kind_patterns()[kind], "recognised"
-            elif not any(c.count(".") >= 2 for c in _cols_of(r)):
-                skipped.append({"term": term, "why": "document term — identify documents with vocabulary dictionaries, not value shapes"})
-                continue
-            else:
-                # NAME-ANCHORED MEASURE: the steward flipped this row to Auto
-                # despite its nature (a date, a bounded measure like pH or
-                # Lead ppb). The range alone never discriminates - every
-                # 1-10 rating matches "0-14" - but PDC's blended scoring
-                # makes name + shape TOGETHER a legitimate rule: column-name
-                # regex carries identity, content regex carries sanity
-                # (date shape, or numeric shape with the range in DQ).
-                # This check comes BEFORE the signature gate: a profiled date
-                # carries a dddd-dd-dd SIGNATURE, and gating the mint behind
-                # "no signature" sent a flipped Payment Date to the skips
-                # (field-caught on the mass-flip walk). A signature rides the
-                # rule's contentPatterns at weight 0 - informative, inert.
-                _rng = str(r.get("Value_Range") or "").strip()
-                _vk = str(r.get("Value_Kind") or "").strip().lower()
-                if ((_rng or _vk == "date")
-                        and column_name_regex(_col_names(r))):
-                    # mapping-only rows never reach this ladder — so an Auto
-                    # row here IS the steward's flip (or the suggest-time
-                    # unit-name default), and it overrides the _NO_SHAPE name
-                    # heuristic (payment_date has "date" in its name by
-                    # definition). No name regex -> no anchor -> still a skip.
-                    vp = _DATE_SHAPE if _vk == "date" else _NUM_SHAPE
-                    seed_kind = "name-anchored"
-                elif sig or (r.get("Enum_Values") or "").strip():
-                    skipped.append({"term": term, "why": "no stable shape in the data (free text, names, amounts, dates)"})
-                    continue
-                elif _no_value_shape(_cols_of(r)):
-                    skipped.append({"term": term, "why": "tagged via the term↔column link, not a value pattern — a surrogate id / date / name / amount has no value shape to detect (expected)"})
-                    continue
-                elif kind == "date":
-                    skipped.append({"term": term, "why": "recognised as date values — every date column matches a date shape, so a date Data Pattern would over-match; dates are tagged via the term↔column link (expected)"})
-                    continue
-                elif _was_profiled(r):
-                    # the row WAS profiled — telling the steward to re-scan
-                    # is wrong advice; the values simply induce no shape
-                    skipped.append({"term": term, "why": "profiled, but the values induce no shape (numeric or free-form content) — add a curated seed for this term to the domain pack if it should be detectable"})
-                    continue
-                else:
-                    skipped.append({"term": term, "why": "no profiled evidence on the row — re-scan the live source with value profiling on to induce a custom pattern, or add a curated seed for this term to the domain pack"})
-                    continue
+        seed = seeds[0]
+        seed_kind = seed["source"]
+        vp = seed["regex"] if seed["type"] == "pattern" else ""
+        sig = seed.get("signature") if seed["type"] == "pattern" else None
+        enums = list(seed.get("values") or [])
         h = hints.get(term) or {}
         col_rx = h.get("column_regex")
         if not (_valid_regex(col_rx)):
@@ -567,10 +405,22 @@ def to_zip_bytes(draft):
         z.writestr("INDEX.csv", "\n".join(index) + "\n")
         z.writestr("README.txt",
                    "Drafted by the Glossary Generator from scan evidence.\n"
-                   "Patterns/ and Dictionaries/: import via PDC Management -> Data Identification -> Import.\n"
+                   "\n"
+                   "THIS BUNDLE IS EVIDENCE TO REVIEW, NOT AN IMPORT PACKAGE. Read the drafts\n"
+                   "here; import from the POLICY GENERATOR, which authors the same decisions\n"
+                   "in the layout PDC's own Export produces (a flat zip of pattern JSON, one\n"
+                   "nested zip per dictionary) and can push them over PDC's import API. The\n"
+                   "folders below are laid out for a human, and PDC will not read them.\n"
+                   "\n"
+                   "Patterns/ and Dictionaries/: the drafted Data Identification rules. Every\n"
+                   "one of them travels to the Policy Generator inside the Classification\n"
+                   "Registry, so nothing here has to be carried across by hand.\n"
                    "Quality/: data-quality expectations (data-contract style) derived from the same\n"
                    "profile - format = the induced value regex, allowed_values = the profiled\n"
                    "reference list, completeness/uniqueness thresholds = the measured baselines\n"
                    "(a later run below its baseline is a regression). Feed them to your DQ runner.\n"
-                   "Review every rule before importing - these are drafts, not decisions.\n")
+                   "Labels/: the label families and values derived from the same rows - stamped\n"
+                   "onto columns from the Apply page, not imported as Data Identification.\n"
+                   "\n"
+                   "Review every rule before deploying - these are drafts, not decisions.\n")
     return buf.getvalue()
