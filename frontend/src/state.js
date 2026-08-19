@@ -314,9 +314,9 @@ export async function openGlossary(id) {
 // offer to load the most recent save and fold the fresh evidence into the
 // settled review instead of silently starting a parallel universe. A
 // non-empty grid merges by source identity exactly as before.
-export async function landScanRows(newRows) {
+export async function landScanRows(newRows, opts = {}) {
   if (ws.rows.length > 0) {
-    const { rows, added, dup } = mergeBySource(ws.rows, newRows)
+    const { rows, added, dup } = mergeBySource(ws.rows, newRows, opts)
     setRows(rows)
     return { mode: 'merged', added, dup }
   }
@@ -331,7 +331,7 @@ export async function landScanRows(newRows) {
       + 'OK — load it and fold this scan into the settled review (recommended)\n'
       + 'Cancel — keep this scan as a fresh, separate grid')) {
     await openGlossary(latest.id)
-    const { rows, added, dup } = mergeBySource(ws.rows, newRows)
+    const { rows, added, dup } = mergeBySource(ws.rows, newRows, opts)
     setRows(rows)
     return { mode: 'folded', added, dup, name: latest.name }
   }

@@ -101,16 +101,39 @@ unauthenticated** (fine).
 
 ## 6 · Repopulate — from the app (the PDC-first flow)
 
+**BEFORE any wipe** (the two artifacts that carry the steward's work across
+a reset): **Settings → State snapshot** (download the zip), and
+**Dictionary → Export domain pack → Apply → commit** to the scenario repo.
+The pack is what makes the fresh walk arrive already speaking the company's
+language; skipping the export restarts Friday from raw physical names.
+
 Everything else comes through the Glossary Generator, which is the point of
 the architecture:
 
+0. **Scale the estate data** (once per reset, BEFORE bulk load): the demo
+   tables at 10 rows starve profiling — single-valued vocabularies force
+   curated seeds, and PDC's `columnCardinality > 5` rule guard can silence
+   authored rules. Seed at real size:
+
+   ```bash
+   python seed_sample.py --host 192.168.1.200 --port 5433 --db awc_operations \
+                         --user <loader-user> --password '<loader-pass>' \
+                         --rows 1000 --all
+   ```
+
+   The document store stays small on purpose — it is the demo's honest
+   sparse corner (the curated-seed workflow needs something to show).
 1. **Settings → ⚠ Factory reset** in the app (if you want app-zero too),
-   close, relaunch.
+   close, relaunch — then **install the domain pack** before the first scan
+   (the flywheel: evidence-seeded from minute one).
 2. **Connect → Bulk load** — one CSV registers every source in PDC, ingests
    and runs the analysis pass (profiling for databases, discovery for object
    stores).
 3. **Harvest** both sources — structure, governance AND the value evidence
-   PDC profiled. No app-side source credentials needed.
+   PDC profiled. No app-side source credentials needed. (Re-harvesting later
+   after ANOTHER data improvement: tick **Refresh value evidence** on the
+   Harvest card so the richer profile overwrites the old evidence — steward
+   fields and Auto/Mapping-only flips are never touched.)
 4. Walk: Review → Dictionary → Govern → Apply → Report.
 
 Two empty systems to a governed estate, one credential, ~an hour including

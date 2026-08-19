@@ -17,7 +17,7 @@
 
 const splitCols = (s) => String(s || '').split(';').map((t) => t.trim()).filter(Boolean)
 
-export function foldSources(base, nr) {
+export function foldSources(base, nr, { refreshEvidence = false } = {}) {
   const next = { ...base }
   const seen = new Set(splitCols(base.Source_Column))
   const cols = [...seen]
@@ -34,9 +34,18 @@ export function foldSources(base, nr) {
   const quality = Math.max(parseInt(base.Suggested_Quality || 0, 10) || 0,
                            parseInt(nr.Suggested_Quality || 0, 10) || 0)
   if (quality) next.Suggested_Quality = quality
-  for (const f of ['Value_Signature', 'Value_Pattern', 'Enum_Values', 'Value_Kind', 'Value_Range', 'Detection_Intent']) {
-    if (!next[f] && nr[f]) next[f] = nr[f]
+  // VALUE EVIDENCE: fill-only by default (steward work is never disturbed by
+  // a rescan). refreshEvidence — for when the DATA has genuinely improved
+  // (the estate was rescaled, profiling re-run) — lets the fresh profile
+  // OVERWRITE these five fields where the incoming row carries a value; an
+  // incoming blank still never erases existing evidence.
+  for (const f of ['Value_Signature', 'Value_Pattern', 'Enum_Values', 'Value_Kind', 'Value_Range']) {
+    if (nr[f] && (refreshEvidence || !next[f])) next[f] = nr[f]
   }
+  // Detection_Intent is NOT evidence — it carries the steward's Auto flips —
+  // so it stays fill-only in EVERY mode: only a row that never had an intent
+  // adopts the nature default.
+  if (!next.Detection_Intent && nr.Detection_Intent) next.Detection_Intent = nr.Detection_Intent
   return next
 }
 
@@ -45,7 +54,7 @@ export function foldSources(base, nr) {
 // belongs to an accumulated row — the OWNER row's edits and Keep stand, the
 // duplicate's evidence is absorbed. Order matters and is preserved: settled
 // rows come first, later arrivals fold into them.
-function foldWalk(acc, incoming) {
+function foldWalk(acc, incoming, opts = {}) {
   const out = [...acc]
   const bySrc = new Map()
   const byTerm = new Map()
@@ -72,7 +81,7 @@ function foldWalk(acc, incoming) {
       if (i != null) owner = i
     }
     if (owner != null) {
-      out[owner] = foldSources(out[owner], nr)
+      out[owner] = foldSources(out[owner], nr, opts)
       dup++
       continue
     }
@@ -84,8 +93,11 @@ function foldWalk(acc, incoming) {
 }
 
 // Merge incoming (scanned/harvested) rows into the existing workspace.
-export function mergeBySource(existing, incoming) {
-  return foldWalk(existing || [], incoming || [])
+// opts.refreshEvidence: overwrite value-evidence fields from the incoming
+// rows (steward fields and Detection_Intent untouched) — for rescans after
+// the underlying DATA improved.
+export function mergeBySource(existing, incoming, opts = {}) {
+  return foldWalk(existing || [], incoming || [], opts)
 }
 
 // How many rows duplicate an earlier row's identity — the damage counter

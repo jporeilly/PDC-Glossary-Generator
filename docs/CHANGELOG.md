@@ -14,6 +14,31 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.38.26] - 2026-08-19
+
+### Added - evidence refresh: when the DATA got better, the profile may say so
+
+Scaling the demo estate for a customer walkthrough exposed the merge's one
+blind spot: value evidence is fill-only by design (steward work must
+survive rescans), so a Value_Range computed from 10 rows would shadow the
+range a 1,000-row profile computes.
+
+- **Refresh value evidence** (Harvest card toggle, off by default): a
+  re-harvest may OVERWRITE the five value-evidence fields
+  (pattern/vocabulary/kind/range/signature) on matched rows with the fresh
+  profile. Steward fields are never touched, an incoming blank never
+  erases existing evidence, and **Detection_Intent stays fill-only in
+  every mode** — the steward's Auto/Mapping-only flips are decisions, not
+  evidence, and they survive a rescaled estate (pinned).
+- RESET-RUNBOOK: repopulation now starts by scaling the estate
+  (seed_sample --rows 1000 --all — 10-row tables starve profiling into
+  curated-seed calls and can leave authored rules silenced by PDC's own
+  columnCardinality guard), keeps the document store small on purpose (the
+  demo's honest sparse corner), and leads with the two pre-wipe saves:
+  State snapshot + Export domain pack.
+
+Suite 369.
+
 ## [1.38.25] - 2026-08-18
 
 ### Added - the Estate Report grows up: data-rich, explained, and honest

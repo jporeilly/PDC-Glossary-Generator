@@ -206,6 +206,11 @@ def test_row_identity_is_evidence_not_labels():
     rm = _read(os.path.join(base, "rowmerge.js"))
     assert "IDENTITY IS EVIDENCE, NOT LABELS" in rm
     assert "mergeBySource" in rm and "selfFold" in rm and "sameSourceCount" in rm
+    # 1.38.26 evidence refresh: overwrite is opt-in, and the steward's
+    # Detection_Intent flips are NEVER refresh targets — the field stays
+    # fill-only in every mode (the 70 flips must survive a rescaled estate)
+    assert "refreshEvidence" in rm
+    assert "stays fill-only in EVERY mode" in rm
     # 1.38.17: the landing moved into state.js (landScanRows) so the empty-
     # grid guard wraps EVERY scan/harvest landing — Connect and the source
     # connections delegate to it, and the source-identity merge lives behind it

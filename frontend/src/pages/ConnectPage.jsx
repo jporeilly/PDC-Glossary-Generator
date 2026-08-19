@@ -875,6 +875,12 @@ function HarvestCard({ pdc, onConnectionsChanged, onNavigate, glossaryName }) {
   const [scanCards, setScanCards] = usePersistentState('connect.hvCards', [])  // pdc_summary result cards
   const [glossName, setGlossName] = usePersistentState('connect.hvGloss', '')
   const [glossMsg, setGlossMsg] = useState('')
+  // evidence refresh (1.38.26): after the underlying DATA improved (estate
+  // rescaled, profiling re-run), the fresh profile may OVERWRITE the five
+  // value-evidence fields on matched rows — steward fields and the
+  // Detection_Intent flips are never touched, and an incoming blank never
+  // erases existing evidence
+  const [hvRefresh, setHvRefresh] = usePersistentState('connect.hvRefresh', false)
 
   const note = (k, tone, text) => setNotes((n) => ({ ...n, [k]: { tone, text } }))
 
@@ -937,9 +943,9 @@ function HarvestCard({ pdc, onConnectionsChanged, onNavigate, glossaryName }) {
     // settled glossary sits unloaded offers to fold into it instead of
     // silently forking a raw twin (field-caught). Non-empty grids merge as
     // before; in a multi-source harvest only the first landing can ask.
-    const res = await landScanRows(d.rows || [])
+    const res = await landScanRows(d.rows || [], { refreshEvidence: hvRefresh })
     const gov = d.scanned?.already_governed || 0
-    note(k, 'good', `✓ ${res.mode === 'folded' ? `loaded "${res.name}" · ` : ''}added ${res.added} term(s)${res.dup ? ` · ${res.dup} merged into existing` : ''}${gov ? ` · ${gov} already governed in PDC` : ''}`)
+    note(k, 'good', `✓ ${res.mode === 'folded' ? `loaded "${res.name}" · ` : ''}added ${res.added} term(s)${res.dup ? ` · ${res.dup} merged into existing${hvRefresh ? ' (evidence refreshed)' : ''}` : ''}${gov ? ` · ${gov} already governed in PDC` : ''}`)
     return { added: res.added, gov }
   }
 
@@ -1055,6 +1061,11 @@ function HarvestCard({ pdc, onConnectionsChanged, onNavigate, glossaryName }) {
         {sources != null && sel.size > 0 && (
           <button className="primary" onClick={harvestSelected} disabled={busy}>Harvest selected →</button>
         )}
+        <label className="rv-cbx"
+               title="For a re-harvest AFTER the underlying data improved (estate rescaled, profiling re-run): the fresh profile overwrites the value-evidence fields (patterns, vocabularies, kinds, ranges, signatures) on matched rows. Steward fields and your Auto/Mapping-only flips are never touched; a blank never erases existing evidence. Leave off for everyday re-harvests.">
+          <input type="checkbox" checked={hvRefresh}
+                 onChange={(e) => setHvRefresh(e.target.checked)} /> Refresh value evidence
+        </label>
         <span className="muted" style={{ fontSize: '.8rem' }}>
           {sel.size ? `${sel.size} selected` : sources != null ? 'none selected' : ''}
         </span>
