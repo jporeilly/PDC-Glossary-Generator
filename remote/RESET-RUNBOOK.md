@@ -115,10 +115,17 @@ the architecture:
    curated seeds, and PDC's `columnCardinality > 5` rule guard can silence
    authored rules. Seed at real size:
 
-   ```bash
-   python seed_sample.py --host 192.168.1.200 --port 5433 --db awc_operations \
-                         --user <loader-user> --password '<loader-pass>' \
-                         --rows 1000 --all
+   ```powershell
+   # PowerShell, from the repo. NOTE: module invocation from glossary_generator
+   # (the script needs its `sources` package), and the OWNER account — the
+   # loader CSV's pdc_user is read-only by design. The owner password lives in
+   # the demo-postgres container env on the VM:
+   #   ssh pdc@192.168.1.200 "docker inspect demo-postgres --format
+   #     '{{range .Config.Env}}{{println .}}{{end}}' | grep POSTGRES_PASSWORD"
+   Set-Location C:\Projects\PDC-Glossary\glossary_generator
+   python -m sources.seed_sample --host 192.168.1.200 --port 5433 `
+       --db awc_operations --schema awc_operations `
+       --user demo_admin --password '<owner-pass>' --rows 1000 --all
    ```
 
    The document store stays small on purpose — it is the demo's honest

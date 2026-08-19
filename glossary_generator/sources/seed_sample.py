@@ -60,7 +60,9 @@ def _gen(colname, dtype, row_i, refs):
     if "name" in n and ("customer" in n or "account" in n or "holder" in n):
         return f"{random.choice(FIRST)} {random.choice(LAST)}"
     if "name" in n and "system" in n:
-        return f"{random.choice(CITIES)} System {random.randint(1,40)}"
+        # row_i-derived: system_name carries a UNIQUE constraint, and a
+        # random 1..40 draw collides with existing rows and itself
+        return f"{random.choice(CITIES)} System {row_i}"
     if "name" in n:
         return f"{random.choice(FIRST)} {random.choice(LAST)}"
     if "address" in n:
@@ -82,6 +84,14 @@ def _gen(colname, dtype, row_i, refs):
         return random.randint(1, 5)
     if "month" in n and ("date" in t or "timestamp" in t):
         return _rand_date(365, 365)
+    # TYPE WINS for temporal columns before any categorical NAME rule: a
+    # last_compliance_check DATE matched the "compliance" name rule and
+    # received the word 'compliant' (field-caught on the scale-up seed)
+    if "timestamp" in t:
+        return datetime.datetime.now() - datetime.timedelta(days=random.randint(0, 400),
+                                                            seconds=random.randint(0, 86400))
+    if "date" in t:
+        return _rand_date()
     # categorical text
     if "city" in n or "cities" in n:
         return random.choice(CITIES)
@@ -115,15 +125,22 @@ def _gen(colname, dtype, row_i, refs):
 
 
 def _introspect(cur, schema):
-    cur.execute("""SELECT table_name, column_name, data_type, is_nullable, column_default
-                   FROM information_schema.columns WHERE table_schema=%s
-                   ORDER BY table_name, ordinal_position""", (schema,))
+    # BASE TABLEs only: information_schema.columns also lists VIEWS, and a
+    # GROUP BY view (customer_billing_summary) is not insertable — the seed
+    # died mid-run trying (field-caught on the scale-up)
+    cur.execute("""SELECT c.table_name, c.column_name, c.data_type, c.is_nullable,
+                          c.column_default, c.numeric_precision, c.numeric_scale
+                   FROM information_schema.columns c
+                   JOIN information_schema.tables t
+                     ON t.table_schema=c.table_schema AND t.table_name=c.table_name
+                   WHERE c.table_schema=%s AND t.table_type='BASE TABLE'
+                   ORDER BY c.table_name, c.ordinal_position""", (schema,))
     tables = {}
-    for tn, cn, dt, nullable, default in cur.fetchall():
+    for tn, cn, dt, nullable, default, prec, scale in cur.fetchall():
         tables.setdefault(tn, {"cols": [], "pk": [], "fk": {}})
         is_serial = bool(default and "nextval" in str(default))
         tables[tn]["cols"].append({"name": cn, "type": dt, "nullable": nullable == "YES",
-                                   "serial": is_serial})
+                                   "serial": is_serial, "prec": prec, "scale": scale})
     cur.execute("""SELECT tc.table_name, kcu.column_name, tc.constraint_type,
                           ccu.table_name AS ref_table, ccu.column_name AS ref_col
                    FROM information_schema.table_constraints tc
@@ -215,17 +232,60 @@ def seed(cfg, rows=200, only_empty=True, schema=None):
                 sql = f'INSERT INTO "{schema}"."{tn}" ({collist}) VALUES ({placeholders})'
                 n_rows = rows
                 made = 0
-                for i in range(1, n_rows + 1):
+                # TOP-UP SAFE: every generated value derives from the loop
+                # index, so a --all run over a non-empty table regenerated
+                # the ORIGINAL ids (field-caught: customers_pkey 6587).
+                # Start above the table's max integer PK — ids, emails and
+                # patterned account numbers all shift past the existing rows.
+                off = 0
+                for v in pk_pool.get(tn, []):
+                    try:
+                        v = int(v)          # ints arrive as Decimal on numeric PKs
+                    except (TypeError, ValueError):
+                        continue
+                    if v > off:
+                        off = v
+                pk_col = meta["pk"][0] if len(meta["pk"]) == 1 else None
+                for i in range(off + 1, off + n_rows + 1):
                     vals = []
                     skip = False
                     for c in gen_cols:
                         v = _gen(c["name"], c["type"], i, refs)
+                        # a single-col INTEGER PK takes the sequential index
+                        # directly (already offset above the existing max):
+                        # the generic int fallback draws random 1..10000 and
+                        # collides with existing rows AND itself over a
+                        # 1000-row run (field-caught: customers_pkey)
+                        if (c["name"] == pk_col
+                                and ("int" in (c["type"] or "").lower()
+                                     or "numeric" in (c["type"] or "").lower())):
+                            v = i
+                        # respect NUMERIC(p,s): the generic fallback threw
+                        # 0..1000 at a NUMERIC(3,2) chlorine column
+                        # (field-caught) — clamp to the column's capacity
+                        pr, sc = c.get("prec"), c.get("scale")
+                        if (pr and isinstance(v, (int, float))
+                                and not isinstance(v, bool)):
+                            cap = 10 ** (pr - (sc or 0))
+                            if abs(v) >= cap:
+                                v = round(random.uniform(0, cap * 0.9), sc or 0)
                         if v is None and c["name"] in meta["fk"] and not c["nullable"]:
                             skip = True; break          # FK with no parent rows -> can't insert
                         vals.append(v)
                     if skip:
                         break
-                    cur.execute(sql, vals)
+                    # constraint-tolerant: a unique constraint on generated
+                    # values rolls back THIS row only — the run completes
+                    # with a slight shortfall instead of dying at row N
+                    cur.execute("SAVEPOINT seedrow")
+                    try:
+                        cur.execute(sql, vals)
+                    except Exception as e:
+                        from psycopg2 import errors as _pgerr
+                        if isinstance(e, _pgerr.UniqueViolation):
+                            cur.execute("ROLLBACK TO SAVEPOINT seedrow")
+                            continue
+                        raise
                     made += 1
                 if made:
                     # refresh PK pool for downstream children

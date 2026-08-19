@@ -14,6 +14,41 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.38.27] - 2026-08-19
+
+### Fixed - the seeder survives a real estate (five field-caught bugs)
+
+Scaling Arizona Water to 1,000 rows/table for a customer walkthrough ran
+seed_sample through every failure mode it had. All fixed, all in one live
+run that now completes: 6 tables +1,000 rows each, vocabularies 4-15
+distinct, ranges within column capacity.
+
+- **Top-up PK collisions**: every generated value derived from a loop index
+  starting at 1, so --all over a non-empty table regenerated the original
+  ids. The index now starts above the table's max integer PK — ids, emails
+  and patterned account numbers all shift past existing rows.
+- **Integer PKs drew random.randint(1,10000)** (the generic int fallback):
+  collides with existing rows AND itself over 1,000 draws. A single-column
+  integer/numeric PK now takes the sequential offset index directly.
+- **Name rules beat the column TYPE**: last_compliance_check (a DATE)
+  matched the "compliance" name rule and received the word 'compliant'.
+  Temporal types now win before any categorical name rule.
+- **Views seeded as tables**: information_schema.columns lists views, and a
+  GROUP BY view (customer_billing_summary) is not insertable. Introspection
+  now filters to BASE TABLEs.
+- **NUMERIC(p,s) overflow**: the generic numeric fallback threw 0..1000 at
+  a NUMERIC(3,2) chlorine column. Generated numerics clamp to the column's
+  declared capacity.
+- Plus: unique-text tolerance (a per-row SAVEPOINT skips a unique-constraint
+  duplicate instead of dying at row N), and system_name derives from the
+  row index (it carries a UNIQUE constraint; a random 1..40 draw cannot
+  produce 1,000 distinct values).
+- RESET-RUNBOOK: the seed step now shows the working invocation — module
+  form from glossary_generator, the OWNER account (the loader's pdc_user is
+  read-only by design), PowerShell-native syntax (no bash `&&`).
+
+Suite 369.
+
 ## [1.38.26] - 2026-08-19
 
 ### Added - evidence refresh: when the DATA got better, the profile may say so
