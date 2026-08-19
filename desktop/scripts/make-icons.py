@@ -38,13 +38,50 @@ icons = os.path.join(repo, "src-tauri", "icons")
 PENTAHO_RED = (204, 0, 0)
 PENTAHO_RED_DARK = (150, 0, 0)
 WHITE = (255, 255, 255)
+# 2026 branding ("remove swirl... just Pentaho - with capitalized P", "the
+# background to the Pentaho logo needs to be black. same as website"): the
+# swirl is retired everywhere; the mark is the WORD Pentaho, white on black,
+# with brand red demoted to an accent line. The app icon carries a capital P
+# (a word is mush at 24 px) plus the per-app badge that tells the suite's
+# taskbar pins apart.
+BLACK = (12, 12, 14)
+BLACK_DEEP = (0, 0, 0)
 
 accent_hex = args.accent.lstrip("#")
 ACCENT = tuple(int(accent_hex[i : i + 2], 16) for i in (0, 2, 4))
 ACCENT_DARK = tuple(int(c * 0.62) for c in ACCENT)
 
-swirl_a = Image.open(os.path.join(scr, "swirl_mask.png"))
-wm_a = Image.open(os.path.join(scr, "wordmark_mask.png"))
+
+def _brand_font(px):
+    """Segoe UI Semibold — closest system face to the wordmark's weight."""
+    for f in (r"C:\Windows\Fonts\seguisb.ttf", r"C:\Windows\Fonts\segoeuib.ttf",
+              r"C:\Windows\Fonts\segoeui.ttf"):
+        try:
+            return ImageFont.truetype(f, px)
+        except OSError:
+            continue
+    return ImageFont.load_default()
+
+
+def text_mark(text, color, px=512):
+    """Render `text` as a tight-cropped RGBA mark (the drawn wordmark)."""
+    f = _brand_font(px)
+    scratch = Image.new("L", (px * len(text) + px, px * 2), 0)
+    d = ImageDraw.Draw(scratch)
+    d.text((px // 4, px // 4), text, font=f, fill=255)
+    bb = scratch.getbbox()
+    alpha = scratch.crop(bb)
+    out = Image.new("RGBA", alpha.size, color + (0,))
+    out.putalpha(alpha)
+    return out
+
+
+def scale_h(img, h):
+    return img.resize((max(1, int(img.width * h / img.height)), int(h)), Image.LANCZOS)
+
+
+def scale_w(img, w):
+    return img.resize((int(w), max(1, int(img.height * w / img.width))), Image.LANCZOS)
 
 def colorize(alpha, color, scale):
     tw, th = int(alpha.width * scale), int(alpha.height * scale)
@@ -120,62 +157,76 @@ def draw_badge(img, S, kind, color_hex):
         d.ellipse([hx - hole, hy - hole, hx + hole, hy + hole], fill=c + (255,))
 
 
-# ---------------- 1024 icon (always Pentaho red) ----------------
+# ---------------- 1024 icon (black tile, white P, red accent) ----------------
 if not args.nsis_only:
     S = 2048
     img = Image.new("RGBA", (S, S), (0, 0, 0, 0))
     mask = Image.new("L", (S, S), 0)
     ImageDraw.Draw(mask).rounded_rectangle([0, 0, S - 1, S - 1], radius=int(S * 0.19), fill=255)
-    bg = Image.new("RGBA", (S, S), PENTAHO_RED + (255,))
+    bg = Image.new("RGBA", (S, S), BLACK + (255,))
     shade = Image.new("L", (1, S))
     for y in range(S):
-        shade.putpixel((0, y), int(28 * (y / S)))
-    dark = Image.new("RGBA", (S, S), PENTAHO_RED_DARK + (255,))
-    bg = Image.composite(dark, bg, shade.resize((S, S)))
+        shade.putpixel((0, y), int(140 * (y / S)))
+    deep = Image.new("RGBA", (S, S), BLACK_DEEP + (255,))
+    bg = Image.composite(deep, bg, shade.resize((S, S)))
     img.paste(bg, (0, 0), mask)
 
-    sw = colorize(swirl_a, WHITE, (S * 0.72) / swirl_a.width)
-    # Nudged up-left so the badge owns the lower-right corner.
-    img.alpha_composite(sw, (int((S - sw.width) / 2 - S * 0.03),
-                             int((S - sw.height) / 2 - S * 0.03)))
+    p = scale_h(text_mark("P", WHITE), S * 0.60)
+    px_ = int((S - p.width) / 2 - S * 0.045)
+    py_ = int((S - p.height) / 2 - S * 0.055)
+    img.alpha_composite(p, (px_, py_))
+    # the brand-red accent: a short bar under the P (the splash draws the
+    # same bar under the wordmark)
+    bar_w, bar_h = int(p.width * 0.94), int(S * 0.038)
+    bx = px_ + (p.width - bar_w) // 2
+    by = py_ + p.height + int(S * 0.055)
+    ImageDraw.Draw(img).rounded_rectangle([bx, by, bx + bar_w, by + bar_h],
+                                          radius=bar_h // 2,
+                                          fill=PENTAHO_RED + (255,))
     draw_badge(img, S, args.badge, args.badge_color)
     img = img.resize((1024, 1024), Image.LANCZOS)
     img.save(os.path.join(icons, "icon-source.png"))
 
-# ---------------- NSIS header 150x57 ----------------
+# ---------------- NSIS header 150x57 (black, wordmark only) ----------------
 SS = 8
 W, H = 150 * SS, 57 * SS
-hdr = Image.new("RGB", (W, H), ACCENT)
-sw = colorize(swirl_a, WHITE, (H * 0.74) / swirl_a.height)
-wmark = colorize(wm_a, WHITE, (W * 0.54) / wm_a.width)
+hdr = Image.new("RGB", (W, H), BLACK)
+wmark = scale_h(text_mark("Pentaho", WHITE), H * 0.42)
 MARGIN = 0.06
-hdr.paste(wmark, (int(W * MARGIN), int((H - wmark.height) / 2)), wmark)
-# Right margin computed to MATCH the left, rather than a fixed x that happened
-# to leave the swirl flush against the edge: it was pasted at 71% and is ~28%
-# wide, so it ran to 99%. Deriving the position from the mark's actual width
-# keeps the two margins equal whatever the scale factor above becomes.
-hdr.paste(sw, (W - int(W * MARGIN) - sw.width, int((H - sw.height) / 2)), sw)
+wx, wy = int(W * MARGIN), int((H - wmark.height) / 2)
+hdr.paste(wmark, (wx, wy), wmark)
+# the red accent bar, tucked under the wordmark
+bh = max(2 * SS, int(H * 0.045))
+bd = ImageDraw.Draw(hdr)
+bd.rounded_rectangle([wx, wy + wmark.height + int(H * 0.07),
+                      wx + int(wmark.width * 0.55), wy + wmark.height + int(H * 0.07) + bh],
+                     radius=bh // 2, fill=PENTAHO_RED)
 hdr.resize((150, 57), Image.LANCZOS).save(os.path.join(icons, "nsis-header.bmp"), "BMP")
 
-# ---------------- NSIS sidebar 164x314 ----------------
+# ---------------- NSIS sidebar 164x314 (black, P tile + wordmark) ----------
 SS = 8
 W, H = 164 * SS, 314 * SS
-side = Image.new("RGB", (W, H), ACCENT)
+side = Image.new("RGB", (W, H), BLACK_DEEP)
 grad = Image.new("L", (1, H))
 for y in range(H):
-    grad.putpixel((0, y), int(70 * (1 - y / H)))
-side = Image.composite(Image.new("RGB", (W, H), ACCENT_DARK), side, grad.resize((W, H)))
+    grad.putpixel((0, y), int(60 * (1 - y / H)))
+side = Image.composite(Image.new("RGB", (W, H), BLACK), side, grad.resize((W, H)))
 d = ImageDraw.Draw(side)
-sw = colorize(swirl_a, WHITE, (W * 0.54) / swirl_a.width)
-# The sidebar swirl wears the app badge, same composition as the app
-# icon (the header's swirl lands ~42 px tall, glyph mush - left plain).
-L = int(sw.width / 0.72)
+# the P tile wears the app badge, same composition as the app icon
+L = int(W * 0.44)
 tile = Image.new("RGBA", (L, L), (0, 0, 0, 0))
-tile.alpha_composite(sw, (int((L - sw.width) / 2 - L * 0.03),
-                          int((L - sw.height) / 2 - L * 0.03)))
+p = scale_h(text_mark("P", WHITE), L * 0.62)
+tpx = int((L - p.width) / 2 - L * 0.045)
+tpy = int((L - p.height) / 2 - L * 0.055)
+tile.alpha_composite(p, (tpx, tpy))
+tbw, tbh = int(p.width * 0.94), max(2, int(L * 0.04))
+ImageDraw.Draw(tile).rounded_rectangle(
+    [tpx + (p.width - tbw) // 2, tpy + p.height + int(L * 0.055),
+     tpx + (p.width - tbw) // 2 + tbw, tpy + p.height + int(L * 0.055) + tbh],
+    radius=tbh // 2, fill=PENTAHO_RED + (255,))
 draw_badge(tile, L, args.badge, args.badge_color)
-side.paste(tile, (int((W - L) / 2), int(H * 0.11) - (L - sw.height) // 2), tile)
-wmark = colorize(wm_a, WHITE, (W * 0.74) / wm_a.width)
+side.paste(tile, (int((W - L) / 2), int(H * 0.10)), tile)
+wmark = scale_w(text_mark("Pentaho", WHITE), W * 0.68)
 side.paste(wmark, (int((W - wmark.width) / 2), int(H * 0.455)), wmark)
 try:
     f_med = ImageFont.truetype(r"C:\Windows\Fonts\segoeui.ttf", int(W * 0.088))

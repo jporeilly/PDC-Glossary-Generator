@@ -14,6 +14,28 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.38.28] - 2026-08-19
+
+### Changed - the swirl retires: Pentaho, capital P, white on black
+
+Branding verified against the live pentaho.com (the official logo asset is
+a white capital-P wordmark on transparent, built for black; the site says
+"Pentaho" fifteen times and "pentaho" zero) and user-approved from
+rendered previews:
+
+- **App icon**: black tile, white capital P, short brand-red accent bar,
+  the per-app badge kept (a word is mush at 24 px; the badge is what tells
+  the suite's taskbar pins apart). Full Tauri icon set regenerated.
+- **Installer art**: NSIS header and welcome sidebar go black — white
+  "Pentaho" wordmark, red accent bar, the P-tile with badge on the sidebar.
+- **Splash**: black field with a faint red floor-glow, white Pentaho
+  wordmark over "Glossary Generator", and the animated red bar inherits
+  the swirl's alive-signal job — draws in on launch, breathes faster
+  while more startup checks remain.
+- The wordmark is drawn in Segoe UI Semibold (no SVG of the official
+  wordmark is published; the site's PNGs are 162/200 px — too small for a
+  2048 px icon master). Drop-in swap when marketing provides the SVG.
+
 ## [1.38.27] - 2026-08-19
 
 ### Fixed - the seeder survives a real estate (five field-caught bugs)

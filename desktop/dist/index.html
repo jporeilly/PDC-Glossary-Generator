@@ -11,34 +11,31 @@
     display: flex; align-items: center; justify-content: center;
     font: 15px/1.55 "Segoe UI", system-ui, sans-serif;
     color: #e6edf3;
-    /* Pentaho red bleeding out of a near-black field, so the brand reads before
-       any text is legible. */
-    background: radial-gradient(940px 640px at 50% 38%, #3d0708 0%, #1a0a0e 44%, #0f1720 80%);
+    /* 2026 branding: BLACK, same as pentaho.com - the wordmark carries the
+       brand; red survives as the accent bar and a faint floor glow. */
+    background: radial-gradient(940px 640px at 50% 105%, #1c0405 0%, #0a0a0c 55%, #000 100%);
   }
   .stage { width: min(600px, 90vw); }
 
-  header { display: flex; align-items: center; gap: 1.05rem; margin-bottom: 1.5rem; }
-  .markwrap { position: relative; width: 78px; height: 78px; flex: 0 0 78px; }
-  svg.mark { position: absolute; inset: 0; width: 78px; height: 78px; }
-  .swirl {
-    fill: none; stroke: #cc0000; stroke-width: 7.5;
-    stroke-linecap: round; stroke-linejoin: round;
-    filter: drop-shadow(0 0 12px rgba(204,0,0,.55));
-    stroke-dasharray: 640; stroke-dashoffset: 640;
-    animation: draw 2.2s cubic-bezier(.35,.6,.3,1) forwards, spin 16s linear 2.2s infinite;
-    transform-origin: 50% 50%;
+  header { margin-bottom: 1.5rem; }
+  /* The wordmark: white Pentaho, capital P (the swirl is retired). The bar
+     beneath is the alive-signal the swirl's spin used to provide - it draws
+     in on load and keeps breathing while the checks run, faster while more
+     is left to do. */
+  .brandword {
+    font: 650 2.15rem/1.1 "Segoe UI Semibold", "Segoe UI", system-ui, sans-serif;
+    letter-spacing: .012em; color: #fff; display: inline-block;
   }
-  @keyframes draw { to { stroke-dashoffset: 0; } }
+  .brandbar {
+    display: block; height: 4px; width: 0; margin-top: .42rem;
+    background: #cc0000; border-radius: 2px;
+    box-shadow: 0 0 14px rgba(204,0,0,.6);
+    animation: bardraw 2.2s cubic-bezier(.35,.6,.3,1) forwards,
+               breathe 2.6s ease-in-out 2.2s infinite alternate;
+  }
+  @keyframes bardraw { to { width: 100%; } }
+  @keyframes breathe { from { opacity: .55; } to { opacity: 1; } }
   @keyframes spin { to { transform: rotate(360deg); } }
-  /* Concentric pulses - the estate being swept. Decorative, but it makes a
-     20-second cold start read as work rather than a hang. */
-  .ring {
-    position: absolute; inset: 0; border: 1px solid rgba(204,0,0,.40);
-    border-radius: 50%; animation: pulse 3.2s ease-out infinite;
-  }
-  .ring:nth-child(2) { animation-delay: 1.05s; }
-  .ring:nth-child(3) { animation-delay: 2.1s; }
-  @keyframes pulse { 0% { transform: scale(.5); opacity: .75; } 100% { transform: scale(2); opacity: 0; } }
 
   h1 { font-size: 1.3rem; font-weight: 600; margin: 0 0 .15rem; letter-spacing: .015em; }
   .sub { color: #9aa7b4; margin: 0; font-size: .9rem; }
@@ -164,16 +161,9 @@
 <body>
 <div class="stage">
   <header>
-    <div class="markwrap">
-      <div class="ring"></div><div class="ring"></div><div class="ring"></div>
-      <svg class="mark" viewBox="0 0 100 100" aria-hidden="true">
-        <path class="swirl" d="M 47.17 47.17 L 47.27 46.84 L 47.39 46.50 L 47.56 46.17 L 47.76 45.84 L 47.99 45.52 L 48.26 45.22 L 48.57 44.93 L 48.90 44.66 L 49.27 44.41 L 49.67 44.19 L 50.09 44.00 L 50.55 43.84 L 51.02 43.72 L 51.52 43.63 L 52.03 43.59 L 52.56 43.58 L 53.10 43.62 L 53.65 43.71 L 54.20 43.84 L 54.75 44.02 L 55.29 44.25 L 55.83 44.52 L 56.36 44.85 L 56.86 45.22 L 57.35 45.64 L 57.81 46.10 L 58.24 46.61 L 58.64 47.17 L 59.00 47.76 L 59.32 48.39 L 59.59 49.05 L 59.81 49.75 L 59.99 50.47 L 60.11 51.22 L 60.17 51.99 L 60.18 52.77 L 60.12 53.56 L 60.00 54.36 L 59.82 55.16 L 59.57 55.96 L 59.26 56.75 L 58.88 57.52 L 58.44 58.27 L 57.94 59.00 L 57.37 59.70 L 56.74 60.36 L 56.06 60.99 L 55.32 61.56 L 54.53 62.09 L 53.69 62.56 L 52.80 62.97 L 51.88 63.32 L 50.91 63.61 L 49.92 63.82 L 48.90 63.96 L 47.86 64.02 L 46.81 64.00 L 45.74 63.91 L 44.68 63.73 L 43.61 63.47 L 42.56 63.13 L 41.52 62.70 L 40.51 62.20 L 39.53 61.61 L 38.58 60.94 L 37.67 60.20 L 36.81 59.38 L 36.01 58.49 L 35.27 57.53 L 34.59 56.51 L 33.99 55.43 L 33.46 54.30 L 33.01 53.12 L 32.65 51.89 L 32.37 50.63 L 32.19 49.34 L 32.11 48.02 L 32.12 46.70 L 32.23 45.36 L 32.45 44.02 L 32.76 42.69 L 33.18 41.37 L 33.69 40.07 L 34.31 38.81 L 35.03 37.58 L 35.84 36.40 L 36.75 35.27 L 37.74 34.20 L 38.82 33.20 L 39.99 32.27 L 41.23 31.42 L 42.54 30.66 L 43.91 30.00 L 45.34 29.43 L 46.82 28.97 L 48.35 28.61 L 49.91 28.36 L 51.49 28.23 L 53.10 28.22 L 54.72 28.33 L 56.33 28.55 L 57.94 28.90 L 59.53 29.37 L 61.09 29.96 L 62.62 30.66 L 64.11 31.49 L 65.54 32.43 L 66.90 33.48 L 68.20 34.64 L 69.42 35.89 L 70.55 37.25 L 71.58 38.69 L 72.51 40.22 L 73.34 41.82 L 74.04 43.50 L 74.63 45.23 L 75.10 47.01 L 75.43 48.84 L 75.63 50.70 L 75.69 52.58 L 75.61 54.47 L 75.40 56.37 L 75.04 58.25 L 74.54 60.12 L 73.90 61.96 L 73.12 63.76 L 72.21 65.51 L 71.16 67.20 L 69.99 68.82 L 68.69 70.36 L 67.27 71.81 L 65.74 73.16 L 64.10 74.40 L 62.37 75.52 L 60.55 76.53 L 58.64 77.40 L 56.67 78.13 L 54.63 78.72 L 52.55 79.16 L 50.42 79.45 L 48.27 79.59 L 46.09 79.56 L 43.92 79.38 L 41.75 79.03 L 39.59 78.52 L 37.47 77.86 L 35.39 77.03 L 33.36 76.05 L 31.40 74.92 L 29.52 73.63 L 27.73 72.21 L 26.03 70.65 L 24.45 68.96 L 22.98 67.15 L 21.65 65.22 L 20.45 63.19 L 19.39 61.07 L 18.50 58.86 L 17.76 56.58 L 17.18 54.24 L 16.78 51.85 L 16.55 49.43 L 16.50 46.98 L 16.63 44.52 L 16.94 42.06 L 17.43 39.62 L 18.10 37.21 L 18.96 34.85 L 19.98 32.54 L 21.18 30.30 L 22.55 28.14 L 24.08 26.08 L 25.77 24.12 L 27.60 22.28 L 29.57 20.58 L 31.67 19.01 L 33.90 17.60 L 36.23 16.35 L 38.66 15.26 L 41.17 14.35 L 43.76 13.62 L 46.40 13.08 L 49.10 12.74 L 51.82 12.59 L 54.56 12.64 L 57.30 12.89 L 60.03 13.35 L 62.73 14.00 L 65.39 14.86 L 67.99 15.91 L 70.52 17.15 L 72.96 18.59 L 75.30 20.20 L 77.53 21.99 L 79.63 23.95 L 81.59 26.07 L 83.40 28.33 L 85.05 30.73 L 86.53 33.26 L 87.82 35.89 L 88.92 38.63 L 89.82 41.46 L 90.52 44.35 L 91.00 47.30 L 91.27 50.29 L 91.32 53.31 L 91.15 56.34 L 90.76 59.36 L 90.14 62.35 L 89.31 65.30 L 88.25 68.20 L 86.99 71.03 L 85.51 73.76 L 83.83 76.40 L 81.95 78.91 L 79.89 81.29 L 77.65 83.52 L 75.24 85.59 L 72.68 87.49 L 69.98 89.20"/>
-      </svg>
-    </div>
-    <div>
-      <h1>PDC Glossary Generator <span class="ver" id="ver"></span></h1>
-      <p class="sub">Build a governed business glossary</p>
-    </div>
+    <div class="brandword" aria-hidden="true">Pentaho<span class="brandbar"></span></div>
+    <h1 style="margin-top:.9rem">Glossary Generator <span class="ver" id="ver"></span></h1>
+    <p class="sub">Build a governed business glossary</p>
   </header>
 
   <div id="live">
@@ -285,12 +275,12 @@
   function advanceTo(index) {
     if (index <= reached) { return; }
     reached = index;
-    // The mark is a status indicator, not decoration: it spins fastest while
-    // there is most left to do and settles as the checks complete.
-    var swirl = document.querySelector('.swirl');
-    if (swirl) {
+    // The bar is a status indicator, not decoration: it breathes fastest
+    // while there is most left to do and settles as the checks complete.
+    var bar = document.querySelector('.brandbar');
+    if (bar) {
       var left = Math.max(0, STEPS.length - index) / STEPS.length;
-      swirl.style.animationDuration = '2.2s, ' + (3 + left * 13).toFixed(1) + 's';
+      bar.style.animationDuration = '2.2s, ' + (1.2 + left * 2.6).toFixed(1) + 's';
     }
     for (var i = 0; i < STEPS.length; i++) {
       if (i < index) { if (stateOf(STEPS[i].id) !== 'failed') setState(STEPS[i].id, 'done'); }
