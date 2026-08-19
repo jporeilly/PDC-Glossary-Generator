@@ -41,6 +41,10 @@ curl.exe -k -X POST 'https://pentaho.io/api/v2/licensing/uploadLicense' `
 Set-Location C:\Projects\PDC-Scenarios
 .\load-pdc-users.ps1 -Scenario AWC -BaseUrl https://pentaho.io `
   -SkipTlsCheck -FixPolicy -PolicyValue 'length(7)' -Password azwater
+# non-interactive: add  -AdminPassword (ConvertTo-SecureString 'admin' -AsPlainText -Force)
+# then PROVE the cast took (read-only, no admin credential):
+.\load-pdc-users.ps1 -Scenario AWC -BaseUrl https://pentaho.io `
+  -SkipTlsCheck -Password azwater -Verify
 
 # 4 · Safe list + health
 Set-Location C:\Projects\PDC-Glossary\remote
