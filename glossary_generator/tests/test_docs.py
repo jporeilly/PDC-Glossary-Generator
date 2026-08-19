@@ -229,6 +229,30 @@ def test_row_identity_is_evidence_not_labels():
         "the heal is never exposed to the steward as a decision"
 
 
+def test_proposed_categories_are_chips_on_the_banner():
+    """The categorize banner says "settle the set, rename any group" - but
+       the proposed subjects were only visible by scrolling the grid reading
+       pills, and a rename meant editing pills row by row (field: "it would
+       be great to see the list of proposed Categories without having to
+       scroll. this list could be editable."). Pin the affordance: the banner
+       groups the pending Category pills into editable chips, a chip renames
+       its whole group (merging onto an existing name), a group can be
+       dismissed alone, and both rewrites go through commitProposals so
+       pendingCats and the Approve button recount live."""
+    path = os.path.join(REPO, "frontend", "src", "pages", "ReviewPage.jsx")
+    if not os.path.isfile(path):
+        return                     # backend-only checkout
+    src = _read(path)
+    assert "renameProposedCat" in src and "dismissProposedCat" in src
+    assert "rv-catchip" in src, "the chip strip must render on the proposal banner"
+    for fn in ("renameProposedCat", "dismissProposedCat"):
+        body = src.split("function %s" % fn)[1].split("\n  }")[0]
+        assert "commitProposals" in body, \
+            "%s must rewrite pills via commitProposals so the edit persists" % fn
+    css = _read(os.path.join(REPO, "frontend", "src", "pages", "review.css"))
+    assert ".rv-catchip" in css
+
+
 def test_the_keystone_is_wired_through_the_workspace():
     """"Confirm categories" is the steward's explicit "the taxonomy is
        settled" - the keystone everything downstream keys off (Dictionary

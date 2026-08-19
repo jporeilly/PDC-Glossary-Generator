@@ -275,6 +275,31 @@ tr.rv-gclhead td { background: var(--surface-1); border-left: 3px solid var(--ac
 .rv-proptext { flex: 1 1 340px; min-width: 0; display: flex; flex-direction: column; gap: .2rem; }
 .rv-propline { color: var(--text-secondary); }
 .rv-propdesc { font-size: .8rem; line-height: 1.45; }
+/* proposed-category chips — the whole set at a glance, editable in place
+   (field: "see the list of proposed Categories without having to scroll") */
+.rv-catchips { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem; margin-top: .35rem; }
+.rv-catchipslbl { flex-basis: 100%; font-size: .72rem; color: var(--text-secondary); }
+.rv-catchipgrp {
+  display: inline-flex; align-items: center; gap: .05rem;
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  border-radius: 99px; padding: .06rem .15rem .06rem 0;
+}
+button.rv-catchipname {
+  background: none; border: 0; cursor: text; padding: .05rem .2rem .05rem .5rem;
+  font-size: .78rem; font-weight: 600; color: var(--text-primary);
+}
+button.rv-catchipname:hover { text-decoration: underline dotted; }
+.rv-catchipn { font-size: .72rem; color: var(--text-secondary); }
+button.rv-catchipx {
+  background: none; border: 0; cursor: pointer; font-size: .82rem; line-height: 1;
+  color: var(--text-secondary); padding: .05rem .35rem;
+}
+button.rv-catchipx:hover { color: var(--accent); }
+input.rv-catrename {
+  font-size: .78rem; padding: .12rem .55rem; border-radius: 99px;
+  border: 1px solid var(--accent); background: transparent;
+  color: var(--text-primary); min-width: 10rem;
+}
 /* per-cell pill: click accepts just that field's proposal */
 button.rv-aipill {
   display: inline-block; background: none; cursor: pointer; text-align: left;

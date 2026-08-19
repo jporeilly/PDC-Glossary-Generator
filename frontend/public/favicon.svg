@@ -1,18 +1,13 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
   <defs>
     <linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#1C7293"/>
-      <stop offset="1" stop-color="#065A82"/>
+      <stop offset="0" stop-color="#17171b"/>
+      <stop offset="1" stop-color="#0c0c0e"/>
     </linearGradient>
   </defs>
-  <!-- app chrome: the same tile family as the Policy Generator -->
-  <rect width="64" height="64" rx="13" fill="#0A3D52"/>
-  <!-- open book: the business glossary this app authors -->
-  <path d="M32 16 C27 12.5 19.5 11.5 13 12.5 V47 C19.5 46 27 47 32 50.5 C37 47 44.5 46 51 47 V12.5 C44.5 11.5 37 12.5 32 16 Z" fill="url(#g)"/>
-  <path d="M32 16 V50.5" stroke="#0A3D52" stroke-width="2.5"/>
-  <!-- term lines: the governed terms on each page -->
-  <g stroke="#fff" stroke-width="3" stroke-linecap="round" opacity=".92">
-    <path d="M18.5 22 H27"/><path d="M18.5 29 H27"/><path d="M18.5 36 H24.5"/>
-    <path d="M37 22 H45.5"/><path d="M37 29 H45.5"/><path d="M37 36 H43"/>
-  </g>
+  <!-- 2026 rebrand: the black Pentaho tile — white capital P over the red accent bar -->
+  <rect width="64" height="64" rx="13" fill="url(#g)"/>
+  <text x="31" y="43" font-family="'Segoe UI Semibold','Segoe UI',Arial,sans-serif"
+        font-size="38" font-weight="650" fill="#fff" text-anchor="middle">P</text>
+  <rect x="14" y="50" width="36" height="4" rx="2" fill="#cc0000"/>
 </svg>

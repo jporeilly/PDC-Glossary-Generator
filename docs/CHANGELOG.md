@@ -14,6 +14,42 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.38.29] - 2026-08-19
+
+### Added - the proposed categories, at a glance and editable
+
+The categorize banner said "settle the set, rename any group" — but the
+proposed subjects were only discoverable by scrolling the grid reading
+pills, and a rename meant editing pills row by row (field: "it would be
+great to see the list of proposed Categories without having to scroll.
+this list could be editable."):
+
+- **Chip strip on the proposal banner**: every proposed category listed
+  with its pill count, sorted largest first. Click a name to rename the
+  whole group in place (Enter commits, Escape cancels); renaming onto
+  another group's name **merges** the two; renaming onto the rows'
+  current category dissolves the now-no-op pills (the categorize
+  builder's own rule). **×** dismisses one group's pills without
+  touching any other proposal.
+- Edits rewrite the *pending* pills through the persisted proposal
+  state — nothing lands until accept, and the Approve button's
+  before→after count, the Categories chip and the grid pills all
+  recount live. Verified end to end on the dev rig: rename, merge,
+  cancel, no-op dissolve, per-group dismiss, banner clearing when the
+  last group goes.
+
+### Fixed
+
+- **The rebrand reaches the favicons**: the browser-tab icon and the
+  API's inline fallback retire the teal book/"G" tiles for the black
+  Pentaho P-tile with the red accent bar.
+- **Two latent CSS syntax errors** (esbuild had warned on every build):
+  `index.css`'s narrow-screen block never closed, so `.notice-warn` and
+  `.linkish` were trapped mobile-only and rendered unstyled on desktop;
+  `connect.css` carried the orphaned half of that same block. The mobile
+  code-wrap rule is back in the block it was authored for, and the build
+  is warning-clean.
+
 ## [1.38.28] - 2026-08-19
 
 ### Changed - the swirl retires: Pentaho, capital P, white on black

@@ -604,6 +604,30 @@ export default function ReviewPage({ onNavigate }) {
     return changes ? after.size : null
   }, [rows, proposals])
 
+  // The categorize banner tells the steward to "settle the set, rename any
+  // group" — but the proposed subjects were only discoverable by scrolling
+  // the grid reading pills, and a rename meant editing pills row by row
+  // (field: "it would be great to see the list of proposed Categories
+  // without having to scroll. this list could be editable."). Group the
+  // pending Category pills for the banner: each is an editable chip — click
+  // the name to rename the whole group before accepting (renaming onto
+  // another group's name merges the two), × dismisses just that group.
+  const catGroups = useMemo(() => {
+    if (!proposals || !proposals.items) return []
+    const m = new Map()
+    for (const it of Object.values(proposals.items)) {
+      for (const d of it.display || []) {
+        if (d.field !== 'Category') continue
+        const name = String(d.to || '').trim()
+        if (name) m.set(name, (m.get(name) || 0) + 1)
+      }
+    }
+    return [...m.entries()].map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
+  }, [proposals])
+  const [catEdit, setCatEdit] = useState(null)  // { name, val } while a chip is being renamed
+  const catEditEsc = useRef(false)              // Escape must CANCEL even though blur still fires
+
   const catsConfirmedCurrent = useMemo(() => {
     const c = ws.categoriesConfirmed
     if (!c || !Array.isArray(c.categories)) return false
@@ -1178,6 +1202,55 @@ export default function ReviewPage({ onNavigate }) {
     const next = typeof updater === 'function' ? updater(prev) : updater
     setUi('review.agent', next)
     setAgent(next)
+  }
+
+  // Chip edits rewrite the PENDING pills only — nothing lands until accept.
+  // A rename that makes a pill match its row's current Category is dropped
+  // (the categorize builder's own no-op rule), so pendingCats, the chips
+  // strip and the Approve button all recount honestly on the next render.
+  function renameProposedCat(oldName, newName) {
+    const nn = String(newName || '').trim()
+    if (!nn || nn === oldName) return
+    commitProposals((prev) => {
+      if (!prev) return prev
+      const items = {}
+      for (const [i, it] of Object.entries(prev.items)) {
+        if (!(it.display || []).some((d) => d.field === 'Category' && d.to === oldName)) {
+          items[i] = it
+          continue
+        }
+        const cur = String((rowsRef.current[i] || {}).Category || '')
+        if (cur === nn) {
+          const display = it.display.filter((d) => d.field !== 'Category')
+          if (!display.length) continue
+          const patch = { ...it.patch }
+          delete patch.Category
+          items[i] = { ...it, patch, display }
+        } else {
+          items[i] = { ...it, patch: { ...it.patch, Category: nn },
+                       display: it.display.map((d) => (d.field === 'Category' ? { ...d, to: nn } : d)) }
+        }
+      }
+      return Object.keys(items).length ? { ...prev, items } : null
+    })
+  }
+  function dismissProposedCat(name) {
+    commitProposals((prev) => {
+      if (!prev) return prev
+      const items = {}
+      for (const [i, it] of Object.entries(prev.items)) {
+        if (!(it.display || []).some((d) => d.field === 'Category' && d.to === name)) {
+          items[i] = it
+          continue
+        }
+        const display = it.display.filter((d) => d.field !== 'Category')
+        if (!display.length) continue
+        const patch = { ...it.patch }
+        delete patch.Category
+        items[i] = { ...it, patch, display }
+      }
+      return Object.keys(items).length ? { ...prev, items } : null
+    })
   }
 
   async function runChunks(label, call, { offlineBreak = true, chunk = CHUNK, propose = null,
@@ -1799,6 +1872,36 @@ export default function ReviewPage({ onNavigate }) {
               <div className="rv-propdesc muted">
                 Click a pill in the grid to accept just that change; the grid’s LLM pills appear only after a proposal is accepted.
               </div>
+              {catGroups.length > 0 && (
+                <div className="rv-catchips">
+                  <span className="rv-catchipslbl">proposed categories · click a name to rename its whole group</span>
+                  {catGroups.map((g) => (catEdit && catEdit.name === g.name ? (
+                    <input key={g.name} className="rv-catrename" autoFocus value={catEdit.val}
+                           aria-label={`Rename proposed category ${g.name}`}
+                           onChange={(e) => setCatEdit({ name: g.name, val: e.target.value })}
+                           onKeyDown={(e) => {
+                             if (e.key === 'Enter') e.currentTarget.blur()
+                             else if (e.key === 'Escape') { catEditEsc.current = true; e.currentTarget.blur() }
+                           }}
+                           onBlur={() => {
+                             if (!catEditEsc.current) renameProposedCat(g.name, catEdit.val)
+                             catEditEsc.current = false
+                             setCatEdit(null)
+                           }} />
+                  ) : (
+                    <span key={g.name} className="rv-catchipgrp">
+                      <button className="rv-catchipname" onClick={() => setCatEdit({ name: g.name, val: g.name })}
+                              title="Rename this proposed category — the edit rewrites every pending pill in the group before anything is accepted; renaming onto another group's name merges the two.">
+                        {g.name}
+                      </button>
+                      <span className="rv-catchipn">×{g.count}</span>
+                      <button className="rv-catchipx" aria-label={`Dismiss the ${g.name} group`}
+                              onClick={() => dismissProposedCat(g.name)}
+                              title="Dismiss just this group's Category pills — every other proposal stays.">×</button>
+                    </span>
+                  )))}
+                </div>
+              )}
             </div>
             <span className="rv-grow" />
             <button className="primary sm" disabled={!!agent} onClick={acceptAllProps}>Accept all</button>

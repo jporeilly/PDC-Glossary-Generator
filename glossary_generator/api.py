@@ -380,17 +380,19 @@ def index(request: Request):
     # "do not store", so 304s still apply.
     return FileResponse(dist_index, headers={"Cache-Control": "no-cache"})
 
-# Brand favicon — an inline SVG (teal→blue rounded tile with a "G" monogram), served
-# for both /favicon.svg and the browser's automatic /favicon.ico probe, so neither
-# 404s and no binary asset has to ship.
+# Brand favicon — an inline SVG (the 2026 black Pentaho tile: white capital P
+# over the red accent bar, matching the app icon), served for both /favicon.svg
+# and the browser's automatic /favicon.ico probe, so neither 404s and no binary
+# asset has to ship.
 FAVICON_SVG = (
     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">'
     '<defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1">'
-    '<stop offset="0" stop-color="#1C7293"/><stop offset="1" stop-color="#065A82"/>'
+    '<stop offset="0" stop-color="#17171b"/><stop offset="1" stop-color="#0c0c0e"/>'
     '</linearGradient></defs>'
     '<rect width="32" height="32" rx="7" fill="url(#g)"/>'
-    '<text x="16" y="23" font-family="Calibri,\'Segoe UI\',Arial,sans-serif" '
-    'font-size="21" font-weight="700" fill="#fff" text-anchor="middle">G</text>'
+    '<text x="15.5" y="21.5" font-family="\'Segoe UI Semibold\',\'Segoe UI\',Arial,sans-serif" '
+    'font-size="19" font-weight="650" fill="#fff" text-anchor="middle">P</text>'
+    '<rect x="7" y="25" width="18" height="2" rx="1" fill="#cc0000"/>'
     '</svg>'
 )
 

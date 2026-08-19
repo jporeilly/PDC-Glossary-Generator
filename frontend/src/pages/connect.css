@@ -154,9 +154,6 @@ span.mini i { display: block; height: 100%; background: var(--accent); }
 .bl-opts .check input:disabled { cursor: not-allowed; }
 .bl-opts .check:has(input:disabled) { opacity: .45; }
 
-  .uth-body code { white-space: normal; }
-}
-
 /* the one control that writes: marked so it reads differently from the
    read-only options it sits beside */
 .danger-check { color: var(--status-warning); }
