@@ -642,8 +642,11 @@ what the pass re-derives from) and back.
   pill (tooltip shows the proposed text; the expanded editor shows old vs
   proposed side by side with its own Accept), and Category / Sensitivity /
   PII / Tags get compact **AI → value** pills. A slim strip above the grid
-  tracks the run ("N AI proposals on M rows · **Accept all** · **Dismiss
-  all**"), and a live "rows with proposals so far" counter sits next to
+  tracks the run ("N AI proposals on M rows") — the steward walks the pills
+  one by one and **Dismiss rest** discards whatever was passed over (it can
+  never apply a change); wholesale **Accept all / Dismiss all** appear only
+  for the categorize agent, whose settled taxonomy is accepted as one act.
+  A live "rows with proposals so far" counter sits next to
   the progress bar. Accepting a field also carries its provenance flags,
   so the grid's **LLM** pills appear only after a proposal is accepted.
 - **Save glossary / Load saved…** — see §7.

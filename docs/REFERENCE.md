@@ -209,8 +209,10 @@ not where your local Docker Postgres/MinIO live.
    and the source column guide pruning. Nothing is auto-published.
 3. **AI pass** *(optional)* — proposes rewritten definitions, purposes, names,
    governed tags and blank categories via Ollama (or a hosted provider).
-   Proposals land as inline click-to-accept pills on the grid (accept per cell,
-   or Accept all / Dismiss all) — nothing is written until you accept, and the
+   Proposals land as inline click-to-accept pills on the grid — the steward
+   accepts per cell (wholesale Accept all exists only for the categorize
+   agent's taxonomy; **Dismiss rest** discards leftover pills and never
+   applies anything) — nothing is written until you accept, and the
    `LLM` provenance pill appears only after a proposal is accepted. Safe if
    Ollama is offline (keeps the heuristic text).
 4. **Generate JSONL** — emits `Suggested-Glossary.jsonl` (only `Keep=Y` rows)

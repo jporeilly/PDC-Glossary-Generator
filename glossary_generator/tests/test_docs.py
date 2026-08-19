@@ -253,6 +253,26 @@ def test_proposed_categories_are_chips_on_the_banner():
     assert ".rv-catchip" in css
 
 
+def test_wholesale_accept_is_categorize_only():
+    """Accept all rubber-stamps a whole AI-pass run, but that run is the
+       steward's to review pill by pill (field: "dont need accept dimiss all
+       as the data steward has to go through every pill."). Pin the split:
+       the wholesale pair renders ONLY behind the categorize gate (accepting
+       a settled taxonomy is one deliberate act — the chips exist to settle
+       it first); every other agent's banner offers a discard-only Dismiss
+       rest, which clears leftovers and can never apply a change."""
+    path = os.path.join(REPO, "frontend", "src", "pages", "ReviewPage.jsx")
+    if not os.path.isfile(path):
+        return                     # backend-only checkout
+    src = _read(path)
+    assert "const wholesale = proposals.label === 'AI categories (schema)'" in src
+    assert src.count("onClick={acceptAllProps}") == 1, \
+        "Accept all must render exactly once, inside the wholesale branch"
+    assert "Dismiss rest" in src
+    assert "never applies anything" in src, \
+        "Dismiss rest must say outright that it cannot apply changes"
+
+
 def test_the_keystone_is_wired_through_the_workspace():
     """"Confirm categories" is the steward's explicit "the taxonomy is
        settled" - the keystone everything downstream keys off (Dictionary

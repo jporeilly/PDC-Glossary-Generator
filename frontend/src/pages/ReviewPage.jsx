@@ -1428,8 +1428,10 @@ export default function ReviewPage({ onNavigate }) {
   }
 
   function dismissProps() {
+    const wholesale = proposals && proposals.label === 'AI categories (schema)'
     commitProposals(null)
-    setMsg('Proposals dismissed — nothing changed.')
+    setMsg(wholesale ? 'Proposals dismissed — nothing changed.'
+                     : 'Remaining pills discarded — everything you accepted stays.')
   }
 
   // Per-run summary once the chunks finish (the pills carry the substance).
@@ -1443,7 +1445,7 @@ export default function ReviewPage({ onNavigate }) {
       setMsg(`${label}: the model did not answer within its time budget on ${timedOut} row(s) — `
         + 'raise the LLM timeout on Settings, or pick a smaller model. Nothing was proposed.')
     else if (!run.proposed) setMsg(`${label}: ${none}${note ? ` (${note})` : ''}.`)
-    else setMsg(`${label}: proposals on ${run.proposed} of ${run.targets.length} kept rows — click the pills to accept, or Accept all above the grid.${note ? ` (${note})` : ''}`)
+    else setMsg(`${label}: proposals on ${run.proposed} of ${run.targets.length} kept rows — go through the pills and click each one you accept; Dismiss rest clears the leftovers.${note ? ` (${note})` : ''}`)
   }
 
   // The default agent: one call per row covering every LLM-decidable field.
@@ -1730,7 +1732,7 @@ export default function ReviewPage({ onNavigate }) {
           </button>
           <span className="rv-grow" />
           <span className="rv-agents" role="group" aria-label="AI agents — they run on kept rows only; they propose, you accept per pill"
-                title="Each agent processes KEPT rows only — untick Keep to exclude a row. Results land as click-to-accept pills right on the grid, batch by batch while the run goes; nothing touches a row until you accept its pill (or Accept all).">
+                title="Each agent processes KEPT rows only — untick Keep to exclude a row. Results land as click-to-accept pills right on the grid, batch by batch while the run goes; nothing touches a row until you accept its pill (Accept all exists for categories alone — every other agent's pills are the steward's to walk one by one).">
             <span className="rv-agentslbl">AI AGENTS<small>kept rows · propose → you accept</small></span>
             {/* Ordered as the work is done: categories settle the taxonomy
                 first (one schema-wide call), then the AI pass writes language
@@ -1859,7 +1861,16 @@ export default function ReviewPage({ onNavigate }) {
             <span><b>{proposals.label}</b> — {propCount} proposal{propCount !== 1 ? 's' : ''} still pending · Accept or dismiss when the current run finishes</span>
           </div>
         )}
-        {proposals && !agent && (
+        {/* wholesale accept is CATEGORIZE-ONLY: a settled taxonomy is accepted
+            as one deliberate act (the chips above exist to settle it first) —
+            but an AI-pass run is the steward's to review pill by pill, and
+            Accept all invited rubber-stamping it (field: "dont need accept
+            dimiss all as the data steward has to go through every pill.").
+            Other agents get a discard-only Dismiss rest: it clears what is
+            left AFTER the walk-through and can never apply a change. */}
+        {proposals && !agent && (() => {
+          const wholesale = proposals.label === 'AI categories (schema)'
+          return (
           <div className="rv-propstrip">
             <div className="rv-proptext">
               <div className="rv-propline">
@@ -1870,7 +1881,9 @@ export default function ReviewPage({ onNavigate }) {
               </div>
               {proposals.desc && <div className="rv-propdesc">{proposals.desc}</div>}
               <div className="rv-propdesc muted">
-                Click a pill in the grid to accept just that change; the grid’s LLM pills appear only after a proposal is accepted.
+                {wholesale
+                  ? 'Click a pill in the grid to accept just that change; the grid’s LLM pills appear only after a proposal is accepted.'
+                  : 'The steward reviews pill by pill — click a pill to accept just that change; when you have been through them, Dismiss rest discards whatever is left. The grid’s LLM pills appear only after a proposal is accepted.'}
               </div>
               {catGroups.length > 0 && (
                 <div className="rv-catchips">
@@ -1904,10 +1917,20 @@ export default function ReviewPage({ onNavigate }) {
               )}
             </div>
             <span className="rv-grow" />
-            <button className="primary sm" disabled={!!agent} onClick={acceptAllProps}>Accept all</button>
-            <button className="ghost sm" disabled={!!agent} onClick={dismissProps}>Dismiss all</button>
+            {wholesale ? (
+              <>
+                <button className="primary sm" onClick={acceptAllProps}>Accept all</button>
+                <button className="ghost sm" onClick={dismissProps}>Dismiss all</button>
+              </>
+            ) : (
+              <button className="ghost sm" onClick={dismissProps}
+                      title="Discard every pill still pending — changes you already accepted stay. This button never applies anything.">
+                Dismiss rest
+              </button>
+            )}
           </div>
-        )}
+          )
+        })()}
 
         {error && <div className="error">{error}</div>}
 
@@ -2315,7 +2338,7 @@ function ReviewGuide({ onNavigate }) {
 
       <div className="rv-agentdocs-h">
         What each AI agent does
-        <small>— all run on <b>kept rows only</b> and <i>propose</i> changes; nothing lands until you accept a pill (or <b>Accept all</b>)</small>
+        <small>— all run on <b>kept rows only</b> and <i>propose</i> changes; nothing lands until the steward accepts a pill (<b>Accept all</b> exists for categories alone)</small>
       </div>
       <ul className="workcycle rv-agentdocs">
         {AGENT_DESC.map((a) => (
@@ -2339,8 +2362,8 @@ function ReviewGuide({ onNavigate }) {
 /* ---------- one data row of the review grid ----------
    `prop` is this row's inline AI proposal ({patch, display}) — each proposed
    field renders a click-to-accept pill on its own cell, populated live batch
-   by batch while an agent runs. Nothing lands until a pill (or Accept all)
-   is clicked. */
+   by batch while an agent runs. Nothing lands until a pill is clicked
+   (categorize alone offers Accept all — a settled taxonomy is one act). */
 
 const GridRow = memo(function GridRow({ row: r, index, pos, expanded, prop, onAcceptProp, onField, onKeep, onUseName, onEvidence, onToggle, existsIn }) {
   const tt = isTableTerm(r)

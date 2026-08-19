@@ -128,7 +128,10 @@ object-store connections on Files, each beside the browser it powers.)*
 > nothing we do can be lost to a closed window."*
 
 - [ ] `3 · AI pass (all fields)` — the long stage; the batch line narrates
-      progress. **Accept all** when it finishes.
+      progress. When it finishes, **walk the pills**: click each one you
+      accept (this is the steward's review — there is deliberately no
+      Accept all here), then **Dismiss rest** clears whatever you passed
+      over. Dismiss rest never applies anything.
 
 > **Talk track** — *"Now one model call per term writes the language:
 > definition, purpose, a clearer name where the physical one is cryptic,

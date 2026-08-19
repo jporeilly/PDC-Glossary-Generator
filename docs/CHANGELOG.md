@@ -14,6 +14,29 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.38.30] - 2026-08-19
+
+### Changed - wholesale accept is categorize-only
+
+An AI-pass run is the data steward's to review pill by pill; Accept all
+invited rubber-stamping it (field: "dont need accept dimiss all as the
+data steward has to go through every pill."):
+
+- **AI pass / AI review / mixed banners lose Accept all and Dismiss all.**
+  In their place, one discard-only **Dismiss rest**: the steward clicks
+  each pill they accept, then clears whatever was passed over — the button
+  can never apply a change, and its message says so ("everything you
+  accepted stays"). Banner copy now states the pill-by-pill contract.
+- **The categorize banner keeps the wholesale pair** — accepting a settled
+  taxonomy is one deliberate act, and the .29 chips exist to settle the
+  set first. The keystone flow is unchanged.
+- Agents-bar footnote, run-completion line, GUIDE, REFERENCE and the
+  WALKTHROUGH demo script updated to teach the steward walk. New pin
+  test: wholesale accept renders exactly once, behind the categorize
+  gate. Verified live on the dev rig: pass banner shows only Dismiss
+  rest, accepted pills survive the discard, categorize keeps Accept
+  all / Dismiss all + chips.
+
 ## [1.38.29] - 2026-08-19
 
 ### Added - the proposed categories, at a glance and editable
