@@ -41,8 +41,14 @@ $tok = (curl.exe -sk -X POST 'https://pentaho.io/keycloak/realms/pdc/protocol/op
   -H 'Content-Type: application/x-www-form-urlencoded' `
   -d 'grant_type=password&client_id=pdc-client&username=admin&password=admin' | ConvertFrom-Json).access_token
 Set-Clipboard -Value $tok
+# Upload the licence EITHER way:
+#  a) Swagger (the demo-friendly route): https://pentaho.io/swagger/ →
+#     Authorize → paste the clipboard token → licensing →
+#     POST /api/v2/licensing/uploadLicense → Try it out →
+#     deviceId `pdc-demo` + choose the .bin → Execute → expect 200
+#  b) curl one-liner:
 curl.exe -k -X POST 'https://pentaho.io/api/v2/licensing/uploadLicense' `
-  -H "Authorization: Bearer $(Get-Content .state\token.jwt)" `
+  -H "Authorization: Bearer $tok" `
   -F 'deviceId=pdc-demo' `
   -F 'fileData=@C:\path\to\licence.bin;type=application/octet-stream'
 # sanity: log in at https://pentaho.io as `admin` (username, not an email)
