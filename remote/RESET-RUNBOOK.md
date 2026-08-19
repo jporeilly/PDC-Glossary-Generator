@@ -46,9 +46,20 @@ Set-Location C:\Projects\PDC-Scenarios
 .\load-pdc-users.ps1 -Scenario AWC -BaseUrl https://pentaho.io `
   -SkipTlsCheck -Password azwater -Verify
 
-# 4 · Safe list + health
+# 4 · Email-domain safe list (IAM: users can only be created/log in with an
+#     email whose domain is on the css-auth-proxy provider's safe list, at
+#     provider_conf.emailDomains). azwater.gov seeds automatically from
+#     EMAIL_DOMAINS in the VM's vendor/.env.default - VERIFY, don't assume:
 Set-Location C:\Projects\PDC-Glossary\remote
-.\reseed-domains.ps1 -VerifyOnly           # azwater.gov seeds automatically; verify
+.\reseed-domains.ps1 -VerifyOnly
+# To ADD a domain: edit EMAIL_DOMAINS on the VM first, then reseed. The
+# reseed uses the init's own DELETE+POST-full-config sequence and verifies
+# at the real JSON path - do NOT chase the vendor doc's PUT {id,emailDomains},
+# it is accepted-and-ignored on PDC 11:
+#   ssh pdc@192.168.1.200   # edit /opt/pentaho/pdc-docker-deployment/vendor/.env.default -> EMAIL_DOMAINS=azwater.gov,newco.com
+.\reseed-domains.ps1                       # DELETE+POST + verify (VM-side twin: remote\reseed-provider.sh)
+
+# 5 · Health
 .\pdc-remote.ps1 health                    # 302/401 fine, 404 bad
 
 # 5 · Scale the estate (OWNER account — pdc_user is read-only; the owner
