@@ -14,6 +14,28 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.38.32] - 2026-08-19
+
+### Fixed - the seeder generates the estate's real account format
+
+Field-caught while verifying the AWC courseware against the live estate:
+the top-up had written 1,000 `account_number` values as `ACC########`,
+while the estate's own format (and the format Workshop 5's pattern and
+Workshop 6's standard teach) is `AWC-<2-3 letter system code>-<6 digits>`
+— only the 10 original rows conformed, so the identification pattern
+would have matched ~1% of the column:
+
+- **seed_sample account rule** now emits `AWC-<code>-<100000+row_i>`
+  (unique across top-ups; the code list carries the 8 prefixes verified
+  from the original rows — `CD` is Coolidge, not Chandler — plus 7 minted
+  for the uncovered cities).
+- **CITIES widened 7 → the estate's live 15**, so reseeds keep the city
+  vocabulary stable instead of drifting toward the original seven.
+- The live estate was repaired in place (surgical UPDATE, city-coherent
+  prefixes, 1010/1010 conforming and distinct; the 10 originals
+  untouched). PDC re-profile + evidence-refresh re-harvest turn the
+  repair into drafted detection.
+
 ## [1.38.31] - 2026-08-19
 
 ### Fixed - the reference-list ceiling was tighter than real vocabularies

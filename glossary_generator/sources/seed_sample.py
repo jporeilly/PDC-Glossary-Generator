@@ -24,7 +24,13 @@ LAST = ["Garcia", "Hayes", "Park", "Chen", "Smith", "Brown", "Diaz", "Lee", "Joh
         "Martinez", "Nguyen", "Patel", "Wilson", "Khan", "Rivera", "Clark"]
 STREETS = ["Main St", "Oak Ave", "Elm Dr", "Pine Rd", "Maple Ln", "Cedar Ct", "Sunset Blvd",
            "Desert Way", "Canyon Rd", "Mesa Dr"]
-CITIES = ["Phoenix", "Tucson", "Mesa", "Tempe", "Chandler", "Scottsdale", "Glendale"]
+CITIES = ["Phoenix", "Tucson", "Mesa", "Tempe", "Chandler", "Scottsdale", "Glendale",
+          "Apache Junction", "Bisbee", "Casa Grande", "Coolidge", "Oracle", "Sedona",
+          "Sierra Vista", "Stanfield"]   # the estate's live 15 — keep reseeds stable
+# AWC system codes: the 8 verified from the original rows (CD = Coolidge, not
+# Chandler) plus 7 minted for the cities the originals never covered
+SYS_CODES = ["AJ", "BIZ", "CD", "CG", "ORA", "SED", "SF", "SV",
+             "CH", "GL", "ME", "PH", "SC", "TE", "TU"]
 EMAIL_DOM = ["example.com", "mail.com", "gmail.com"]
 STATUS = ["active", "active", "active", "inactive", "suspended"]
 CUST_TYPE = ["residential", "residential", "commercial"]
@@ -49,8 +55,13 @@ def _gen(colname, dtype, row_i, refs):
         return f"user{row_i}{random.randint(1,99)}@{random.choice(EMAIL_DOM)}"
     if "phone" in n:
         return f"{random.choice(['602','480','520','623'])}-555-{random.randint(0,9999):04d}"
-    if "account" in n and ("number" in n or "no" in n or n.endswith("account")):
-        return "ACC" + f"{row_i:08d}"
+    if "account" in n and ("number" in n or "no" in n or n.endswith("account") or "ref" in n):
+        # the estate's real format — and the one Workshop 5's pattern and
+        # Workshop 6's standard teach: AWC-<2-3 letter system code>-<6 digits>.
+        # row_i keeps the UNIQUE constraint honest across top-ups (a top-up's
+        # row_i continues from the max PK, so 100000+row_i never collides with
+        # the repaired 100000+customer_id refs already on the estate).
+        return f"AWC-{random.choice(SYS_CODES)}-{100000 + row_i:06d}"
     if "zip" in n or "postal" in n:
         return f"{85001 + random.randint(0,80):05d}"
     if ("first" in n and "name" in n):
