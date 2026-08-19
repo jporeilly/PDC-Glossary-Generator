@@ -35,6 +35,12 @@ Set-Location C:\Projects\PDC-Glossary\remote
 # (The cast step later re-tightens the policy to length(7); passwords
 # already set stay valid — policy checks happen at set time.)
 .\pdc-remote.ps1 token          # username admin, password admin
+# …or straight to the CLIPBOARD for Swagger's Authorize button (paste the
+# token bare, no "Bearer" prefix; ~5 min expiry):
+$tok = (curl.exe -sk -X POST 'https://pentaho.io/keycloak/realms/pdc/protocol/openid-connect/token' `
+  -H 'Content-Type: application/x-www-form-urlencoded' `
+  -d 'grant_type=password&client_id=pdc-client&username=admin&password=admin' | ConvertFrom-Json).access_token
+Set-Clipboard -Value $tok
 curl.exe -k -X POST 'https://pentaho.io/api/v2/licensing/uploadLicense' `
   -H "Authorization: Bearer $(Get-Content .state\token.jwt)" `
   -F 'deviceId=pdc-demo' `
