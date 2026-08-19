@@ -2,8 +2,57 @@
 
 One folder, one document, top to bottom. Every step is a copy-paste command
 run from `C:\Projects\PDC-Glossary\remote` (unless the step says otherwise).
-Field-proven 2026-08-14. Deep background lives in
+Field-proven 2026-08-14; commands re-proven and PowerShell-corrected
+2026-08-19. Deep background lives in
 [PDC-REMOTE-RESET.md](../docs/PDC-REMOTE-RESET.md); this page is the doing.
+
+---
+
+## Quick card — the whole reset, copy-paste order
+
+Every command is PowerShell-native (no bash `&&` — PS 5.1 rejects it) and
+carries the corrections the 2026-08-19 reset taught. Details per step in
+the numbered sections below.
+
+```powershell
+# 0 · Preflight + reset (from C:\Projects\PDC-Glossary\remote)
+Set-Location C:\Projects\PDC-Glossary\remote
+.\pdc-remote.ps1 doctor
+.\pdc-remote.ps1 reset          # type 'reset' to confirm; 8-20 min
+
+# 1 · Licence (curl.exe, NOT curl — PS aliases bare curl to Invoke-WebRequest)
+.\pdc-remote.ps1 token
+curl.exe -k -X POST 'https://pentaho.io/api/v2/licensing/uploadLicense' `
+  -H "Authorization: Bearer $(Get-Content .state\token.jwt)" `
+  -F 'deviceId=pdc-demo' `
+  -F 'fileData=@C:\path\to\licence.bin;type=application/octet-stream'
+# sanity: log in at https://pentaho.io as `admin` (username, not an email)
+
+# 2 · Cast users — PolicyValue length(7): the cast password is `azwater`
+#     (7 chars); plain -FixPolicy would set length(8) and reject it
+Set-Location C:\Projects\PDC-Scenarios
+.\load-pdc-users.ps1 -Scenario AWC -BaseUrl https://pentaho.io `
+  -SkipTlsCheck -FixPolicy -PolicyValue 'length(7)' -Password azwater
+
+# 3 · Safe list (verify; run without -VerifyOnly only if absent)
+Set-Location C:\Projects\PDC-Glossary\remote
+.\reseed-domains.ps1 -VerifyOnly
+
+# 4 · Health (302/401 = routed + unauthenticated = fine; 404 = bad)
+.\pdc-remote.ps1 health
+
+# 5 · Scale the estate (module form, from glossary_generator, OWNER account
+#     — the loader's pdc_user is read-only; owner password is in the
+#     demo-postgres container env on the VM, see §6)
+Set-Location C:\Projects\PDC-Glossary\glossary_generator
+python -m sources.seed_sample --host 192.168.1.200 --port 5433 `
+  --db awc_operations --schema awc_operations `
+  --user demo_admin --password '<owner-pass>' --rows 1000 --all
+
+# 6 · App: install latest, Settings -> Factory reset if reusing a machine,
+#     install the domain pack (skip for a true day-zero walk), then
+#     Connect -> Bulk load -> Harvest -> the walk.
+```
 
 > Budget for the whole day-zero cycle: **~30-45 minutes**, most of it the
 > reset's 8-20 minute rebuild.
