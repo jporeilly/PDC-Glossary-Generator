@@ -46,7 +46,7 @@ _DICT_CONDITION = {"and": [
     # the shipped Pentaho "Personal Data Identifier" template's exact shape —
     # (confidence OR name-hint) AND a cardinality guard. The template guards
     # at > 5; ours mints dictionaries from the column's OWN profiled
-    # vocabulary (2..12 distinct), so > 1 mirrors the mint's enum floor
+    # vocabulary (2..48 distinct), so > 1 mirrors the mint's enum floor
     # without vetoing a legitimate 3-value LOW/MEDIUM/HIGH.
     {"or": [
         {">=": [{"var": "confidenceScore"}, "0.6"]},

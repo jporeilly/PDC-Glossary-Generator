@@ -14,6 +14,31 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.38.31] - 2026-08-19
+
+### Fixed - the reference-list ceiling was tighter than real vocabularies
+
+The reseeded estate's 15 service cities sat three past the profiler's
+12-distinct ceiling, so Billing City / Customer City / Service Cities
+profiled as shapeless free text and the drafter skipped them with
+"values induce no shape" (field: "could this still be a lack of values,
+so it doesn't trigger a pattern?" — the opposite: too many):
+
+- **Ceiling raised 12 → 48** at the enum gate, the candidate-list rider
+  and the captured-list truncation. The working gates are untouched: the
+  repetition floor (`n >= 2·distinct`, self-scaling with the sample —
+  100 sampled rows admit at most 50 distinct) and the id-guard
+  (`uniq <= 0.5`) still exclude identifier columns. 48 covers real
+  reference data (state lists, code sets) while staying an order below
+  id territory.
+- On redraft the city vocabularies mint as name + dictionary rules —
+  the conjunction — with alias variants riding the name half. No curated
+  seeds needed.
+- New test: a 15-value vocabulary across 100 sampled rows profiles as an
+  enum; 50 distinct passes the repetition floor but stays past the
+  backstop. All prior enum pins (id guard, null-starved status, zip
+  recovery) unchanged.
+
 ## [1.38.30] - 2026-08-19
 
 ### Changed - wholesale accept is categorize-only

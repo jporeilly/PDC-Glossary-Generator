@@ -122,10 +122,20 @@ def _profile_values(name, vals, sample_n):
     # must be available?"). The flat part of the floor is 5, not 6: NULLs
     # shrink the non-null sample, and a status column that is Compliant×3 /
     # Warning×2 with 3 nulls is reference data by any honest reading.
-    if distinct <= 12 and n >= max(5, 2 * distinct) and uniq <= 0.5:
+    # The ceiling is 48, not 12: real reference vocabularies run to dozens,
+    # and a 15-city service area sat three past the old cap — profiling as
+    # shapeless free text, so the drafter skipped the city columns with
+    # "values induce no shape" (field: "could this still be a lack of
+    # values, so it doesn't trigger a pattern?" — the opposite: too many).
+    # The repetition floor self-scales with the sample (100 sampled rows
+    # admit at most 50 distinct), so the ceiling is a backstop against
+    # unbounded lists, not the working gate — and id-like columns still
+    # fall to uniq <= .5. Vocabularies past ~50 need a larger sample_size
+    # before a larger ceiling could ever admit them.
+    if distinct <= 48 and n >= max(5, 2 * distinct) and uniq <= 0.5:
         return {**base, "confidence": "Medium", "kind": "enum",
                 "reason": f"Profiled: low cardinality ({distinct} distinct - reference-data candidate)",
-                "enum": sorted(set(strs))[:12]}
+                "enum": sorted(set(strs))[:48]}
     sig, rx, share = _induce_pattern(strs)
     if sig:
         return {**base, "confidence": "High",
@@ -142,8 +152,8 @@ def _profile_values(name, vals, sample_n):
     # gate above keeps its meaning (kind stays decimal/value here, so review
     # semantics and the key prune are untouched); this only lets the captured
     # values travel to dictionary rules and allowed-values baselines.
-    candidate = (sorted(set(strs))[:12]
-                 if 2 <= distinct <= 12 and uniq < 0.95 else None)
+    candidate = (sorted(set(strs))[:48]
+                 if 2 <= distinct <= 48 and uniq < 0.95 else None)
     dec = frac(RX_DEC)
     if dec >= 0.5:
         return {**base, "reason": "Profiled", "kind": "decimal", "valid": round(dec, 3),

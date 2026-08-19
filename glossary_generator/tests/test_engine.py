@@ -360,6 +360,24 @@ class TestPolicyDraft:
         assert prof3.get("kind") == "enum", prof3
         assert set(prof3["enum"]) == {"Compliant", "Warning"}
 
+    def test_mid_size_vocabularies_profile_as_enums(self):
+        """The reseeded estate's 15 service cities sat three past the old
+           12-distinct ceiling and profiled as shapeless free text, so the
+           drafter skipped every city column with "values induce no shape"
+           (field: "could this still be a lack of values, so it doesn't
+           trigger a pattern?" — the opposite: too many). Real reference
+           vocabularies run to dozens; the ceiling (48) is a backstop, and
+           the n >= 2*distinct repetition floor stays the working gate."""
+        cities = ["City%02d" % (i % 15) for i in range(100)]  # 15 distinct, repeated
+        prof = suggester._profile_values("billing_city", cities, len(cities))
+        assert prof.get("kind") == "enum", prof
+        assert len(prof["enum"]) == 15
+        # the backstop: 50 distinct across 100 rows passes the repetition
+        # floor (uniq exactly .5) but sits past the ceiling — not a dictionary
+        wide = ["V%02d" % (i % 50) for i in range(100)]
+        prof2 = suggester._profile_values("wide_code", wide, len(wide))
+        assert prof2.get("kind") != "enum", prof2
+
     def test_skip_reason_tells_profiled_from_unprofiled(self):
         """"no profiled evidence — re-scan with profiling on" was wrong
            advice for rows profiling DID touch (numeric content induces no
