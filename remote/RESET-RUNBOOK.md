@@ -21,7 +21,16 @@ Set-Location C:\Projects\PDC-Glossary\remote
 .\pdc-remote.ps1 reset          # type 'reset' to confirm; 8-20 min
 
 # 1 · Licence (curl.exe, NOT curl — PS aliases bare curl to Invoke-WebRequest)
-.\pdc-remote.ps1 token
+# FRESH-RESET GOTCHA (field-caught 2026-08-19): the rebuilt pdc realm's
+# `admin` has NO usable bootstrap password — direct grants fail with
+# invalid_grant for admin/admin AND for your old password. The rescue is
+# the MASTER realm, whose bootstrap IS admin/admin (KEYCLOAK_PASSWORD in
+# vendor/.env.default): get a master token, reset the pdc-realm admin,
+# lab standard `Azwater123!` (satisfies the stock strict policy):
+#   $mt = (Invoke-RestMethod -Method Post -Uri 'https://pentaho.io/keycloak/realms/master/protocol/openid-connect/token' -Body @{grant_type='password';client_id='admin-cli';username='admin';password='admin'}).access_token
+#   $u  = (Invoke-RestMethod -Uri 'https://pentaho.io/keycloak/admin/realms/pdc/users?username=admin&exact=true' -Headers @{Authorization="Bearer $mt"})[0].id
+#   Invoke-RestMethod -Method Put -Uri "https://pentaho.io/keycloak/admin/realms/pdc/users/$u/reset-password" -Headers @{Authorization="Bearer $mt"} -ContentType 'application/json' -Body '{"type":"password","value":"Azwater123!","temporary":false}'
+.\pdc-remote.ps1 token          # username admin, password Azwater123!
 curl.exe -k -X POST 'https://pentaho.io/api/v2/licensing/uploadLicense' `
   -H "Authorization: Bearer $(Get-Content .state\token.jwt)" `
   -F 'deviceId=pdc-demo' `
