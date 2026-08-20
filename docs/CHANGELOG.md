@@ -14,6 +14,19 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.38.33] - 2026-08-20
+
+### Fixed - Home's numbered steps skipped the Dictionary
+
+The workflow diagram showed Home → Connect → Review → Dictionary → Govern
+→ Apply, but the numbered cards jumped Review → Govern with the
+vocabulary approval buried as a sentence inside the Govern card (field:
+"this is missing a Dictionary step."). The Dictionary is now card 3 in
+its own right — "approve the vocabulary: one deliberate act, and the
+gate that matters — only governed vocabulary flows into the Registry" —
+with Govern & generate and Resolve renumbered 4 and 5. Verified
+rendering: five cards, Go to Dictionary → lands on the page.
+
 ## [1.38.32] - 2026-08-19
 
 ### Fixed - the seeder generates the estate's real account format

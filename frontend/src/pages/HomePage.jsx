@@ -10,14 +10,20 @@ const WORKFLOW = [
     text: 'Add a connection for each source — a database, a MinIO/S3 document store, or a DDL file. Scan one to start; Add to glossary from others to span structured and unstructured data.' },
   { n: 2, page: 'review', title: 'Review & prune',
     text: 'Every column becomes one candidate term, so you prune rather than hunt for gaps. Edit definition, purpose, sensitivity and tags inline; filter and Keep High+Med conf to cut noise. You can also open an existing glossary export for review, or enhance your scan against one.' },
-  { n: 3, page: 'govern', title: 'Govern & generate',
-    text: 'First approve any scan-grown pending terms/tags on the Dictionary page — only governed vocabulary flows into the Registry. Then manage the roster, set steward, owner, custodian, status and rating, and Generate JSONL with stewardship baked in. Import via PDC’s Business Glossary → Import.' },
-  { n: 4, page: 'apply', title: 'Resolve Term IDs & apply',
+  // the Dictionary was a sentence buried inside the Govern card, so the
+  // numbered steps jumped Review → Govern while the workflow diagram above
+  // showed Dictionary between them (field: "this is missing a Dictionary
+  // step.")
+  { n: 3, page: 'dictionary', title: 'Dictionary · approve the vocabulary',
+    text: 'Your review streams new terms and tags into a pending vocabulary on the Dictionary page. Approving it is one deliberate act — and the gate that matters: only governed vocabulary flows into the Registry and the generated JSONL. The Dictionary syncs itself when the review completes, so this is usually a quick confirm.' },
+  { n: 4, page: 'govern', title: 'Govern & generate',
+    text: 'Manage the roster, set steward, owner, custodian, status and rating, and Generate JSONL with stewardship baked in. Import via PDC’s Business Glossary → Import.' },
+  { n: 5, page: 'apply', title: 'Resolve Term IDs & apply',
     text: 'Once the glossary is imported, push the term↔column links over the API: authenticate once, resolve IDs, then apply with a dry-run before any write. Sensitivity, CDE, verified-lineage and trust score follow.' },
 ]
 
 // The Home page: landing content ported from the old UI's home section —
-// the 4-step workflow, the full working-cycle panel, saved glossaries and
+// the 5-step workflow, the full working-cycle panel, saved glossaries and
 // best practices.
 export default function HomePage({ onNavigate }) {
   return (
