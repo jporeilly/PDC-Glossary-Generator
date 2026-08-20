@@ -17,6 +17,11 @@ users, licence, safe list. **Survives:** the deployment on disk and the
 lab stack (postgres :5433, MinIO :9000) — the demo data is safe.
 
 ```powershell
+# EVERYTHING below runs on the LOCAL Windows console — the prompt must say
+# PS C:\...>  If it says pdc@pdc-demo:~$ you are ssh'd INTO THE VM (bash):
+# type exit first. The only VM-touching lines are the ones that explicitly
+# start with  ssh pdc@192.168.1.200 "..."  — and you run those from Windows.
+
 # 0 · Preflight + reset
 Set-Location C:\Projects\PDC-Glossary\remote
 .\pdc-remote.ps1 doctor                    # 16 green checks first
@@ -131,15 +136,15 @@ on the Harvest card.
 
 ## If something fights back
 
-| Symptom | Fix |
-|---|---|
-| Every URL 404s after reset | The second `pdc.sh up` didn't run — `.\pdc-remote.ps1 resume` |
-| `Could not establish trust relationship` | PS 5.1 Invoke-RestMethod cannot skip self-signed certs at all — use the `curl.exe -k` forms above / `-SkipTlsCheck` on the scripts |
-| Token: `invalid_grant` for admin | Step 1 not done — the fresh realm has no usable admin password |
-| JSON body reaches the API mangled | PS 5.1 eats bare `"` in native args — write bodies as `'{\"key\":\"value\"}'` |
-| `set-password failed` on every user | Policy — use `-FixPolicy -PolicyValue 'length(7)'` |
-| Cast login rejected with valid password | Safe list — step 4 verify |
-| Keycloak `https:/https://…` error in the app | Doubled scheme in a pasted base URL — retype the field |
-| Licence upload 404 | Wrong path — check Swagger; see PDC-REMOTE-RESET.md §7 |
-| Draft says account_number "induces no shape" | Stale evidence — PDC re-profile `customers`, then re-harvest with **Refresh value evidence** ticked, then redraft |
-| Seed dies on PK/unique/date/overflow | You're on a pre-1.38.27 seeder — update; the current one is constraint-tolerant |
+| Symptom                                        | Fix                                                                                                                                    |
+| ---------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| Every URL 404s after reset                     | The second`pdc.sh up` didn't run — `.\pdc-remote.ps1 resume`                                                                      |
+| `Could not establish trust relationship`     | PS 5.1 Invoke-RestMethod cannot skip self-signed certs at all — use the`curl.exe -k` forms above / `-SkipTlsCheck` on the scripts |
+| Token:`invalid_grant` for admin              | Step 1 not done — the fresh realm has no usable admin password                                                                        |
+| JSON body reaches the API mangled              | PS 5.1 eats bare`"` in native args — write bodies as `'{\"key\":\"value\"}'`                                                      |
+| `set-password failed` on every user          | Policy — use`-FixPolicy -PolicyValue 'length(7)'`                                                                                   |
+| Cast login rejected with valid password        | Safe list — step 4 verify                                                                                                             |
+| Keycloak`https:/https://…` error in the app | Doubled scheme in a pasted base URL — retype the field                                                                                |
+| Licence upload 404                             | Wrong path — check Swagger; see PDC-REMOTE-RESET.md §7                                                                               |
+| Draft says account_number "induces no shape"   | Stale evidence — PDC re-profile`customers`, then re-harvest with **Refresh value evidence** ticked, then redraft              |
+| Seed dies on PK/unique/date/overflow           | You're on a pre-1.38.27 seeder — update; the current one is constraint-tolerant                                                       |
