@@ -740,8 +740,15 @@ def _detection_intent(c, prof, pii):
     # personal names: prose, no shape
     if str(pii or "").strip().upper() == "PERSONAL_NAME":
         return "mapping_only"
-    # booleans: a generic pair detects every flag in the estate
-    if re.search(r"\bbool", typ):
+    # Booleans: a generic true/false pair detects every flag in the estate, and
+    # PDC cannot content-match them at all — it evaluates patterns and
+    # dictionaries against a column's VALUES, and a bit column has none to
+    # evaluate (proven live 2026-08-20: BIT columns tagged nothing under a
+    # name-anchored regex AND under a hand-built {0,1} dictionary). `\bbool`
+    # alone missed the type PDC actually reports for a flag — BIT — so the two
+    # flags on this estate stayed Auto, were flipped by a steward, and became
+    # methods that imported cleanly, passed drift, and were inert forever.
+    if re.search(r"\bbool|\bbit\b|tinyint\s*\(\s*1\s*\)", typ):
         return "mapping_only"
     low = {str(v).strip().lower() for v in enum}
     if low and low <= {"true", "false", "yes", "no", "y", "n", "0", "1", "t", "f"}:

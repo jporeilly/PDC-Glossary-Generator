@@ -140,6 +140,24 @@ _SENS_UP = {"LOW": 1, "MEDIUM": 2, "HIGH": 3}
 _SENS_DN = {1: "LOW", 2: "MEDIUM", 3: "HIGH"}
 
 
+def rating_payload(value, raters):
+    """A rating PDC can actually read: the value AND its raters.
+
+    Written with no `users` map, PDC's rating service has nothing to average and
+    errors rather than returning zero — 0 stars plus "There was an error getting
+    the rating information" on every table Apply rated (18 of them on
+    2026-08-20, while the receipt reported success). `raters` are the stewards
+    already named on the columns being rolled up, never invented here, so a
+    table and its columns cannot disagree about who rated them.
+
+    Returns None when there is no rater: a rating is a judgement attributed to a
+    person, and attributing one to nobody is exactly what broke.
+    """
+    if not raters:
+        return None
+    return {"value": value, "users": {uid: value for uid in raters}}
+
+
 def apply_to_pdc(base_url, token, api_json, version="v2", verify_tls=True,
                  timeout=30, dry_run=True, reauth=None, calculate_trust=False,
                  apply_table_ratings=True, table_lineage_verified=True,
@@ -160,6 +178,7 @@ def apply_to_pdc(base_url, token, api_json, version="v2", verify_tls=True,
     touched_ids = []
     table_cache = {}
     table_ratings = {}   # (schema, table) -> [rating values from columns]
+    table_raters = {}    # (schema, table) -> {rater id: rating} harvested from those columns
     table_quality = {}   # (schema, table) -> [qualityScore values from columns]
     table_sens = {}      # (schema, table) -> max column sensitivity rank
     object_store_keys = set()  # (bucket, folder) keys whose elements are object-store
@@ -317,6 +336,17 @@ def apply_to_pdc(base_url, token, api_json, version="v2", verify_tls=True,
                 if is_obj:
                     object_store_keys.add(tkey)
                 table_ratings.setdefault(tkey, []).append(rv)
+                # …and WHO gave it. PDC computes the displayed rating from the
+                # `users` map, so a rating object without one is a rating nobody
+                # cast: the entity page shows 0 stars and raises "There was an
+                # error getting the rating information" (field-caught on 18
+                # tables, 2026-08-20). The rater is not invented here — it is the
+                # steward already named on the column being rolled up, so a table
+                # and its columns can never disagree about who rated them.
+                for uid in ((((incoming_attrs.get("features") or {}).get("rating")) or {})
+                            .get("users") or {}):
+                    if uid:
+                        table_raters.setdefault(tkey, {})[uid] = rv
             sv = str(((incoming_attrs.get("features") or {}).get("sensitivity")) or "").upper()
             if sv in _SENS_UP:
                 tkey = ((rec.get("schemaName") or ""), (rec.get("tableName") or ""))
@@ -424,7 +454,9 @@ def apply_to_pdc(base_url, token, api_json, version="v2", verify_tls=True,
                         continue
                     dfeat = {}
                     if mean_rating is not None:
-                        dfeat["rating"] = {"value": mean_rating}
+                        _rp = rating_payload(mean_rating, table_raters.get((sch, tbl)))
+                        if _rp:
+                            dfeat["rating"] = _rp
                     if mean_quality is not None:
                         dfeat["qualityScore"] = mean_quality
                     if srank:
@@ -468,7 +500,9 @@ def apply_to_pdc(base_url, token, api_json, version="v2", verify_tls=True,
                 tid = _eid(tent)
                 tfeat = {}
                 if mean_rating is not None:
-                    tfeat["rating"] = {"value": mean_rating}
+                    _rp = rating_payload(mean_rating, table_raters.get((sch, tbl)))
+                    if _rp:
+                        tfeat["rating"] = _rp
                 if mean_quality is not None:
                     tfeat["qualityScore"] = mean_quality
                 if srank:
@@ -547,7 +581,15 @@ def apply_to_pdc(base_url, token, api_json, version="v2", verify_tls=True,
         "ids": sorted(set(touched_ids)),
         "table_results": table_results,
         "table_ids": sorted(set(table_ids)),
-        "tables_rated": sum(1 for t in table_results if t["status"] in ("applied", "planned")),
+        # PATCHes that did not raise — NOT ratings PDC kept. The distinction is
+        # the whole lesson of 2026-08-20: all 18 of these "succeeded" while
+        # writing a rating the catalog could not read. Named for what it counts.
+        "tables_patched": sum(1 for t in table_results if t["status"] in ("applied", "planned")),
+        # ratings we actually sent a readable payload for (value + raters)
+        "tables_rated": sum(1 for t in table_results
+                            if t["status"] in ("applied", "planned")
+                            and ((t.get("body") or {}).get("attributes", {})
+                                 .get("features", {}).get("rating") or {}).get("users")),
         "objectstore_folders": sum(1 for t in table_results if t["status"] == "file-level"),
         "unresolved_terms": sorted(unresolved_term_names),
         "unresolved_terms_skipped": bool(skip_unresolved_terms and unresolved_term_names),

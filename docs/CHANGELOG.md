@@ -14,6 +14,65 @@ date-based releases. Entries predating this file are summarised under *Earlier*.
   standalone **Policy Generator** (`policy_generator/`); the app carries only the
   minimal Registry writer (`registry/`).
 
+## [1.38.34] - 2026-08-20
+
+### Fixed - the four defects a live identification run exposed
+
+A full walk on the Arizona estate — Generate, Resolve, Apply, deploy, identify,
+read the columns back — turned up four things that all shared one shape: a write
+that reported success while producing something the catalog could not use.
+
+**Booleans can never be detected, so they are never seeded.** PDC matches a Data
+Pattern's regex and a Dictionary's vocabulary against a column's VALUES; a bit
+column has none to match. Proven live: `opted_out_marketing` and
+`bacteria_present` (both BIT, both holding 0/1) tagged nothing under a
+name-anchored regex AND under a hand-built {0,1} dictionary, while every NUMERIC
+sibling tagged correctly. Such a rule imports cleanly, passes drift, and is inert
+forever. Three changes, so it cannot happen again at any layer:
+
+- the nature classifier now recognises **BIT** (`\bbool` alone missed the type
+  PDC actually reports for a flag), so these rows arrive **mapping-only**;
+- the shared seed ladder refuses a boolean source outright, with a reason;
+- the Review grid **disables the Auto flip** on such a row and explains why.
+
+**Generate can no longer regress term ids.** It wrote every `term_id` as null,
+so re-generating after a Resolve threw away ids PDC had already minted — the
+file said 50 of 139 while the catalog knew all 139, and 40 of 115 deployed
+methods went out bound by NAME, which detaches the moment a term is renamed.
+`build_and_save_registry` now reads the file it is about to overwrite and
+carries forward every id whose term name is unchanged. Ids are keyed on the
+name, so this is safe; a renamed term simply has none, exactly as before.
+
+**A table rating now carries its rater.** The roll-up wrote
+`{"value": 4}` with no `users` map. PDC computes the displayed rating from that
+map, so every rated table showed 0 stars and raised *"There was an error getting
+the rating information"* — 18 tables, while the receipt reported success. The
+rater is harvested from the columns being rolled up (never invented), and when
+there is no rater we write **no rating**: a rating is a judgement attributed to a
+person, and attributing one to nobody is what broke.
+
+**A shape shared by many concepts identifies none of them.** The profiler
+induced `^[A-Z]{2}[0-9]{4}$` as the evidence for EIGHT concepts (Customer
+County, Source Type, Water System Type…). Authored with the profiled blend the
+regex alone clears the gate, so a free-text `notes` column came back bound to all
+eight and tagged pii/privacy/location. The bridge now detects a regex claimed by
+more than one concept and marks those seeds **name-anchored** (`identity:
+column_name`, plus `shared_with` naming the rivals), so the column NAME carries
+identity and name and shape must agree.
+
+### Added - the Registry carries each source column's physical type
+
+`source_types` per concept. The Policy Generator authors offline and cannot ask
+PDC what a column holds, so without this it treats a BIT flag and a NUMERIC
+measure identically. The data was already on every scanned row; it just never
+crossed the contract.
+
+### Changed - `tables_rated` counts ratings, not PATCHes
+
+It counted writes that did not raise, which is how 18 unreadable ratings were
+reported as a success. The report now separates **`tables_patched`** (what was
+sent) from **`tables_rated`** (what carried a readable rating). 384 tests.
+
 ## [1.38.33] - 2026-08-20
 
 ### Fixed - Home's numbered steps skipped the Dictionary

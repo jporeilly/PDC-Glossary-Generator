@@ -85,8 +85,37 @@ def _curated_seeds():
     return out
 
 
-def build_registry(rows, glossary_name: str, glossary_id: str = None) -> dict:
-    """rows -> Registry dict (one concept per kept term)."""
+def _known_term_ids(out_path) -> dict:
+    """Term ids an EXISTING Registry file already knows, keyed by term name.
+
+    Generate used to write every term_id as null, so re-generating after a
+    Resolve silently threw away ids PDC had already minted — and the next deploy
+    bound methods by NAME, which detaches the moment a term is renamed. Field
+    evidence (2026-08-19): a re-Generate left 50 of 139 ids in the file while PDC
+    knew all 139, and 40 of 115 deployed methods went out weakly bound with
+    nothing to warn anyone.
+
+    Ids are keyed on the term name, so carrying them forward is safe: a term
+    whose name is unchanged is the same term. A renamed term simply has no entry
+    and is left null for Reconcile, exactly as before.
+    """
+    try:
+        with open(out_path, encoding="utf-8") as f:
+            prev = json.load(f)
+    except (OSError, ValueError):
+        return {}
+    return {c.get("term_name"): c.get("term_id")
+            for c in (prev.get("concepts") or [])
+            if isinstance(c, dict) and c.get("term_name") and c.get("term_id")}
+
+
+def build_registry(rows, glossary_name: str, glossary_id: str = None,
+                   known_term_ids: dict = None) -> dict:
+    """rows -> Registry dict (one concept per kept term).
+
+    `known_term_ids` ({term_name: id}) carries forward what a previous Registry
+    already resolved, so Generate can never REGRESS the contract."""
+    known_term_ids = known_term_ids or {}
     # lazy, like this module's other engine imports: registry/ stays importable
     # on its own (the Policy Generator reads the artifact, never this code)
     from engine.policy_seed import seeds_for_row
@@ -135,7 +164,9 @@ def build_registry(rows, glossary_name: str, glossary_id: str = None) -> dict:
         concepts.append({
             "concept": concept,
             "term_name": term,
-            "term_id": None,                       # UNKNOWN until reconcile
+            # carried forward when a previous Registry already resolved this
+            # term; None means genuinely unknown, for Reconcile to fill
+            "term_id": known_term_ids.get(term),
             "sensitivity": Sensitivity.parse(r.get('Sensitivity', 'LOW')).name,
             "tags": tags,
             "off_vocabulary_tags": off,            # empty when tags are all governed
@@ -143,11 +174,42 @@ def build_registry(rows, glossary_name: str, glossary_id: str = None) -> dict:
             "definition": (r.get('Definition') or ''),
             "detect": detect,
             "sources": [c.strip() for c in str(r.get('Source_Column') or '').split(';') if c.strip()],
+            # the physical type per source column. The Policy Generator authors
+            # offline and cannot ask PDC what a column holds, so without this it
+            # treats a BIT flag and a NUMERIC measure identically — and mints a
+            # value-shape rule for the flag that PDC can never evaluate (proven
+            # on the estate 2026-08-20: two BIT columns, two inert methods,
+            # drift-clean forever). Types come straight off the scanned row.
+            "source_types": {k: str(v) for k, v in (r.get('Source_Types') or {}).items() if v},
             "keys": keys,
             "method": None,
             **({"detection_intent": "mapping_only"} if _mapping
                else {"detection_intent": "seeded"} if detect else {}),
         })
+    # ---- a shape shared by many concepts identifies none of them -----------
+    # The profiler induces a regex per column, and columns of different concepts
+    # can share one: on the Arizona estate `^[A-Z]{2}[0-9]{4}$` was induced for
+    # EIGHT concepts (Customer County, Source Type, Water System Type…). Authored
+    # with the profiled blend the regex alone clears the gate, so a free-text
+    # `notes` column came back bound to all eight and tagged pii/privacy/location
+    # (field-caught 2026-08-20).
+    #
+    # Such a shape is not identity, it is a sanity check — exactly what a
+    # name-anchored seed already means. Marking it so makes the column NAME carry
+    # identity and forces name AND shape to agree, which is what keeps the
+    # legitimate matches and drops the accidental ones.
+    shared = {}
+    for c in concepts:
+        for d in c.get("detect") or []:
+            if d.get("type") == "pattern" and d.get("regex"):
+                shared.setdefault(d["regex"], set()).add(c["term_name"])
+    ambiguous = {rx for rx, terms in shared.items() if len(terms) > 1}
+    for c in concepts:
+        for d in c.get("detect") or []:
+            if d.get("type") == "pattern" and d.get("regex") in ambiguous:
+                d["identity"] = "column_name"
+                d["shared_with"] = sorted(shared[d["regex"]] - {c["term_name"]})
+
     # Physical model — the schema/relationship layer. Built from EVERY scanned
     # column's PK/FK (all rows, kept OR pruned), so the join graph is
     # authoritative and independent of glossary curation: pruning a surrogate key
@@ -192,7 +254,10 @@ def _audit_summary():
 
 def build_and_save_registry(rows, glossary_name: str, out_path: str,
                             glossary_id: str = None) -> dict:
-    reg = build_registry(rows, glossary_name, glossary_id=glossary_id)
+    # read the file we are about to overwrite FIRST: whatever it already knows
+    # about term ids survives the regeneration
+    reg = build_registry(rows, glossary_name, glossary_id=glossary_id,
+                         known_term_ids=_known_term_ids(out_path))
     os.makedirs(os.path.dirname(os.path.abspath(out_path)) or '.', exist_ok=True)
     with open(out_path, 'w', encoding='utf-8') as f:
         json.dump(reg, f, indent=2)

@@ -2601,7 +2601,11 @@ function ExpandedRow({ row: r, index, prop, onAcceptProp, onField, onEvidence, o
               <span className="rv-expevk">DETECTION</span>
               <span className="seg" role="group" aria-label="Detection intent">
                 <button className={r.Detection_Intent !== 'mapping_only' ? 'on' : ''}
-                        onClick={() => onField(index, 'Detection_Intent', '')}>Auto</button>
+                        disabled={isBooleanRow(r)}
+                        title={isBooleanRow(r)
+                          ? 'A boolean column cannot be detected by value: PDC matches patterns and dictionaries against a column’s VALUES, and a bit column has none to match. Auto here would produce a method that imports, passes drift, and never fires. Governed by the term↔column link instead.'
+                          : undefined}
+                        onClick={() => !isBooleanRow(r) && onField(index, 'Detection_Intent', '')}>Auto</button>
                 <button className={r.Detection_Intent === 'mapping_only' ? 'on' : ''}
                         onClick={() => onField(index, 'Detection_Intent', 'mapping_only')}>Mapping-only</button>
               </span>
@@ -2610,7 +2614,9 @@ function ExpandedRow({ row: r, index, prop, onAcceptProp, onField, onEvidence, o
                   detection method; without one, Auto leaves Policy to ask for a
                   seed while Mapping-only closes the question */}
               <span className="rv-msg rv-detwhy">
-                {r.Detection_Intent === 'mapping_only'
+                {isBooleanRow(r)
+                  ? '→ boolean column — no value to match, so detection is off the table; the term link governs it'
+                  : r.Detection_Intent === 'mapping_only'
                   ? '→ Registry says mapping_only — Policy won’t ask for a detection seed'
                   : hasEvidence(r)
                     ? '→ Registry seeds detection from this row’s value shape'
@@ -2633,6 +2639,19 @@ function ExpandedRow({ row: r, index, prop, onAcceptProp, onField, onEvidence, o
 }
 
 const hasEvidence = (r) => !!(r.Value_Pattern || r.Value_Signature || r.Enum_Values)
+
+// A row whose every source column is a boolean. PDC matches patterns and
+// dictionaries against a column's VALUES, and a bit column has none to match —
+// so Auto here can only ever produce a method that imports, passes drift and
+// never fires. The suggest-time nature already lands these mapping-only; this
+// stops the grid offering a flip that cannot work.
+const BOOLEAN_TYPES = /^(bit|bool|boolean|tinyint\s*\(\s*1\s*\))$/i
+const isBooleanRow = (r) => {
+  const types = Object.values(r.Source_Types || {})
+    .map((t) => String(t || '').trim())
+    .filter(Boolean)
+  return types.length > 0 && types.every((t) => BOOLEAN_TYPES.test(t))
+}
 
 /* ---------- duplicate cluster header (Merge / Disambiguate / Keep separate) ---------- */
 

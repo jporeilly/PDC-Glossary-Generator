@@ -46,6 +46,25 @@ NO_SHAPE = re.compile(
     re.I)
 
 
+# Types whose VALUES no content rule can ever match. PDC evaluates a Data
+# Pattern's regex and a Dictionary's vocabulary against the profiled values of a
+# column; a bit column has no textual values to evaluate, so both channels are
+# unavailable. Proven on the estate 2026-08-20: opted_out_marketing and
+# bacteria_present are BIT, and BOTH a name-anchored regex and a hand-built
+# {0,1} dictionary tagged nothing, while every NUMERIC sibling tagged correctly.
+# A rule minted for such a column imports cleanly, reports drift-clean, and is
+# inert forever — the worst kind of governance, the sort that looks fine.
+BOOLEAN_TYPES = {"bit", "bool", "boolean", "tinyint(1)"}
+
+
+def is_boolean_source(row):
+    """True when EVERY source column of the row is a boolean-typed column."""
+    types = row.get("Source_Types") or {}
+    seen = [str(types.get(c) or "").strip().lower() for c in cols_of(row)]
+    seen = [t for t in seen if t]
+    return bool(seen) and all(t in BOOLEAN_TYPES for t in seen)
+
+
 def cols_of(row):
     return [c.strip() for c in str(row.get("Source_Column") or "").split(";") if c.strip()]
 
@@ -237,6 +256,12 @@ def seeds_for_row(row, curated=None):
     # "no signature" sent a flipped Payment Date to the skips
     # (field-caught on the mass-flip walk). A signature rides the
     # rule's contentPatterns at weight 0 - informative, inert.
+    if is_boolean_source(row):
+        # the steward may flip a flag to Auto; the catalog cannot honour it
+        return [], ("boolean column — PDC matches patterns and dictionaries against "
+                    "column VALUES, and a bit column has none to match, so no detection "
+                    "method can fire; governed by the term↔column link instead"), mapping
+
     rng = str(row.get("Value_Range") or "").strip()
     if (rng or kind == "date") and column_name_regex(col_names(row)):
         # mapping-only rows never reach this ladder — so an Auto

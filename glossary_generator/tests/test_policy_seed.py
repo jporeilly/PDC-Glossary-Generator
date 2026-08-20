@@ -124,3 +124,144 @@ class TestDrafterAndRegistryAgree:
                    [v for v in _concepts(self.ROWS).values()]}
         for p in d["patterns"]:
             assert p["seed"] == by_term[p["term"]]["detect"][0]["source"]
+
+
+class TestBooleanSourcesAreNeverSeeded:
+    """A value-shape rule on a bit column is inert (1.38.34).
+
+    PDC matches a pattern's regex and a dictionary's vocabulary against a
+    column's VALUES. A bit column has none to match: proven on the live estate
+    2026-08-20, where opted_out_marketing and bacteria_present (both BIT, both
+    holding 0/1) tagged nothing under a name-anchored regex AND under a
+    hand-built {0,1} dictionary, while every NUMERIC sibling tagged correctly.
+    Minting a rule for them produces a method that imports, passes drift, and
+    never fires — so the ladder refuses, and says why.
+    """
+
+    def _seed(self, **kw):
+        from engine.policy_seed import seeds_for_row
+        row = _row("Opted Out Marketing", "aw.customers.opted_out_marketing", **kw)
+        return seeds_for_row(row, {})
+
+    def test_a_bit_column_is_refused_with_a_reason(self):
+        seeds, skip, _ = self._seed(Value_Range="0-1",
+                                    Source_Types={"aw.customers.opted_out_marketing": "BIT"})
+        assert seeds == []
+        assert "boolean column" in skip and "term" in skip
+
+    def test_a_numeric_sibling_still_mints(self):
+        seeds, skip, _ = self._seed(Value_Range="6.5-8.5",
+                                    Source_Types={"aw.customers.opted_out_marketing": "NUMERIC"})
+        assert skip is None and seeds and seeds[0]["source"] == "name-anchored"
+
+    def test_no_type_information_changes_nothing(self):
+        """Registries written before 1.38.34 carry no source_types; they must
+        behave exactly as they did."""
+        seeds, skip, _ = self._seed(Value_Range="0-1")
+        assert skip is None and seeds and seeds[0]["source"] == "name-anchored"
+
+
+class TestBooleanNatureIsMappingOnlyBeforeAnyoneCanFlipIt:
+    """The default, not just the guard (1.38.34).
+
+    The ladder refuses to seed a bit column, but a steward could still flip the
+    row to Auto and watch nothing happen. The nature classifier now recognises
+    the type PDC actually reports for a flag — BIT — so such a row arrives
+    mapping-only and the grid refuses the flip.
+    """
+
+    def _intent(self, typ):
+        from engine.sug_suggest import _detection_intent
+        return _detection_intent({"type": typ}, {}, "")
+
+    def test_bit_is_mapping_only(self):
+        assert self._intent("BIT") == "mapping_only"
+
+    def test_the_other_spellings_too(self):
+        for t in ("bool", "BOOLEAN", "tinyint(1)", "TINYINT( 1 )"):
+            assert self._intent(t) == "mapping_only", t
+
+    def test_a_shaped_column_is_still_auto(self):
+        """Only the boolean rule is new: a column with a profiled shape keeps
+        its Auto nature. (A bare NUMERIC with no shape is mapping-only by an
+        older, deliberate rule — a free measure has nothing to identify it.)"""
+        from engine.sug_suggest import _detection_intent
+        assert _detection_intent({"type": "VARCHAR"},
+                                 {"pattern": r"^[A-Z]{3}-\d{6}$"}, "") != "mapping_only"
+
+
+class TestTableRatingCarriesItsRater:
+    """A rating PDC can read (1.38.34).
+
+    Apply rolled a table rating up as {"value": 4} with no `users` map. PDC
+    computes the displayed rating from that map, so the entity page showed 0
+    stars and raised "There was an error getting the rating information" on
+    every table Apply rated — 18 of them, while the receipt reported success.
+    """
+
+    def test_value_and_raters_travel_together(self):
+        from pdc_client.apply import rating_payload
+        assert rating_payload(4, {"steward-1": 4}) == {"value": 4, "users": {"steward-1": 4}}
+
+    def test_every_rater_carries_the_rolled_up_value(self):
+        from pdc_client.apply import rating_payload
+        out = rating_payload(3, {"a": 5, "b": 1})
+        assert out["users"] == {"a": 3, "b": 3}, "the table's value, not each column's"
+
+    def test_no_rater_means_no_rating(self):
+        """Better no rating than one attributed to nobody — that is the state
+        that produced the error."""
+        from pdc_client.apply import rating_payload
+        assert rating_payload(4, None) is None
+        assert rating_payload(4, {}) is None
+
+
+class TestApplyCountsWhatItActuallyWrote:
+    """`tables_rated` used to count PATCHes that returned 200 (1.38.34).
+
+    All 18 of them "succeeded" while writing a rating PDC could not read. The
+    report now separates the two facts: how many tables were patched, and how
+    many carried a rating with its raters — the only kind that survives a read.
+    """
+
+    def test_a_rating_without_raters_is_not_counted_as_rated(self):
+        from pdc_client.apply import rating_payload
+        rows = [
+            {"status": "applied", "body": {"attributes": {"features": {
+                "rating": rating_payload(4, {"steward-1": 4})}}}},
+            {"status": "applied", "body": {"attributes": {"features": {}}}},
+        ]
+        patched = sum(1 for t in rows if t["status"] in ("applied", "planned"))
+        rated = sum(1 for t in rows
+                    if t["status"] in ("applied", "planned")
+                    and ((t.get("body") or {}).get("attributes", {})
+                         .get("features", {}).get("rating") or {}).get("users"))
+        assert patched == 2 and rated == 1
+
+
+class TestAmbiguousShapesBecomeNameAnchored:
+    """A regex shared by several concepts identifies none of them (1.38.34).
+
+    On the live estate one induced shape — ^[A-Z]{2}[0-9]{4}$ — was the profiled
+    evidence for EIGHT concepts. Authored with the profiled blend the shape alone
+    clears the gate, and a free-text `notes` column came back bound to all eight,
+    tagged pii/privacy/location. Marking the seed name-anchored makes the column
+    name carry identity, so name AND shape must agree.
+    """
+
+    ROWS = [
+        _row("Source Type", "aw.systems.source_type", Value_Pattern=r"^[A-Z]{2}[0-9]{4}$"),
+        _row("Water System Type", "aw.systems.system_type", Value_Pattern=r"^[A-Z]{2}[0-9]{4}$"),
+        _row("Account Number", "aw.customers.account_number", Value_Pattern=r"^ACC-[0-9]{6}$"),
+    ]
+
+    def test_a_shared_shape_is_marked_name_anchored(self):
+        cs = _concepts(self.ROWS)
+        for t in ("Source Type", "Water System Type"):
+            seed = cs[t]["detect"][0]
+            assert seed["identity"] == "column_name", t
+            assert seed["shared_with"], "say which other concepts claim this shape"
+
+    def test_a_unique_shape_is_left_alone(self):
+        seed = _concepts(self.ROWS)["Account Number"]["detect"][0]
+        assert "identity" not in seed and seed["source"] == "profiled"
