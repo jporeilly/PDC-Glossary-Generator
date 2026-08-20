@@ -62,8 +62,12 @@ Set-Location C:\Projects\PDC-Glossary\remote
 # 5 · Health
 .\pdc-remote.ps1 health                    # 302/401 fine, 404 bad
 
-# 5 · Scale the estate (OWNER account — pdc_user is read-only; the owner
-#     password is in the demo-postgres container env:
+# 6 · Scale the estate — ONLY IF THE ESTATE IS NOT ALREADY SCALED. The
+#     seeder TOPS UP (adds N rows above the max PK); running it against an
+#     already-scaled estate doubles it. A PDC reset does NOT touch the lab
+#     data — postgres/MinIO survive — so a re-reset day usually SKIPS this.
+#     (OWNER account — pdc_user is read-only; the owner password is in the
+#     demo-postgres container env:
 #     ssh pdc@192.168.1.200 "docker inspect demo-postgres --format
 #       '{{range .Config.Env}}{{println .}}{{end}}' | grep POSTGRES_PASSWORD")
 Set-Location C:\Projects\PDC-Glossary\glossary_generator
@@ -72,7 +76,7 @@ python -m sources.seed_sample --host 192.168.1.200 --port 5433 `
   --user demo_admin --password '<owner-pass>' --rows 1000 --all
 # The document store stays small on purpose — the demo's honest sparse corner.
 
-# 6 · App: install the latest build; Settings -> Factory reset if reusing a
+# 7 · App: install the latest build; Settings -> Factory reset if reusing a
 #     machine; install the domain pack (skip for a true day-zero walk);
 #     Connect -> Bulk load -> Harvest -> the walk.
 ```
