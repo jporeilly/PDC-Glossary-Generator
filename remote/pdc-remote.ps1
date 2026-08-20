@@ -938,6 +938,14 @@ function Invoke-Token {
     Write-Kv 'length' ("$($tok.Length) characters")
 
     $jwtPath = Join-Path $script:Here '.state\token.jwt'
+    # The hardening below locks the cache to owner-READ-only, which blocks
+    # our own refresh on the next run (field-caught: "Set-Content : Access
+    # to the path ... token.jwt is denied"). Unlock and remove before the
+    # rewrite; re-harden after.
+    if (Test-Path $jwtPath) {
+        & icacls.exe $jwtPath /grant:r ("$env:USERNAME" + ':F') | Out-Null
+        Remove-Item -Path $jwtPath -Force
+    }
     Set-Content -Path $jwtPath -Value $tok -Encoding ascii -NoNewline
     & icacls.exe $jwtPath /inheritance:r | Out-Null
     & icacls.exe $jwtPath /grant:r ("$env:USERNAME" + ':R') | Out-Null
