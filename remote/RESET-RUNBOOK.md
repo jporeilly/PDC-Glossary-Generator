@@ -1,8 +1,16 @@
 # PDC Reset Day — the runbook
 
-Copy-paste, top to bottom, PowerShell-native. Field-proven 2026-08-14,
-re-proven and corrected 2026-08-19. Budget **~30–45 min** (mostly the
-rebuild). Depth: [PDC-REMOTE-RESET.md](../docs/PDC-REMOTE-RESET.md).
+Copy-paste, top to bottom, **PowerShell 5.1-native — every command below was
+field-run on the dev console**. Field-proven 2026-08-14, re-proven and
+corrected 2026-08-19, full clean-start sequence (both apps + the walk) added
+2026-08-20. Budget **~30–45 min** (mostly the rebuild).
+Depth: [PDC-REMOTE-RESET.md](../docs/PDC-REMOTE-RESET.md).
+
+> **Why curl.exe and not Invoke-RestMethod:** PS 5.1's Invoke-RestMethod has
+> **no skip-certificate flag at all** — against the VM's self-signed cert it
+> can only fail ("Could not establish trust relationship"). `curl.exe -k` is
+> the reliable form on this rig. JSON bodies use `\"` escapes because PS 5.1's
+> native-argument quoting eats bare inner quotes.
 
 **Destroyed by reset:** catalog, data sources, glossaries, `pdc`-realm
 users, licence, safe list. **Survives:** the deployment on disk and the
@@ -17,12 +25,11 @@ Set-Location C:\Projects\PDC-Glossary\remote
 # 1 · Restore admin/admin (the fresh realm's stock password policy forbids
 #     it, so the realm import leaves admin unusable; master realm IS
 #     admin/admin and fixes it)
-$mt = (Invoke-RestMethod -Method Post -Uri 'https://pentaho.io/keycloak/realms/master/protocol/openid-connect/token' -Body @{grant_type='password';client_id='admin-cli';username='admin';password='admin'}).access_token
-Invoke-RestMethod -Method Put -Uri 'https://pentaho.io/keycloak/admin/realms/pdc' -Headers @{Authorization="Bearer $mt"} -ContentType 'application/json' -Body '{"passwordPolicy":"length(5)"}'
-$u = (Invoke-RestMethod -Uri 'https://pentaho.io/keycloak/admin/realms/pdc/users?username=admin&exact=true' -Headers @{Authorization="Bearer $mt"})[0].id
-Invoke-RestMethod -Method Put -Uri "https://pentaho.io/keycloak/admin/realms/pdc/users/$u/reset-password" -Headers @{Authorization="Bearer $mt"} -ContentType 'application/json' -Body '{"type":"password","value":"admin","temporary":false}'
-# (PS 5.1 + self-signed cert: if Invoke-RestMethod refuses TLS, use the
-#  curl.exe equivalents — see git history of this file.)
+$mt = (curl.exe -sk -X POST 'https://pentaho.io/keycloak/realms/master/protocol/openid-connect/token' -H 'Content-Type: application/x-www-form-urlencoded' -d 'grant_type=password&client_id=admin-cli&username=admin&password=admin' | ConvertFrom-Json).access_token
+curl.exe -sk -X PUT 'https://pentaho.io/keycloak/admin/realms/pdc' -H "Authorization: Bearer $mt" -H 'Content-Type: application/json' -d '{\"passwordPolicy\":\"length(5)\"}'
+$u = (curl.exe -sk 'https://pentaho.io/keycloak/admin/realms/pdc/users?username=admin&exact=true' -H "Authorization: Bearer $mt" | ConvertFrom-Json)[0].id
+curl.exe -sk -X PUT "https://pentaho.io/keycloak/admin/realms/pdc/users/$u/reset-password" -H "Authorization: Bearer $mt" -H 'Content-Type: application/json' -d '{\"type\":\"password\",\"value\":\"admin\",\"temporary\":false}'
+# empty output = success; sanity is the login at step 2's end
 
 # 2 · Licence — token to clipboard, then Swagger
 $tok = (curl.exe -sk -X POST 'https://pentaho.io/keycloak/realms/pdc/protocol/openid-connect/token' -H 'Content-Type: application/x-www-form-urlencoded' -d 'grant_type=password&client_id=pdc-client&username=admin&password=admin' | ConvertFrom-Json).access_token
@@ -62,24 +69,60 @@ Set-Location C:\Projects\PDC-Glossary\remote
 # 5 · Health
 .\pdc-remote.ps1 health                    # 302/401 fine, 404 bad
 
-# 6 · Scale the estate — ONLY IF THE ESTATE IS NOT ALREADY SCALED. The
-#     seeder TOPS UP (adds N rows above the max PK); running it against an
-#     already-scaled estate doubles it. A PDC reset does NOT touch the lab
-#     data — postgres/MinIO survive — so a re-reset day usually SKIPS this.
-#     (OWNER account — pdc_user is read-only; the owner password is in the
-#     demo-postgres container env:
-#     ssh pdc@192.168.1.200 "docker inspect demo-postgres --format
-#       '{{range .Config.Env}}{{println .}}{{end}}' | grep POSTGRES_PASSWORD")
+# 6 · Estate CHECK — the reset does NOT touch the lab data, so on a re-reset
+#     day you VERIFY rather than seed. Expect ~1010 total and 0 non-conforming:
+ssh pdc@192.168.1.200 "docker exec demo-postgres psql -U demo_admin -d awc_operations -tAc `"SELECT count(*), count(*) FILTER (WHERE account_number !~ '^AWC-') FROM awc_operations.customers`""
+
+# 6b · Scale the estate — FIRST TIME ONLY. The seeder TOPS UP (adds N rows
+#     above the max PK); running it against an already-scaled estate doubles
+#     it. (OWNER account — pdc_user is read-only; the owner password is in
+#     the demo-postgres container env:
+#     ssh pdc@192.168.1.200 "docker inspect demo-postgres --format '{{range .Config.Env}}{{println .}}{{end}}' | grep POSTGRES_PASSWORD")
 Set-Location C:\Projects\PDC-Glossary\glossary_generator
 python -m sources.seed_sample --host 192.168.1.200 --port 5433 `
   --db awc_operations --schema awc_operations `
   --user demo_admin --password '<owner-pass>' --rows 1000 --all
 # The document store stays small on purpose — the demo's honest sparse corner.
-
-# 7 · App: install the latest build; Settings -> Factory reset if reusing a
-#     machine; install the domain pack (skip for a true day-zero walk);
-#     Connect -> Bulk load -> Harvest -> the walk.
 ```
+
+## 7 · Apps — clean install (both)
+
+- **Glossary Generator**: uninstall the old build → install the latest
+  `PDC-Glossary\dist\PDC Glossary Generator_<ver>_x64-setup.exe`
+  (or **Settings → Factory reset** if keeping the install). **No domain
+  pack** for a true day-zero walk.
+- **Policy Generator**: uninstall the old build → install the latest
+  `PDC-Policy\dist\PDC Policy Generator_<ver>_x64-setup.exe`.
+- Connections to recreate in the Glossary app:
+  postgres `192.168.1.200:5433` · db/schema `awc_operations` · user
+  `pdc_user` (creds: the PDC-Scenarios bulk CSV) — MinIO
+  `192.168.1.200:9000` · bucket `awc-documents` — PDC `https://pentaho.io`
+  (Keycloak base `https://pentaho.io/keycloak`, realm `pdc`).
+
+## 8 · The walk (Glossary)
+
+Connect → **Bulk load** → wait for PDC profiling → **Harvest** (structured +
+documents) → Review: `1 · AI categories` → settle the set via the **chips**
+→ Accept all → `2 · Approve categories` (the keystone) → `3 · AI pass` →
+**walk the pills** one by one → **Dismiss rest** → `4 · AI advise` → decide
+the clusters → **✓ Review complete** → **Dictionary: approve the pending
+vocabulary** (step 3 on Home — the governed-vocabulary gate) → Govern:
+roster · stewardship · tick the label keys → **Generate** (self-archives +
+MinIO backup) → PDC: Business Glossary → Import → Apply: **Resolve ids** →
+dry-run → apply → Create labels → Preview → **Stamp** → **Draft policies**
+(expect: account_number **Auto from profiled evidence**, the city
+dictionaries **minting**, flip the ★ recommended) → send the bundle to
+MinIO → Report.
+
+## 9 · Policy Generator
+
+**Load** (Registry auto-discovers from the Glossary hand-off; Connect to
+PDC sits at the top of Load) → **Author** (the Evidence column says why
+each method exists) → **Reconcile** (live progress bar) → **Deploy** →
+PDC: run **Data Identification** on `customers` selecting the deployed
+methods; add them under **String Detection** on the correspondence folder
+→ **Drift**. The **Report** page is the whole account; Export standalone
+HTML for handouts.
 
 **Before any wipe** (when you DO want continuity): app **Settings → State
 snapshot** + **Dictionary → Export domain pack → Apply → commit**. For a
@@ -91,10 +134,12 @@ on the Harvest card.
 | Symptom | Fix |
 |---|---|
 | Every URL 404s after reset | The second `pdc.sh up` didn't run — `.\pdc-remote.ps1 resume` |
+| `Could not establish trust relationship` | PS 5.1 Invoke-RestMethod cannot skip self-signed certs at all — use the `curl.exe -k` forms above / `-SkipTlsCheck` on the scripts |
 | Token: `invalid_grant` for admin | Step 1 not done — the fresh realm has no usable admin password |
+| JSON body reaches the API mangled | PS 5.1 eats bare `"` in native args — write bodies as `'{\"key\":\"value\"}'` |
 | `set-password failed` on every user | Policy — use `-FixPolicy -PolicyValue 'length(7)'` |
 | Cast login rejected with valid password | Safe list — step 4 verify |
-| `Could not establish trust relationship` | Add `-SkipTlsCheck` (scripts) / use `curl.exe -k` (REST) |
 | Keycloak `https:/https://…` error in the app | Doubled scheme in a pasted base URL — retype the field |
 | Licence upload 404 | Wrong path — check Swagger; see PDC-REMOTE-RESET.md §7 |
+| Draft says account_number "induces no shape" | Stale evidence — PDC re-profile `customers`, then re-harvest with **Refresh value evidence** ticked, then redraft |
 | Seed dies on PK/unique/date/overflow | You're on a pre-1.38.27 seeder — update; the current one is constraint-tolerant |
