@@ -34,9 +34,16 @@ step "cargo version sync" bash -c "cd desktop/src-tauri && cargo update -p pdc-g
 step "frontend build"     npm --prefix frontend run build
 step "test suite"         python -m pytest glossary_generator/tests -q
 step "git add"            git add -A
-step "git commit"         git commit -m "$MSG
+# A tree whose stamps and CHANGELOG are already committed (the bump landed in
+# an earlier commit) has nothing to stage — git commit would exit 1 on
+# "nothing to commit" and kill the train two steps before the installer.
+if git diff --cached --quiet; then
+  echo "== git commit (skipped - everything already committed)" | tee -a "$LOG"
+else
+  step "git commit"         git commit -m "$MSG
 
 Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
+fi
 step "git push"           git push origin main
 step "lab tarball"        bash -c "cd ../PDC-Glossary-Lab && python scripts/make-tarball.py --checkout ../PDC-Glossary"
 step "installer"          bash -c "cd desktop && npm run dist"
