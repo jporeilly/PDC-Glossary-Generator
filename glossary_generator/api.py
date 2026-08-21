@@ -1393,14 +1393,26 @@ def _truthy(v):
     return str(v or "").strip().lower() in ("y", "yes", "true", "t", "1", "on")
 
 
-@app.post("/api/ai-categories")
-def ai_categories(body: dict = Body(default={})):
+def _ai_categories_run(body):
     """Propose business categories from the schema's own structure - tables,
        columns and FK links the scan proved. Proposals only: the UI applies
-       after the steward confirms, and Export pack freezes the outcome."""
-    body = body or {}
-    rows = [r for r in (body.get("rows") or []) if isinstance(r, dict)]
+       after the steward confirms, and Export pack freezes the outcome.
+       Shared by the sync endpoint and its job twin so the payload cannot
+       drift between them."""
     from ai import llm
+    rows = [r for r in (body.get("rows") or []) if isinstance(r, dict)]
+    # used_llm=False has two very different causes - an estate with too few
+    # tables to group, and a model that is not reachable - and the UI can
+    # only report honestly if the payload says which (a transient failure
+    # mid-walk read as "no model available" and sent the steward to Settings)
+    tables = llm.schema_evidence(rows)
+    if len(tables) < 2:
+        return {"categories": [], "assignments": [None] * len(rows),
+                "used_llm": False, "timed_out": 0,
+                "reason": "few_tables", "table_count": len(tables)}
+    if not llm.status(body.get("model"))["online"]:
+        return {"categories": [], "assignments": [None] * len(rows),
+                "used_llm": False, "timed_out": 0, "reason": "offline"}
     # a timeout on this ONE long call must be distinguishable from "the model
     # had no opinion" — the UI's "proposed nothing usable" on a clock failure
     # sent the steward model-shopping when the fix was a longer budget
@@ -1414,6 +1426,11 @@ def ai_categories(body: dict = Body(default={})):
     timed_out = llm.call_failures().get("timeout", 0) - before
     return {"categories": proposal, "assignments": assignments, "used_llm": used,
             "timed_out": max(timed_out, 0)}
+
+
+@app.post("/api/ai-categories")
+def ai_categories(body: dict = Body(default={})):
+    return _ai_categories_run(body or {})
 
 @app.post("/api/seed")
 def seed(body: dict = Body(default={})):
@@ -4807,15 +4824,7 @@ def api_job_ai_categories(body: dict = Body(default={})):
     body = body or {}
     def _runner(job):
         job["detail"] = "one call over the whole schema graph"
-        from ai import llm
-        rows = [r for r in (body.get("rows") or []) if isinstance(r, dict)]
-        before = llm.call_failures().get("timeout", 0)
-        proposal, assignments, used = llm.propose_categories(
-            rows, model=body.get("model"), compute=body.get("compute"),
-            target=body.get("target"))
-        timed_out = llm.call_failures().get("timeout", 0) - before
-        job["result"] = {"categories": proposal, "assignments": assignments,
-                         "used_llm": used, "timed_out": max(timed_out, 0)}
+        job["result"] = _ai_categories_run(body)
     return _start_job("ai-categories", _runner)
 
 

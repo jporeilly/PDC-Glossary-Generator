@@ -601,6 +601,7 @@ class TestAiCategoriesProposesFromSchema:
             return ([{"name": "Customer", "definition": "d", "tables": ["customers"]}],
                     ["Customer", None], True)
 
+        monkeypatch.setattr(_llm, "status", lambda model=None: {"online": True})
         monkeypatch.setattr(_llm, "propose_categories", fake)
         r = client.post("/api/ai-categories", json={"rows": [
             {"Keep": "Y", "Term": "A", "Source_Column": "s.customers.a"},
@@ -610,6 +611,29 @@ class TestAiCategoriesProposesFromSchema:
         assert d["used_llm"] is True
         assert d["assignments"] == ["Customer", None]
         assert d["categories"][0]["tables"] == ["customers"]
+
+    def test_few_tables_names_the_estate_not_the_model(self, client, monkeypatch):
+        """used_llm=False has two causes and the payload must say which: the
+           old catch-all "No model available (or fewer than two tables)" sent
+           a steward to Settings when the grid was the gate (field-caught)."""
+        from ai import llm as _llm
+        # the model is reachable — it must NOT be blamed
+        monkeypatch.setattr(_llm, "status", lambda model=None: {"online": True})
+        r = client.post("/api/ai-categories", json={"rows": [
+            {"Keep": "Y", "Term": "A", "Source_Column": "s.customers.a"}]})
+        d = r.json()
+        assert d["used_llm"] is False and d["assignments"] == [None]
+        assert d["reason"] == "few_tables" and d["table_count"] == 1
+
+    def test_offline_names_the_model_not_the_estate(self, client, monkeypatch):
+        from ai import llm as _llm
+        monkeypatch.setattr(_llm, "status", lambda model=None: {"online": False})
+        r = client.post("/api/ai-categories", json={"rows": [
+            {"Keep": "Y", "Term": "A", "Source_Column": "s.customers.a"},
+            {"Keep": "Y", "Term": "B", "Source_Column": "s.rates.b"}]})
+        d = r.json()
+        assert d["used_llm"] is False and d["assignments"] == [None, None]
+        assert d["reason"] == "offline"
 
     def test_evidence_carries_the_fk_graph(self):
         from ai import llm

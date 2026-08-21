@@ -49,6 +49,16 @@ Fixing the generator does not fix the rows it already made. `seed_sample.py
 through the current rules, using each row's own earlier values. It reports and
 writes nothing unless `--apply` is given.
 
+### Fixed - a categorize that proposes nothing now says WHY
+
+"No model available (or fewer than two tables)" conflated an estate too small
+to group with a model that is not reachable — a transient mid-walk failure
+read as a Settings problem. The payload now names the cause and the Review
+banner reports it: too few tables ("not a model problem", with the count), the
+model unreachable (pointing at Settings), a timeout (as before), or a model
+that answered with nothing usable. The sync endpoint and its job twin share
+one runner, so the diagnosis cannot drift between them.
+
 ## [1.38.35] - 2026-08-20
 
 ### Changed - connection fields show real-shaped examples with hints

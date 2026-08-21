@@ -1052,11 +1052,19 @@ export default function ReviewPage({ onNavigate }) {
       const cats = (d.categories || []).filter((c) => !c.unassigned)
       const un = (d.categories || []).find((c) => c.unassigned)
       if (!d.used_llm || !cats.length) {
+        // four distinct causes, four distinct messages \u2014 the old catch-all
+        // "No model available (or fewer than two tables)" conflated an estate
+        // too small to group with an unreachable model, and a mid-walk
+        // transient read as a Settings problem (field-caught)
         setMsg(d.timed_out
           ? 'The model TIMED OUT on the schema-wide call \u2014 larger models need a longer LLM timeout (Settings) and a warm first load. Nothing was proposed; not a quality verdict.'
           : d.used_llm
             ? 'The model proposed nothing usable \u2014 set a few categories by hand and re-run.'
-            : 'No model available (or fewer than two tables) \u2014 nothing proposed.')
+            : d.reason === 'few_tables'
+              ? `Only ${d.table_count ?? 'one'} table${d.table_count === 1 ? '' : '(s)'} among the kept rows \u2014 categorization groups tables, so it needs at least two. Nothing proposed; not a model problem.`
+              : d.reason === 'offline'
+                ? 'The model is NOT REACHABLE \u2014 check the LLM section on Settings (is Ollama running? is the model pulled?). Nothing proposed.'
+                : 'No model available (or fewer than two tables) \u2014 nothing proposed.')
         return
       }
       // this machine's real duration becomes the next run's estimate
