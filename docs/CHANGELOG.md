@@ -42,6 +42,27 @@ subtotal, and an unpaid bill has an `amount_paid` of zero. Drinking-water
 chemistry keeps drinking-water ranges — the generic numeric fallback had put
 668 mg/L of chlorine residual on an estate whose EPA limit is 4.
 
+### Fixed - a refresh that could not clear evidence the data no longer has
+
+Field-caught resuming the AWC walk, and the fifth defect of the family the
+2026-08-20 run started: a write that reports success while leaving something
+the catalog cannot use.
+
+With the estate repaired, re-harvesting with **Refresh value evidence** ticked
+did land the new evidence - County came back `Cochise;Coconino;Navajo;Pinal`,
+Severity `High;Low;Medium`, System Type `Groundwater;Mixed`. But the columns
+hold words now, so the rescan induced an enum and NO regular shape, and
+`Value_Pattern` arrived blank. The merge was field-wise and guarded on the
+incoming value being non-empty, so a blank could not overwrite: eight kept
+terms kept `^[A-Z]{2}[0-9]{4}$` sitting next to their fresh, correct enum -
+a pattern matching zero rows on the estate, which Author would have seeded and
+Deploy would have shipped as a method that silently never fires.
+
+In refresh mode the fresh observation now replaces the evidence set WHOLE,
+blanks included - it is one observation, not five independent fields. A scan
+that saw nothing at all (an unprofilable pdf/docx row) still never erases what
+is already there. Pinned in test_docs.py.
+
 ### Added - `--repair`, for the filler an earlier seed already wrote
 
 Fixing the generator does not fix the rows it already made. `seed_sample.py

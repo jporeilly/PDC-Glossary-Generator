@@ -294,3 +294,32 @@ def test_the_keystone_is_wired_through_the_workspace():
     gv = _read(os.path.join(base, "pages", "GovernPage.jsx"))
     assert "categoriesConfirmed" in gv, \
         "Govern must consult the keystone instead of guessing"
+
+
+def test_refresh_evidence_replaces_the_observation_whole():
+    """A refresh must clear evidence the fresh scan no longer sees.
+
+    Field-caught on the AWC clean run (2026-08-21). The seeder had filled
+    twelve columns with one code shape; after the estate was repaired those
+    columns held words, so the rescan induced an ENUM and no pattern at all.
+    The merge was field-wise and guarded on `nr[f] &&`, so the incoming BLANK
+    could not overwrite - and ^[A-Z]{2}[0-9]{4}$ survived on County, Severity,
+    System Type, Source Type, Primary Source, Conservation Focus, Service
+    County and Contaminant Level, next to a fresh, correct enum.
+
+    Those patterns matched zero rows. Deployed as Data Patterns they would
+    have reported success and never fired - the same silent shape as the
+    numeric threshold and the stale profile before them. In refresh mode the
+    fresh observation now replaces the whole evidence set, blanks included; a
+    scan that saw nothing at all still never erases.
+    """
+    path = os.path.join(REPO, "frontend", "src", "rowmerge.js")
+    if not os.path.isfile(path):
+        return                     # frontend is optional for a backend-only checkout
+    src = _read(path)
+    assert "if (nr[f] && (refreshEvidence || !next[f])) next[f] = nr[f]" not in src, \
+        "field-wise refresh is back: an incoming blank cannot clear a stale pattern"
+    assert "EVIDENCE.forEach((f) => { next[f] = nr[f] || '' })" in src, \
+        "refresh mode must replace the evidence set whole, blanks included"
+    assert "EVIDENCE.some((f) => nr[f])" in src, \
+        "a scan that saw NOTHING must not erase existing evidence"
