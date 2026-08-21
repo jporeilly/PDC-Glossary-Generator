@@ -111,6 +111,21 @@ that way.
 The collision only became possible when a second glossary landed on the lab
 estate, which is exactly when nobody was looking for it.
 
+### Fixed - "System Water Quality Statu Record"
+
+The singulariser stripped the final "s" from any word not ending "ss", so a
+singular noun that already ends in one came back a non-word: status, census,
+bonus, radius, analysis, basis, axis, diagnosis. On the AWC estate
+`system_water_quality_status` became **"System Water Quality Statu Record"**.
+
+Not cosmetic. A table term's name is what a customer reads in PDC, and the
+name is STORED in the domain pack - so the shipped `water_utility.example.json`
+carried the mangled form, the lookup returned it faithfully long after anyone
+would have thought to fix the generator, and it imported into a customer-facing
+glossary. Fixed in the generator (-us / -is / irregulars keep their s, real
+plurals still singularise), fixed in the shipped pack, and pinned by a test
+that fails if any shipped pack's table_terms carries a mangled singular.
+
 ### Added - `--repair`, for the filler an earlier seed already wrote
 
 Fixing the generator does not fix the rows it already made. `seed_sample.py

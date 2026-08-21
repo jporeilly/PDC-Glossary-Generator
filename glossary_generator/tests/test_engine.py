@@ -1035,3 +1035,34 @@ class TestNameAnchoredMeasureRules:
         assert d["patterns"] == []
         assert [m["term"] for m in d["mapping_only"]] == ["Collected Date"]
         assert "Recommended Action" in [s["term"] for s in d["skipped"]]
+
+
+class TestSingularizeKeepsRealWords:
+    """A table term's name reaches PDC and is stored in the domain pack, so a
+    mangled singular is not cosmetic. Field-caught 2026-08-21:
+    `system_water_quality_status` shipped "System Water Quality Statu Record"
+    into a customer-facing glossary, and the bad name was baked into the pack,
+    where the lookup then returned it faithfully.
+    """
+    def test_singular_nouns_ending_in_s_survive(self):
+        from engine.sug_suggest import _singularize
+        for w in ("status", "census", "bonus", "radius", "analysis", "basis",
+                  "axis", "diagnosis", "series", "species", "news", "alias",
+                  "address", "system_water_quality_status"):
+            assert _singularize(w) == w, f"{w!r} was mangled to {_singularize(w)!r}"
+
+    def test_real_plurals_still_singularize(self):
+        from engine.sug_suggest import _singularize
+        cases = {"customers": "customer", "water_systems": "water_system",
+                 "tiered_rates": "tiered_rate", "account_alerts": "account_alert",
+                 "statuses": "status", "addresses": "address",
+                 "companies": "company", "policies": "policy"}
+        for plural, want in cases.items():
+            assert _singularize(plural) == want, \
+                f"{plural!r} -> {_singularize(plural)!r}, expected {want!r}"
+
+    def test_the_table_term_reads_as_english(self):
+        from engine.sug_suggest import table_term_name
+        assert table_term_name("system_water_quality_status") == \
+            "System Water Quality Status Record"
+        assert table_term_name("customers") == "Customer Record"

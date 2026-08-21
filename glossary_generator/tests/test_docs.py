@@ -348,3 +348,32 @@ def test_the_two_evidence_mirrors_agree():
     for mode in ("capture", "refresh"):
         assert f'"{mode}"' in py and f"'{mode}'" in js, \
             f"mode {mode} missing from one of the mirrors"
+
+
+def test_shipped_packs_carry_no_mangled_singulars():
+    """A pack's table_terms are TERM NAMES: they reach PDC and a customer sees
+    them. The singulariser used to strip the final "s" from any word not ending
+    "ss", so `system_water_quality_status` became "System Water Quality Statu
+    Record" — and because the pack STORES the name, the lookup then returned
+    the mangled form faithfully, long after the generator was fixed. Shipped
+    2026-08-21 into a customer-facing glossary.
+    """
+    import glob
+    import json
+    import re
+    bad_word = re.compile(r"\b(?:Statu|Analysi|Basi|Axi|Diagnosi|Serie|Specie|"
+                          r"Censu|Bonu|Radiu|Alia|Len|New)\b")
+    packs = glob.glob(os.path.join(APP_DIR, "domain_packs", "*.json"))
+    assert packs, "no domain packs found - has the path moved?"
+    for path in packs:
+        with open(path, encoding="utf-8") as f:
+            try:
+                pack = json.load(f)
+            except ValueError:
+                continue
+        for key in ("table_terms", "terms", "table_category"):
+            for k, v in (pack.get(key) or {}).items():
+                for text in (k, v) if isinstance(v, str) else (k,):
+                    m = bad_word.search(str(text))
+                    assert not m, (f"{os.path.basename(path)} {key}[{k!r}] carries "
+                                   f"a mangled singular: {text!r}")

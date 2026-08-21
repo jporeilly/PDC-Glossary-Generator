@@ -34,13 +34,32 @@ TABLE_CATEGORY = dict(_PACK.get("table_category", {}))
 # come from the domain pack (if any); otherwise a name is derived per table.
 TABLE_TERMS = dict(_PACK.get("table_terms", {}))
 
+# Singular nouns that already end in "s". Stripping the last letter turns a
+# real word into a non-word, and the result is not cosmetic: it becomes the
+# TERM NAME, it is stored in the domain pack, and it reaches PDC. Field-caught
+# on the AWC estate — `system_water_quality_status` shipped a table term called
+# "System Water Quality Statu Record", baked into the pack and imported into
+# the customer-facing glossary. The -us / -is families cover most of it
+# (status, census, bonus, radius, analysis, basis, axis, diagnosis); the rest
+# are irregulars with no rule behind them.
+_KEEPS_ITS_S = ("us", "is", "ss", "as", "os")
+_SINGULAR_S = {"news", "series", "species", "means", "lens", "alias", "atlas"}
+
+
 def _singularize(word):
     w = (word or "")
+    low = w.lower()
+    # the irregulars go FIRST: "series" would otherwise be caught by the -ies
+    # rule and come back "sery"
+    if low in _SINGULAR_S or low.rsplit("_", 1)[-1] in _SINGULAR_S:
+        return w
     if w.endswith("ies") and len(w) > 3:
         return w[:-3] + "y"
-    if w.endswith("ses") and len(w) > 3:
+    if w.endswith("ses") and len(w) > 3:   # statuses -> status, addresses -> address
         return w[:-2]
-    if w.endswith("s") and not w.endswith("ss"):
+    if low.endswith(_KEEPS_ITS_S):
+        return w
+    if w.endswith("s"):
         return w[:-1]
     return w
 
