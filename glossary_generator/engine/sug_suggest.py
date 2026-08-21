@@ -776,8 +776,17 @@ def _detection_intent(c, prof, pii):
     # no coded vocabulary
     # substring 'int' (interval excluded): \bint missed bigint/int8/smallint,
     # so population_served-class columns never went quiet (field-caught)
+    # A DOCUMENT column has no SQL type at all — a CSV or JSON column arrives
+    # typeless — so a type-driven test cannot reach it, and every numeric
+    # measure harvested from a file escaped this guard and arrived Auto.
+    # Field-caught 2026-08-21: latitude, longitude, install_year, length_feet,
+    # diameter_inches and condition_rating each minted a method backed by
+    # "is a number", nine concepts deep on one shape. The profiled min/max IS
+    # the evidence that a column is numeric, whatever the source could tell us
+    # about its type — so when there is no type, believe the range.
     numericish = (kind in ("decimal",)
-                  or re.search(r"int(?!erval)|numeric|decimal|float|double|real|money|serial", typ))
+                  or re.search(r"int(?!erval)|numeric|decimal|float|double|real|money|serial", typ)
+                  or (not typ and bool(_fmt_range(prof))))
     if numericish and not has_shape and not enum:
         # bounded measure whose NAME carries its unit (pH, lead_ppb,
         # turbidity_ntu): the draft's recommended flip, applied at suggest

@@ -111,6 +111,27 @@ that way.
 The collision only became possible when a second glossary landed on the lab
 estate, which is exactly when nobody was looking for it.
 
+### Fixed - a document column has no type, so the free-numeric guard never saw it
+
+`_detection_intent` marks a free numeric measure mapping-only, because any
+number matches any number and a Data Pattern over one identifies every numeric
+column in the estate. The test was type-driven - and a CSV or JSON column
+arrives with no SQL type at all, so every numeric measure harvested from a
+document escaped the guard and arrived Auto.
+
+Field-caught authoring the AWC contract: latitude, longitude, install_year,
+length_feet, diameter_inches and condition_rating had each minted a method
+backed by `^-?[0-9]+(\.[0-9]+)?$`, and the Author page reported one shape
+claimed by NINE methods. They were name-anchored, so they would have fired on
+this estate - but a method that says "a number, in a column called latitude"
+is a column-name rule wearing a pattern's clothes.
+
+The profiled min/max is the evidence: when a column has no type but has a
+range, believe the range. Typed columns are unaffected, and the deliberate
+exception stands - a bounded measure whose NAME carries its unit (pH,
+pressure_psi, flow_gpm) still arrives Auto and mints a name-anchored rule
+without a steward click.
+
 ### Fixed - "System Water Quality Statu Record"
 
 The singulariser stripped the final "s" from any word not ending "ss", so a

@@ -1066,3 +1066,38 @@ class TestSingularizeKeepsRealWords:
         assert table_term_name("system_water_quality_status") == \
             "System Water Quality Status Record"
         assert table_term_name("customers") == "Customer Record"
+
+
+class TestTypelessNumericsAreStillNumeric:
+    """A CSV or JSON column arrives with NO SQL type, so a type-driven test
+    cannot reach it. Field-caught 2026-08-21: every numeric measure harvested
+    from a document escaped the free-numeric guard and arrived Auto, so
+    latitude, longitude, install_year, length_feet, diameter_inches and
+    condition_rating each minted a method backed by "is a number" — nine
+    concepts on one shape, which identifies none of them.
+
+    The profiled min/max IS evidence the column is numeric, whatever the
+    source could say about its type.
+    """
+    def _intent(self, name, prof, typ=""):
+        from engine.sug_suggest import _detection_intent
+        return _detection_intent({"name": name, "type": typ}, prof, "")
+
+    def test_a_typeless_column_with_a_numeric_range_is_a_free_measure(self):
+        for name, lo, hi in (("latitude", 31.43, 35.19), ("install_year", 1958, 2023),
+                             ("condition_rating", 1, 5), ("length_feet", 201, 5095)):
+            got = self._intent(name, {"min": lo, "max": hi})
+            assert got == "mapping_only", \
+                f"{name} came back {got!r} — a bare number identifies every number"
+
+    def test_a_typeless_column_with_no_range_is_untouched(self):
+        """No type AND no range is not evidence of anything - don't invent it."""
+        assert self._intent("some_note", {}) != "mapping_only"
+
+    def test_a_unit_named_measure_still_arrives_auto(self):
+        """The deliberate exception: a bounded measure whose NAME carries its
+        unit mints a name-anchored rule without a steward click."""
+        assert self._intent("pressure_psi", {"min": 59.4, "max": 66.9}) == ""
+
+    def test_typed_numerics_are_unaffected(self):
+        assert self._intent("population_served", {"min": 1, "max": 9}, "integer") == "mapping_only"
