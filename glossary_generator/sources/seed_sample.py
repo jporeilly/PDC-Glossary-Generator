@@ -36,6 +36,7 @@ STATUS = ["active", "active", "active", "inactive", "suspended"]
 CUST_TYPE = ["residential", "residential", "commercial"]
 ALERT_TYPE = ["high_usage", "leak_detected", "payment_due", "quality_notice", "service_interruption"]
 COMPLIANCE = ["compliant", "compliant", "compliant", "violation"]
+PAY_STATUS = ["Paid", "Paid", "Paid", "Unpaid", "Overdue"]
 # The vocabularies below are the ESTATE'S OWN — read back off the original
 # rows, not invented. Twelve columns had no name rule and fell through to the
 # generic text fallback, which minted one shape (^[A-Z]{2}[0-9]{4}$) for all of
@@ -161,6 +162,42 @@ def _gen(colname, dtype, row_i, refs, row=None):
         return f"{random.choice(FIRST)} {random.choice(LAST)}"
     if "address" in n:
         return f"{100+row_i} {random.choice(STREETS)}"
+    # ESTATE VOCABULARIES — the twelve columns that used to fall through to the
+    # generic text fallback and share one shape. Each answers with the words
+    # the original rows use, so a reseed cannot drift the governed vocabulary.
+    if "county" in n:
+        # agree with the city on this row where we generated one
+        city = row.get("service_city") or row.get("city") or row.get("billing_city")
+        return CITY_COUNTY.get(city) or random.choice(COUNTIES)
+    if "severity" in n:
+        return random.choice(SEVERITY)
+    if "contaminant" in n:
+        # varchar contaminant_level is a qualitative band, not a ppm reading
+        return random.choice(CONTAM_LEVEL) if txt else round(random.uniform(0, 15), 2)
+    if "system_type" in n or ("type" in n and "system" in n):
+        return random.choice(SYSTEM_TYPE)
+    if "source_type" in n or ("type" in n and "source" in n):
+        return random.choice(SOURCE_TYPE)
+    if "source" in n:                          # primary_source, water_source
+        return random.choice(PRIMARY_SOURCE)
+    if "conservation" in n:
+        return random.choice(CONSERVATION_FOCUS)
+    if "note" in n:
+        return random.choice(QUALITY_NOTE).format(sys=random.choice(CITIES))
+    if "description" in n or "summary" in n:
+        return random.choice(ALERT_DESC).format(
+            yr=2026, amt=f"{random.uniform(60, 800):.2f}",
+            gal=f"{random.randrange(80, 530) * 1000:,}", sys=random.choice(CITIES))
+    if "action" in n or "remediation" in n or "resolution" in n:
+        return random.choice(ALERT_ACTION)
+    if "cities" in n:                          # a service area lists several
+        return ", ".join(random.sample(CITIES, random.randint(2, 4)))
+    if n.endswith("_system"):                  # service_area_system = "Bisbee System"
+        return f"{random.choice(CITIES)} System"
+    # rate_period names a billing YEAR — it reached the money rule below and
+    # came back '84.47', a period column full of dollar amounts
+    if "period" in n:
+        return str(random.choice([2024, 2025, 2026])) if txt else random.choice([2024, 2025, 2026])
     # numeric name-driven (before categorical text, so 'capacity' isn't caught by 'city')
     if "ph_level" in n or n == "ph" or n.endswith("_ph"):
         return round(random.uniform(6.5, 8.6), 2)
@@ -168,14 +205,80 @@ def _gen(colname, dtype, row_i, refs, row=None):
         return round(random.uniform(0, 15), 2)
     if "turbidity" in n:
         return round(random.uniform(0, 2), 2)
+    # drinking-water chemistry has REAL ranges, and a profiler reports them:
+    # the generic numeric fallback drew 0..1000 and gave the estate 668 mg/L
+    # of chlorine residual (EPA's limit is 4) and 8089 ppm of dissolved solids
+    if "chlorine" in n:
+        return round(random.uniform(0.2, 4.0), 2)
+    if "copper" in n:
+        return round(random.uniform(0, 1.3), 2)
+    if "hardness" in n:
+        return random.randint(50, 400)
+    if "dissolved" in n:
+        return random.randint(150, 900)
     if "capacity" in n:
         return round(random.uniform(5, 50), 2)
+    if "number_of_customers" in n or ("customer" in n and "number" in n and "int" in t):
+        return random.randint(400, 20000)
+    if "population" in n:                       # more people than connections
+        cust = row.get("number_of_customers")
+        return int(cust * random.uniform(2.2, 3.2)) if cust else random.randint(1200, 60000)
+    # tiered_rates is a RATE CARD: tier N starts where tier N-1 stopped. The
+    # gallons rule drew each edge independently, so from > to on most rows and
+    # the four tiers described no ladder at all
+    tier = _tier(n)
+    if tier and "gallon" in n and "from" in n:
+        return TIER_EDGE[tier - 1]
+    if tier and "gallon" in n and "_to" in n:
+        return TIER_EDGE[tier]
+    if tier and "rate" in n:
+        return round(TIER_RATE[tier - 1] + random.uniform(-0.2, 0.2), 2)
+    if "tier" in n and "rate" in n:            # tier_rate: dollars per 1000 gal
+        return round(random.choice(TIER_RATE) + random.uniform(-0.2, 0.2), 2)
+    # a monthly bill's tier gallons SPLIT that row's usage across the ladder
+    if tier and "gallon" in n and "usage" in n and row.get("usage_gallons"):
+        used = row["usage_gallons"]
+        return max(0, min(used, TIER_EDGE[tier]) - TIER_EDGE[tier - 1])
     if ("gallon" in n or "consumption" in n or ("usage" in n and ("int" in t or "numeric" in t))):
         return random.randint(500, 25000)
-    if "rate" in n or "amount" in n or "balance" in n or "price" in n or "cost" in n:
+    # A BILL THAT ADDS UP. Every money column drew independently from
+    # uniform(10, 500), so total_due bore no relation to the tier charges
+    # above it and amount_paid none to either — a billing table no reconciling
+    # rule can be written against.
+    if tier and "charge" in n and row.get(f"usage_tier_{tier}_gallons") is not None:
+        return round(row[f"usage_tier_{tier}_gallons"] / 1000.0 * TIER_RATE[tier - 1], 2)
+    if n == "base_charge":
+        return round(random.uniform(14, 28), 2)
+    if "wastewater" in n and "charge" in n:
+        return round(random.uniform(18, 45), 2)
+    if "before_tax" in n or n == "subtotal":
+        parts = [row.get("base_charge") or 0, row.get("wastewater_charge") or 0]
+        parts += [row.get(f"tier_{i}_charge") or 0 for i in range(1, 5)]
+        return round(sum(float(p) for p in parts), 2) or round(random.uniform(20, 300), 2)
+    if "tax" in n and "amount" in n:
+        return round(float(row.get("total_before_tax") or random.uniform(20, 300)) * 0.086, 2)
+    if "total_due" in n or n == "total":
+        return round(float(row.get("total_before_tax") or random.uniform(20, 300))
+                     + float(row.get("tax_amount") or 0), 2)
+    if "amount_paid" in n or ("paid" in n and ("numeric" in t or "double" in t)):
+        due = float(row.get("total_due") or random.uniform(20, 300))
+        status = str(row.get("payment_status") or "").lower()
+        if status == "paid":
+            return round(due, 2)
+        if status == "overdue":
+            return round(due * random.choice([0, 0, 0.5]), 2)
+        return 0
+    # money only where money fits: 'rate' matched rate_id (an integer PK) and
+    # rate_period (a varchar year), and both got a dollar amount
+    if (("rate" in n or "amount" in n or "balance" in n or "price" in n or "cost" in n)
+            and ("numeric" in t or "double" in t or "real" in t or "decimal" in t)):
         return round(random.uniform(10, 500), 2)
     if "rating" in n or "score" in n:
-        return random.randint(1, 5)
+        # TEXT takes the label scale, NUMERIC takes 1..5. randint into a
+        # varchar quality_rating left the estate's vocabulary reading
+        # '1;2;3;4;5;Excellent;Good;Fair' — a scale mixed with labels, which
+        # is why a dictionary built from it matched nothing
+        return random.choice(RATING_LABEL) if txt else random.randint(1, 5)
     if "month" in n and ("date" in t or "timestamp" in t):
         return _rand_date(365, 365)
     # TYPE WINS for temporal columns before any categorical NAME rule: a
@@ -191,6 +294,8 @@ def _gen(colname, dtype, row_i, refs, row=None):
         return random.choice(CITIES)
     if "area" in n or "region" in n or "zone" in n:
         return random.choice(CITIES)
+    if "payment" in n and "status" in n:        # a bill is Paid/Unpaid/Overdue,
+        return random.choice(PAY_STATUS)        # never 'suspended'
     if "status" in n and "compl" in n:
         return random.choice(COMPLIANCE)
     if "compliance" in n:
@@ -213,8 +318,15 @@ def _gen(colname, dtype, row_i, refs, row=None):
         return random.randint(1, 10000)
     if "numeric" in t or "double" in t or "real" in t or "decimal" in t:
         return round(random.uniform(0, 1000), 2)
-    if "char" in t or "text" in t:
-        return "".join(random.choices(string.ascii_uppercase, k=2)) + str(row_i)
+    if txt:
+        # NEVER one shape for every unnamed text column. The old fallback —
+        # two uppercase letters + row_i — gave twelve unrelated columns the
+        # identical ^[A-Z]{2}[0-9]{4}$, so the profiler induced one pattern
+        # that backed every one of those concepts and bound free-text `notes`
+        # to all of them. Anchoring the value to the COLUMN NAME keeps each
+        # column's shape its own, and says in the data that it is filler.
+        stem = re.sub(r"[^A-Za-z0-9]+", "-", colname).strip("-").upper()
+        return f"{stem}-{row_i:06d}"
     return None
 
 
@@ -223,18 +335,20 @@ def _introspect(cur, schema):
     # GROUP BY view (customer_billing_summary) is not insertable — the seed
     # died mid-run trying (field-caught on the scale-up)
     cur.execute("""SELECT c.table_name, c.column_name, c.data_type, c.is_nullable,
-                          c.column_default, c.numeric_precision, c.numeric_scale
+                          c.column_default, c.numeric_precision, c.numeric_scale,
+                          c.character_maximum_length
                    FROM information_schema.columns c
                    JOIN information_schema.tables t
                      ON t.table_schema=c.table_schema AND t.table_name=c.table_name
                    WHERE c.table_schema=%s AND t.table_type='BASE TABLE'
                    ORDER BY c.table_name, c.ordinal_position""", (schema,))
     tables = {}
-    for tn, cn, dt, nullable, default, prec, scale in cur.fetchall():
+    for tn, cn, dt, nullable, default, prec, scale, maxlen in cur.fetchall():
         tables.setdefault(tn, {"cols": [], "pk": [], "fk": {}})
         is_serial = bool(default and "nextval" in str(default))
         tables[tn]["cols"].append({"name": cn, "type": dt, "nullable": nullable == "YES",
-                                   "serial": is_serial, "prec": prec, "scale": scale})
+                                   "serial": is_serial, "prec": prec, "scale": scale,
+                                   "maxlen": maxlen})
     cur.execute("""SELECT tc.table_name, kcu.column_name, tc.constraint_type,
                           ccu.table_name AS ref_table, ccu.column_name AS ref_col
                    FROM information_schema.table_constraints tc
@@ -343,8 +457,11 @@ def seed(cfg, rows=200, only_empty=True, schema=None):
                 for i in range(off + 1, off + n_rows + 1):
                     vals = []
                     skip = False
+                    # what this row has generated so far, so a column can agree
+                    # with an earlier one (service_county follows service_city)
+                    sofar = {}
                     for c in gen_cols:
-                        v = _gen(c["name"], c["type"], i, refs)
+                        v = _gen(c["name"], c["type"], i, refs, sofar)
                         # a single-col INTEGER PK takes the sequential index
                         # directly (already offset above the existing max):
                         # the generic int fallback draws random 1..10000 and
@@ -363,8 +480,14 @@ def seed(cfg, rows=200, only_empty=True, schema=None):
                             cap = 10 ** (pr - (sc or 0))
                             if abs(v) >= cap:
                                 v = round(random.uniform(0, cap * 0.9), sc or 0)
+                        # respect varchar(n) the same way: a sentence-length
+                        # value in a varchar(20) column kills the whole run
+                        ml = c.get("maxlen")
+                        if ml and isinstance(v, str) and len(v) > ml:
+                            v = v[:ml]
                         if v is None and c["name"] in meta["fk"] and not c["nullable"]:
                             skip = True; break          # FK with no parent rows -> can't insert
+                        sofar[c["name"]] = v
                         vals.append(v)
                     if skip:
                         break
@@ -396,6 +519,79 @@ def seed(cfg, rows=200, only_empty=True, schema=None):
     return {"schema": schema, "inserted": inserted}
 
 
+# the shape the pre-1.38.35 text fallback minted: two uppercase letters and
+# the row index. Five digits at most, so a real 2+6 meter id is never touched.
+JUNK_RE = r"^[A-Z]{2}[0-9]{1,5}$"
+
+
+def repair(cfg, schema=None, pattern=JUNK_RE, apply=False):
+    """Rewrite values a previous seed left as shape-collision filler.
+
+    The old text fallback answered twelve unrelated columns with one shape, so
+    the estate carried 1000 rows of 'WQ2602' in county, severity, notes and
+    contaminant_level alike. This finds values matching that shape and
+    regenerates them through the CURRENT rules — using each row's own earlier
+    values, so a repaired service_county agrees with its service_city.
+
+    Read-only unless apply=True: the default reports what it would rewrite.
+    """
+    from sources import dbconn
+    schema = schema or cfg.get("schema") or "public"
+    conn = dbconn._connect(cfg)
+    fixed = []
+    try:
+        conn.autocommit = False
+        with conn.cursor() as cur:
+            tables = _introspect(cur, schema)
+            for tn in sorted(tables):
+                meta = tables[tn]
+                pk = meta["pk"][0] if len(meta["pk"]) == 1 else None
+                for c in meta["cols"]:
+                    t = (c["type"] or "").lower()
+                    if not ("char" in t or "text" in t):
+                        continue
+                    cur.execute(f'SELECT COUNT(*) FROM "{schema}"."{tn}" '
+                                f'WHERE "{c["name"]}" ~ %s', (pattern,))
+                    hits = cur.fetchone()[0]
+                    if not hits:
+                        continue
+                    entry = {"table": tn, "column": c["name"], "rows": hits,
+                             "rewritten": 0}
+                    fixed.append(entry)
+                    if not apply:
+                        continue
+                    if not pk:
+                        entry["skipped"] = "no single-column primary key"
+                        continue
+                    cur.execute(f'SELECT * FROM "{schema}"."{tn}" '
+                                f'WHERE "{c["name"]}" ~ %s', (pattern,))
+                    names = [d[0] for d in cur.description]
+                    rows = cur.fetchall()
+                    for i, r in enumerate(rows, 1):
+                        sofar = dict(zip(names, r))
+                        key = sofar[pk]
+                        try:
+                            row_i = int(key)
+                        except (TypeError, ValueError):
+                            row_i = i
+                        v = _gen(c["name"], c["type"], row_i, {}, sofar)
+                        ml = c.get("maxlen")
+                        if ml and isinstance(v, str) and len(v) > ml:
+                            v = v[:ml]
+                        cur.execute(f'UPDATE "{schema}"."{tn}" SET "{c["name"]}"=%s '
+                                    f'WHERE "{pk}"=%s', (v, key))
+                        entry["rewritten"] += 1
+        if apply:
+            conn.commit()
+        else:
+            conn.rollback()
+    except Exception:
+        conn.rollback(); raise
+    finally:
+        conn.close()
+    return {"schema": schema, "applied": bool(apply), "columns": fixed}
+
+
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--host", default="localhost"); ap.add_argument("--port", default="5433")
@@ -406,8 +602,24 @@ if __name__ == "__main__":
     ap.add_argument("--user", required=True); ap.add_argument("--password", required=True)
     ap.add_argument("--rows", type=int, default=200)
     ap.add_argument("--all", action="store_true", help="also top up non-empty tables")
+    ap.add_argument("--repair", action="store_true",
+                    help="rewrite shape-collision filler an earlier seed left behind "
+                         "(reports only; add --apply to write)")
+    ap.add_argument("--pattern", default=JUNK_RE, help=f"filler shape to repair (default {JUNK_RE})")
+    ap.add_argument("--apply", action="store_true", help="with --repair: actually UPDATE")
     a = ap.parse_args()
     cfg = {"engine": "postgresql", "host": a.host, "port": a.port, "database": a.db,
            "schema": a.schema, "user": a.user, "password": a.password}
-    rep = seed(cfg, rows=a.rows, only_empty=not a.all)
-    print("Seeded:", rep["inserted"] or "nothing (tables already populated; use --all to top up)")
+    if a.repair:
+        rep = repair(cfg, schema=a.schema, pattern=a.pattern, apply=a.apply)
+        if not rep["columns"]:
+            print(f"No values matching {a.pattern} in schema {a.schema}.")
+        for e in rep["columns"]:
+            verb = f'rewrote {e["rewritten"]}' if a.apply else f'would rewrite {e["rows"]}'
+            print(f'{e["table"]}.{e["column"]}: {verb}'
+                  + (f' - SKIPPED ({e["skipped"]})' if e.get("skipped") else ""))
+        if rep["columns"] and not a.apply:
+            print("\nReport only - nothing was written. Re-run with --apply to repair.")
+    else:
+        rep = seed(cfg, rows=a.rows, only_empty=not a.all)
+        print("Seeded:", rep["inserted"] or "nothing (tables already populated; use --all to top up)")

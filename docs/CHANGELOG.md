@@ -1,5 +1,54 @@
 # Changelog
 
+## [1.38.36] - 2026-08-21
+
+### Fixed - one shape for twelve columns: the data defect under the 2026-08-20 identification run
+
+1.38.34 fixed, app-side, a seed that backed eight concepts with one induced
+regex, and bound free-text `notes` to all of them. Reading the estate back
+before resuming the clean run showed why that seed existed. The sample
+seeder's generic text fallback — two uppercase letters plus the row index —
+answered every text column no name rule recognised, and twelve unrelated
+columns fell to it: `county`, `service_county`, `severity`,
+`contaminant_level`, `system_type`, `source_type`, `primary_source`,
+`conservation_focus`, `description`, `recommended_action` and `notes` twice.
+Each held 1000 rows of `WQ2602`. `water_systems.county` was a random code;
+`account_alerts.severity` was a random code; a profiler induced
+`^[A-Z]{2}[0-9]{4}$` from all of them and was right to. The concepts shared a
+shape because the DATA shared a shape.
+
+Each of those columns now answers with the estate's own vocabulary — read back
+off the original rows, not invented — and `service_county` follows the
+`service_city` on its own row, so a repaired county is the county that city is
+actually in. The fallback that remains is anchored to the column name, so an
+unrecognised column can no longer collide with the next one, and its filler
+says in the data that it is filler.
+
+Alongside them, four rules that answered with the wrong TYPE: `randint(1, 5)`
+into a varchar `quality_rating` (which is why the governed vocabulary read
+`1;2;3;4;5;Excellent;Good` — a scale mixed with labels, and why a dictionary
+built from it matched nothing); a dollar amount into `rate_period`, a varchar
+year, and into `rate_id`, an integer key; `meter_id` left to the fallback, so
+the induced pattern came back a union of the real 2+6 shape and the fallback's
+2+4. Money rules now require a money type, rating rules read the column type,
+and varchar(n) is respected the way NUMERIC(p,s) already was.
+
+Two tables also now describe something. `tiered_rates` is a rate card whose
+tiers form a ladder — tier N starts where tier N-1 stopped, instead of each
+edge drawing independently and `from` landing above `to` on most rows. A
+monthly bill adds up: the tier gallons split that row's usage, each tier
+charge follows its own gallons, the subtotal is the sum, the tax follows the
+subtotal, and an unpaid bill has an `amount_paid` of zero. Drinking-water
+chemistry keeps drinking-water ranges — the generic numeric fallback had put
+668 mg/L of chlorine residual on an estate whose EPA limit is 4.
+
+### Added - `--repair`, for the filler an earlier seed already wrote
+
+Fixing the generator does not fix the rows it already made. `seed_sample.py
+--repair` finds values still carrying the collision shape and regenerates them
+through the current rules, using each row's own earlier values. It reports and
+writes nothing unless `--apply` is given.
+
 ## [1.38.35] - 2026-08-20
 
 ### Changed - connection fields show real-shaped examples with hints
