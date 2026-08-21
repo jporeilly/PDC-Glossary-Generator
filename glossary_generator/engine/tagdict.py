@@ -20,6 +20,11 @@ from __future__ import annotations
 import os, re, json, threading
 
 from core import paths
+from engine import evidence
+
+# The dictionary keeps a PROJECTION of the evidence: one `pattern` key, fed by
+# the row's Value_Pattern. Same rule, smaller surface.
+_DICT_EVIDENCE = {"pattern": "Value_Pattern"}
 
 HERE = paths.APP_DIR
 DICT_FILE = paths.state_path("tag_dictionary.json", "GLOSSARY_TAG_DICTIONARY")
@@ -861,8 +866,8 @@ def accrete(rows, source=None, persist=True):
                         cur["definition"] = str(r.get("Definition") or "").strip()[:200]
                     if not cur.get("confidence"):
                         cur["confidence"] = (r.get("Confidence") or "").strip()
-                    if not cur.get("pattern") and (r.get("Value_Pattern") or "").strip():
-                        cur["pattern"] = (r.get("Value_Pattern") or "").strip()
+                    # CAPTURE: a later sighting fills a gap, never erases
+                    evidence.merge(cur, r, evidence.CAPTURE, _DICT_EVIDENCE)
                     have = cur.setdefault("sources", [])
                     for c in srcs:
                         if c not in have and len(have) < 5:
@@ -924,21 +929,12 @@ def refresh_pending(rows, persist=True):
                 meta["category"] = category; hit = 1
             # A pattern is EVIDENCE, not prose: the pending entry is a
             # projection of the row, so a row that no longer induces a shape
-            # must not leave the term asserting one. Guarding this on
-            # `pattern and` the way definition and category are guarded was
-            # the same silent-staleness bug rowmerge.js carried: the repaired
-            # AWC columns came back as enums with no shape, and eight pending
-            # terms kept ^[A-Z]{2}[0-9]{4}$ — a pattern matching zero rows,
-            # one Approve away from entering the governed vocabulary and
-            # seeding a method that could never fire. Definition and category
-            # stay fill-only above: those are steward prose, and a blank there
-            # means "nothing new to say", not "it is gone".
-            pattern = (r.get("Value_Pattern") or "").strip()
-            if pattern != (meta.get("pattern") or ""):
-                if pattern:
-                    meta["pattern"] = pattern
-                else:
-                    meta.pop("pattern", None)
+            # must not leave the term asserting one. Definition and category
+            # above stay fill-only on purpose — those are steward prose, where
+            # a blank means "nothing new to say", not "it is gone". The two
+            # intents live in engine/evidence.py so no third store has to
+            # re-decide which one it wants.
+            if evidence.merge(meta, r, evidence.REFRESH, _DICT_EVIDENCE):
                 hit = 1
             return hit
 

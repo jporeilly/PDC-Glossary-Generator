@@ -319,7 +319,32 @@ def test_refresh_evidence_replaces_the_observation_whole():
     src = _read(path)
     assert "if (nr[f] && (refreshEvidence || !next[f])) next[f] = nr[f]" not in src, \
         "field-wise refresh is back: an incoming blank cannot clear a stale pattern"
-    assert "EVIDENCE.forEach((f) => { next[f] = nr[f] || '' })" in src, \
-        "refresh mode must replace the evidence set whole, blanks included"
-    assert "EVIDENCE.some((f) => nr[f])" in src, \
-        "a scan that saw NOTHING must not erase existing evidence"
+    assert "mergeEvidence(next, nr, refreshEvidence ? REFRESH : CAPTURE)" in src, \
+        "the row merge must go through the shared rule, not re-decide it inline"
+
+
+def test_the_two_evidence_mirrors_agree():
+    """evidence.py and evidence.js are the same rule written twice - rows are
+    merged in the browser, the dictionary in Python - so they are pinned to
+    the same field list and the same two modes. Three defects in one day came
+    from each site deciding capture-vs-refresh for itself; the point of the
+    shared module is that a fourth store cannot get it wrong, and the point of
+    this test is that the two copies cannot drift apart.
+    """
+    import re
+    py = _read(APP_DIR, "engine", "evidence.py")
+    js_path = os.path.join(REPO, "frontend", "src", "evidence.js")
+    if not os.path.isfile(js_path):
+        return                     # frontend is optional for a backend-only checkout
+    js = _read(js_path)
+
+    def fields(text, marker):
+        m = re.search(marker + r"\s*=\s*[\(\[](.*?)[\)\]]", text, re.S)
+        assert m, f"{marker} not found"
+        return [x.strip("'\" \n") for x in m.group(1).split(",") if x.strip()]
+
+    assert fields(py, "EVIDENCE_FIELDS") == fields(js, "EVIDENCE_FIELDS"), \
+        "the two evidence mirrors disagree about which fields travel together"
+    for mode in ("capture", "refresh"):
+        assert f'"{mode}"' in py and f"'{mode}'" in js, \
+            f"mode {mode} missing from one of the mirrors"

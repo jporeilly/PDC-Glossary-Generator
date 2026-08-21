@@ -15,6 +15,8 @@
 // foldSources preserves the steward's work by construction: the kept row's
 // edits win, and only source linkage + scan evidence is absorbed.
 
+import { mergeEvidence, CAPTURE, REFRESH } from './evidence.js'
+
 const splitCols = (s) => String(s || '').split(';').map((t) => t.trim()).filter(Boolean)
 
 export function foldSources(base, nr, { refreshEvidence = false } = {}) {
@@ -35,27 +37,10 @@ export function foldSources(base, nr, { refreshEvidence = false } = {}) {
                            parseInt(nr.Suggested_Quality || 0, 10) || 0)
   if (quality) next.Suggested_Quality = quality
   // VALUE EVIDENCE: fill-only by default (steward work is never disturbed by
-  // a rescan). refreshEvidence — for when the DATA has genuinely improved
-  // (the estate was rescaled, profiling re-run) — lets the fresh profile win.
-  //
-  // A fresh observation is ONE observation, not five independent fields, and
-  // in refresh mode it replaces the set WHOLE — blanks included. Merging it
-  // field-wise was a silent-staleness bug: the repaired AWC columns came back
-  // as enums with no regular shape, so Value_Pattern arrived BLANK, and a
-  // blank "never erases" left ^[A-Z]{2}[0-9]{4}$ standing on County, Severity,
-  // System Type and five more. Those patterns matched zero rows on the estate
-  // and would have deployed as methods that could never fire — the refresh
-  // reporting success while the row still asserted a shape the data no longer
-  // has. A scan that saw NOTHING at all (an unprofilable pdf/docx row) still
-  // never erases what is already there.
-  const EVIDENCE = ['Value_Signature', 'Value_Pattern', 'Enum_Values', 'Value_Kind', 'Value_Range']
-  if (refreshEvidence && EVIDENCE.some((f) => nr[f])) {
-    EVIDENCE.forEach((f) => { next[f] = nr[f] || '' })
-  } else {
-    for (const f of EVIDENCE) {
-      if (nr[f] && !next[f]) next[f] = nr[f]
-    }
-  }
+  // a rescan); refreshEvidence lets a fresh reading of genuinely changed data
+  // win, blanks included. Which of those two a call wants is the whole
+  // question, and it is answered in ONE place — see evidence.js.
+  mergeEvidence(next, nr, refreshEvidence ? REFRESH : CAPTURE)
   // Detection_Intent is NOT evidence — it carries the steward's Auto flips —
   // so it stays fill-only in EVERY mode: only a row that never had an intent
   // adopts the nature default.

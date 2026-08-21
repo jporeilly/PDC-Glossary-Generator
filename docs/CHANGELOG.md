@@ -72,11 +72,22 @@ entry is a projection of the row - no shape on the row, no shape on the
 term. Definition and category stay fill-only: those are steward prose, where
 a blank means "nothing new to say", not "it is gone".
 
-NOTE for whoever touches evidence next: "an incoming blank never erases" is
-now written by hand at three sites (rowmerge.js, tagdict.accrete,
-tagdict.refresh_pending) and is right at two of them. Nothing in the code
-distinguishes CAPTURE from REFRESH; each site re-decides it. A shared helper
-is the durable fix - this entry is the second time it was patched per-site.
+And then the durable fix, rather than a third per-site patch. "An incoming
+blank never erases" was written by hand at three sites - rowmerge.js,
+tagdict.accrete, tagdict.refresh_pending - correct at two of them, with
+nothing in the code distinguishing CAPTURE from REFRESH. Both intents now
+live in `engine/evidence.py` and its browser mirror `frontend/src/evidence.js`:
+CAPTURE fills gaps and never erases, REFRESH replaces the observation whole,
+and an unknown mode raises rather than defaulting to one of them - a call site
+deciding for itself was the bug. A store that keeps a PROJECTION of the
+evidence (the dictionary keeps `pattern` alone) passes a field map and gets
+the same rule, judged on whether the scan observed anything at ALL rather than
+on whether its own field arrived. That closes a hole the per-site fix still
+had: an unprofilable pdf row, carrying no evidence whatever, could strip a
+pattern the dictionary was right to hold.
+
+test_docs.py pins the two mirrors to the same field list and modes, so they
+cannot drift.
 
 ### Added - `--repair`, for the filler an earlier seed already wrote
 
