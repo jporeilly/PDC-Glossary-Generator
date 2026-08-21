@@ -757,7 +757,7 @@ function ConnectionCard({ conn, setConn, saveConn }) {
       <div className="form-grid apply-conngrid">
         <label>
           PDC base URL
-          <input type="text" placeholder="https://[PDC SERVER]" value={conn.base}
+          <input type="text" placeholder="https://pdc.example.com" value={conn.base}
                  onChange={(e) => setConn((v) => ({ ...v, base: e.target.value }))}
                  onBlur={(e) => saveConn({ base: e.target.value })} />
           <span className="muted">the server root — use the hostname, since PDC routes by vhost. Remembered for next time.</span>

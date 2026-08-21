@@ -16,7 +16,7 @@ CLI:   python seed_sample.py --host localhost --port 5433 --db your_db \
                           --user <user> --password '<password>' --rows 200
 API:   from seed_sample import seed ; seed(cfg, rows=200)
 """
-import random, datetime, string, argparse
+import random, datetime, string, argparse, re
 
 FIRST = ["Maria", "Robert", "Susan", "David", "John", "Emma", "Luis", "Anna", "James",
          "Olivia", "Carlos", "Linda", "Michael", "Sofia", "Daniel", "Grace"]
@@ -36,6 +36,70 @@ STATUS = ["active", "active", "active", "inactive", "suspended"]
 CUST_TYPE = ["residential", "residential", "commercial"]
 ALERT_TYPE = ["high_usage", "leak_detected", "payment_due", "quality_notice", "service_interruption"]
 COMPLIANCE = ["compliant", "compliant", "compliant", "violation"]
+# The vocabularies below are the ESTATE'S OWN — read back off the original
+# rows, not invented. Twelve columns had no name rule and fell through to the
+# generic text fallback, which minted one shape (^[A-Z]{2}[0-9]{4}$) for all of
+# them: county, severity, contaminant_level, system_type, source_type,
+# primary_source, conservation_focus, service_county, notes x2, description
+# and recommended_action all came back as 'WQ2602'. One shape across twelve
+# unrelated concepts is worse than no data — the profiler induces it, the
+# drafter backs every one of those concepts with it, and free-text `notes`
+# arrives bound to all of them (field-caught on the 2026-08-20 identification
+# run, and papered over app-side by name-anchoring the seeds).
+COUNTIES = ["Pinal", "Pinal", "Cochise", "Coconino", "Maricopa", "Navajo"]
+# city -> county, so service_county agrees with the service_city on its own row
+CITY_COUNTY = {"Phoenix": "Maricopa", "Mesa": "Maricopa", "Tempe": "Maricopa",
+               "Chandler": "Maricopa", "Scottsdale": "Maricopa", "Glendale": "Maricopa",
+               "Apache Junction": "Pinal", "Casa Grande": "Pinal", "Coolidge": "Pinal",
+               "Oracle": "Pinal", "Stanfield": "Pinal", "Bisbee": "Cochise",
+               "Sierra Vista": "Cochise", "Sedona": "Coconino", "Tucson": "Pima"}
+SEVERITY = ["Low", "Low", "Medium", "Medium", "High"]
+CONTAM_LEVEL = ["Low", "Low", "Low", "Elevated"]
+SYSTEM_TYPE = ["Groundwater", "Groundwater", "Groundwater", "Mixed"]
+PRIMARY_SOURCE = ["Groundwater Wells", "Groundwater Wells", "Mountain Springs + Wells",
+                  "Local Springs & Wells", "Military Water Allocation + Wells"]
+SOURCE_TYPE = ["Wells - San Tan Valley", "Wells - Lower Hassayampa", "Wells - Mule Creek",
+               "Wells - Oracle Ridge", "Wells - Harquahala Valley Aquifer",
+               "Wells + Local Surface Water", "Wells + Watershed Recharge",
+               "Wells + Fort Huachuca Allocation"]
+CONSERVATION_FOCUS = [
+    "Tier-based conservation, agricultural water reuse, desert landscaping education",
+    "Residential conservation, tourism water efficiency, seasonal management",
+    "Historic mining town, limited groundwater availability, reuse programs",
+    "Mountain community, seasonal variation, wildlife protection",
+    "Military installation coordination, population growth planning",
+    "Suburban growth management, new development standards",
+    "Expanding metro area, new customer acquisition, infrastructure growth",
+    "Rural agriculture, small system management, reliability focus"]
+QUALITY_NOTE = [
+    "{sys} system performing within EPA standards. Slight hardness in central area.",
+    "{sys} system showing elevated turbidity. Investigating source issue.",
+    "{sys} system struggling with water hardness. Consider treatment upgrade.",
+    "{sys} system maintaining excellent quality. Mountain source water naturally pure.",
+    "{sys} mixed source system stable. No compliance issues."]
+ALERT_DESC = [
+    "May {yr} bill ${amt} unpaid and past due date ({yr}-05-15).",
+    "May bill ${amt} overdue by 17 days. No payment arrangement made.",
+    "Account suspended since {yr}-05-20. {sys} non-payment. Two months unpaid.",
+    "Commercial customer using {gal} gallons in May (typical 120,000). 54% above normal.",
+    "Agricultural account using {gal} gallons (above 90% of annual tier usage).",
+    "Resort using {gal} gallons (seasonal normal for hospitality). Within expected range."]
+ALERT_ACTION = [
+    "Contact customer for payment. Assess risk of service suspension after 60 days.",
+    "Follow collection procedure. Consider account closeout if payment not received.",
+    "Issue 30-day notice. If unpaid, schedule service suspension review.",
+    "Suggest leak check. Review for irrigation/HVAC efficiency opportunities.",
+    "Continue monitoring. Usage consistent with summer tourism season.",
+    "Remind of summer irrigation best practices per AWC conservation program."]
+# a TEXT rating column takes the label scale, a NUMERIC one takes 1..5 — the
+# seeder wrote randint(1,5) into varchar quality_rating, so the estate's
+# governed vocabulary read '1;5;Excellent;Good': a scale mixed with labels,
+# which matched nothing when the Policy Generator built a dictionary from it
+RATING_LABEL = ["Excellent", "Good", "Good", "Fair", "Poor"]
+# gallons ladder for tiered_rates: tier N starts where tier N-1 stopped, so
+# from/to never cross and the four tiers read as one rate card
+TIER_EDGE = [0, 5000, 15000, 30000, 60000]
+TIER_RATE = [2.45, 3.60, 5.15, 7.40]
 
 
 def _rand_date(start_days=2000, span=1800):
@@ -43,10 +107,23 @@ def _rand_date(start_days=2000, span=1800):
         + datetime.timedelta(days=random.randint(0, span) - span)
 
 
-def _gen(colname, dtype, row_i, refs):
-    """Generate one value for a column based on its name and SQL type."""
+def _tier(n):
+    """The 1..4 a tiered_rates column belongs to, or None."""
+    m = re.search(r"tier[_ ]?([1-4])", n)
+    return int(m.group(1)) if m else None
+
+
+def _gen(colname, dtype, row_i, refs, row=None):
+    """Generate one value for a column based on its name and SQL type.
+
+    `row` carries the values already generated for THIS row — columns are
+    visited in ordinal order, so a column may agree with an earlier one
+    instead of drawing independently (service_county follows service_city).
+    """
     n = colname.lower()
     t = (dtype or "").lower()
+    row = row or {}
+    txt = "char" in t or "text" in t
     if colname in refs:                       # foreign key -> reference an existing parent PK
         pool = refs[colname]
         return random.choice(pool) if pool else None
@@ -62,6 +139,12 @@ def _gen(colname, dtype, row_i, refs):
         # row_i continues from the max PK, so 100000+row_i never collides with
         # the repaired 100000+customer_id refs already on the estate).
         return f"AWC-{random.choice(SYS_CODES)}-{100000 + row_i:06d}"
+    if "meter" in n and ("id" in n or "no" in n or "number" in n):
+        # the estate's meter format: 2 letters + 6 digits. Without a rule the
+        # column fell to the generic text fallback (2 letters + 4 digits) and
+        # the profiler induced a UNION of the two shapes — a pattern that
+        # describes the seeder rather than the business
+        return "".join(random.choices(string.ascii_uppercase, k=2)) + f"{100000 + row_i:06d}"
     if "zip" in n or "postal" in n:
         return f"{85001 + random.randint(0,80):05d}"
     if ("first" in n and "name" in n):

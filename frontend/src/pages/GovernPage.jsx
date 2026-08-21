@@ -1285,7 +1285,7 @@ function KeycloakCard({ onFetch, msg }) {
       <div className="form-grid gov-kcgrid">
         <label>
           Base URL
-          <input type="text" placeholder="https://[PDC SERVER]/keycloak" value={kc.base}
+          <input type="text" placeholder="https://pdc.example.com/keycloak" value={kc.base}
                  onChange={(e) => set({ base: e.target.value })} />
           <span className="muted">PDC fronts Keycloak on its own host at /keycloak &mdash; not the container's address</span>
         </label>

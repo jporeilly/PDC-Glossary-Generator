@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.38.35] - 2026-08-20
+
+### Changed - connection fields show real-shaped examples with hints
+
+The PDC/Keycloak/MinIO entry fields carried template placeholders
+("https://[PDC SERVER]", "PDC admin user") that show the slot, not the
+shape (field: "for URLs can the text boxes follow the same format ...
+and have hints"). Every one now shows a real-shaped example
+(https://pentaho.io, catalog.admin, pentaho.io:9000) and every credential
+field carries a hint — including the two lessons the lab teaches the hard
+way: the base URL must be a HOSTNAME because PDC routes by vhost (a bare
+IP answers 401 on every path), and the login is a PDC catalog user, not
+the Keycloak console admin. Swept: Connect's bulk-load card, Apply's auth
+card, Review's existing-terms check, Govern's Keycloak card, Settings'
+lab MinIO card, and the MinIO source form. Render-verified.
+
 All notable changes to the Glossary Generator are recorded here.
 Format follows [Keep a Changelog](https://keepachangelog.com/); this project uses
 date-based releases. Entries predating this file are summarised under *Earlier*.

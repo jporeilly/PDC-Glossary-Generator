@@ -214,27 +214,30 @@ function PdcAuthFields({ pdc }) {
       <div className="form-grid">
         <label>
           PDC base URL
-          <input type="text" placeholder="https://[PDC SERVER]"
+          <input type="text" placeholder="https://pdc.example.com"
                  value={pdc.base} onChange={(e) => pdc.set({ base: e.target.value })} />
-          <span className="muted">the server root, not a path &mdash; use the hostname, since PDC routes by vhost</span>
+          <span className="muted">the server root, not a path &mdash; use the HOSTNAME, since PDC routes by vhost (a bare IP answers 401 on every path)</span>
         </label>
         <label>
           Username
-          <input type="text" autoComplete="off" placeholder="PDC admin user"
+          <input type="text" autoComplete="off" placeholder="catalog.admin"
                  value={pdc.user}
                  onChange={(e) => pdc.set({ user: e.target.value })} />
+          <span className="muted">a PDC catalog login &mdash; not the Keycloak console admin</span>
         </label>
         <label>
           Password
           <input type="password" autoComplete="new-password" placeholder="PDC admin password"
                  value={pdc.pass}
                  onChange={(e) => pdc.set({ pass: e.target.value })} />
+          <span className="muted">that user&rsquo;s PDC password</span>
         </label>
         <label>
           API version
           <select value={pdc.ver} onChange={(e) => pdc.set({ ver: e.target.value })}>
             <option>v2</option><option>v3</option><option>v1</option>
           </select>
+          <span className="muted">v2 unless told otherwise</span>
         </label>
         <label className="check" style={{ alignSelf: 'end', paddingBottom: '.45rem' }}>
           <input type="checkbox" checked={pdc.verify}

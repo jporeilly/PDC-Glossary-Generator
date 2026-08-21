@@ -2088,10 +2088,11 @@ export default function ReviewPage({ onNavigate }) {
           </button>
           {xgOpen && (
             <div className="rv-xgform">
-              <input type="text" placeholder="https://[PDC SERVER]" value={xgConn.base}
+              <input type="text" placeholder="https://pdc.example.com" value={xgConn.base}
                      onChange={(e) => setXgConn({ ...xgConn, base: e.target.value })}
-                     aria-label="PDC base URL" />
-              <input type="text" placeholder="PDC admin user" value={xgConn.user}
+                     aria-label="PDC base URL"
+                     title="The server root as a HOSTNAME (PDC routes by vhost — a bare IP answers 401)." />
+              <input type="text" placeholder="catalog.admin" value={xgConn.user}
                      onChange={(e) => setXgConn({ ...xgConn, user: e.target.value })}
                      aria-label="PDC username" />
               <input type="password" placeholder="PDC admin password" value={xgConn.pass}

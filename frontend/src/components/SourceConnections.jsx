@@ -193,7 +193,7 @@ function ConnectionForm({ editing, onSaved, onCancel }) {
           <label>
             Endpoint
             <input type="text" value={minio.endpoint} onChange={(e) => onEndpoint(e.target.value)}
-                   placeholder="[PDC SERVER]:9000  (the S3 API port, not the console)" />
+                   placeholder="pdc.example.com:9000  (the S3 API port, not the console)" />
           </label>
           <label>Bucket<input type="text" value={minio.bucket} onChange={(e) => setMinio({ ...minio, bucket: e.target.value })} /></label>
           <label>Access key<input type="text" autoComplete="off" value={minio.access_key} onChange={(e) => setMinio({ ...minio, access_key: e.target.value })} /></label>
