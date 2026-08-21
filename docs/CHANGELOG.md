@@ -63,6 +63,21 @@ blanks included - it is one observation, not five independent fields. A scan
 that saw nothing at all (an unprofilable pdf/docx row) still never erases what
 is already there. Pinned in test_docs.py.
 
+The dictionary keeps its OWN copy of the evidence, and carried the same rule
+independently: `refresh_pending` guarded the pattern on the incoming value
+being non-empty, exactly as it guards definition and category. So the eight
+terms sat in the steward queue still showing the dead shape, one Approve
+away from the governed vocabulary. A pattern is evidence and the pending
+entry is a projection of the row - no shape on the row, no shape on the
+term. Definition and category stay fill-only: those are steward prose, where
+a blank means "nothing new to say", not "it is gone".
+
+NOTE for whoever touches evidence next: "an incoming blank never erases" is
+now written by hand at three sites (rowmerge.js, tagdict.accrete,
+tagdict.refresh_pending) and is right at two of them. Nothing in the code
+distinguishes CAPTURE from REFRESH; each site re-decides it. A shared helper
+is the durable fix - this entry is the second time it was patched per-site.
+
 ### Added - `--repair`, for the filler an earlier seed already wrote
 
 Fixing the generator does not fix the rows it already made. `seed_sample.py

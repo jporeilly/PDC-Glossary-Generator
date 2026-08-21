@@ -246,3 +246,42 @@ class TestRetiredTagsDisappearEverywhere:
         d = tagdict.load()
         assert "uncategorized" not in d.get("tags", {}), "the tombstone holds"
         assert "uncategorized" not in (d["terms"]["Copper Ppm"].get("tags") or [])
+
+    def test_a_pattern_the_data_no_longer_has_is_cleared(self, fresh_dict):
+        """Field-caught on the AWC clean run (2026-08-21).
+
+        The seeder had filled twelve columns with one code shape. Once the
+        estate was repaired those columns held words, the rescan induced an
+        enum and NO pattern, and the row arrived with Value_Pattern blank.
+        Guarded on `pattern and`, the blank could not overwrite: eight pending
+        terms kept ^[A-Z]{2}[0-9]{4}$, one Approve away from entering the
+        governed vocabulary and seeding a Data Pattern that matches zero rows
+        and can never fire.
+
+        A pattern is evidence, and the pending entry is a projection of the
+        row: no shape on the row means no shape on the term.
+        """
+        tagdict = fresh_dict
+        tagdict.accrete([make_row("County", "public.water_systems.county",
+                                  Value_Pattern="^[A-Z]{2}[0-9]{4}$")])
+        assert _pending_meta(tagdict, "County")["pattern"] == "^[A-Z]{2}[0-9]{4}$"
+
+        n = tagdict.refresh_pending([make_row(
+            "County", "public.water_systems.county",
+            Value_Pattern="", Enum_Values="Cochise;Coconino;Navajo;Pinal")])
+        assert n == 1, "clearing a dead pattern is a change"
+        m = _pending_meta(tagdict, "County")
+        assert not m.get("pattern"), \
+            f"the term still asserts {m.get('pattern')!r}, a shape the data no longer has"
+        assert m["status"] == "pending", "still the steward's call"
+
+    def test_prose_stays_fill_only(self, fresh_dict):
+        """Definition and category are steward prose, not evidence: a blank
+        means 'nothing new to say', never 'it is gone'."""
+        tagdict = fresh_dict
+        tagdict.accrete([make_row("Alert Type", "public.account_alerts.alert_type",
+                                  Definition="Classifies an account alert.")])
+        tagdict.refresh_pending([make_row("Alert Type", "public.account_alerts.alert_type",
+                                          Definition="", Category="")])
+        m = _pending_meta(tagdict, "Alert Type")
+        assert m["definition"] == "Classifies an account alert.", "a blank erased steward prose"

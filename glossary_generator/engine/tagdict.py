@@ -922,9 +922,24 @@ def refresh_pending(rows, persist=True):
             category = (r.get("Category") or "").strip()
             if category and category != meta.get("category"):
                 meta["category"] = category; hit = 1
+            # A pattern is EVIDENCE, not prose: the pending entry is a
+            # projection of the row, so a row that no longer induces a shape
+            # must not leave the term asserting one. Guarding this on
+            # `pattern and` the way definition and category are guarded was
+            # the same silent-staleness bug rowmerge.js carried: the repaired
+            # AWC columns came back as enums with no shape, and eight pending
+            # terms kept ^[A-Z]{2}[0-9]{4}$ — a pattern matching zero rows,
+            # one Approve away from entering the governed vocabulary and
+            # seeding a method that could never fire. Definition and category
+            # stay fill-only above: those are steward prose, and a blank there
+            # means "nothing new to say", not "it is gone".
             pattern = (r.get("Value_Pattern") or "").strip()
-            if pattern and pattern != meta.get("pattern"):
-                meta["pattern"] = pattern; hit = 1
+            if pattern != (meta.get("pattern") or ""):
+                if pattern:
+                    meta["pattern"] = pattern
+                else:
+                    meta.pop("pattern", None)
+                hit = 1
             return hit
 
         for r in rows or []:
