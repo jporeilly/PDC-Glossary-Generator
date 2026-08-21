@@ -2347,7 +2347,7 @@ dependencies = [
 
 [[package]]
 name = "pdc-glossary-desktop"
-version = "1.38.35"
+version = "1.38.36"
 dependencies = [
  "serde",
  "serde_json",
