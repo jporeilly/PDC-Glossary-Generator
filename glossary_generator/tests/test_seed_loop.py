@@ -75,3 +75,67 @@ class TestSeedRequestEndpoints:
         assert r.status_code == 400
         r = client.post("/api/seed-requests/handle", json={"file": "seed-request.missing.json"})
         assert r.status_code == 404
+
+
+class TestForeignTermIds:
+    """resolve_terms matches on NAME, and PDC's search exposes neither
+    glossaryId nor rootId for a term. Field-caught 2026-08-21: ADWR's glossary
+    sat alongside Arizona Water, both held a term called "GIS", and the AWC
+    concept was about to be bound to ADWR's term id — valid, resolving cleanly,
+    in the wrong glossary, and invisible to drift because the contract and the
+    catalog agreed about it.
+
+    The app does not need PDC to answer this: it minted the ids it imported.
+    """
+    def _registry(self, tmp_path):
+        import json
+        from registry.bridge import build_registry
+        from conftest import make_row as _row
+        reg = build_registry([_row("GIS", "s.t.gis", Category="Water System Operations"),
+                              _row("Meter ID", "s.t.meter_id", Category="Asset Management")],
+                             "Arizona Water")
+        p = tmp_path / "registry.test.json"
+        p.write_text(json.dumps(reg), encoding="utf-8")
+        return str(p)
+
+    def test_a_same_named_term_from_another_glossary_is_refused(self, tmp_path):
+        import json
+        from registry.bridge import backfill_term_ids
+        from engine.sug_links import det_term_id
+        path = self._registry(tmp_path)
+        ours_meter = det_term_id("Arizona Water", "Asset Management", "Meter ID")
+        name_map = {"Meter ID": {"id": ours_meter},
+                    "GIS": {"id": "5842f70a-6e96-5770-981f-8267a8cf60b9"}}  # ADWR's
+        filled = backfill_term_ids(path, name_map, glossary_name="Arizona Water")
+        reg = json.loads(open(path, encoding="utf-8").read())
+        by = {c["term_name"]: c for c in reg["concepts"]}
+        assert filled == 1, "the stranger must not count as filled"
+        assert by["Meter ID"]["term_id"] == ours_meter
+        assert not by["GIS"].get("term_id"), "bound a concept to another glossary's term"
+        assert reg["foreign_term_ids"][0]["term_name"] == "GIS", \
+            "a refusal must be reported, not silent"
+
+    def test_our_own_ids_backfill_normally(self, tmp_path):
+        import json
+        from registry.bridge import backfill_term_ids
+        from engine.sug_links import det_term_id
+        path = self._registry(tmp_path)
+        name_map = {n: {"id": det_term_id("Arizona Water", c, n)}
+                    for n, c in (("GIS", "Water System Operations"),
+                                 ("Meter ID", "Asset Management"))}
+        assert backfill_term_ids(path, name_map, glossary_name="Arizona Water") == 2
+        reg = json.loads(open(path, encoding="utf-8").read())
+        assert "foreign_term_ids" not in reg, "no strangers, no report"
+
+    def test_the_check_stands_down_when_pdc_minted_its_own_ids(self, tmp_path):
+        """If PDC re-mints ids on import, NONE will be ours and provenance can
+        no longer tell friend from stranger. Refusing everything then would
+        break every estate that behaves that way."""
+        import json
+        from registry.bridge import backfill_term_ids
+        path = self._registry(tmp_path)
+        name_map = {"GIS": {"id": "aaaaaaaa-0000-0000-0000-000000000001"},
+                    "Meter ID": {"id": "bbbbbbbb-0000-0000-0000-000000000002"}}
+        assert backfill_term_ids(path, name_map, glossary_name="Arizona Water") == 2
+        reg = json.loads(open(path, encoding="utf-8").read())
+        assert "foreign_term_ids" not in reg

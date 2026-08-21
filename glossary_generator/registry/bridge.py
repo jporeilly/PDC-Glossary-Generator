@@ -264,7 +264,7 @@ def build_and_save_registry(rows, glossary_name: str, out_path: str,
     return reg
 
 
-def backfill_term_ids(path: str, name_map: dict) -> int:
+def backfill_term_ids(path: str, name_map: dict, glossary_name: str = None) -> int:
     """Stamp resolved PDC term ids into an existing Registry (match by term_name).
 
     Called after the glossary is imported and /api/resolve-terms has resolved each
@@ -272,18 +272,52 @@ def backfill_term_ids(path: str, name_map: dict) -> int:
     (a bare id string is also accepted). Returns how many term ids were filled.
     Turns the initial (UNKNOWN) Registry into the resolved one the Policy Generator
     reads to bind dictionary methods by dictionaryTermId.
+
+    FOREIGN IDS ARE REFUSED. resolve_terms matches on NAME: PDC's search exposes
+    neither glossaryId nor rootId for a term, so two glossaries holding the same
+    term name resolve to whichever PDC returns first. Field-caught 2026-08-21 with
+    ADWR's glossary alongside Arizona Water: both hold "GIS", and the AWC concept
+    was about to be bound to ADWR's term — a valid id, resolving cleanly, in the
+    wrong glossary, invisible to drift because the contract and the catalog agree.
+
+    We do not need PDC to answer this. The app MINTED the ids it imported, and
+    det_term_id reproduces them from (glossary, category, term) alone, so a
+    resolved id either is ours or is a stranger. Pass `glossary_name` to enforce
+    that. The check stands down when NONE of the resolved ids are ours — that
+    means PDC minted its own on import, and the ids can no longer be told apart
+    by provenance.
     """
     with open(path, encoding="utf-8") as f:
         reg = json.load(f)
+    gname = glossary_name or reg.get("glossary_name") or reg.get("glossary")
+    mine = None
+    if gname:
+        from engine.sug_links import det_term_id
+        expected = {c.get("term_name"): det_term_id(gname, c.get("category") or "",
+                                                    c.get("term_name") or "")
+                    for c in reg.get("concepts", [])}
+        resolved = {(m.get("id") if isinstance(m, dict) else m) for m in name_map.values()}
+        # ids preserved on import -> provenance is meaningful; none -> stand down
+        mine = expected if (resolved & set(expected.values())) else None
+
     filled = 0
+    reg["foreign_term_ids"] = []
     for c in reg.get("concepts", []):
         m = name_map.get(c.get("term_name"))
         if not m:
             continue
         tid = m.get("id") if isinstance(m, dict) else m
+        if tid and mine is not None and tid != mine.get(c.get("term_name")):
+            # a same-named term in someone else's glossary
+            reg["foreign_term_ids"].append({"term_name": c.get("term_name"),
+                                            "resolved": tid,
+                                            "expected": mine.get(c.get("term_name"))})
+            continue
         if tid and c.get("term_id") != tid:
             c["term_id"] = tid
             filled += 1
+    if not reg["foreign_term_ids"]:
+        reg.pop("foreign_term_ids")
     if reg.get("glossary_id") is None:
         for m in name_map.values():
             gid = m.get("glossaryId") if isinstance(m, dict) else None

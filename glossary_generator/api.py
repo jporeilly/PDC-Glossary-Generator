@@ -1847,7 +1847,8 @@ def _resolve_terms_impl(body, progress=None):
             _rp = _registry_path(gname)
             if os.path.exists(_rp):
                 import registry as _registry
-                registry_backfilled = _registry.backfill_term_ids(_rp, name_map)
+                registry_backfilled = _registry.backfill_term_ids(_rp, name_map,
+                                                                 glossary_name=gname)
     except Exception:
         registry_backfilled = 0
     links_total = sum(len(el.get("attributes", {}).get("businessTerms", []))

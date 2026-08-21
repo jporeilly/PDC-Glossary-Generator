@@ -89,6 +89,28 @@ pattern the dictionary was right to hold.
 test_docs.py pins the two mirrors to the same field list and modes, so they
 cannot drift.
 
+### Fixed - a term bound to another glossary's term of the same name
+
+Field-caught on the AWC walk. `resolve_terms` matches on NAME, and PDC's
+search exposes neither `glossaryId` nor `rootId` for a term - every one of the
+124 resolved with `glossaryId: None`. With ADWR's glossary imported alongside
+Arizona Water, both holding a term called `GIS`, `/search` returned both and
+the first won. ADWR's. The AWC concept was one Deploy away from binding a
+method to a term in someone else's glossary: a valid id, resolving cleanly,
+invisible to drift because the contract and the catalog agreed about it.
+
+The app does not need PDC to answer this. It MINTED the ids it imported, and
+`det_term_id` reproduces them from (glossary, category, term) alone, so a
+resolved id either is ours or is a stranger. `backfill_term_ids` now refuses
+strangers and reports them in `foreign_term_ids` rather than stamping them.
+The check stands down when NONE of the resolved ids are ours, which means PDC
+minted its own on import and provenance can no longer tell friend from
+stranger - refusing everything there would break every estate that behaves
+that way.
+
+The collision only became possible when a second glossary landed on the lab
+estate, which is exactly when nobody was looking for it.
+
 ### Added - `--repair`, for the filler an earlier seed already wrote
 
 Fixing the generator does not fix the rows it already made. `seed_sample.py
