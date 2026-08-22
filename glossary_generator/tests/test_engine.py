@@ -1101,3 +1101,53 @@ class TestTypelessNumericsAreStillNumeric:
 
     def test_typed_numerics_are_unaffected(self):
         assert self._intent("population_served", {"min": 1, "max": 9}, "integer") == "mapping_only"
+
+
+class TestUnitNamedMeasures:
+    """Which measures earn the Auto default, and why inches/feet do NOT.
+
+    The doctrine: a unit in the column NAME says the column measures a bounded
+    physical property, so a name-anchored rule is an honest claim. Extending
+    that to diameter_inches and length_feet was weighed on 2026-08-22 and
+    REJECTED, for two reasons that only became visible after the AWC walk:
+
+      1. It contradicts the free-numeric guard directly — length_feet is a
+         bounded numeric measure with no discriminating value shape, which is
+         the definition of mapping-only. See TestTypelessNumericsAreStillNumeric.
+      2. A name-anchored numeric rule is a column-name rule wearing a pattern's
+         clothes, and the 2026-08-21 identification run showed those patterns
+         cannot score above their name hint anyway (see docs/SPEC-BACKLOG).
+         Widening the set adds methods that cannot fire.
+
+    Revisit when the pattern-scoring investigation lands, not before.
+    """
+    def test_the_recognised_units_are_chemistry_and_pressure(self):
+        from engine.sug_shared import UNIT_NAME
+        for n in ("pressure_psi", "flow_gpm", "ph_level", "lead_ppb",
+                  "turbidity_ntu", "reservoir_level_pct"):
+            assert UNIT_NAME.search(n), f"{n} should read as a unit-named measure"
+
+    def test_dimension_and_consumption_units_are_deliberately_excluded(self):
+        from engine.sug_shared import UNIT_NAME
+        for n in ("diameter_inches", "length_feet", "usage_gallons",
+                  "usage_tier_1_gallons", "latitude", "install_year",
+                  "condition_rating", "population_served"):
+            assert not UNIT_NAME.search(n),                 f"{n} must not default to Auto — see this class's docstring"
+
+    def test_a_unit_name_alone_is_not_enough(self):
+        """Auto needs the unit name AND a profiled range. A known-numeric
+        column carrying the unit but no measured range stays mapping-only:
+        without a range there is nothing to say the measure is bounded."""
+        from engine.sug_suggest import _detection_intent
+        assert _detection_intent({"name": "pressure_psi", "type": "numeric"},
+                                 {"min": 59.4, "max": 66.9}, "") == ""
+        assert _detection_intent({"name": "pressure_psi", "type": "numeric"},
+                                 {}, "") == "mapping_only"
+
+    def test_a_column_we_cannot_show_is_numeric_is_left_alone(self):
+        """No type and no range is not evidence of anything. The classifier
+        declines to call it a free measure rather than guessing — the guard
+        added on 2026-08-21 believes a RANGE when the type is missing, not the
+        absence of one."""
+        from engine.sug_suggest import _detection_intent
+        assert _detection_intent({"name": "pressure_psi", "type": ""}, {}, "") == ""
