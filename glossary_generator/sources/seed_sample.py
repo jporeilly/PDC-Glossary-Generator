@@ -24,13 +24,41 @@ LAST = ["Garcia", "Hayes", "Park", "Chen", "Smith", "Brown", "Diaz", "Lee", "Joh
         "Martinez", "Nguyen", "Patel", "Wilson", "Khan", "Rivera", "Clark"]
 STREETS = ["Main St", "Oak Ave", "Elm Dr", "Pine Rd", "Maple Ln", "Cedar Ct", "Sunset Blvd",
            "Desert Way", "Canyon Rd", "Mesa Dr"]
-CITIES = ["Phoenix", "Tucson", "Mesa", "Tempe", "Chandler", "Scottsdale", "Glendale",
-          "Apache Junction", "Bisbee", "Casa Grande", "Coolidge", "Oracle", "Sedona",
-          "Sierra Vista", "Stanfield"]   # the estate's live 15 — keep reseeds stable
-# AWC system codes: the 8 verified from the original rows (CD = Coolidge, not
-# Chandler) plus 7 minted for the cities the originals never covered
-SYS_CODES = ["AJ", "BIZ", "CD", "CG", "ORA", "SED", "SF", "SV",
-             "CH", "GL", "ME", "PH", "SC", "TE", "TU"]
+# THE ESTATE'S OWN EIGHT SYSTEMS, read off the original water_systems rows
+# (ids 2001-2008) — system, county, the cities it serves. One table drives
+# city, county, service area and account code, so a customer row cannot say
+# Phoenix / Navajo / Tempe the way the seeded rows used to.
+#
+# The previous CITIES list minted seven metros the originals never covered —
+# Phoenix, Tucson, Mesa, Tempe, Chandler, Scottsdale, Glendale — and a uniform
+# draw then put 1000 of 1010 customers in cities this utility does not serve,
+# with Maricopa alone taking 852. Those are municipal utilities, not AWC's.
+AWC_SYSTEMS = [
+    ("Pinal Valley System",    "Pinal",    [("Casa Grande", "CG"), ("Coolidge", "CD"),
+                                            ("Stanfield", "SF")]),
+    ("Sedona System",          "Coconino", [("Sedona", "SED"), ("Oak Creek", "OC")]),
+    ("Apache Junction System", "Pinal",    [("Apache Junction", "AJ"),
+                                            ("Superstition", "SUP")]),
+    ("Sierra Vista System",    "Cochise",  [("Sierra Vista", "SV"),
+                                            ("Huachuca City", "HC")]),
+    ("Bisbee System",          "Cochise",  [("Bisbee", "BIZ"), ("Naco", "NAC")]),
+    ("Oracle System",          "Pinal",    [("Oracle", "ORA"), ("San Manuel", "SM")]),
+    ("Lakeside System",        "Navajo",   [("Lakeside", "LKS"), ("Pinetop", "PT")]),
+    ("White Tank System",      "Maricopa", [("White Tank", "WT"),
+                                            ("Buckeye Area", "BKY")]),
+]
+# city -> (county, system, account code)
+CITY_FACTS = {city: (county, system, code)
+              for system, county, cities in AWC_SYSTEMS
+              for city, code in cities}
+SYSTEM_NAMES = [s for s, _c, _cs in AWC_SYSTEMS]
+# The eight cities the ORIGINAL customers live in are weighted double: they are
+# the utility's main service areas, and the smaller settlements ride along.
+_MAIN = ["Casa Grande", "Coolidge", "Stanfield", "Apache Junction", "Oracle",
+         "Sedona", "Sierra Vista", "Bisbee"]
+CITIES = sorted(CITY_FACTS) + _MAIN
+SYS_CODES = [code for _s, _c, cities in AWC_SYSTEMS for _city, code in cities]
+CODE_CITY = {code: city for city, (_c, _s, code) in CITY_FACTS.items()}
 EMAIL_DOM = ["example.com", "mail.com", "gmail.com"]
 STATUS = ["active", "active", "active", "inactive", "suspended"]
 CUST_TYPE = ["residential", "residential", "commercial"]
@@ -49,11 +77,7 @@ PAY_STATUS = ["Paid", "Paid", "Paid", "Unpaid", "Overdue"]
 # run, and papered over app-side by name-anchoring the seeds).
 COUNTIES = ["Pinal", "Pinal", "Cochise", "Coconino", "Maricopa", "Navajo"]
 # city -> county, so service_county agrees with the service_city on its own row
-CITY_COUNTY = {"Phoenix": "Maricopa", "Mesa": "Maricopa", "Tempe": "Maricopa",
-               "Chandler": "Maricopa", "Scottsdale": "Maricopa", "Glendale": "Maricopa",
-               "Apache Junction": "Pinal", "Casa Grande": "Pinal", "Coolidge": "Pinal",
-               "Oracle": "Pinal", "Stanfield": "Pinal", "Bisbee": "Cochise",
-               "Sierra Vista": "Cochise", "Sedona": "Coconino", "Tucson": "Pima"}
+CITY_COUNTY = {city: county for city, (county, _s, _c) in CITY_FACTS.items()}
 SEVERITY = ["Low", "Low", "Medium", "Medium", "High"]
 CONTAM_LEVEL = ["Low", "Low", "Low", "Elevated"]
 SYSTEM_TYPE = ["Groundwater", "Groundwater", "Groundwater", "Mixed"]
@@ -108,6 +132,16 @@ def _rand_date(start_days=2000, span=1800):
         + datetime.timedelta(days=random.randint(0, span) - span)
 
 
+def _system_stem(name):
+    """The real system a generated system_name was built from, or None.
+    "Pinal Valley System 2311" -> "Pinal Valley System"."""
+    t = str(name or "").strip()
+    for s in SYSTEM_NAMES:
+        if t == s or t.startswith(s + " "):
+            return s
+    return None
+
+
 def _tier(n):
     """The 1..4 a tiered_rates column belongs to, or None."""
     m = re.search(r"tier[_ ]?([1-4])", n)
@@ -139,6 +173,9 @@ def _gen(colname, dtype, row_i, refs, row=None):
         # row_i keeps the UNIQUE constraint honest across top-ups (a top-up's
         # row_i continues from the max PK, so 100000+row_i never collides with
         # the repaired 100000+customer_id refs already on the estate).
+        # The account number is generated BEFORE service_city in column order,
+        # so the city follows the code rather than the reverse — see the city
+        # rule below, which reads the code back off this row's account number.
         return f"AWC-{random.choice(SYS_CODES)}-{100000 + row_i:06d}"
     if "meter" in n and ("id" in n or "no" in n or "number" in n):
         # the estate's meter format: 2 letters + 6 digits. Without a rule the
@@ -155,9 +192,11 @@ def _gen(colname, dtype, row_i, refs, row=None):
     if "name" in n and ("customer" in n or "account" in n or "holder" in n):
         return f"{random.choice(FIRST)} {random.choice(LAST)}"
     if "name" in n and "system" in n:
-        # row_i-derived: system_name carries a UNIQUE constraint, and a
-        # random 1..40 draw collides with existing rows and itself
-        return f"{random.choice(CITIES)} System {row_i}"
+        # A REAL system, made unique by the row index — system_name carries a
+        # UNIQUE constraint. The old form drew a random city, so the estate
+        # grew rows like "Phoenix System 2009 | Navajo | Tempe" where name,
+        # county and service cities each named a different place.
+        return f"{random.choice(SYSTEM_NAMES)} {row_i}"
     if "name" in n:
         return f"{random.choice(FIRST)} {random.choice(LAST)}"
     if "address" in n:
@@ -166,7 +205,11 @@ def _gen(colname, dtype, row_i, refs, row=None):
     # generic text fallback and share one shape. Each answers with the words
     # the original rows use, so a reseed cannot drift the governed vocabulary.
     if "county" in n:
-        # agree with the city on this row where we generated one
+        # follow this row's own system if it named one (water_systems), else
+        # the city (customers) — never an independent draw
+        stem = _system_stem(row.get("system_name"))
+        if stem:
+            return dict((s, c) for s, c, _cs in AWC_SYSTEMS)[stem]
         city = row.get("service_city") or row.get("city") or row.get("billing_city")
         return CITY_COUNTY.get(city) or random.choice(COUNTIES)
     if "severity" in n:
@@ -190,10 +233,17 @@ def _gen(colname, dtype, row_i, refs, row=None):
             gal=f"{random.randrange(80, 530) * 1000:,}", sys=random.choice(CITIES))
     if "action" in n or "remediation" in n or "resolution" in n:
         return random.choice(ALERT_ACTION)
-    if "cities" in n:                          # a service area lists several
-        return ", ".join(random.sample(CITIES, random.randint(2, 4)))
-    if n.endswith("_system"):                  # service_area_system = "Bisbee System"
-        return f"{random.choice(CITIES)} System"
+    if "cities" in n:
+        # the cities THIS row's system actually serves, when the row named one
+        stem = _system_stem(row.get("system_name"))
+        if stem:
+            return ", ".join(c for c, _code in dict(
+                (s, cs) for s, _c, cs in AWC_SYSTEMS)[stem])
+        return ", ".join(sorted(random.sample(sorted(CITY_FACTS), 3)))
+    if n.endswith("_system"):                  # service_area_system
+        city = row.get("service_city") or row.get("city") or row.get("billing_city")
+        fact = CITY_FACTS.get(city)
+        return fact[1] if fact else random.choice(SYSTEM_NAMES)
     # rate_period names a billing YEAR — it reached the money rule below and
     # came back '84.47', a period column full of dollar amounts
     if "period" in n:
@@ -290,7 +340,14 @@ def _gen(colname, dtype, row_i, refs, row=None):
     if "date" in t:
         return _rand_date()
     # categorical text
-    if "city" in n or "cities" in n:
+    if "city" in n:
+        # a SERVICE city follows this row's account code, so the account
+        # number, the city, the county and the service area all name one place
+        if "billing" not in n:
+            acct = str(row.get("account_number") or "")
+            parts = acct.split("-")
+            if len(parts) == 3 and parts[1] in CODE_CITY:
+                return CODE_CITY[parts[1]]
         return random.choice(CITIES)
     if "area" in n or "region" in n or "zone" in n:
         return random.choice(CITIES)

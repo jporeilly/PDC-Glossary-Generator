@@ -134,3 +134,56 @@ class TestChemistryStaysInRange:
             assert 0.2 <= gen("chlorine_residual", "numeric") <= 4.0
             assert 0 <= gen("copper_ppm", "numeric") <= 1.3
             assert 150 <= gen("total_dissolved_solids_ppm", "integer") <= 900
+
+
+class TestOneRowNamesOnePlace:
+    """The estate's geography comes from ONE table — AWC_SYSTEMS, read off the
+    original water_systems rows. Before that, city, county, system name and
+    account code were four independent draws, so the seeder produced rows like
+    "Phoenix System 2009 | Navajo | Tempe", and put 1000 of 1010 customers in
+    seven metros this utility does not serve (Maricopa alone took 852).
+    """
+    def test_every_city_belongs_to_exactly_one_system_and_county(self):
+        assert S.CITY_FACTS, "the geography table is empty"
+        for city, (county, system, code) in S.CITY_FACTS.items():
+            assert county and system and code, f"{city} is incompletely described"
+        assert len(S.CODE_CITY) == len(S.CITY_FACTS), "two cities share an account code"
+
+    def test_the_invented_metros_are_gone(self):
+        for gone in ("Phoenix", "Tucson", "Mesa", "Tempe", "Chandler",
+                     "Scottsdale", "Glendale"):
+            assert gone not in S.CITY_FACTS, \
+                f"{gone} is a municipal utility, not one of this estate's service areas"
+
+    def test_a_customer_row_names_one_place(self):
+        """account code -> city -> county -> service area, all agreeing."""
+        for i in range(40):
+            row = {}
+            row["account_number"] = S._gen("account_number", "character varying", 3000 + i, {}, row)
+            row["service_city"] = S._gen("service_city", "character varying", 3000 + i, {}, row)
+            row["service_county"] = S._gen("service_county", "character varying", 3000 + i, {}, row)
+            row["service_area_system"] = S._gen("service_area_system", "character varying",
+                                                3000 + i, {}, row)
+            code = row["account_number"].split("-")[1]
+            city = S.CODE_CITY[code]
+            county, system, _ = S.CITY_FACTS[city]
+            assert row["service_city"] == city, row
+            assert row["service_county"] == county, row
+            assert row["service_area_system"] == system, row
+
+    def test_a_water_system_row_names_one_place(self):
+        by_system = {s: (c, cs) for s, c, cs in S.AWC_SYSTEMS}
+        for i in range(40):
+            row = {}
+            row["system_name"] = S._gen("system_name", "character varying", 4000 + i, {}, row)
+            row["service_cities"] = S._gen("service_cities", "character varying", 4000 + i, {}, row)
+            row["county"] = S._gen("county", "character varying", 4000 + i, {}, row)
+            stem = S._system_stem(row["system_name"])
+            assert stem, f"system_name is not built from a real system: {row['system_name']}"
+            county, cities = by_system[stem]
+            assert row["county"] == county, row
+            assert row["service_cities"] == ", ".join(c for c, _ in cities), row
+
+    def test_system_names_stay_unique_across_a_run(self):
+        names = {S._gen("system_name", "character varying", i, {}, {}) for i in range(200)}
+        assert len(names) == 200, "system_name carries a UNIQUE constraint"
