@@ -296,10 +296,35 @@ measured, false ten minutes later. A point-in-time read of state the app also
 writes is not a settled fact. Re-check after any steward action that touches
 the same store.
 
-## 9 · FUTURE PROJECT — a query builder driven by the Registry
+## 9 · FUTURE PROJECT — PDC Query: questions answered through the catalogue
 
 Raised 2026-08-22, parked deliberately: finish the three-app pipeline first.
 This is a NEW TOOL, not a fix to an existing one.
+
+### Named and extended 2026-08-22
+
+The user named it **PDC Query** and added the requirement that makes it a
+product rather than a convenience: results return WITH the catalogue's trust
+context. Not `213 customers` but 213 customers plus, per column touched: DQ
+score, dictionary coverage, profile freshness and sample presence, and any
+reconciliation the join needed ("Water System spans two spellings across two
+sources"). The answer arrives wearing its own health warning — and PDC is
+uniquely placed to attach one, because every input already sits in the
+catalogue. Each footer line is justified by a defect this walk actually hit:
+sampled enums at 16% coverage, sample-less profiles, case variants, the
+Pinal Valley naming mismatch.
+
+Suite position: fourth app, port 5003, same stack and doctrine — and the
+THIRD consumer of the Registry contract (Policy authors detection from it,
+Insights reads the estate's aggregates, Query builds joins from it). No new
+source of truth.
+
+Acceptance tests already exist: the catalog workshop's eight
+"CATALOGUE, THEN QUERY" questions (AWC-Catalog-Value-Workshop-20260822.docx),
+Q16-Q19 especially. Every metric in the footer carries its as-of date - a DQ
+score from a stale profile is the stale-profile bug wearing a dashboard. Two
+scope traps declared at birth: it is not a chart tool, and it is not a
+chatbot.
 
 ### The thesis
 
