@@ -389,6 +389,37 @@ A CLI taking two or three term names and emitting the plan plus the SQL. An
 hour's work against the Registry tells you whether join-from-terms holds up on
 real data.
 
+## 10 · "How do I?" — a docs-grounded chat in the Glossary Generator
+
+Requested 2026-08-22: the app is complex, and a chat window should answer
+product questions FROM THE DOCUMENTATION with detailed responses.
+
+Why this app is unusually well-placed: the corpus is versioned with the code,
+test-pinned (the Under-the-hood explainers are guarded because losing them
+once cost a release), and ships inside the app - GUIDE, WALKTHROUGH,
+REFERENCE, README and a narrative CHANGELOG. The Ollama runtime and the
+online/offline handling already exist.
+
+Design decided in discussion:
+1. **Grounded-or-refuse.** Answers only from the shipped docs, every answer
+   cites its section, and "the documentation doesn't answer this - nearest
+   section is X" is the honest miss. The LLM never invents behaviour.
+2. **Index built at RELEASE time** by the train, chunked by heading, stamped
+   with the app version - so answers describe the installed build, and
+   index-version != app-version is a drift warning. CHANGELOG chunks let it
+   answer "since when?".
+3. **Context-aware seeding** - the page the question is asked from boosts its
+   own docs.
+4. **Retrieval stays boring**: BM25 over heading chunks, deterministic and
+   dependency-free; Ollama embeddings optional; with no model at all the
+   feature degrades to a decent doc search rather than vanishing.
+5. **Eval tests from birth**: a canned QA set pinned in the suite ("why do my
+   dictionaries fire but not my patterns?" must retrieve the buildSamples
+   entry, cited). A docs chat without evals degrades silently.
+
+Fits as a 1.39.0 feature: /api/ask + a chat drawer in the shell + the train
+index step + evals. Build AFTER the clean walkthrough.
+
 ---
 
 ## Open item, not a feature
