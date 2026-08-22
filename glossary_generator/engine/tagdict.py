@@ -568,6 +568,24 @@ def replace(new_dict):
                 doc[key] = {k: list(v or []) for k, v in (prev.get(key) or {}).items()}
         if not doc.get("sources"):
             doc["sources"] = list(prev.get("sources") or [])
+        # PER-TERM fields the UI's save payload does not model. The Dictionary
+        # page's toDoc() rebuilds every term as {aliases, sensitivity, tags,
+        # layer, status} — and on 2026-08-21 one Save wiped pattern,
+        # definition, category, sources and confidence from all 125 terms
+        # (field-caught a day later: the governed vocabulary had lost every
+        # term's pattern, and the prose with it). Same doctrine as
+        # engine/evidence.py: a field ABSENT from a projection means "not
+        # mine to change", never "delete". A field the payload carries —
+        # even empty — is an explicit steward edit and is honoured.
+        _CARRY = ("pattern", "definition", "category", "confidence", "sources")
+        prev_terms = prev.get("terms") or {}
+        for name, meta in (doc.get("terms") or {}).items():
+            old = prev_terms.get(name)
+            if not isinstance(meta, dict) or not isinstance(old, dict):
+                continue
+            for f in _CARRY:
+                if f not in meta and f in old:
+                    meta[f] = old[f]
         removed = ({str(n).strip().lower() for n in (prev.get("terms") or {})}
                    - set(_term_index(doc).keys()))
         _remap_usage(doc, drop=removed)

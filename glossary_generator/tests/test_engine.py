@@ -1151,3 +1151,58 @@ class TestUnitNamedMeasures:
         absence of one."""
         from engine.sug_suggest import _detection_intent
         assert _detection_intent({"name": "pressure_psi", "type": ""}, {}, "") == ""
+
+
+class TestWholeDocumentSaveIsNotAWipe:
+    """The Dictionary page's Save sends toDoc() - every term rebuilt as
+    {aliases, sensitivity, tags, layer, status}. On 2026-08-21 one such Save
+    wiped pattern, definition, category, sources and confidence from all 125
+    governed terms (audit: dictionary.save 09:14:55Z), and nobody noticed for
+    a day because nothing reads those fields back at save time.
+
+    The rule replace() now applies is engine/evidence.py's doctrine: a field
+    ABSENT from a projection means "not mine to change", never "delete".
+    """
+    def _seed(self, tagdict):
+        from conftest import make_row as _row
+        tagdict.accrete([_row("Wipe Guard", "s.t.wipe_col",
+                              Value_Pattern=r"^WG-\d{4}$",
+                              Definition="A guarded definition.",
+                              Category="Customer")])
+        return dict(tagdict.load()["terms"]["Wipe Guard"])
+
+    def _ui_projection(self, meta):
+        """Exactly what toDoc() sends for a term - five fields, nothing else."""
+        return {"aliases": meta.get("aliases") or [],
+                "sensitivity": meta.get("sensitivity", "LOW"),
+                "tags": meta.get("tags") or [], "layer": "company",
+                "status": meta.get("status", "pending")}
+
+    def test_a_ui_save_keeps_the_fields_it_does_not_model(self, fresh_dict):
+        tagdict = fresh_dict
+        before = self._seed(tagdict)
+        assert before["pattern"] and before["definition"]
+        doc = tagdict.load()
+        doc = {"schema": doc.get("schema"), "domain": doc.get("domain"),
+               "tags": {}, "rules": [], "category_tags": {},
+               "terms": {"Wipe Guard": self._ui_projection(before)}}
+        tagdict.replace(doc)
+        after = tagdict.load()["terms"]["Wipe Guard"]
+        for f in ("pattern", "definition", "category"):
+            assert after.get(f) == before.get(f), \
+                f"the whole-document save wiped {f!r} - the 2026-08-21 defect is back"
+
+    def test_a_field_the_payload_carries_is_an_explicit_edit(self, fresh_dict):
+        """Absent = keep; PRESENT-but-empty = the steward cleared it."""
+        tagdict = fresh_dict
+        before = self._seed(tagdict)
+        proj = self._ui_projection(before)
+        proj["definition"] = ""                      # explicit clear
+        doc = {"schema": "term-tag-dictionary/1", "domain": "generic",
+               "tags": {}, "rules": [], "category_tags": {},
+               "terms": {"Wipe Guard": proj}}
+        tagdict.replace(doc)
+        after = tagdict.load()["terms"]["Wipe Guard"]
+        assert after.get("definition") == "", "an explicit empty must be honoured"
+        assert after.get("pattern") == before["pattern"], \
+            "clearing one field must not stop the others being carried"

@@ -206,9 +206,27 @@ identification run reports COMPLETED. Spec item 5's efficacy check would have
 said "11 patterns can never exceed 0.09 against a 0.5 threshold" before the
 run, from data already in PDC.
 
-## 8 · The governed vocabulary lost every term's pattern — UNCONFIRMED mechanism
+## 8 · The governed vocabulary lost every term's pattern — RESOLVED 2026-08-22
 
 Found 2026-08-21 EOD checking the Dictionary page after installing 1.38.36.
+
+### RESOLUTION
+
+Mechanism confirmed by reproduction and the audit log, fixed, and the data
+restored. It was never the approve — `review('term', ..., 'approve')` flips
+status only (reproduced clean). The killer was the **Dictionary page's Save**:
+`toDoc()` rebuilds every term as `{aliases, sensitivity, tags, layer, status}`
+and `POST /api/tagdict` replaced the document wholesale, so the 09:14:55Z
+`dictionary.save` (audit-logged, actor catalog.admin, 12 seconds after the
+tag approvals) wiped **pattern, definition, category, sources and confidence
+from all 125 terms** — far wider than the patterns item 8 noticed.
+
+Fix: `tagdict.replace()` now carries per-term fields the payload does not
+carry, for terms present on both sides — engine/evidence.py's doctrine
+(absent = not mine to change; present-but-empty = an explicit steward edit).
+Pinned by TestWholeDocumentSaveIsNotAWipe. Data restored from the pre-wipe
+backup: 122 definitions/categories/confidences/source-lists and the 5
+legitimate patterns; the 8 dead junk patterns stayed out.
 
 ### What is known for certain
 
