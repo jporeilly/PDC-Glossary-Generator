@@ -220,7 +220,7 @@ function PdcAuthFields({ pdc }) {
         </label>
         <label>
           Username
-          <input type="text" autoComplete="off" placeholder="catalog.admin"
+          <input type="text" autoComplete="off" placeholder="PDC catalog user"
                  value={pdc.user}
                  onChange={(e) => pdc.set({ user: e.target.value })} />
           <span className="muted">a PDC catalog login &mdash; not the Keycloak console admin</span>

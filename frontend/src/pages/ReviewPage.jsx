@@ -2100,7 +2100,7 @@ export default function ReviewPage({ onNavigate }) {
                      onChange={(e) => setXgConn({ ...xgConn, base: e.target.value })}
                      aria-label="PDC base URL"
                      title="The server root as a HOSTNAME (PDC routes by vhost — a bare IP answers 401)." />
-              <input type="text" placeholder="catalog.admin" value={xgConn.user}
+              <input type="text" placeholder="PDC catalog user" value={xgConn.user}
                      onChange={(e) => setXgConn({ ...xgConn, user: e.target.value })}
                      aria-label="PDC username" />
               <input type="password" placeholder="PDC admin password" value={xgConn.pass}

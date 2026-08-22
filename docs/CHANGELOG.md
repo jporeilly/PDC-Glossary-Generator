@@ -1,5 +1,28 @@
 # Changelog
 
+## [1.38.37] - 2026-08-22
+
+### Changed - hints name the KIND of login, never an account
+
+The PDC username fields suggested `catalog.admin` - a real lab account
+convention, not a field shape. These apps are generic: a hint's job is to
+distinguish WHICH connection a field belongs to (a PDC catalog login vs the
+Keycloak console admin), not to suggest a name (user, 2026-08-22). Both
+username placeholders now read "PDC catalog user", and the bundle guard bans
+`catalog.admin` alongside the real hosts so it cannot return.
+
+### Fixed - a whole-document Save wiped every term's evidence and prose
+
+The Dictionary page's Save sends a five-field projection of each term, and
+`replace()` swapped the document wholesale: one Save on 2026-08-21 wiped
+pattern, definition, category, sources and confidence from all 125 governed
+terms (backlog item 8 - the vanished patterns were the visible corner of it).
+`replace()` now carries per-term fields the payload does not model, under the
+evidence doctrine: absent means "not mine to change", present-but-empty is an
+explicit steward edit. The live dictionary was restored from the pre-wipe
+backup - 122 definitions and the 5 legitimate patterns back, the 8 dead junk
+shapes kept out.
+
 ## [1.38.36] - 2026-08-21
 
 ### Fixed - one shape for twelve columns: the data defect under the 2026-08-20 identification run

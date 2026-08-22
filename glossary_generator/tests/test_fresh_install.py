@@ -32,6 +32,10 @@ BANNED = [
     r"/mnt/user-data",
     r"\bcatalog123\b",
     r"minio_secret",
+    # an account-name example is estate flavour, not field shape - these apps
+    # are generic, and hints distinguish the KIND of login (PDC catalog user
+    # vs Keycloak console admin), never a specific account (user, 2026-08-22)
+    r"catalog\.admin",
 ]
 
 
