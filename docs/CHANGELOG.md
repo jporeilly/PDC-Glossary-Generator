@@ -1,5 +1,30 @@
 # Changelog
 
+## [1.38.38] - 2026-08-22
+
+### Fixed - profiling never asked PDC to keep samples, so no pattern could ever fire
+
+The close of the 2026-08-21 investigation into patterns scoring 0.09. PDC's
+data-profiling job RETAINS sample values only when asked (`buildSamples`),
+and defaults to false for JDBC; `profile_source` sent `configs={}` there, so
+every stored profile on the estate carried `sampleValues: []`. Data
+Identification computes a pattern's regexScore against those samples - an
+empty list is a hard zero, and every deployed Data Pattern was capped at its
+name-hint contribution (0.3 x 0.30 = 0.09) below every threshold, including
+PDC's own built-ins' 0.3.
+
+Found by diffing workers: the object-store discovery runs carried
+`buildSamples: True`, the table profiling runs `False`. One re-profile of
+`customers` with the flag on and the SAME method, at its authored "0.5"
+threshold, fired at 0.79 - regexScore 1.0 x 0.70 + metadataScore 0.3 x 0.30,
+both halves of the blend finally contributing. Re-profiled the full estate
+and ran the complete 40-method identification: all 11 patterns tagged their
+columns at 0.75-0.79, dictionaries unaffected.
+
+`profile_source` now sends `buildSamples: True` for JDBC (the object-store
+path already had its proven config set and is untouched), pinned by tests.
+The investigation's own warning held: no threshold was lowered.
+
 ## [1.38.37] - 2026-08-22
 
 ### Changed - hints name the KIND of login, never an account

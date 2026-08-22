@@ -438,7 +438,17 @@ def profile_source(base_url, token, resource_name=None, version="v2", verify_tls
     # fresh source: scan minimal -> 21 files, columns 0; then data-discovery
     # with these configs -> 53 columns immediately. This is also the PUBLIC,
     # supported job, so the flags ride the documented surface.
-    configs = {}
+    # buildSamples: PDC's data-profiling job RETAINS sample values only when
+    # asked, and defaults to false for JDBC. Without them the stored profile's
+    # sampleValues is [] — and Data Identification computes a pattern's
+    # regexScore against those samples, so every deployed Data Pattern on the
+    # estate was capped at metadataScore alone (0.09 against thresholds of
+    # 0.5, including PDC's own built-ins' 0.3) and silently never fired.
+    # Field-proven 2026-08-22: same method, same threshold, one re-profile
+    # with buildSamples on — the pattern fired at 0.79 (regexScore 1.0*0.70 +
+    # metadataScore 0.3*0.30). The object-store discovery path already sends
+    # it true; the JDBC path never sent it at all.
+    configs = {"buildSamples": True}
     if object_store:
         configs = {"withProfile": bool(profile_files),
                    "headerExists": bool(header_row),

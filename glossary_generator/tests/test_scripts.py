@@ -60,3 +60,45 @@ def test_ascii_only(path):
     assert not high, "non-ASCII bytes {} in {}".format(
         [hex(b) for b in high], os.path.basename(path)
     )
+
+
+class TestProfilingRetainsSamples:
+    """The JDBC data-profiling job must ask PDC to RETAIN sample values.
+
+    PDC defaults buildSamples to false, and profile_source sent configs={} for
+    JDBC - so no profile on the estate held a single sample value, Data
+    Identification's regexScore had nothing to match, and every deployed Data
+    Pattern was capped at its name-hint score (0.09) below every threshold.
+    Field-proven 2026-08-22: one re-profile with buildSamples on and the same
+    method fired at 0.79 against its authored "0.5".
+    """
+    def test_the_jdbc_profiling_job_requests_samples(self, monkeypatch):
+        from pdc_client import bulkload
+        sent = {}
+
+        monkeypatch.setattr(bulkload, "source_entity_ids",
+                            lambda *a, **k: ["e-1", "e-2"])
+
+        def fake_run_job(base, token, job, body, *a, **k):
+            sent["job"] = job
+            sent["configs"] = body.get("configs")
+            return {"job_id": "j-1"}
+        monkeypatch.setattr(bulkload, "run_job", fake_run_job)
+
+        rec = bulkload.profile_source("https://x", "tok", resource_id="r-1")
+        assert rec["ok"] and sent["job"] == "data-profiling"
+        assert sent["configs"].get("buildSamples") is True, \
+            "JDBC profiling without buildSamples caps every pattern at 0.09"
+
+    def test_the_object_store_path_keeps_its_own_configs(self, monkeypatch):
+        from pdc_client import bulkload
+        sent = {}
+        monkeypatch.setattr(bulkload, "source_entity_ids",
+                            lambda *a, **k: ["f-1"])
+        monkeypatch.setattr(bulkload, "run_job",
+                            lambda b, t, job, body, *a, **k:
+                            sent.update(job=job, configs=body.get("configs")) or {"job_id": "j-2"})
+        bulkload.profile_source("https://x", "tok", resource_id="r-1", object_store=True)
+        assert sent["job"] == "data-discovery"
+        assert sent["configs"].get("withProfile") is True, \
+            "the proven object-store config set must survive the JDBC fix"

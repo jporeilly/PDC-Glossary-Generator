@@ -144,10 +144,30 @@ method can fire is the identification twin of the empty prefix — it runs,
 reports success, and proves nothing. The count makes that visible before the
 job starts rather than after it returns nothing.
 
-## 7 · Patterns cannot score above their name hint — INVESTIGATION, not yet a spec
+## 7 · Patterns cannot score above their name hint — RESOLVED 2026-08-22
 
 Found 2026-08-21 running identification on the AWC estate. 18 of 18 eligible
 dictionaries fired and tagged 24 columns. **0 of 11 patterns fired.**
+
+### RESOLUTION
+
+The hypothesis was right and the fix is one config key. PDC's data-profiling
+job retains sample values only when asked - `buildSamples`, defaulting to
+FALSE for JDBC - and `profile_source` sent `configs={}` there, so every
+stored profile carried `sampleValues: []` and regexScore had nothing to
+match. Found by diffing workers: object-store discovery ran with
+`buildSamples: True`, table profiling with `False`.
+
+Proof, per this item's own protocol: one re-profile of `customers` with the
+flag on, then the SAME method at its authored "0.5" threshold fired at 0.79
+(regexScore 1.0*0.70 + metadataScore 0.3*0.30 - the arithmetic identifies
+both halves). Full-estate re-profile + the complete 40-method run: all 11
+patterns tagged their columns at 0.75-0.79. No threshold was lowered.
+
+Fix shipped in Glossary 1.38.38 (`profile_source` sends buildSamples for
+JDBC, test-pinned). Note for spec item 5: the efficacy check now has its
+second worked example - "11 patterns can never exceed 0.09" was computable
+from data already in PDC before any identification ran.
 
 ### What the evidence says
 
