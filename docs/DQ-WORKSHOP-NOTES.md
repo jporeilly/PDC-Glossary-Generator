@@ -52,9 +52,10 @@ cross-field contradiction nobody would notice by reading one column.
 "Marricopa" and that misspelling lands in the `Service County` dictionary at
 the next harvest, and from there into a deployed Data Identification method.
 
-Two options:
+**DECIDED 2026-08-22: contained.** Option 1 below. Planted dirt stays out of
+the governed vocabularies; value defects go only in columns nothing governs.
 
-1. **Contained** (recommended). Plant only defects invisible to the governed
+1. **Contained** (chosen). Plant only defects invisible to the governed
    vocabularies: nulls, out-of-range numerics, duplicates, cross-field
    contradictions, bad dates. Plus a small number of value defects in columns
    nothing governs — `email`, `service_zip`, `billing_address` carry no
