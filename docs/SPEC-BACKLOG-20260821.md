@@ -258,6 +258,74 @@ measured, false ten minutes later. A point-in-time read of state the app also
 writes is not a settled fact. Re-check after any steward action that touches
 the same store.
 
+## 9 · FUTURE PROJECT — a query builder driven by the Registry
+
+Raised 2026-08-22, parked deliberately: finish the three-app pipeline first.
+This is a NEW TOOL, not a fix to an existing one.
+
+### The thesis
+
+`awc_operations` declares **no constraints at all** — no primary keys, no
+foreign keys (verified 2026-08-22). A conventional query builder that
+introspects a schema has nothing to work with, which is normal for anything
+loaded by ETL.
+
+The glossary asserts the relationships the database never declared. **31 of
+124 concepts span more than one column**, and each shared term is a join edge:
+
+> Customer Type -> tiered_rates · customers · customer_billing_summary
+> System ID     -> tiered_rates · pinal_valley_pressure.json · all_systems_snapshot.json
+> Base Charge   -> tiered_rates · monthly_usage
+
+Edges no schema introspection could find, because they cross Postgres and JSON
+in object storage. **The catalogue is the join graph the database does not
+have.** That is the whole idea.
+
+### What the Registry already provides
+
+`sources` (term -> columns), `source_types` (physical types), `sensitivity`,
+`definition`, `detection_intent`, stewards. The `keys` field exists in the
+schema but is EMPTY on all 124 concepts here — because the estate declares no
+keys to harvest. Do not build on `keys`.
+
+### Shape
+
+1. pick TERMS, not tables — the user works in business language
+2. resolve to columns, disambiguating a term that spans several
+3. derive joins from shared terms
+4. emit a PLAN, not just SQL — cross-source cannot be one statement
+5. carry provenance into the result: definition, steward, DQ score, so the
+   answer arrives with its own health warning
+
+For (4), look hard at **DuckDB**: it attaches Postgres and reads CSV/JSON from
+S3-compatible storage in one query, which collapses the orchestration. The
+pump-vs-unpaid-bills question becomes a single statement.
+
+### The hard problem — solve this FIRST
+
+**Not every shared term is a safe join.** `System ID` is an identifier and
+joining on it is correct. `Customer Type` is also shared across three tables,
+and joining on it fans out catastrophically — it is an attribute with three
+distinct values.
+
+The tool must tell identifying terms from attribute terms. Inputs are
+available (profiled cardinality, `Value_Kind`, detection intent, name shape),
+but getting it wrong silently returns millions of rows: the exact class of
+confident-wrong answer this whole programme exists to prevent. **Refuse an
+ambiguous join rather than guess.**
+
+### Doctrine
+
+Deterministic core builds the query from the term map; an optional LLM front
+end only translates the question into a term SELECTION. Same split as the
+Policy Advisor — the LLM proposes, the deterministic core grounds.
+
+### First experiment, when it starts
+
+A CLI taking two or three term names and emitting the plan plus the SQL. An
+hour's work against the Registry tells you whether join-from-terms holds up on
+real data.
+
 ---
 
 ## Open item, not a feature
