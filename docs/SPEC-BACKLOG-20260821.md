@@ -131,7 +131,17 @@ the Registry; it is a join, not a new source of truth. Deterministic, no AI.
 Would have caught the numeric threshold, the stale profile, AND today's dead
 patterns without anyone having to notice.
 
-## 6 · Identification scope picker, derived from the Registry  — PG spec
+## 6 · Identification scope picker, derived from the Registry — RESOLVED (Policy 1.10.15)
+
+Shipped 2026-08-23 (88220c9) as "Scope from Registry" on the Deploy page:
+the loaded Registry's governed tables and file-side CSVs resolve to entity
+ids in one click (governed-column counts shown; sources not yet registered
+in PDC are listed, not dropped), and the Report page's identification
+read-back prefills its table list from GET /api/scope-sources. The
+per-source "N methods can fire here" count below remains a nice-to-have.
+Original note kept below.
+
+## (original) 6 · Identification scope picker, derived from the Registry  — PG spec
 
 Raised 2026-08-21 while running identification off the Deploy page, which has
 no scope control at all. The obvious build is a catalog browser (schema ->
