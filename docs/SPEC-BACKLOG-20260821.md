@@ -75,6 +75,17 @@ whose ONLY available governance is the term↔column link. The policy filters
 hardest exactly where there is no fallback (the whole water-chemistry panel:
 pH, chlorine, lead, copper, turbidity, hardness, TDS).
 
+**The policy fix (added 2026-08-23, from the user asking which mode is
+"better"):** Selective should AUTO-EXEMPT `mapping_only` terms. For a term
+with a detectable shape, the link is one control among several; for a
+mapping-only term the link IS the control, so a relevance gate should never
+be what removes it. With that exemption Selective becomes safe out of the
+box, and the Map-everything workaround stops being necessary on estates
+where noise matters. (Note also: the mapping policy does not affect Registry
+completeness — a misconception worth a line in the docs. It affects the
+term-column links and which concepts get term_id backfill; seeded concepts
+map under Selective anyway because profiled evidence earns the confidence.)
+
 ## 4 · AI-proposed label vocabularies  — Glossary spec (NOT the PG spec)
 
 Decided 2026-08-21: labels are created and stamped by the Glossary app, so this
