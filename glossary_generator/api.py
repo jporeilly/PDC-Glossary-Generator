@@ -3880,6 +3880,60 @@ def pdc_glossary_exists(body: dict = Body(default={})):
         return _err(str(e), 502)
     return res
 
+@app.post("/api/seed-readiness")
+def api_seed_readiness(body: dict = Body(default={})):
+    """The glossary's detection-evidence summary, before anything is generated
+    (spec backlog item 2): how many terms carry a usable seed, how many are
+    mapping-only by declaration, and how many have NO usable evidence — the
+    ones the Policy Generator will ask for back. Also surfaces a shape claimed
+    by more than one concept, which is the 2026-08-20 eight-concepts-one-regex
+    defect made visible where "Draft produced 88 patterns" read like success.
+    Pure summary over the rows — nothing is decided or written here; the same
+    seeds_for_row ladder the Registry and the drafter share does the reading."""
+    from engine import policy_seed
+    from registry import bridge
+    rows = [r for r in (body or {}).get("rows", []) if isinstance(r, dict)]
+    kept = [r for r in rows
+            if str(r.get("Keep", "Y")).strip().upper() != "N"]
+    try:
+        curated = bridge._curated_seeds()
+    except Exception:
+        curated = {}
+    pats = dicts = map_nature = map_flippable = 0
+    no_seed = []
+    shape_claims = {}
+    for r in kept:
+        seeds, skip, mapping = policy_seed.seeds_for_row(r, curated)
+        if mapping is not None:
+            # a declaration, not a failure — and a starred one is the drafter's
+            # "the NAME is authoritative" recommendation, worth its own count
+            if mapping.get("auto_candidate"):
+                map_flippable += 1
+            else:
+                map_nature += 1
+            continue
+        if seeds:
+            best = seeds[0]
+            if best.get("type") == "pattern":
+                pats += 1
+                rx = (best.get("regex") or "").strip()
+                if rx:
+                    shape_claims.setdefault(rx, set()).add(r.get("Term") or "")
+            else:
+                dicts += 1
+        else:
+            no_seed.append({"term": r.get("Term") or "", "why": skip or ""})
+    shared = [{"regex": rx, "terms": sorted(t for t in terms if t)}
+              for rx, terms in sorted(shape_claims.items())
+              if len({t for t in terms if t}) > 1]
+    return {"terms": len(kept),
+            "seeded": pats + dicts, "patterns": pats, "dictionaries": dicts,
+            "mapping_only": map_nature + map_flippable,
+            "flippable": map_flippable,
+            "no_seed": len(no_seed), "no_seed_terms": no_seed[:60],
+            "shared_shapes": shared}
+
+
 @app.post("/api/data-elements")
 def data_elements(body: dict = Body(default={})):
     """Build the term<->column Data-Element links plus their bulk-assign CSV and Trust-ready API JSON."""

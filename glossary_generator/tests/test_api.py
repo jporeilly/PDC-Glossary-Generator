@@ -1594,3 +1594,34 @@ class TestHarvestCarriesPdcProfiling:
         assert "pattern" not in prose, "a human summary is not a regex"
 
 
+
+
+class TestSeedReadiness:
+    def test_summary_buckets_and_shared_shapes(self, client):
+        """Spec backlog 2: the evidence summary BEFORE anything is generated.
+           Seeded / mapping-only (with the flippable star count) / no-seed,
+           and a shape claimed by two terms surfaces loudly — the
+           2026-08-20 eight-concepts-one-regex defect made visible."""
+        rows = [
+            {"Keep": "Y", "Term": "Meter ID", "Source_Column": "awc.m.meter_id",
+             "Value_Pattern": "^[A-Z]{2}[0-9]{6}$", "Value_Signature": "AAnnnnnn"},
+            {"Keep": "Y", "Term": "Billing ZIP", "Source_Column": "awc.c.billing_zip",
+             "Value_Pattern": "^\d{5}$"},
+            {"Keep": "Y", "Term": "Service ZIP", "Source_Column": "awc.c.service_zip",
+             "Value_Pattern": "^\d{5}$"},
+            {"Keep": "Y", "Term": "Status", "Source_Column": "awc.c.status",
+             "Enum_Values": "Active;Inactive"},
+            {"Keep": "Y", "Term": "Customer Name", "Source_Column": "awc.c.customer_name",
+             "Detection_Intent": "mapping_only"},
+            {"Keep": "Y", "Term": "Notes", "Source_Column": "awc.c.notes"},
+            {"Keep": "N", "Term": "Pruned", "Source_Column": "awc.c.junk",
+             "Value_Pattern": "^X$"},
+        ]
+        d = client.post("/api/seed-readiness", json={"rows": rows}).json()
+        assert d["terms"] == 6, d                    # pruned rows never count
+        assert d["patterns"] == 3 and d["dictionaries"] == 1
+        assert d["mapping_only"] == 1
+        assert d["no_seed"] == 1
+        assert d["no_seed_terms"][0]["term"] == "Notes"
+        (sh,) = d["shared_shapes"]
+        assert sh["terms"] == ["Billing ZIP", "Service ZIP"]

@@ -22,6 +22,21 @@ only what was left undone.
 
 ## 1 · Remove Draft policies from the Glossary app  — Glossary spec
 
+**DECIDED 2026-08-23 (user): the flip workflow moves to the REVIEW page.**
+Execution plan, sized a careful half-day — the draft card is not just a
+button, it hosts live machinery:
+- ★ Flip all recommended + per-term "→ Auto" move to Review's Detection
+  filter row; `auto_candidate` comes from the seed ladder without drafting
+  (the /api/seed-readiness endpoint already walks it — extend it to return
+  the flippable term list).
+- The skip-groups' "→ Mapping-only" quiet-in-place flips move with them.
+- Decide the DQ expectations' fate (Quality/ in the bundle) — either their
+  own export on Apply or retired with the bundle; do not lose them silently.
+- Delete: the card, /api/draft-policies + job twin, the MinIO bundle path,
+  drafted-policies zip handling; sweep GUIDE/REFERENCE/WALKTHROUGH.
+- policy_draft.py: keep only what policy_seed does not already own; the
+  engine's flip logic (auto_candidate) moves to policy_seed if not there.
+
 `engine/policy_draft.py` describes itself as "the first working incarnation of
 the Policy Generator". It predates Author and was never removed, so methods can
 now be drafted in two places and only one of them is on the contract.
@@ -34,7 +49,16 @@ shared `policy_seed` module to stop diverging.
 Remove the button and the bundle. Author becomes the only place methods are
 authored.
 
-## 2 · Seed-readiness panel on Apply  — Glossary spec
+## 2 · Seed-readiness panel on Apply — RESOLVED (built 2026-08-23, rides the release after 1.38.41)
+
+POST /api/seed-readiness + a card above Generate: kept terms · seeded
+(patterns/dictionaries) · mapping-only (with the ★ flippable count) ·
+no-usable-seed (collapsible list with reasons), and shared content shapes
+surfaced loudly with the terms that claim them. Same seeds_for_row ladder
+the Registry and drafter share; summary only, nothing decided. Original
+note kept below.
+
+## (original) 2 · Seed-readiness panel on Apply  — Glossary spec
 
 Replaces (1) with the part worth keeping: an early warning that the glossary's
 EVIDENCE is poor, which is the Glossary app's own business. Not a drafting
@@ -108,7 +132,16 @@ should fill that pack vocabulary, not bypass it.
 Constraint to carry into the spec: a label needs <= 6 distinct values or the
 engine drops it as "a field, not a label".
 
-## 5 · Efficacy check — does each deployed method still match anything?  — PG spec
+## 5 · Efficacy check — RESOLVED (Policy, built 2026-08-23, rides the next release)
+
+POST /api/pdc/efficacy + a card on the Drift page: every authored seed
+evaluated against the STORED profile samples identification scores with
+(entities/filter/profiling-info, one call per source table/file). Verdicts
+live (rate) / dead (samples exist, zero match, replacing values shown) /
+no_samples (re-profile first) / unresolved. Deterministic join of Registry
+seeds and PDC profiles. Original note kept below.
+
+## (original) 5 · Efficacy check — does each deployed method still match anything?  — PG spec
 
 The blind spot between the two things that DO exist:
 

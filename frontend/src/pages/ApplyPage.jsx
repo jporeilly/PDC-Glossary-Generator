@@ -194,6 +194,7 @@ export default function ApplyPage({ onNavigate }) {
           hit "base URL required" before the sign-in card had even been seen
           (field-caught: "PDC Connection should be before Generate JSONL"). */}
       <ConnectionCard conn={conn} setConn={setConn} saveConn={saveConn} />
+      <SeedReadinessCard rows={ws.rows} />
       <GenerateCard rows={ws.rows} glossaryName={glossaryName} governance={ws.governance}
                     settings={settings} onNavigate={onNavigate} authBody={authBody} />
       <DataElementsCard rows={ws.rows} glossaryName={glossaryName} governance={ws.governance}
@@ -824,6 +825,76 @@ function ConnectionCard({ conn, setConn, saveConn }) {
 }
 
 /* ---------- step 1: Data Elements (term↔column links) ---------- */
+
+/* ---------- seed readiness (spec backlog 2) ---------- */
+// The glossary's detection-evidence summary, BEFORE anything is generated:
+// an early warning that the evidence is poor is the Glossary app's own
+// business. Would have shown the 2026-08-20 defect loudly — eight concepts
+// backed by one identical regex is visible here, where "Draft produced 88
+// patterns" read like success.
+function SeedReadinessCard({ rows }) {
+  const [sum, setSum] = useState(null)
+  const [err, setErr] = useState(null)
+
+  useEffect(() => {
+    let dead = false
+    if (!rows?.length) { setSum(null); return undefined }
+    apiPost('/api/seed-readiness', { rows })
+      .then((d) => { if (!dead) { setSum(d); setErr(null) } })
+      .catch((e) => { if (!dead) setErr(e.message) })
+    return () => { dead = true }
+  }, [rows])
+
+  if (!rows?.length) return null
+  return (
+    <section className="card">
+      <h2>Seed readiness <span>what the evidence can and cannot detect</span></h2>
+      <p className="hint-line">
+        Read from the review grid by the same seed ladder the Registry and the drafter
+        share — nothing is decided here. <b>Seeded</b> terms will author identification
+        methods; <b>mapping-only</b> terms are governed by their term↔column links (their
+        approved tags reach the columns at Apply); <b>no usable seed</b> is the list the
+        Policy Generator will ask for back.
+      </p>
+      {err && <p className="summary warn">{err}</p>}
+      {sum && (
+        <>
+          <p className="summary">
+            <b>{sum.terms}</b> kept term(s) ·{' '}
+            <span className="badge good">{sum.seeded} seeded ({sum.patterns} patterns, {sum.dictionaries} dictionaries)</span>{' '}
+            <span className="badge neutral" title="Governed by the term↔column link by declaration — names, addresses, dates, free text">
+              {sum.mapping_only} mapping-only{sum.flippable ? ` (★ ${sum.flippable} flippable)` : ''}
+            </span>{' '}
+            <span className={`badge ${sum.no_seed ? 'warning' : 'neutral'}`}>
+              {sum.no_seed} no usable seed
+            </span>
+          </p>
+          {sum.shared_shapes?.length > 0 && (
+            <p className="summary warn">
+              ⚠ {sum.shared_shapes.length} content shape(s) claimed by more than one term — a regex
+              that identifies several concepts identifies none of them:{' '}
+              {sum.shared_shapes.slice(0, 3).map((s, i) => (
+                <code key={i} style={{ marginRight: '.4rem' }}
+                      title={s.terms.join(', ')}>{s.regex} ×{s.terms.length}</code>
+              ))}
+              {sum.shared_shapes.length > 3 ? '…' : ''}
+            </p>
+          )}
+          {sum.no_seed > 0 && (
+            <details>
+              <summary className="notes">the {sum.no_seed} term(s) with no usable evidence</summary>
+              <ul className="notes">
+                {sum.no_seed_terms.map((t) => (
+                  <li key={t.term}><b>{t.term}</b> — {t.why}</li>
+                ))}
+              </ul>
+            </details>
+          )}
+        </>
+      )}
+    </section>
+  )
+}
 
 function DataElementsCard({ rows, glossaryName, governance, de, setDe }) {
   const [policy, setPolicy] = usePersistentState('apply.dePolicy', 'default')
