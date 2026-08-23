@@ -100,7 +100,7 @@ function WorkingCycle() {
         After step 6 the Registry (<code>registries/registry.&lt;glossary&gt;.json</code>) is
         current; after step 7 the flywheel is closed. <b>Save dictionary</b> is only needed
         after hand-editing tags/rules — approvals and scan accretion persist on their own.
-        App state survives <code>git pull</code> untouched; <b>Settings → State snapshot</b>
+        App state survives <code>git pull</code> untouched; <b>Settings → State snapshot</b>{' '}
         covers machine moves and restore points.
       </p>
     </details>

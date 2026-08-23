@@ -409,7 +409,7 @@ function BulkLoadCard({ pdc, onConnectionsChanged }) {
         data source, triggers a <b>metadata ingest</b> scoped to it and waits for the job, then
         <b> analyses</b> it — Data Profiling over a database's tables, a file scan plus Data
         Discovery over an object store's files. Without that last step PDC lists the tables and
-        files but knows nothing inside them; untick <b>profile</b> (databases) or <b>discover</b>
+        files but knows nothing inside them; untick <b>profile</b> (databases) or <b>discover</b>{' '}
         (object stores) to skip it.
         Use <code>kind</code> = <code>postgres</code>, <code>mysql</code>, <code>oracle</code>,{' '}
         <code>minio</code>/<code>s3</code> or <code>azure_blob</code>. Secrets are sent to PDC only

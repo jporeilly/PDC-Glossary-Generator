@@ -1604,9 +1604,9 @@ function LabelsCard({ rows, authBody }) {
     <section className="card">
       <h2>Data labels <span>create the kept label keys in PDC, then stamp them onto the columns</span></h2>
       <p className="hint-line">
-        Writes each label key you kept on <b>Govern</b> into PDC as a <b>data label</b>
+        Writes each label key you kept on <b>Govern</b> into PDC as a <b>data label</b>{' '}
         (a custom property with a governed value set), with the values derived from this
-        grid. Idempotent — existing labels are reported, never overwritten. <b>Stamp</b>
+        grid. Idempotent — existing labels are reported, never overwritten. <b>Stamp</b>{' '}
         then assigns each column its values (PII Type tier, access tier…) on the entity
         itself — merged, so labels this app never derived survive; preview first, and
         any family whose values drifted in PDC is reported, never guessed at.

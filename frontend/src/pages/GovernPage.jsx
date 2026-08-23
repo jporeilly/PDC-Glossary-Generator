@@ -1215,7 +1215,7 @@ function HowItWorksCard() {
           with no match it falls back to the role default. Each card shows the <i>rationale</i>.
           Manual edits lock that field so a re-run won’t overwrite you.</span>
         <span className="k">Rating</span>
-        <span className="v">A 1–5 quality star, set globally or per category. <b>Auto (scan DQ)</b>
+        <span className="v">A 1–5 quality star, set globally or per category. <b>Auto (scan DQ)</b>{' '}
           derives each category’s rating from its columns’ scan Data-Quality scores.</span>
       </div>
     </details>
