@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.38.40] - 2026-08-23
+
+### Fixed - ratings carried no rater, so a fully rated walk showed 0 stars
+
+Field-caught on the verification walk, minutes after 1.38.39: 155 columns
+carried scan ratings into Apply, PDC showed 0 stars on every column and
+table, and the receipt said tables_rated: 0. PDC renders stars from the
+rating's `users` map; links_to_api_json wrote column ratings as bare
+{value} - the 2026-08-20 table defect, one layer down - and Apply's table
+roll-up harvests its raters FROM the column ratings, so the rater-less
+columns silently disabled every table rating too (rating_payload
+correctly refuses a rating attributed to nobody). The Data-Elements pull
+now threads the Govern steward through as the rater and honours Govern's
+fixed rating instead of hard-coding 0 (auto mode keeps per-column scan
+values). Re-Apply after upgrading to see the stars.
+
 ## [1.38.39] - 2026-08-23
 
 The clean-walk batch: everything field-caught on the 2026-08-23 end-to-end
