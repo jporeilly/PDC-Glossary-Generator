@@ -114,9 +114,23 @@ def merge_attributes(current, incoming):
         e.update({k: v for k, v in inc_e.items() if v is not None})
         out["extended"] = e
 
+    # tags: union by name, current first — a PATCHed tags array replaces
+    # wholesale server-side, so hand-added tags (and any identification tags)
+    # must be read and carried or the steward-tag stamp would erase them
+    cur_t = cur.get("tags") or []
+    inc_t = inc.get("tags") or []
+    if inc_t:
+        seen, merged_tags = set(), []
+        for t in list(cur_t) + list(inc_t):
+            nm = str((t.get("name") if isinstance(t, dict) else t) or "").strip()
+            if nm and nm.lower() not in seen:
+                seen.add(nm.lower())
+                merged_tags.append({"name": nm})
+        out["tags"] = merged_tags
+
     # any other incoming attribute keys overwrite
     for k, v in inc.items():
-        if k in ("businessTerms", "features", "extended"):
+        if k in ("businessTerms", "features", "extended", "tags"):
             continue
         out[k] = v
     return out

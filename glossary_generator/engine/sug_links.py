@@ -256,7 +256,30 @@ def map_breakdown(rows, policy=None):
     return {"mapped": mapped, "skipped": skipped,
             "mapped_count": len(mapped), "skipped_count": len(skipped)}
 
-def data_element_links(rows, glossary_name="Business Glossary", quality_weights=None, with_quality=True, policy=None):
+# Structural tags describe the ROW's mechanics, not the data's classification —
+# they never reach a method's applyTags (the Policy author strips the same set)
+# and they never reach a column's tag facet.
+_STRUCTURAL_TAGS = {"maskable", "identifier", "record", "table-level"}
+
+
+def _steward_tags(row, allowed=None):
+    """The row's steward-approved, governed classification tags — what an
+    identification method WOULD stamp if one existed. Structural tags are
+    dropped; when a governed allow-list is supplied, off-vocabulary tags are
+    dropped too (same filter as the Policy author's applyTags)."""
+    raw = str(row.get("Suggested_Tags") or "")
+    out = []
+    for t in dict.fromkeys(x.strip().lower() for x in raw.split(";") if x.strip()):
+        if t in _STRUCTURAL_TAGS:
+            continue
+        if allowed is not None and t not in allowed:
+            continue
+        out.append(t)
+    return out
+
+
+def data_element_links(rows, glossary_name="Business Glossary", quality_weights=None, with_quality=True, policy=None,
+                       allowed_tags=None):
     """Map each kept term to the physical column(s) it came from — the Data Element
        associations (term <-> column) keyed by schema/table/column for bulk assignment.
        Each link carries the column's own scan-suggested rating and DQ qualityScore
@@ -274,6 +297,8 @@ def data_element_links(rows, glossary_name="Business Glossary", quality_weights=
         fallback = int(r.get("Suggested_Rating", 0) or 0)
         qdims_map = r.get("Source_Quality_Dims") or {}
         keys_map = r.get("Source_Keys") or {}
+        intent = str(r.get("Detection_Intent") or "").strip().lower()
+        stags = _steward_tags(r, allowed_tags)
         for sc in str(r.get("Source_Column", "")).split(";"):
             sc_key = sc.strip()
             de = _parse_source(sc_key)
@@ -294,6 +319,7 @@ def data_element_links(rows, glossary_name="Business Glossary", quality_weights=
                           "critical_data_element": r.get("Critical_Data_Element", "No"),
                           "rating": rating, "quality": quality,
                           "definition": (r.get("Definition") or "").strip(),
+                          "intent": intent, "steward_tags": stags,
                           "keys": keys_map.get(sc_key)})
     return links
 
@@ -346,6 +372,24 @@ def links_to_api_json(links, glossary_name="Business Glossary", lineage_verified
                 if rater:
                     rp["users"] = {rater: col_rating}
                 rec["attributes"]["features"]["rating"] = rp
+        # Steward-approved tags land ONLY on mapping-only columns — where no
+        # method will ever exist, so identification's fingerprint (tags on a
+        # seeded column = a rule fired) stays intact. Without this, the tags
+        # the steward explicitly approved in Review never reached the one
+        # facet PDC users search first ("if I did a pii search, it wouldn't
+        # appear?" — field 2026-08-23), and the steward would hand-add them.
+        # Provenance rides in extended.stewardTags: tags on a link-governed
+        # column are the steward's classification, not a rule's discovery.
+        if l.get("intent") == "mapping_only" and l.get("steward_tags"):
+            existing = {t["name"] for t in rec["attributes"].get("tags") or []}
+            new = [t for t in l["steward_tags"] if t not in existing]
+            if new:
+                rec["attributes"].setdefault("tags", []).extend({"name": t} for t in new)
+                ext = rec["attributes"].setdefault("extended", {})
+                prov = ext.setdefault("stewardTags", {"tags": [], "source": "glossary-apply"})
+                prov["tags"] = sorted(set(prov["tags"]) | set(new))
+                if rater:
+                    prov["by"] = rater
         # qualityScore: the Data Quality input (0-100). Highest scan suggestion wins
         # when several terms map to one column. PDC records an externally-set value
         # as a MANUAL quality metric (which is what we want now PDQ is retired).

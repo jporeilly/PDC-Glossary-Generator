@@ -3895,8 +3895,15 @@ def data_elements(body: dict = Body(default={})):
     qw = body.get("quality_weights") or None   # {completeness, uniqueness, validity}
     with_quality = bool(body.get("quality", True))
     policy = body.get("map_policy")   # optional selective-mapping override; None => DEFAULT_MAP_POLICY
+    # the governed vocabulary gates which steward tags may stamp — the same
+    # allow-list the Registry embeds for the Policy author's applyTags
+    try:
+        allowed = set(tagdict.governed_tags())
+    except Exception:
+        allowed = None
     links = suggester.data_element_links(rows, name, quality_weights=qw,
-                                         with_quality=with_quality, policy=policy)
+                                         with_quality=with_quality, policy=policy,
+                                         allowed_tags=allowed)
     api_json = suggester.links_to_api_json(links, name, lineage, rating, rater=rater)
     rated = sum(1 for l in links if l.get("quality") is not None)
     breakdown = suggester.map_breakdown(rows, policy)

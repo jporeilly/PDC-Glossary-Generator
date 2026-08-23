@@ -82,6 +82,42 @@ class TestApplyPatchBodies:
         for rec in api_json:
             check_patch_attrs(rec["attributes"], strict=False)
 
+    def test_steward_tags_stamp_mapping_only_columns_with_provenance(self):
+        """"If I did a pii search, it wouldn't appear?" (field 2026-08-23):
+           the steward approved tags in Review and they never reached the one
+           facet PDC users search first. Approved GOVERNED tags now stamp
+           mapping-only columns (where no method can ever exist, so the
+           tags-mean-a-rule-fired fingerprint on seeded columns is intact),
+           with provenance in extended.stewardTags. Structural and
+           off-vocabulary tags never stamp."""
+        rows = [
+            dict(ROWS[0]),                                     # seeded (has detect evidence)
+            {"Keep": "Y", "Category": "Customer", "Term": "Member Name",
+             "Source_Column": "cscu.members.full_nm",
+             "Definition": "The member's name.", "Sensitivity": "HIGH",
+             "PII_Category": "NAME", "Critical_Data_Element": "No",
+             "Suggested_Tags": "pii;privacy;maskable;identifier;off-vocab-thing",
+             "Detection_Intent": "mapping_only"},
+        ]
+        links = suggester.data_element_links(rows, policy={"mode": "all"},
+                                             allowed_tags={"pii", "privacy", "contact"})
+        recs = suggester.links_to_api_json(links, rater="a.steward")
+        by = {r["columnName"]: r["attributes"] for r in recs}
+        # mapping-only: governed tags stamp, structural + off-vocabulary do not
+        assert by["full_nm"].get("tags") == [{"name": "pii"}, {"name": "privacy"}]
+        prov = by["full_nm"]["extended"]["stewardTags"]
+        assert prov == {"tags": ["pii", "privacy"], "source": "glossary-apply",
+                        "by": "a.steward"}
+        # seeded column: NO tags in the payload — a rule earns those
+        assert "tags" not in by["mbr_no"]
+        for rec in recs:
+            check_patch_attrs(rec["attributes"], strict=False)
+        # the PATCH merge unions with what the entity already carries
+        merged = pdc_api.merge_attributes(
+            {"tags": [{"name": "hand-added"}, {"name": "pii"}]}, by["full_nm"])
+        assert merged["tags"] == [{"name": "hand-added"}, {"name": "pii"},
+                                  {"name": "privacy"}]
+
     def test_column_ratings_carry_their_rater(self):
         """A rating without a `users` map is a rating nobody cast: PDC shows
            0 stars, and Apply's table roll-up harvests its raters FROM the
