@@ -1526,6 +1526,27 @@ class TestFactoryReset:
         assert all(t.get("status") != "pending" for t in d.get("terms", [])), \
             "the running process forgets too — reseeded defaults, no pending"
 
+    def test_reset_verifies_by_listing_and_refuses_late_saves(self, client, fresh_dict):
+        """Field 2026-08-23: a save in flight when the reset ran landed AFTER
+           the wipe and wrote the deleted estate straight back, and the reply's
+           deleted[] hid it. The reset must re-list the state dir (resurrections
+           surface as `remaining`) and the save endpoint must refuse writes in
+           the seconds after a wipe."""
+        import api as api_mod
+        r = client.post("/api/factory-reset", json={"confirm": "RESET"}).json()
+        assert "remaining" in r, "the reply must verify by listing, not trust deleted[]"
+        assert "glossaries.json" not in r["remaining"]
+        # the in-flight save arriving moments later is refused…
+        late = client.post("/api/glossaries",
+                           json={"name": "Resurrected", "rows": [{"a": 1}]})
+        assert late.status_code == 409, late.text
+        assert "factory reset" in late.json()["error"].lower()
+        # …and once the window passes, saving works again
+        api_mod._FACTORY_RESET_AT = 0.0
+        ok = client.post("/api/glossaries",
+                         json={"name": "Fresh start", "rows": [{"a": 1}]})
+        assert ok.status_code == 200, ok.text
+
 
 class TestHarvestCarriesPdcProfiling:
     def test_pdc_profiling_maps_onto_the_profile_dict(self):

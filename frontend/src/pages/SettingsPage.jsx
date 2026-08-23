@@ -151,10 +151,16 @@ function SnapshotCard() {
                     markWiped()
                     clearWorkspace()
                     const d = await apiPost('/api/factory-reset', { confirm: 'RESET' })
-                    setMsg(`✓ Factory reset — deleted ${d.deleted.length} item(s). Reloading…`)
+                    // the server re-lists the state dir after the wipe — a file
+                    // still there is a resurrection, not a success to paper over
+                    setMsg((d.remaining?.length ?? 0) > 0
+                      ? `⚠ Factory reset ran but ${d.remaining.length} file(s) survived the wipe: `
+                        + `${d.remaining.join(', ')} — close the app fully and delete them by hand`
+                      : `✓ Factory reset — deleted ${d.deleted.length} item(s), state directory verified clean. Reloading…`)
                     // a hard reload drops every page's in-memory state, so
-                    // nothing can resurrect the estate that was just deleted
-                    setTimeout(() => window.location.reload(), 900)
+                    // nothing can resurrect the estate that was just deleted.
+                    // On a dirty wipe, stay put so the warning stays readable.
+                    if ((d.remaining?.length ?? 0) === 0) setTimeout(() => window.location.reload(), 900)
                   } catch (err) { setMsg(`Factory reset failed: ${err.message}`) }
                 }}>
           ⚠ Factory reset…

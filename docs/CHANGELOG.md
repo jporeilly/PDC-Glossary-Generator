@@ -1,5 +1,51 @@
 # Changelog
 
+## [1.38.39] - 2026-08-23
+
+The clean-walk batch: everything field-caught on the 2026-08-23 end-to-end
+walkthrough (Retire -> factory reset -> bulk load -> harvest -> review ->
+govern -> generate -> import -> resolve -> apply -> labels -> Policy half),
+which finished with drift-check 39/39 clean.
+
+### Fixed - a dry-run that looks exactly like the real thing
+
+The labels-stamp preview and the real stamp showed the identical
+`stamp - N/155` counter, and a steward who watched the preview tick to
+155/155 reasonably believed the labels were stamped when nothing had been
+written. The job now reports phase `plan` on a dry run and `stamp` on the
+real write; the UI labels them "planning (dry run - nothing written)" vs
+"stamping (writing to PDC)", and the result lines say explicitly whether
+anything was written.
+
+### Fixed - factory reset could be undone by a save already in flight
+
+Field-caught opening the walk: the reset deleted its targets and
+`glossaries.json` came back before the relaunch. The client-side wiped
+guard cannot cancel a POST the browser already sent, so the SERVER now
+refuses glossary saves for 10 seconds after a reset (409). The reset reply
+also re-lists the state directory after the wipe - a file still present
+comes back in `remaining` and the UI reports it as a failed wipe instead of
+declaring success from `deleted[]`; the auto-reload is skipped so the
+warning stays readable.
+
+### Fixed - spaces swallowed by JSX after inline closing tags
+
+A newline between an inline element and following text renders with NO
+space in JSX, so hint copy read "Stampthen assigns" and "data label(a
+custom property". Swept all three apps for the pattern - five instances,
+all here (Apply x2, Connect, Govern, Home) - pinned with explicit spaces.
+
+### Also riding this release (committed 2026-08-23, pre-walk)
+
+- Enum completion: a sampled enum that flags a vocabulary is completed by
+  `SELECT DISTINCT` (cap 48) instead of trusting LIMIT-80 sampling order.
+- Self-contained API docs: vendored swagger-ui, `/docs` works inside the
+  desktop shell (the CDN and `target=_blank` are both blocked by Tauri).
+- Deterministic term-id fallback: a resolve MISS on a name PDC search cannot
+  find (ampersands) fills from the deterministic import id when provenance
+  is live - proven on the walk by both `Infrastructure & Assets` terms
+  deploying and firing bound-by-id.
+
 ## [1.38.38] - 2026-08-22
 
 ### Fixed - profiling never asked PDC to keep samples, so no pattern could ever fire

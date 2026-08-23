@@ -17,6 +17,7 @@ Run:  python -m uvicorn api:app          (from glossary_generator/, port 5000
 import io
 import json
 import os
+import time
 import threading
 import queue as _queue_mod
 import uuid
@@ -1116,6 +1117,15 @@ def snapshot_glossary(gid: str):
 def save_glossary(body: dict = Body(default={})):
     """Save (or overwrite) a named glossary of review rows."""
     import datetime
+    # A save that was already in flight when a factory reset ran lands AFTER
+    # the wipe and writes the just-deleted estate straight back (field-caught
+    # 2026-08-23: glossaries.json resurrected between reset and relaunch).
+    # The client-side wiped guard cannot cancel a POST the browser already
+    # sent, so the server refuses saves in the seconds after a reset.
+    if time.time() - _FACTORY_RESET_AT < 10:
+        return _err("a factory reset just ran — this save was refused so it "
+                    "cannot resurrect the deleted estate; reload and start "
+                    "fresh", 409)
     body = body or {}
     try:
         g = _load_gloss(strict=True)
@@ -4041,7 +4051,12 @@ def _labels_stamp_impl(body, progress=None):
         label = ".".join(x for x in (sch, tbl, col) if x)
         if progress:
             try:
-                progress({"phase": "stamp", "done": i, "total": total, "column": label})
+                # "plan" vs "stamp" — the dry run's counter is otherwise
+                # indistinguishable from the real write in the UI, and a
+                # steward who watched 155/155 tick by believed the labels
+                # were stamped when nothing had been written (2026-08-23).
+                progress({"phase": "plan" if dry else "stamp",
+                          "done": i, "total": total, "column": label})
             except Exception:
                 pass
         rec = {"type": etype, "schemaName": sch, "tableName": tbl, "columnName": col}
@@ -4326,6 +4341,11 @@ def api_pdc_profiling_probe(body: dict = Body(default={})):
             "file_sample": file_sample}
 
 
+# Set by /api/factory-reset; the save endpoint refuses writes for a few
+# seconds afterwards so an in-flight autosave cannot resurrect the estate.
+_FACTORY_RESET_AT = 0.0
+
+
 @app.post("/api/factory-reset")
 def api_factory_reset(body: dict = Body(default={})):
     """Delete ALL app state from inside the app — the guaranteed clean slate.
@@ -4337,6 +4357,8 @@ def api_factory_reset(body: dict = Body(default={})):
     the seeds (domain pack, defaults) regenerate."""
     if (body or {}).get("confirm") != "RESET":
         return _err('pass {"confirm": "RESET"} to wipe all app data', 400)
+    global _FACTORY_RESET_AT
+    _FACTORY_RESET_AT = time.time()
     import shutil
     deleted = []
     targets = [PEOPLE_FILE, CONN_FILE, SETTINGS_FILE, GLOSS_FILE,
@@ -4366,7 +4388,21 @@ def api_factory_reset(body: dict = Body(default={})):
         pass
     logging.getLogger("client").error(
         "factory-reset: %s deleted", ", ".join(deleted) or "nothing")
-    return {"deleted": deleted,
+    # Verify by re-listing the state dir, not by trusting deleted[]: the
+    # field failure was files that CAME BACK between the wipe and relaunch.
+    # app.log (the black box) and exports/ (the user's own downloads) are
+    # expected survivors, everything else is a resurrection to surface.
+    remaining = []
+    try:
+        for name in sorted(os.listdir(paths.state_dir())):
+            if name == "app.log" or name.startswith("app.log."):
+                continue
+            if name in ("exports",):
+                continue
+            remaining.append(name)
+    except Exception:
+        pass
+    return {"deleted": deleted, "remaining": remaining,
             "note": "Close and relaunch the app — seeds and defaults "
                     "regenerate on startup. app.log was kept."}
 

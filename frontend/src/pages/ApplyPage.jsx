@@ -1637,7 +1637,9 @@ function LabelsCard({ rows, authBody }) {
         {stampErr && <span className="warn">{stampErr}</span>}
         {stampBusy && stampTick && (
           <span className="notes">
-            {stampTick.phase || 'working'} · {stampTick.done ?? 0}/{stampTick.total ?? '…'}
+            {stampTick.phase === 'plan' ? 'planning (dry run — nothing written)'
+              : stampTick.phase === 'stamp' ? 'stamping (writing to PDC)'
+              : stampTick.phase || 'working'} · {stampTick.done ?? 0}/{stampTick.total ?? '…'}
           </span>
         )}
       </div>
@@ -1652,8 +1654,9 @@ function LabelsCard({ rows, authBody }) {
         <>
           <p className={`summary ${stamp.unresolved?.length || stamp.mismatches?.length || stamp.missing_families?.length ? '' : 'ok'}`}>
             {stamp.dry_run
-              ? <><b>{stamp.planned}</b> of {stamp.total_columns} column(s) ready to stamp</>
-              : <><b>{stamp.stamped}</b> of {stamp.total_columns} column(s) stamped ✓</>}
+              ? <><b>{stamp.planned}</b> of {stamp.total_columns} column(s) ready to stamp
+                  — dry run, <b>nothing written yet</b>; click Stamp to write</>
+              : <><b>{stamp.stamped}</b> of {stamp.total_columns} column(s) stamped ✓ — written to PDC</>}
             {(stamp.missing_families?.length ?? 0) > 0 &&
               <> · not in PDC yet (run Create first): {stamp.missing_families.join(', ')}</>}
             {(stamp.unresolved?.length ?? 0) > 0 &&
