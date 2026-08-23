@@ -420,6 +420,30 @@ Design decided in discussion:
 Fits as a 1.39.0 feature: /api/ask + a chat drawer in the shell + the train
 index step + evals. Build AFTER the clean walkthrough.
 
+## 11 · Factory reset loses to the running app's memory
+
+Field-caught 2026-08-23, opening the clean walk. Factory reset deleted its
+targets — and the state directory was NOT day-zero afterwards:
+`glossaries.json` (1.7 MB, every saved glossary) and `estate_receipts.json`
+were back, and the Connect card still showed the pre-reset PDC base URL.
+
+The endpoint deletes the files and clears the DICTIONARY cache
+(`tagdict._DICT = None`), but nothing clears the frontend workspace — which
+still holds all the rows — and its autosave writes `glossaries.json` straight
+back. The UI's `usePersistentState` cache (an in-memory Map) likewise
+repaints pre-reset values until the process dies. The docstring says "close
+and relaunch afterwards"; the resurrection happens before the user can.
+
+The narrower form of this was fixed once before (CHANGELOG: "the next
+autosave would have written the deleted glossary back"). Fix shape: the
+reset response should make the FRONTEND forget too — clear the ui cache and
+`window.location.reload()` on success — and the server should drop every
+in-memory store it owns (workspace, receipts), not just the dictionary.
+Then verify by listing the state dir, not by trusting the deleted[] reply.
+
+Workaround used on the walk: close the app first, delete the leftovers by
+hand, relaunch.
+
 ---
 
 ## Open item, not a feature
