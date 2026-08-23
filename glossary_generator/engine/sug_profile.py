@@ -194,9 +194,56 @@ def profile_live(cfg, tables, schema=None, sample_size=80):
                                 seen.add(s); ex.append(s[:40])
                             if len(ex) >= 3: break
                         col["examples"] = ex
+                        # A SAMPLED enum is a hypothesis, not a vocabulary.
+                        # LIMIT-without-ORDER reads the oldest heap pages, so
+                        # the sample skews and rare values vanish: on a live
+                        # estate 9 of 22 induced enums were SHORT of their
+                        # column (Quality Rating lost a label, County lost a
+                        # county), the dictionaries built from them missed
+                        # 10-25% of live rows, and everything downstream
+                        # reported success. The sample DECIDES whether a
+                        # column looks like a vocabulary; the database then
+                        # says what the vocabulary IS - one cheap DISTINCT
+                        # per enum column, only when the hypothesis fired.
+                        _complete_enum(cur, conn, eng, schema, tname, col)
     finally:
         conn.close()
     return tables
+
+
+def _complete_enum(cur, conn, eng, schema, tname, col):
+    """Replace a sampled enum with the column's true distinct set (<=48).
+
+    A true cardinality past 48 means the sample lied about this being a
+    vocabulary at all - the enum is dropped rather than shipped truncated,
+    because a dictionary that silently misses values is worse than none
+    (it tags most of a column and reads as coverage)."""
+    prof = col.get("profile") or {}
+    if not prof.get("enum"):
+        return
+    try:
+        cname = col["column"]
+        if eng == "sqlserver":
+            cur.execute(f'SELECT DISTINCT TOP 49 "{cname}" FROM "{schema}"."{tname}" '
+                        f'WHERE "{cname}" IS NOT NULL')
+        else:
+            cur.execute(f'SELECT DISTINCT "{cname}" FROM "{schema}"."{tname}" '
+                        f'WHERE "{cname}" IS NOT NULL LIMIT 49')
+        vals = sorted({str(r[0]).strip() for r in cur.fetchall()
+                       if str(r[0]).strip()})
+    except Exception:
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        return                      # the sampled hypothesis stands, best-effort
+    if not vals:
+        return
+    if len(vals) > 48:
+        prof.pop("enum", None)      # not a vocabulary - do not ship a truncation
+        return
+    prof["enum"] = vals
+    prof["enum_complete"] = True    # provenance: DISTINCT, not a sample
 
 def discover(cfg, schema=None, sample_size=100):
     """Full data-discovery profile per table/column: row counts, completeness,

@@ -1206,3 +1206,63 @@ class TestWholeDocumentSaveIsNotAWipe:
         assert after.get("definition") == "", "an explicit empty must be honoured"
         assert after.get("pattern") == before["pattern"], \
             "clearing one field must not stop the others being carried"
+
+
+class TestSampledEnumsAreCompleted:
+    """A sampled enum is a hypothesis; the database says what the vocabulary
+    IS. Field-caught twice on the same estate: dictionaries built from
+    LIMIT-sampled enums missed 10-25% of live rows (Maricopa was 852 of 1010
+    and absent from its own dictionary), and on the clean walk 9 of 22 fresh
+    enums were short again. profile_live now runs one DISTINCT per column the
+    sample flagged as a vocabulary.
+    """
+    class FakeCursor:
+        def __init__(self, distinct):
+            self.distinct = distinct
+            self.asked = []
+        def execute(self, sql, *a):
+            self.asked.append(sql)
+        def fetchall(self):
+            return [(v,) for v in self.distinct]
+
+    def _col(self, enum):
+        return {"column": "status", "profile": {"kind": "enum", "enum": list(enum)}}
+
+    def test_the_true_distinct_set_replaces_the_sample(self):
+        from engine.sug_profile import _complete_enum
+        cur = self.FakeCursor(["Active", "active", "inactive", "suspended", "Suspended"])
+        col = self._col(["Active", "inactive", "suspended"])          # short sample
+        _complete_enum(cur, None, "postgresql", "s", "t", col)
+        assert col["profile"]["enum"] == ["Active", "Suspended", "active",
+                                          "inactive", "suspended"]
+        assert col["profile"]["enum_complete"] is True
+        assert "DISTINCT" in cur.asked[0]
+
+    def test_a_cardinality_past_the_cap_drops_the_enum_not_truncates_it(self):
+        """A dictionary that silently misses values is worse than none."""
+        from engine.sug_profile import _complete_enum
+        cur = self.FakeCursor([f"v{i}" for i in range(49)])
+        col = self._col(["v1", "v2", "v3"])
+        _complete_enum(cur, None, "postgresql", "s", "t", col)
+        assert "enum" not in col["profile"], \
+            "the sample lied about this being a vocabulary - ship nothing, not a truncation"
+
+    def test_a_failed_query_leaves_the_hypothesis_standing(self):
+        from engine.sug_profile import _complete_enum
+        class Boom(self.FakeCursor):
+            def execute(self, *a):
+                raise RuntimeError("no permission")
+        class Conn:
+            def rollback(self):
+                pass
+        col = self._col(["A", "B"])
+        _complete_enum(Boom([]), Conn(), "postgresql", "s", "t", col)
+        assert col["profile"]["enum"] == ["A", "B"], "best-effort must not destroy"
+        assert "enum_complete" not in col["profile"]
+
+    def test_columns_without_an_enum_are_never_queried(self):
+        from engine.sug_profile import _complete_enum
+        cur = self.FakeCursor(["x"])
+        col = {"column": "notes", "profile": {"kind": "value"}}
+        _complete_enum(cur, None, "postgresql", "s", "t", col)
+        assert not cur.asked, "one DISTINCT per ENUM column, not per column"
