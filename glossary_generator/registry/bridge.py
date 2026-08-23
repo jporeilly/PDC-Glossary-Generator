@@ -302,9 +302,24 @@ def backfill_term_ids(path: str, name_map: dict, glossary_name: str = None) -> i
 
     filled = 0
     reg["foreign_term_ids"] = []
+    det_filled = []
     for c in reg.get("concepts", []):
         m = name_map.get(c.get("term_name"))
         if not m:
+            # Name-resolution can miss a term that EXISTS - PDC's search
+            # chokes on an ampersand in the name ("Status (Infrastructure &
+            # Assets)" resolved to nothing while its neighbours resolved
+            # fine; field-caught 2026-08-23). When provenance is live (some
+            # resolved ids are provably ours, so the import preserved our
+            # minted ids), the deterministic id IS the term's real id - the
+            # same trust basis the deterministic glossaryId fill has always
+            # used. Fill it, and say so.
+            if mine is not None and not c.get("term_id"):
+                tid = mine.get(c.get("term_name"))
+                if tid:
+                    c["term_id"] = tid
+                    det_filled.append(c.get("term_name"))
+                    filled += 1
             continue
         tid = m.get("id") if isinstance(m, dict) else m
         if tid and mine is not None and tid != mine.get(c.get("term_name")):
@@ -316,6 +331,10 @@ def backfill_term_ids(path: str, name_map: dict, glossary_name: str = None) -> i
         if tid and c.get("term_id") != tid:
             c["term_id"] = tid
             filled += 1
+    if det_filled:
+        reg["deterministic_term_ids"] = det_filled
+    elif "deterministic_term_ids" in reg:
+        reg.pop("deterministic_term_ids")
     if not reg["foreign_term_ids"]:
         reg.pop("foreign_term_ids")
     if reg.get("glossary_id") is None:

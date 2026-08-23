@@ -139,3 +139,42 @@ class TestForeignTermIds:
         assert backfill_term_ids(path, name_map, glossary_name="Arizona Water") == 2
         reg = json.loads(open(path, encoding="utf-8").read())
         assert "foreign_term_ids" not in reg
+
+    def test_a_name_search_miss_falls_back_to_the_deterministic_id(self, tmp_path):
+        """PDC's search chokes on an ampersand in a term name - "Status
+        (Infrastructure & Assets)" resolved to nothing while its neighbours
+        resolved fine (field-caught 2026-08-23), leaving two dictionary-seeded
+        concepts unbound and their methods headed for the name-binding refusal
+        at Deploy. When provenance is live (some resolved ids are provably
+        ours, so the import preserved our minted ids), the deterministic id IS
+        the real id - the same trust basis the deterministic glossaryId fill
+        has always used."""
+        import json
+        from registry.bridge import backfill_term_ids
+        from engine.sug_links import det_term_id
+        path = self._registry(tmp_path)
+        ours_meter = det_term_id("Arizona Water", "Asset Management", "Meter ID")
+        # GIS misses entirely (the & class of failure); Meter ID proves provenance
+        name_map = {"Meter ID": {"id": ours_meter}}
+        filled = backfill_term_ids(path, name_map, glossary_name="Arizona Water")
+        reg = json.loads(open(path, encoding="utf-8").read())
+        by = {c["term_name"]: c for c in reg["concepts"]}
+        assert filled == 2, "the miss must be filled deterministically, and counted"
+        assert by["GIS"]["term_id"] == det_term_id("Arizona Water",
+                                                   "Water System Operations", "GIS")
+        assert reg["deterministic_term_ids"] == ["GIS"], \
+            "a deterministic fill must be reported, not silent"
+
+    def test_no_provenance_means_no_deterministic_fill(self, tmp_path):
+        """When NONE of the resolved ids are ours, PDC re-minted on import and
+        the deterministic id would be an invention - leave the miss unbound."""
+        import json
+        from registry.bridge import backfill_term_ids
+        path = self._registry(tmp_path)
+        name_map = {"Meter ID": {"id": "aaaaaaaa-0000-0000-0000-000000000001"}}
+        backfill_term_ids(path, name_map, glossary_name="Arizona Water")
+        reg = json.loads(open(path, encoding="utf-8").read())
+        by = {c["term_name"]: c for c in reg["concepts"]}
+        assert not by["GIS"].get("term_id"), \
+            "an invented id is worse than an absent one"
+        assert "deterministic_term_ids" not in reg
