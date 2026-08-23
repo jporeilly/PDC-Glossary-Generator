@@ -486,13 +486,17 @@ CAPTURE/REFRESH rule, but it did not collapse the copies. Every one of today's
 staleness bugs lived in the gap between them. Architectural, bigger than a
 spec item — raise with the user before proposing anything.
 
-## 12 · Uninstall progress bar sits still
+## 12 · Install/uninstall progress bar sits still during the delete phase
 
-Field-caught 2026-08-23 (upgrading to 1.38.39): while the old version is
-removed, the green progress bar does not move — the NSIS uninstall section
-deletes the vendored Python tree (~thousands of files) as ONE RMDir step,
-so the gauge gets a single tick for the whole operation and the uninstall
-reads as a hang. Cosmetic but trust-eroding on slow disks. Fix shape:
-split the removal into per-directory steps (python/, app/, assets/) with
-SetDetailsPrint, or emit DetailPrint lines per subtree so the marquee at
-least moves. Applies to all three suite apps (shared installer recipe).
+Field-caught 2026-08-23, twice (uninstall, then the 1.38.40 upgrade with a
+screenshot). CORRECTED DIAGNOSIS: the detail pane DOES stream one
+"Delete file: …" line per file — the removal is not one silent RMDir — but
+the NSIS gauge weights progress almost entirely by EXTRACTION BYTES, and
+Delete instructions carry ~zero weight. Upgrading first deletes the old
+vendored Python tree (thousands of files, most of the wall time) with the
+bar parked near 0%, then the bar leaps during extraction. Stock
+Tauri-generated NSIS template behaviour; an honest gauge needs a custom
+installer template (tauri bundle.windows.nsis.template) that adds
+progress weight to the cleanup loop. Cosmetic; the streaming detail lines
+are the real liveness indicator meanwhile. Applies to all three suite
+apps (shared installer recipe).
