@@ -1,7 +1,7 @@
 {
   "name": "pdc-glossary-generator",
   "private": true,
-  "version": "1.38.40",
+  "version": "1.38.41",
   "type": "module",
   "scripts": {
     "dev": "vite",

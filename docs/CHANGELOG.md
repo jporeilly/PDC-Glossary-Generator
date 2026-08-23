@@ -1,5 +1,37 @@
 # Changelog
 
+## [1.38.41] - 2026-08-23
+
+The tags-doctrine release, from the user's own line of questioning: "the
+steward approves the Tags in Review... if I did a pii search, it wouldn't
+appear?"
+
+### Added - steward-approved tags reach mapping-only columns, with provenance
+
+The steward approved pii on Customer Name and the approval reached every
+surface except the tag facet PDC users search first. Apply now stamps
+the row's approved GOVERNED tags onto mapping-only columns - where no
+method can ever exist, so the fingerprint on seeded columns (tags = a
+rule fired) stays intact. Structural tags (maskable/identifier/record/
+table-level) and off-vocabulary tags never stamp: the same filter the
+Policy author applies to applyTags, fed from the same governed
+vocabulary. Provenance rides on the entity in extended.stewardTags
+{tags, by, source} - a rule's tags are earned from values, a steward's
+tags are earned from review, and the estate records which is which. The
+PATCH merge unions by name so hand-added tags survive. A pii tag search
+now returns the COMPLETE inventory - rule-proven and steward-classified -
+because "otherwise when you do a search you're not searching your
+estate" (the user's closing argument, and the whole point of a catalog).
+
+### Changed - Selective mapping auto-exempts mapping-only terms (backlog 3)
+
+For a term with a detectable shape the link is one control among several;
+for a mapping-only term the link IS the control. Selective held back 32
+such terms on the Arizona estate - the whole water-chemistry panel -
+which is why everyone switched to Map everything. Selective now exempts
+them; an explicit per-row Map=N still wins, low-confidence seeded terms
+are still held back.
+
 ## [1.38.40] - 2026-08-23
 
 ### Fixed - ratings carried no rater, so a fully rated walk showed 0 stars
