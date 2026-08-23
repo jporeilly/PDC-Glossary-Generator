@@ -431,7 +431,16 @@ Design decided in discussion:
 Fits as a 1.39.0 feature: /api/ask + a chat drawer in the shell + the train
 index step + evals. Build AFTER the clean walkthrough.
 
-## 11 · Factory reset loses to the running app's memory
+## 11 · Factory reset loses to the running app's memory — RESOLVED 1.38.39
+
+Fixed 2026-08-23 (d04f4b0): the server refuses glossary saves for 10s after
+a reset (an in-flight autosave can no longer resurrect the estate), the
+reset reply re-lists the state directory (survivors surface as `remaining`
+instead of hiding behind `deleted[]`), and the UI reports a dirty wipe
+instead of declaring success — no auto-reload until the directory verifies
+clean. Original diagnosis kept below.
+
+## (original) 11 · Factory reset loses to the running app's memory
 
 Field-caught 2026-08-23, opening the clean walk. Factory reset deleted its
 targets — and the state directory was NOT day-zero afterwards:
