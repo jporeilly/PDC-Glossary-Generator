@@ -3888,12 +3888,16 @@ def data_elements(body: dict = Body(default={})):
     name = body.get("glossary_name", "Business Glossary")
     lineage = body.get("lineage_verified", True)
     rating = int(body.get("rating", 0) or 0)
+    # the steward the ratings are attributed to — PDC renders stars from the
+    # rating's `users` map, and the table roll-up harvests raters from the
+    # columns, so without this every rating in the walk lands as 0 stars
+    rater = (body.get("rater") or "").strip() or None
     qw = body.get("quality_weights") or None   # {completeness, uniqueness, validity}
     with_quality = bool(body.get("quality", True))
     policy = body.get("map_policy")   # optional selective-mapping override; None => DEFAULT_MAP_POLICY
     links = suggester.data_element_links(rows, name, quality_weights=qw,
                                          with_quality=with_quality, policy=policy)
-    api_json = suggester.links_to_api_json(links, name, lineage, rating)
+    api_json = suggester.links_to_api_json(links, name, lineage, rating, rater=rater)
     rated = sum(1 for l in links if l.get("quality") is not None)
     breakdown = suggester.map_breakdown(rows, policy)
     return {"links": links, "csv": suggester.links_to_csv(links),

@@ -196,7 +196,8 @@ export default function ApplyPage({ onNavigate }) {
       <ConnectionCard conn={conn} setConn={setConn} saveConn={saveConn} />
       <GenerateCard rows={ws.rows} glossaryName={glossaryName} governance={ws.governance}
                     settings={settings} onNavigate={onNavigate} authBody={authBody} />
-      <DataElementsCard rows={ws.rows} glossaryName={glossaryName} de={de} setDe={setDe} />
+      <DataElementsCard rows={ws.rows} glossaryName={glossaryName} governance={ws.governance}
+                        de={de} setDe={setDe} />
       <ResolveCard de={de} setDe={setDe} authBody={authBody} glossaryName={glossaryName}
                    rows={ws.rows} settings={settings} />
       <LabelsCard rows={ws.rows} authBody={authBody} />
@@ -824,7 +825,7 @@ function ConnectionCard({ conn, setConn, saveConn }) {
 
 /* ---------- step 1: Data Elements (term↔column links) ---------- */
 
-function DataElementsCard({ rows, glossaryName, de, setDe }) {
+function DataElementsCard({ rows, glossaryName, governance, de, setDe }) {
   const [policy, setPolicy] = usePersistentState('apply.dePolicy', 'default')
   const [dq, setDq] = usePersistentState('apply.deDq', true)
   const [w, setW] = usePersistentState('apply.deWeights', { wc: 0.4, wu: 0.3, wv: 0.3 })
@@ -839,8 +840,19 @@ function DataElementsCard({ rows, glossaryName, de, setDe }) {
     setError(null)
     try {
       const mapPolicy = p === 'strict' ? { min_confidence: 'high' } : p === 'all' ? { mode: 'all' } : null
+      // Ratings need a person: PDC renders stars from the rating's `users`
+      // map, and Apply's table roll-up harvests raters from the columns —
+      // rating: 0 hard-coded + no rater = 0 stars on 155 rated columns and
+      // tables_rated: 0, silently (field-caught 2026-08-23). Govern's fixed
+      // rating overrides every column; auto keeps the per-column scan values.
+      const gov = governance || {}
+      const people = gov.default || {}
+      const rater = people.businessSteward || people.owner || people.custodian
+        || gov.businessSteward || gov.owner || ''
+      const fixedRating = gov.ratingMode === 'fixed' ? Number(gov.rating) || 0 : 0
       const d = await apiPost('/api/data-elements', {
-        rows, glossary_name: glossaryName, lineage_verified: true, rating: 0,
+        rows, glossary_name: glossaryName, lineage_verified: true,
+        rating: fixedRating, rater,
         quality: q,
         quality_weights: { completeness: wt.wc, uniqueness: wt.wu, validity: wt.wv },
         map_policy: mapPolicy,

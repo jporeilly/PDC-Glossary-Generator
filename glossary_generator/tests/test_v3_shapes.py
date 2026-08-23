@@ -82,6 +82,24 @@ class TestApplyPatchBodies:
         for rec in api_json:
             check_patch_attrs(rec["attributes"], strict=False)
 
+    def test_column_ratings_carry_their_rater(self):
+        """A rating without a `users` map is a rating nobody cast: PDC shows
+           0 stars, and Apply's table roll-up harvests its raters FROM the
+           column ratings, so a rater-less column also silently disables every
+           table rating (field 2026-08-23: 155 columns rated, 0 tables, 0
+           stars everywhere). With a rater the map rides; without one the
+           value still lands (the old shape, honestly degraded)."""
+        links = suggester.data_element_links(ROWS, policy={"mode": "all"})
+        rated = suggester.links_to_api_json(links, rater="a.steward")
+        r = next(rec["attributes"]["features"]["rating"] for rec in rated
+                 if (rec["attributes"]["features"].get("rating") or {}).get("value"))
+        assert r["users"] == {"a.steward": r["value"]}
+        check_patch_attrs(rated[0]["attributes"], strict=False)
+        bare = suggester.links_to_api_json(links)
+        rb = next(rec["attributes"]["features"]["rating"] for rec in bare
+                  if (rec["attributes"]["features"].get("rating") or {}).get("value"))
+        assert "users" not in rb
+
     def test_merged_apply_body_strict(self):
         links = suggester.data_element_links(ROWS, policy={"mode": "all"})
         api_json = suggester.links_to_api_json(links)

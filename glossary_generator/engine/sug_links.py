@@ -301,7 +301,8 @@ def links_to_csv(links):
         w.writerow(l)
     return buf.getvalue()
 
-def links_to_api_json(links, glossary_name="Business Glossary", lineage_verified=True, rating=0):
+def links_to_api_json(links, glossary_name="Business Glossary", lineage_verified=True, rating=0,
+                      rater=None):
     """Trust-Score-ready association objects, one per column, shaped for PDC's
        data-collections API: businessTerms + features(isLineageVerified, rating,
        sensitivity, isCriticalDataElement). A linked term + verified lineage + a
@@ -309,7 +310,14 @@ def links_to_api_json(links, glossary_name="Business Glossary", lineage_verified
 
        Each column carries its own scan-suggested rating (link['rating']); when
        multiple terms map to one column the highest suggestion wins. Pass a
-       non-zero `rating` to override every column with one fixed value instead."""
+       non-zero `rating` to override every column with one fixed value instead.
+
+       `rater` is the steward the rating is attributed to. PDC computes the
+       displayed stars from the rating's `users` map — a rating without one
+       shows 0 stars — and Apply's table roll-up harvests its raters FROM the
+       column ratings, so a rater-less column rating also silently disables
+       every table rating downstream (field-caught 2026-08-23: 155 columns
+       rated, 0 tables, 0 stars everywhere)."""
     by_col = {}
     for l in links:
         key = (l["schema_name"], l["table_name"], l["column_name"], l["entity_type"])
@@ -325,7 +333,10 @@ def links_to_api_json(links, glossary_name="Business Glossary", lineage_verified
         if col_rating:
             cur = (rec["attributes"]["features"].get("rating") or {}).get("value", 0)
             if col_rating >= cur:
-                rec["attributes"]["features"]["rating"] = {"value": col_rating}
+                rp = {"value": col_rating}
+                if rater:
+                    rp["users"] = {rater: col_rating}
+                rec["attributes"]["features"]["rating"] = rp
         # qualityScore: the Data Quality input (0-100). Highest scan suggestion wins
         # when several terms map to one column. PDC records an externally-set value
         # as a MANUAL quality metric (which is what we want now PDQ is retired).
