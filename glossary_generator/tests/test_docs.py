@@ -377,3 +377,26 @@ def test_shipped_packs_carry_no_mangled_singulars():
                     m = bad_word.search(str(text))
                     assert not m, (f"{os.path.basename(path)} {key}[{k!r}] carries "
                                    f"a mangled singular: {text!r}")
+
+
+def test_the_api_docs_are_self_contained():
+    """FastAPI's default /docs pulls Swagger's css/js from cdn.jsdelivr.net -
+    blocked in the desktop shell and dead offline, so "API · docs" rendered a
+    blank page (field-caught 2026-08-23, mid-walkthrough). The page must
+    reference only its own origin, the vendored assets must ship, and the
+    shell's webview has no browser chrome so the page must carry a way back.
+    """
+    import re
+    import api
+    from fastapi.testclient import TestClient
+    client = TestClient(api.app)
+    html = client.get("/docs").text
+    assert not re.search(r"https?://(?!fastapi\.tiangolo)[a-z]", html), \
+        "the docs page references an external host - blank in the shell, dead offline"
+    assert "Back to the Glossary Generator" in html, "no way back from /docs in the shell"
+    for asset in ("swagger-ui.css", "swagger-ui-bundle.js"):
+        r = client.get(f"/docs-assets/{asset}")
+        assert r.status_code == 200 and len(r.content) > 10_000, \
+            f"vendored {asset} missing - run the fetch in the build docs"
+    assert client.get("/docs-assets/../api.py").status_code in (404, 400), \
+        "asset route must not serve arbitrary files"

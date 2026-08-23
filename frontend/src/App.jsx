@@ -209,7 +209,7 @@ export default function App() {
               : <span className="mono">not connected</span>}
           </div>
           <div className="conn" title="The interactive OpenAPI docs for this app's backend">
-            API&nbsp;·&nbsp;<a className="mono" href="/docs" target="_blank" rel="noreferrer">docs</a>
+            API&nbsp;·&nbsp;<a className="mono" href="/docs">docs</a>
           </div>
           <ThemeSelect />
         </div>

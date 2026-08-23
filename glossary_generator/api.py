@@ -89,6 +89,11 @@ APP_VERSION = _app_version()
 app = FastAPI(
     title="PDC Glossary Generator",
     version=APP_VERSION,
+    docs_url=None,   # replaced by the SELF-CONTAINED /docs below — FastAPI's
+                     # default pulls Swagger's css/js from cdn.jsdelivr.net,
+                     # which is blocked in the desktop shell and dead offline,
+                     # so "API · docs" rendered a blank page (field-caught
+                     # 2026-08-23 mid-walkthrough)
     description=(
         "Build a Pentaho Data Catalog business glossary from a live data estate: "
         "**Connect → Review → Dictionary → Govern → Resolve → Apply**.\n\n"
@@ -406,6 +411,40 @@ def favicon():
         return FileResponse(dist_icon, headers={"Cache-Control": "public, max-age=86400"})
     return Response(FAVICON_SVG, media_type="image/svg+xml",
                     headers={"Cache-Control": "public, max-age=86400"})
+
+_SWAGGER_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                            "static", "swagger-ui")
+
+
+@app.get("/docs", include_in_schema=False)
+def swagger_docs():
+    """Self-contained Swagger UI — assets vendored, no CDN, works in the
+    desktop shell and offline. Carries a way back: the shell's webview has no
+    browser chrome, so a same-tab navigation without one is a dead end."""
+    return HTMLResponse(f"""<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PDC Glossary Generator - API docs</title>
+<link rel="stylesheet" href="/docs-assets/swagger-ui.css">
+<style>#backbar{{padding:.55rem 1rem;background:#0c0c0e;font:600 14px system-ui}}
+#backbar a{{color:#fff;text-decoration:none}}</style>
+</head><body>
+<div id="backbar"><a href="/">&#8592; Back to the Glossary Generator</a></div>
+<div id="swagger-ui"></div>
+<script src="/docs-assets/swagger-ui-bundle.js"></script>
+<script>SwaggerUIBundle({{url: "/openapi.json", dom_id: "#swagger-ui",
+  presets: [SwaggerUIBundle.presets.apis], layout: "BaseLayout"}});</script>
+</body></html>""")
+
+
+@app.get("/docs-assets/{name}", include_in_schema=False)
+def swagger_assets(name: str):
+    if name not in ("swagger-ui.css", "swagger-ui-bundle.js"):
+        return _err("not found", 404)
+    media = "text/css" if name.endswith(".css") else "application/javascript"
+    return FileResponse(os.path.join(_SWAGGER_DIR, name), media_type=media,
+                        headers={"Cache-Control": "public, max-age=86400"})
+
 
 @app.get("/health")
 def health():
