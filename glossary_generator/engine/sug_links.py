@@ -214,6 +214,15 @@ def should_map_link(row, policy=None):
         return True, "Critical Data Element"
     if pol.get("always_pii") and pii:
         return True, "PII column"
+    # For a term with a detectable shape the link is one control among
+    # several; for a mapping-only term the link IS the control — names,
+    # addresses, dates, free text, the whole water-chemistry panel. A
+    # relevance gate must never be what removes a term's only governance,
+    # so Selective exempts them (field 2026-08-21: 32 of the held-back
+    # terms were mapping_only, which is why everyone switched to Map
+    # everything). A steward's per-row Map=N above still wins.
+    if str(row.get("Detection_Intent", "")).strip().lower() == "mapping_only":
+        return True, "mapping-only — the link is this term's only governance"
     conf = str(row.get("Confidence", "Low")).strip().lower()
     floor = str(pol.get("min_confidence", "medium")).strip().lower()
     if CONF_RANK.get(conf, 0) >= CONF_RANK.get(floor, 1):

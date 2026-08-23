@@ -520,6 +520,31 @@ class TestDataQualityScore:
         assert by["mbr_no"]["quality"] is None, "unprofiled -> no score, not 100"
         assert by["full_nm"]["quality"] == 90, "measured completeness scores as before"
 
+    def test_selective_never_holds_back_a_mapping_only_term(self):
+        """For a term with a detectable shape the link is one control among
+           several; for a mapping-only term the link IS the control. On the
+           Arizona estate Selective held back 32 mapping_only terms - the
+           whole water-chemistry panel - whose only governance is the link,
+           which is why everyone switched to Map everything (spec backlog 3).
+           Selective now exempts them; an explicit steward Map=N still wins."""
+        from engine.sug_links import should_map_link
+        low_mapping_only = _row("pH Level", "awc.water_quality_reports.ph_level",
+                                Confidence="Low", Critical_Data_Element="No",
+                                PII_Category="", Detection_Intent="mapping_only")
+        ok, why = should_map_link(low_mapping_only)          # DEFAULT (selective)
+        assert ok, why
+        assert "mapping-only" in why
+        # the steward's explicit No still beats the exemption
+        vetoed = dict(low_mapping_only, Map="N")
+        ok, why = should_map_link(vetoed)
+        assert not ok and "Map=No" in why
+        # a low-confidence SEEDED term is still held back - selectivity intact
+        low_seeded = _row("Notes", "awc.customers.notes",
+                          Confidence="Low", Critical_Data_Element="No",
+                          PII_Category="", Detection_Intent="seeded")
+        ok, why = should_map_link(low_seeded)
+        assert not ok, why
+
 
 class TestDuplicateNamesMustBecomeDistinctTerms:
     """A duplicate group is keyed ON the shared name. If the evidence says the
