@@ -861,3 +861,19 @@ review already decided relevance" vs "Selective - hold back
 low-confidence extras (large/noisy estates)"; neither is legacy, they
 serve different estate classes. The hint text says which class you are
 in.
+
+## W19 · A drifted label family needs a managed re-mint, not a manual dance
+
+Field: the domain taxonomy changed ('&' -> 'and', +Billing and Revenue),
+and the correct-by-docs remedy - delete the family in PDC, re-Create -
+raced the stamp: the delete landed after Create, the stamp wrote domain
+values against the dead definition id, and ~160 columns now carry an
+ORPHANED assignment no UI renders. Three cuts:
+- Create detects a family whose PDC vocabulary differs from the derived
+  one and offers "re-mint domain (values changed)" - delete + recreate +
+  invalidate the stamp plan, one button, no PDC-side manual step;
+- the stamp validates each definition id EXISTS at write time and
+  refuses the family with a reason instead of writing orphans;
+- a cleanup pass (or the stamp's merge) strips assignments whose
+  definition id no longer resolves. Walk remedy: re-create + re-stamp +
+  scripted orphan sweep.
