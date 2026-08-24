@@ -754,3 +754,15 @@ expertise string, so auto-assign had nothing to distinguish stewards and
   behind a manual Save roster banner while the grid autosaves on every
   patch; same debounced treatment here (Save stays as the explicit act
   for removals).
+
+## W12 · Governance summary: the frozen-looking cap and the generic pack
+
+Field: "not sure if this is refreshing" - it was (disk newest == card),
+but two displays undermine trust:
+- the audit counter caps at 300 (ring buffer) and sits there forever;
+  label it "300 (last 300 kept)" so a maxed counter reads as rolling,
+  not frozen;
+- Domain: generic - export-pack/adopt never stamps the company into the
+  pack (domain_pack.json: domain=generic, company=None). Carry the
+  company name from settings into build_pack and the adopt path, and
+  show it on the summary card.
