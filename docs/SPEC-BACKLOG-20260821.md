@@ -459,7 +459,18 @@ A CLI taking two or three term names and emitting the plan plus the SQL. An
 hour's work against the Registry tells you whether join-from-terms holds up on
 real data.
 
-## 10 · "How do I?" — a docs-grounded chat in the Glossary Generator
+## 10 · Docs-grounded chat — RESOLVED (built 2026-08-24, rides 1.39.0)
+
+Built to the five doctrines below. engine/docchat.py (BM25 over heading
+chunks of the shipped docs, indexed at startup from the installed build's
+own files - stage-app ships docs/, so the release-time index step collapses
+to the same guarantee), POST /api/ask, an "Ask the docs" drawer in the
+shell, and tests/test_docchat.py with 8 retrieval evals including the
+canonical buildSamples question. Live-verified grounded + cited through
+the server with the configured model; without a model it is a cited doc
+search, stated honestly. Original spec kept below.
+
+## (original) 10 · "How do I?" — a docs-grounded chat in the Glossary Generator
 
 Requested 2026-08-22: the app is complex, and a chat window should answer
 product questions FROM THE DOCUMENTATION with detailed responses.

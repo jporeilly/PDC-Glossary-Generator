@@ -1,5 +1,48 @@
 # Changelog
 
+## [1.39.0] - 2026-08-24
+
+The backlog-clearing release: three items built, verified and shipped in
+one pass - the seed-readiness panel (backlog 2), the Draft-policies
+retirement (backlog 1) and the docs-grounded chat (backlog 10).
+
+### Added - "Ask the docs": a grounded chat over the shipped documentation
+
+An "Ask the docs" drawer in the shell answers product questions FROM the
+GUIDE / WALKTHROUGH / REFERENCE / CHANGELOG / README that ship inside
+this build. Grounded or refuse: the model answers only from retrieved
+sections and cites them ([CHANGELOG - Fixed - profiling never asked PDC
+to keep samples...]); when the docs do not answer, it says so and names
+the nearest section; with no local model reachable the same question
+returns a cited doc SEARCH, stated honestly. The asking page boosts its
+own sections. Retrieval is BM25 over heading chunks - deterministic,
+dependency-free, indexed at startup from the installed build's own docs,
+and eval-tested from birth (8 pinned questions, including "why do my
+dictionaries fire but not my patterns?" -> the buildSamples entry).
+llm._complete gained a per-call timeout override: the configured 30s is
+sized for batch enrichment and a 12B model's single composed answer blew
+through it.
+
+### Added - Seed readiness panel on Apply (spec backlog 2)
+
+Above Generate: kept terms / seeded (patterns, dictionaries) /
+mapping-only (with the star-flippable count) / no-usable-seed with
+reasons, and any content shape claimed by more than one term surfaced
+loudly with its claimants. Same seeds_for_row ladder the Registry uses;
+summary only, nothing decided.
+
+### Changed - Draft policies retired; flips live on Review (spec backlog 1)
+
+Author in the Policy Generator is the only place methods are authored.
+The card, /api/draft-policies, its job twin and the drafted-policies lab
+export are gone. The flip workflow moved to the Review toolbar
+(DETECTION group): "star Flip N recommended" flips bounded measures with
+unit-bearing names to Auto - every row bearing the term, duplicates
+included (findIndex kept flipping the wrong sibling, caught live);
+"M shapeless -> Mapping-only" declares free-text skips quiet. DQ
+expectations kept their own export - POST /api/dq-expectations with a
+button on the Generate card.
+
 ## [1.38.41] - 2026-08-23
 
 The tags-doctrine release, from the user's own line of questioning: "the
