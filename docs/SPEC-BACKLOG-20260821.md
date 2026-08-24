@@ -777,3 +777,15 @@ ambers. The check should exempt seeds with identity=column_name (or list
 them separately as "shared sanity shape - name-anchored, safe"),
 reserving the warning for genuinely ambiguous content claims like the
 ZIP pair.
+
+## W14 · The readiness no-seed bucket counts expected populations as amber
+
+Field: "dont really need to include the tables, etc?" - the 19 "no
+usable seed" terms were ALL expected cases, each saying so in its own
+reason text: table-level Record terms (9, glossary-by-design), document
+terms (5, vocabulary-dictionary governed), link-tagged identifiers (5).
+Actionable count: zero; badge: amber 19. Split the bucket the way the
+read-back split its verdicts: one calm summary line per expected
+population (collapsed), and the amber counts ONLY rows whose reason is a
+genuine evidence gap. An amber that is always amber trains stewards to
+ignore ambers (W13's rule, applied to its neighbour).
