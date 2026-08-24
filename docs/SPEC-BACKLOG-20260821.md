@@ -825,3 +825,16 @@ kept deriving 'pii'. The row editor should render the PII classification
 visibly AS the source of the derived pii tag (one control, labelled "PII
 classification - derives the pii tag"), so the two hats cannot be
 mistaken for each other.
+
+## W17 · The PII classification cannot be edited - the Map cell all over again
+
+Field, after two futile correction loops on Base Charge: PII_Category
+renders as a read-only badge under Sensitivity; its only writer is
+accepting an AI proposal. Yet it drives the derived pii tag, the PII
+Type label and the readiness counts - so a steward literally cannot
+execute "this is not PII" (Street Name, Site Name, County, Unpaid
+Accounts all still carry their classifications despite this morning's
+"corrections"). Fix: an editable PII selector in the row editor (with a
+none option), labelled as the source of the derived pii tag (W16's
+labelling), same pattern as the Detection and Map segments. Walk remedy:
+state surgery over the W5 list, app closed.
