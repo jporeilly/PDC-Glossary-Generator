@@ -766,3 +766,14 @@ but two displays undermine trust:
   pack (domain_pack.json: domain=generic, company=None). Carry the
   company name from settings into build_pack and the adopt path, and
   show it on the summary card.
+
+## W13 · The readiness shared-shape amber cries wolf on name-anchored seeds
+
+Field: the card flagged ^-?[0-9]+(\.[0-9]+)?$ x10 - the ten flipped
+measures sharing the numeric SANITY shape, which is by design: a
+name-anchored rule's content regex is only the sanity half of the
+name-AND-shape conjunction. An always-amber trains stewards to ignore
+ambers. The check should exempt seeds with identity=column_name (or list
+them separately as "shared sanity shape - name-anchored, safe"),
+reserving the warning for genuinely ambiguous content claims like the
+ZIP pair.
