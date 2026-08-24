@@ -4105,23 +4105,46 @@ def api_pdc_labels_apply(body: dict = Body(default={})):
         existing = {l["name"].strip().lower(): l
                     for l in pdc_api.list_labels(base, token,
                                                  verify_tls=bool(body.get("verify_tls", False)))}
-        created, skipped, missing = [], [], []
+        # W19: a family whose PDC vocabulary drifted from the derived one (the
+        # '&'→'and' taxonomy rename) is REPORTED as drifted; passing its key in
+        # body.remint re-mints it managed — delete + recreate in one call, no
+        # PDC-side manual dance to race the stamp. The stamp itself re-lists
+        # definitions at write time, so a re-mint automatically invalidates any
+        # stale plan.
+        remint = {str(k).strip().lower() for k in (body.get("remint") or [])}
+        created, skipped, missing, drifted, reminted = [], [], [], [], []
         for k in keys:
             vals = vocab.get(k) or []
             if not vals:
                 missing.append(k)      # no derived values on the current grid
                 continue
-            if k.lower() in existing:
-                skipped.append({"key": k, "id": existing[k.lower()]["_id"],
-                                "values": existing[k.lower()]["values"]})
+            ex = existing.get(k.lower())
+            if ex:
+                if sorted(ex.get("values") or []) != sorted(vals):
+                    if k.lower() in remint:
+                        pdc_api.remove_label(base, token, ex["_id"],
+                                             verify_tls=bool(body.get("verify_tls", False)))
+                        lid = pdc_api.create_label(base, token, k, vals,
+                                                   descriptions=descs.get(k) or {},
+                                                   verify_tls=bool(body.get("verify_tls", False)))
+                        reminted.append({"key": k, "id": lid, "values": vals,
+                                         "old_id": ex["_id"]})
+                        continue
+                    drifted.append({"key": k, "id": ex["_id"],
+                                    "pdc_values": ex.get("values") or [],
+                                    "derived_values": vals})
+                skipped.append({"key": k, "id": ex["_id"],
+                                "values": ex.get("values")})
                 continue
             lid = pdc_api.create_label(base, token, k, vals,
                                        descriptions=descs.get(k) or {},
                                        verify_tls=bool(body.get("verify_tls", False)))
             created.append({"key": k, "id": lid, "values": vals})
         _receipt("labels", created=[c["key"] for c in created],
-                 existing=[s["key"] for s in skipped])
-        return {"created": created, "existing": skipped, "no_values": missing}
+                 existing=[s["key"] for s in skipped],
+                 reminted=[r["key"] for r in reminted] or None)
+        return {"created": created, "existing": skipped, "no_values": missing,
+                "drifted": drifted, "reminted": reminted}
     except Exception as e:
         return _err(str(e)[:300], 502)
 
@@ -4208,6 +4231,31 @@ def _labels_stamp_impl(body, progress=None):
             if t and t not in entry["terms"]:
                 entry["terms"].append(t)
 
+    # W19: the plan's definition ids were read at plan time — a delete that
+    # lands between listing and writing (the '&'→'and' re-mint race) would
+    # stamp values against a dead id, minting orphans no UI renders. Before a
+    # REAL write, re-list the definitions: families whose id vanished are
+    # refused with a reason, and the live id set turns every merge into an
+    # orphan sweep (assignments on dead definitions drop instead of carrying).
+    dead_families = []
+    valid_ids = None
+    if not dry:
+        fresh = {str(l.get("_id")) for l in
+                 _authed(lambda: pdc_api.list_labels(base, tok["t"], verify_tls=verify))}
+        valid_ids = fresh
+        dead = {k: fam for k, fam in families.items()
+                if str(fam.get("_id")) not in fresh}
+        if dead:
+            dead_families = [{"key": fam.get("name") or k,
+                              "reason": "definition id no longer exists in PDC — "
+                                        "re-create the family (Create labels), then re-stamp"}
+                             for k, fam in dead.items()]
+            dead_ids = {str(fam.get("_id")) for fam in dead.values()}
+            for entry in plan.values():
+                entry["assign"] = {fid: v for fid, v in entry["assign"].items()
+                                   if fid not in dead_ids}
+            plan = {ck: e for ck, e in plan.items() if e["assign"]}
+
     results, unresolved = [], []
     stamped = planned = 0
     table_cache = {}
@@ -4245,7 +4293,7 @@ def _labels_stamp_impl(body, progress=None):
                 _authed(lambda: pdc_api.assign_labels(
                     base, tok["t"], eid,
                     [{"id": fid, "value": v} for fid, v in entry["assign"].items()],
-                    verify_tls=verify))
+                    verify_tls=verify, valid_ids=valid_ids))
                 row["status"] = "stamped"
                 stamped += 1
         except Exception as e:
@@ -4259,7 +4307,8 @@ def _labels_stamp_impl(body, progress=None):
             pass
     return {"dry_run": dry, "total_columns": total,
             "stamped": stamped, "planned": planned,
-            "missing_families": missing, "mismatches": mismatches[:40],
+            "missing_families": missing, "dead_families": dead_families,
+            "mismatches": mismatches[:40],
             "unresolved": unresolved[:40], "results": results[:400]}
 
 

@@ -1083,6 +1083,24 @@ class TestPdcLabelAssignment:
             "new value wins; the label it did not touch survives the wholesale replace"
         assert {a["id"]: a["value"] for a in out} == got
 
+    def test_valid_ids_sweeps_orphaned_assignments(self, monkeypatch):
+        """W19 (2026-08-24 walk): a deleted label family left ~160 columns
+           carrying assignments against a dead definition id — invisible in
+           every UI. With valid_ids the merge drops any existing assignment
+           whose definition no longer resolves, instead of carrying it."""
+        L, calls = self._capture(monkeypatch, [
+            {"id": "dead-def", "value": "Water Quality & Compliance"},
+            {"id": "tier-def", "value": "tier-2"}])
+        L.assign_labels("https://pdc.example", "tok", "ent-1",
+                        [{"id": "domain-def", "value": "Water Quality and Compliance"}],
+                        valid_ids={"domain-def", "tier-def"})
+        patch = [c for c in calls if c["method"] == "PATCH"][0]
+        got = {a["id"]: a["value"]
+               for a in patch["body"]["attributes"]["customProperties"]}
+        assert got == {"domain-def": "Water Quality and Compliance",
+                       "tier-def": "tier-2"}, \
+            "the dead definition's assignment must not be carried forward"
+
     def test_blank_value_removes_that_label_only(self, monkeypatch):
         L, calls = self._capture(monkeypatch, [
             {"id": "pii-def", "value": "Confidential"},

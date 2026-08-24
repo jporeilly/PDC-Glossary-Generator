@@ -1581,9 +1581,36 @@ function LabelsCard({ rows, authBody }) {
       {res && (
         <p className="summary ok">
           {res.created.length > 0 && <>created: {res.created.map((c) => <code key={c.key} style={{ marginRight: '.3rem' }}>{c.key} ({c.values.length})</code>)}</>}
+          {(res.reminted?.length ?? 0) > 0 && <> · re-minted: {res.reminted.map((c) => <code key={c.key} style={{ marginRight: '.3rem' }}>{c.key} ({c.values.length})</code>)}</>}
           {res.existing.length > 0 && <> · already in PDC: {res.existing.map((s) => <code key={s.key} style={{ marginRight: '.3rem' }}>{s.key}</code>)}</>}
           {res.no_values.length > 0 && <> · no derived values on this grid: {res.no_values.join(', ')}</>}
         </p>
+      )}
+      {/* W19: the taxonomy rename ('&' → 'and') left the PDC family holding
+          the OLD vocabulary; the manual remedy (delete in PDC, re-Create)
+          raced the stamp and wrote ~160 orphaned assignments. One managed
+          button: delete + recreate in a single call — the stamp re-validates
+          definition ids at write time, so no stale plan can hit a dead id. */}
+      {(res?.drifted?.length ?? 0) > 0 && (
+        <div className="notice-warn">
+          <b>{res.drifted.length} label famil{res.drifted.length === 1 ? 'y' : 'ies'} drifted</b> —
+          the vocabulary in PDC no longer matches this grid&apos;s:
+          {' '}{res.drifted.map((d) => <code key={d.key} style={{ marginRight: '.3rem' }}>{d.key}</code>)}
+          <br />
+          <button className="primary sm" disabled={busy} style={{ marginTop: '.4rem' }}
+                  onClick={async () => {
+                    setBusy(true); setErr(null)
+                    try {
+                      setRes(await apiPost('/api/pdc/labels-apply',
+                        { ...authBody(), keys: kept, rows,
+                          remint: res.drifted.map((d) => d.key) }))
+                    } catch (e) { setErr(e.message) } finally { setBusy(false) }
+                  }}
+                  title="Delete each drifted family in PDC and recreate it with this grid's vocabulary — one managed step, no PDC-side manual dance. Existing column assignments for the old definition are swept on the next Stamp (the merge drops assignments whose definition no longer exists). Stamp again after re-minting.">
+            {busy ? 'Re-minting…' : `Re-mint ${res.drifted.length} drifted famil${res.drifted.length === 1 ? 'y' : 'ies'} (values changed)`}
+          </button>
+          <span className="notes" style={{ marginLeft: '.5rem' }}>then run Stamp again — it re-checks every definition id at write time.</span>
+        </div>
       )}
       {stamp && (
         <>
@@ -1594,6 +1621,8 @@ function LabelsCard({ rows, authBody }) {
               : <><b>{stamp.stamped}</b> of {stamp.total_columns} column(s) stamped ✓ — written to PDC</>}
             {(stamp.missing_families?.length ?? 0) > 0 &&
               <> · not in PDC yet (run Create first): {stamp.missing_families.join(', ')}</>}
+            {(stamp.dead_families?.length ?? 0) > 0 &&
+              <> · <b>refused — definition deleted since planning</b>: {stamp.dead_families.map((d) => d.key).join(', ')} (run Create, then stamp again)</>}
             {(stamp.unresolved?.length ?? 0) > 0 &&
               <> · no matching entity: {stamp.unresolved.slice(0, 4).join(', ')}{stamp.unresolved.length > 4 ? '…' : ''}</>}
           </p>

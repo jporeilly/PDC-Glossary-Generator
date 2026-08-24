@@ -70,14 +70,29 @@ class TestAiPass:
         assert out[0]["Category"] == "Governance"
         assert counts["category"] == 0
 
-    def test_model_cannot_touch_sensitivity_or_pii(self, monkeypatch):
+    def test_classification_sync_applies_stated_corrections_only(self, monkeypatch):
+        """W4/W5 changed the old never-touch rule: the pass MAY correct PII
+           and sensitivity, but only via its dedicated keys, only with valid
+           values — and silence leaves the scan's call standing."""
         rows = [make_row("Email", "public.customers.email",
                          Sensitivity="LOW", PII_Category="")]
-        reply = {"sensitivity": "HIGH", "PII_Category": "CONTACT_INFO",
-                 "pii": "CONTACT_INFO", "definition": "A contact address."}
+        reply = {"sensitivity": "HIGH", "pii": "CONTACT_INFO",
+                 "definition": "A contact address."}
         out, _, _, _ = _run(monkeypatch, reply, rows)
-        assert out[0]["Sensitivity"] == "LOW", "sensitivity stays deterministic"
-        assert out[0]["PII_Category"] == "", "PII comes from the scan, not the model"
+        assert out[0]["Sensitivity"] == "HIGH" and out[0]["PII_Category"] == "CONTACT_INFO"
+        # no pii/sensitivity keys -> the scan's call stands untouched
+        rows = [make_row("Phone", "public.customers.phone",
+                         Sensitivity="MEDIUM", PII_Category="CONTACT_INFO")]
+        out, _, _, _ = _run(monkeypatch, {"definition": "A phone number."}, rows)
+        assert out[0]["Sensitivity"] == "MEDIUM"
+        assert out[0]["PII_Category"] == "CONTACT_INFO"
+        # an invented class is refused; PII_Category (the raw field name) is
+        # not the contract and never applies
+        rows = [make_row("Notes", "public.t.notes", Sensitivity="LOW", PII_Category="")]
+        out, _, _, _ = _run(monkeypatch, {"pii": "SUPER_SECRET",
+                                          "PII_Category": "CONTACT_INFO",
+                                          "definition": "Free text."}, rows)
+        assert out[0]["PII_Category"] == ""
 
     def test_bad_batch_reply_falls_back_to_per_row(self, monkeypatch):
         rows = [make_row("Email", "public.customers.email", Definition=""),

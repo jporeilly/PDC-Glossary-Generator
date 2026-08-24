@@ -99,15 +99,22 @@ def entity_labels(base_url, token, entity_id, verify_tls=True, timeout=30):
 
 
 def assign_labels(base_url, token, entity_id, assignments, verify_tls=True,
-                  timeout=30):
+                  timeout=30, valid_ids=None):
     """Assign label values to one entity, preserving whatever other labels
     are already on it — the PATCH replaces the customProperties array
     wholesale, so this reads, merges by definition id (new value wins), and
     writes back. `assignments`: [{"id": <definition _id>, "value": "..."}];
-    a blank value REMOVES that label. Returns the array as written."""
+    a blank value REMOVES that label. `valid_ids` (an iterable of live
+    definition ids) makes the merge an orphan sweep too: any existing
+    assignment whose definition no longer resolves is dropped instead of
+    being carried forward (W19 — a deleted family left ~160 columns wearing
+    assignments no UI renders). Returns the array as written."""
     merged = {str(a["id"]): str(a.get("value") or "")
               for a in entity_labels(base_url, token, entity_id,
                                      verify_tls=verify_tls, timeout=timeout)}
+    if valid_ids is not None:
+        live = {str(i) for i in valid_ids}
+        merged = {k: v for k, v in merged.items() if k in live}
     for a in assignments or []:
         if a and a.get("id"):
             merged[str(a["id"])] = str(a.get("value") or "")
