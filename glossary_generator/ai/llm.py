@@ -495,8 +495,8 @@ def _ai_pass_one(row, allow_tags, categories, model=None, num_gpu=None):
     enum_vals = (row.get("Enum_Values") or "").strip()
     if enum_vals:
         ev.append("profiled reference values: %s" % enum_vals[:200])
-    if row.get("PII_Category"):
-        ev.append("PII category: %s" % row["PII_Category"])
+    ev.append("PII category: %s" % (row.get("PII_Category") or "(none)"))
+    ev.append("sensitivity: %s" % (row.get("Sensitivity") or "LOW"))
     reason = _scan_reason(row)
     if reason:
         ev.append("scan reasoning: %s" % reason[:160])
@@ -520,9 +520,20 @@ def _ai_pass_one(row, allow_tags, categories, model=None, num_gpu=None):
         "  \"purpose\": one sentence (max 25 words), why it matters or how the business "
         "uses it — not a restatement of the definition.\n"
         "  \"category\": one from the list (only useful when the current category is blank).\n"
-        "  \"tags\": array, ONLY from the allow-list, the most relevant 2-5.\n"
-        "  \"rationale\": one short sentence grounded in the evidence.\n"
-        "Do NOT return sensitivity or PII — those are deterministic from the scan."
+        "  \"tags\": array — the FINAL tag set for this column, reconciled "
+        "against the definition you just wrote: ONLY from the allow-list, at "
+        "most 4, most relevant first. Drop any current tag the definition no "
+        "longer supports.\n"
+        "  \"tag_drops\": object mapping each dropped current tag to a short "
+        "reason ({} when nothing is dropped).\n"
+        "  \"pii\": ONLY when the current PII class is wrong for what the "
+        "definition describes — one of PERSONAL_NAME, CONTACT_INFO, "
+        "ADDRESS_INFO, GOVERNMENT_ID, FINANCIAL, DEMOGRAPHIC, or null to "
+        "clear it (a street name on a pipe asset identifies no person). "
+        "OMIT this key when the current class is right.\n"
+        "  \"sensitivity\": HIGH, MEDIUM or LOW — ONLY when the current one "
+        "is inconsistent with the corrected PII class. OMIT otherwise.\n"
+        "  \"rationale\": one short sentence grounded in the evidence."
     ) % (
         (" at " + COMPANY) if COMPANY else "",
         row.get("Term", ""), row.get("Category", ""),
@@ -568,8 +579,8 @@ def _ai_pass_batch(rows, allow_tags, categories, model=None, num_gpu=None):
         enum_vals = (r.get("Enum_Values") or "").strip()
         if enum_vals:
             ev.append("values %s" % enum_vals[:200])
-        if r.get("PII_Category"):
-            ev.append("PII %s" % r["PII_Category"])
+        ev.append("PII %s" % (r.get("PII_Category") or "(none)"))
+        ev.append("sensitivity %s" % (r.get("Sensitivity") or "LOW"))
         # why the scan proposed this term/tags in the first place. The batched
         # prompt went without it while the per-row path had it, so the evidence
         # the retired AI-suggest agent leaned on was exactly what the pass that
@@ -592,17 +603,25 @@ def _ai_pass_batch(rows, allow_tags, categories, model=None, num_gpu=None):
         "Governed tag allow-list (use ONLY these): %s\n\n"
         "Return ONLY a JSON object of the form {\"items\":[{\"n\":1,\"name\":\"...\","
         "\"definition\":\"...\",\"purpose\":\"...\",\"category\":\"...\",\"tags\":[\"...\"],"
-        "\"rationale\":\"...\"}, ...]} with one entry per column, keeping the numbering.\n"
+        "\"tag_drops\":{},\"rationale\":\"...\"}, ...]} with one entry per column, "
+        "keeping the numbering.\n"
         "  name: a clearer business term ONLY if the current one is cryptic or abbreviated "
         "(cust_acct_no -> Customer Account Number); otherwise repeat it UNCHANGED.\n"
         "  definition: one sentence, max 25 words, precise, business-facing, what it is.\n"
         "  purpose: one sentence, max 25 words, why it matters or how the business "
         "uses it — NOT a restatement of the definition.\n"
         "  category: one from the list (only useful where the current category is blank).\n"
-        "  tags: 2-5, ONLY from the allow-list.\n"
+        "  tags: the FINAL tag set, reconciled against the new definition — "
+        "ONLY from the allow-list, at most 4; drop current tags the definition "
+        "no longer supports, each with a short reason in tag_drops.\n"
+        "  pii: ONLY when the current PII class is wrong for what the "
+        "definition describes — PERSONAL_NAME, CONTACT_INFO, ADDRESS_INFO, "
+        "GOVERNMENT_ID, FINANCIAL, DEMOGRAPHIC, or null to clear it (a street "
+        "name on a pipe asset identifies no person). Omit when right.\n"
+        "  sensitivity: HIGH/MEDIUM/LOW, ONLY when inconsistent with the "
+        "corrected PII class. Omit otherwise.\n"
         "Write each entry from its own evidence alone — do NOT reuse sentence "
-        "templates or phrasing across entries.\n"
-        "Do NOT return sensitivity or PII — those are deterministic from the scan.\n\n"
+        "templates or phrasing across entries.\n\n"
     ) % (
         (" at " + COMPANY) if COMPANY else "",
         ", ".join(categories or []) or "(keep current)",
@@ -633,11 +652,14 @@ def _ai_pass_batch(rows, allow_tags, categories, model=None, num_gpu=None):
 
 def ai_pass_rows(rows, allow_tags=None, categories=None, only_low_confidence=False,
                  model=None, compute=None, workers=None, batch_size=None):
-    """One combined agent pass: definition, purpose, name, category and tags for
-       each kept row in a SINGLE model call per row, under the same guardrails the
-       separate agents apply — tags governed-only, category fills a blank only,
-       the name is a Suggested_Name chip and never overwrites Term, sensitivity
-       and PII are never touched by the model. Returns (rows, counts, used_llm)."""
+    """One combined agent pass: definition, purpose, name, category, tags and —
+       since the W4/W5 classification sync — PII/sensitivity corrections for
+       each kept row in a SINGLE model call per row, under guardrails: tags are
+       a closed-set reconcile (governed-only, <=4, drops carry reasons, a
+       standing PII class keeps its pii tag), category fills a blank only, the
+       name is a Suggested_Name chip and never overwrites Term, and PII/
+       sensitivity change only when the model states a disagreement with the
+       enriched definition. Returns (rows, counts, used_llm)."""
     rows = [r for r in rows if isinstance(r, dict)]
     counts = {"definitions": 0, "purposes": 0, "names": 0, "tags": 0, "category": 0}
     if not status(model)["online"]:
@@ -705,17 +727,55 @@ def ai_pass_rows(rows, allow_tags=None, categories=None, only_low_confidence=Fal
             r["Category"] = cat
             counts["category"] += 1
             changed = True
-        proposed = out.get("tags") or []
+        # W4/W5 classification sync: the pass may CORRECT the PII class and
+        # sensitivity when the enriched definition contradicts the scan-time
+        # name heuristic (Street Name on a pipe asset is not PERSONAL_NAME).
+        # The key is only present on disagreement; null clears the class.
+        # Applied before the tag reconcile so the pii-tag guard below sees
+        # the corrected classification.
+        if "pii" in out:
+            v = out.get("pii")
+            v = "" if v in (None, "", "null", "none") else str(v).strip().upper()
+            if v in _PII_CLASSES and v != (r.get("PII_Category") or ""):
+                r["PII_Category"] = v
+                counts["pii"] = counts.get("pii", 0) + 1
+                changed = True
+        sv = str(out.get("sensitivity") or "").strip().upper()
+        if sv in ("HIGH", "MEDIUM", "LOW") and sv != (r.get("Sensitivity") or ""):
+            r["Sensitivity"] = sv
+            counts["sensitivity"] = counts.get("sensitivity", 0) + 1
+            changed = True
+        proposed = out.get("tags")
         if isinstance(proposed, list):
-            cur = [t for t in (r.get("Suggested_Tags") or "").split(";") if t]
-            cur_l = {t.strip().lower() for t in cur}
-            added = [str(t).strip().lower() for t in proposed
-                     if str(t).strip() and str(t).strip().lower() in allow_set
-                     and str(t).strip().lower() not in cur_l]
-            if added:
-                r["Suggested_Tags"] = ";".join(cur + added)
+            # W4 tag reconciliation (was add-only, so scan-time noise like the
+            # Base Charge pile could never shrink): the model returns the
+            # FINAL set — closed governed vocabulary, at most 4, drops allowed
+            # and each drop carries a reason. Evidence-earned structure is
+            # guarded deterministically: a standing PII class keeps its pii
+            # tag whatever the model returned.
+            cur = [t.strip() for t in (r.get("Suggested_Tags") or "").split(";") if t.strip()]
+            vetted, seen = [], set()
+            for t in proposed:
+                tl = str(t).strip().lower()
+                if tl and tl in allow_set and tl not in seen:
+                    vetted.append(tl); seen.add(tl)
+            vetted = vetted[:4]
+            if (r.get("PII_Category") or "").strip() and "pii" in {c.lower() for c in cur} \
+                    and "pii" not in seen:
+                vetted.append("pii")
+            if vetted and [c.lower() for c in cur] != vetted:
+                r["Suggested_Tags"] = ";".join(vetted)
                 counts["tags"] += 1
                 changed = True
+                drops = out.get("tag_drops")
+                if isinstance(drops, dict) and drops:
+                    why_drops = "; ".join(f"-{str(k).strip()}: {str(v).strip()[:60]}"
+                                          for k, v in list(drops.items())[:4]
+                                          if str(k).strip())
+                    if why_drops:
+                        base = r.get("Suggested_Reason") or ""
+                        r["Suggested_Reason"] = ((base + " · ") if base else "") \
+                            + "AI(tags): " + why_drops[:200]
         if changed:
             r["AI_Suggested"] = "Yes"
             r["LLM_Enriched"] = "Yes"
@@ -730,6 +790,10 @@ def ai_pass_rows(rows, allow_tags=None, categories=None, only_low_confidence=Fal
     if fails.get("timeout"):
         counts["timed_out"] = fails["timeout"]
     return rows, counts, True
+
+
+_PII_CLASSES = {"", "PERSONAL_NAME", "CONTACT_INFO", "ADDRESS_INFO",
+                "GOVERNMENT_ID", "FINANCIAL", "DEMOGRAPHIC"}
 
 
 # ------------------------------------------------------------ AI merge adjudicator

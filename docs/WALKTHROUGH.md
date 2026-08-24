@@ -243,7 +243,11 @@ those with one click.)
       sanity shape at 0.5/0.5, range still in the DQ expectations);
       **M shapeless → Mapping-only** declares free-text skips quiet.
       The per-row Detection toggle in each row editor still decides
-      individually.
+      individually. **Order matters** (walk-caught): run the flips AFTER
+      the duplicate clusters are resolved — merges consolidate rows and
+      the flip lists recompute live, so post-settlement counts match the
+      grid that ships. This is **5 · Detection flips** on the AI AGENTS
+      strip; then approve the pending vocabulary on Dictionary.
 
 > **Talk track** — *"Watch what the flip does: the engine defaulted pH to
 > mapping-only because a 0–14 shape would match every small number in the

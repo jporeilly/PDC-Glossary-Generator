@@ -608,14 +608,16 @@ Review and refine the suggested terms, then generate.
 
 A **"How to review — the working order"** panel at the top of the page (open
 by default, full width) is an **interactive, clickable flow**: ① Prune →
-② Resolve duplicates → ③ **Approve pending vocabulary** (the box navigates
-to the Dictionary, with a come-back note — scans leave pending vocabulary
-there, and row tags draw from the governed allow-list) → ④ the **AI agents
-as sequence chips** (Enrich → Suggest · Categorize · Tags → QA as the gate;
-clicking a chip highlights the AI toolbar) → ⑤ Name the glossary → Govern
-(navigates). The ordered list underneath matches, including when to flip to
-the Dictionary (after prune/merge, before the AI pass — approved tags are
-what the pass re-derives from) and back.
+② **1 · AI categories** (one seeded schema-wide call; assignments land as
+Category pills) → ③ **2 · Approve categories** (the keystone: names and
+saves, syncs the Dictionary) → ④ **3 · AI pass** over the kept rows (or AI
+review per expanded row) → ⑤ **Resolve duplicates** per cluster, with
+**4 · AI advise** escalating the groups marked *(check)* → ⑥ **5 · Detection
+flips** — after the clusters, because merges consolidate rows and the flip
+lists recompute live: flip the starred name-anchored measures to Auto and
+declare the shapeless mapping-only (deterministic readiness rules, not AI)
+→ ⑦ **✓ Review complete** → ⑧ **Approve pending vocabulary** (navigates to
+the Dictionary) → Govern (navigates). The ordered list underneath matches.
 
 - **Columns**: Keep · Category · Term · Definition · **Purpose** · Sensitivity
   (colour-coded: HIGH red, MEDIUM orange, LOW teal) · CDE · Tags · Confidence · Source.

@@ -1641,6 +1641,58 @@ class TestHarvestCompletesEnumsFromSavedDb:
         assert rows[0]["Enum_Values"] == "Pima;Pinal"
 
 
+class TestAiPassClassificationSync:
+    """W4/W5 (2026-08-24 walk): the pass never revisited tags (add-only, so
+       Base Charge's scan-time pile could never shrink) and never corrected a
+       context-blind PII call (Street Name on a pipe asset = PERSONAL_NAME).
+       Now: tags are a closed-set reconcile (<=4, drops carry reasons) and
+       pii/sensitivity apply only when the model states a disagreement."""
+
+    def _run(self, monkeypatch, row, out):
+        from ai import llm
+        monkeypatch.setattr(llm, "status", lambda m=None: {"online": True})
+        monkeypatch.setattr(llm, "_warm", lambda m=None: None)
+        monkeypatch.setattr(llm, "_ai_pass_batch",
+                            lambda rows, a, c, model=None, num_gpu=None: [out] * len(rows))
+        rows, counts, _ = llm.ai_pass_rows(
+            [row], allow_tags=["pii", "billing", "charges", "location", "compliance"],
+            workers=1)
+        return rows[0], counts
+
+    def test_reconcile_drops_noise_and_clears_wrong_pii(self, monkeypatch):
+        row = _row("Street Name", "gis.pipes.street_name",
+                   Suggested_Tags="pii;compliance", PII_Category="PERSONAL_NAME",
+                   Sensitivity="HIGH")
+        r, counts = self._run(monkeypatch, row, {
+            "tags": ["location"], "tag_drops": {"pii": "asset geography, no person",
+                                                "compliance": "not a regulated value"},
+            "pii": None, "sensitivity": "LOW", "rationale": "asset location field"})
+        assert r["PII_Category"] == "" and r["Sensitivity"] == "LOW"
+        assert r["Suggested_Tags"] == "location", r["Suggested_Tags"]
+        assert "AI(tags):" in r.get("Suggested_Reason", "")
+        assert counts.get("pii") == 1 and counts.get("sensitivity") == 1
+
+    def test_standing_pii_class_keeps_its_pii_tag(self, monkeypatch):
+        row = _row("Customer Name", "crm.customers.full_name",
+                   Suggested_Tags="pii;billing", PII_Category="PERSONAL_NAME",
+                   Sensitivity="HIGH")
+        r, _ = self._run(monkeypatch, row, {
+            "tags": ["billing"], "tag_drops": {"pii": "model got creative"},
+            "rationale": "x"})   # no pii key — the class stands
+        assert r["PII_Category"] == "PERSONAL_NAME"
+        assert "pii" in r["Suggested_Tags"].split(";"), \
+            "an evidence-earned pii tag must survive the model's drop"
+
+    def test_off_vocabulary_and_overflow_are_vetted(self, monkeypatch):
+        row = _row("Base Charge", "billing.rates.base_charge",
+                   Suggested_Tags="compliance", Sensitivity="LOW")
+        r, _ = self._run(monkeypatch, row, {
+            "tags": ["billing", "charges", "made-up-tag", "location",
+                     "compliance", "pii"], "tag_drops": {}, "rationale": "x"})
+        got = r["Suggested_Tags"].split(";")
+        assert "made-up-tag" not in got and len(got) <= 4, got
+
+
 class TestExpertiseUniformityGuard:
     """W11 (2026-08-24 walk): the model handed every roster member the same
        keyword set, so auto-assign had no signal and whole categories went

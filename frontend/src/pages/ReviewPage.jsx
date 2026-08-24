@@ -721,8 +721,12 @@ export default function ReviewPage({ onNavigate }) {
   // After the pass: the blue hands to 4 · AI advise while clusters remain
   // undecided; quiet only when every duplicate has its decision — the
   // flow's next action is then ✓ Review complete.
+  // step 5 (Detection flips) lights once the clusters are decided and the
+  // review is not yet stamped complete — the flips must follow the merges
+  // (W7: the lists recompute live, so post-settlement counts match the grid)
   const agentStep = catsConfirmedCurrent
-    ? ((agent || stats.enriched === 0) ? 3 : (undecidedDups > 0 ? 4 : 0))
+    ? ((agent || stats.enriched === 0) ? 3
+       : (undecidedDups > 0 ? 4 : (!ws.reviewCompleted ? 5 : 0)))
     : (catRan ? 2 : 1)
   // kept categories that are still just the humanized physical name of their
   // own table/folder — same slug rule Govern badges with
@@ -1539,7 +1543,7 @@ export default function ReviewPage({ onNavigate }) {
       (rs) => apiPost('/api/ai-pass', { rows: rs }), {
         propose: {
           label: 'AI pass (all fields)',
-          watch: ['Definition', 'Purpose', 'Suggested_Name', 'Suggested_Tags', 'Category', 'PII_Category'],
+          watch: ['Definition', 'Purpose', 'Suggested_Name', 'Suggested_Tags', 'Category', 'PII_Category', 'Sensitivity'],
           carry: ['LLM_Definition', 'LLM_Purpose', 'LLM_Enriched', 'LLM_Name', 'AI_Suggested',
                   'Suggested_Reason', 'QA_Issues'],
         },
@@ -1561,7 +1565,7 @@ export default function ReviewPage({ onNavigate }) {
         only: [index],
         propose: {
           label: 'AI review (this row)',
-          watch: ['Definition', 'Purpose', 'Suggested_Name', 'Suggested_Tags', 'Category', 'PII_Category'],
+          watch: ['Definition', 'Purpose', 'Suggested_Name', 'Suggested_Tags', 'Category', 'PII_Category', 'Sensitivity'],
           carry: ['LLM_Definition', 'LLM_Purpose', 'LLM_Enriched', 'LLM_Name', 'AI_Suggested',
                   'Suggested_Reason', 'QA_Issues'],
         },
@@ -1726,6 +1730,15 @@ export default function ReviewPage({ onNavigate }) {
               keys, free text) — so Policy stops expecting a detection method at all. Mapping-only
               always wins, even over existing seeds. Set it in a row&apos;s expanded editor
               (DETECTION toggle); the choice travels in the exported Registry, nowhere else.
+              <br /><br />
+              <b>When to flip, and in what order:</b> after the AI pass and after the duplicate
+              clusters are resolved — merges consolidate rows, and the DETECTION toolbar&apos;s
+              flip lists (<i>★ recommended → Auto</i>, <i>shapeless → Mapping-only</i>) recompute
+              live, so post-settlement counts match the grid that ships. The lists are
+              deterministic readiness rules, not AI: starred flips are name-anchored measures
+              whose rule matches on column name AND a sanity shape, so flipping one adds
+              detection without risking false fires. Then approve the pending vocabulary on
+              Dictionary. This is step <b>5 · Detection flips</b> on the AI AGENTS strip.
             </dd>
           </dl>
         </div>
@@ -1849,6 +1862,19 @@ export default function ReviewPage({ onNavigate }) {
                           : 'Run FOURTH — after the pass. Every duplicate cluster is decided; nothing to escalate.')
                       : `Run FOURTH — after the pass, with final names and real definitions in hand. Decide each duplicate cluster on its header bar; this escalates only the ${checkGroups} group${checkGroups !== 1 ? 's' : ''} badged “check” — no profiled value sets to compare — probing LIVE data values over your database connection and letting the model adjudicate. Hints only.`}>
               {advising ? 'Advising…' : `4 · AI advise${checkGroups ? ` (${checkGroups})` : ''}`}
+            </button>
+            {/* W7 (field): "do I now click Flip 17 recommended…? these steps
+                need to be added to the flowchart explanations" — the flips
+                moved to Review but the flow story never learned. Step 5 is
+                DETERMINISTIC (readiness rules, no model): it lives on the
+                strip so the order is taught — clusters FIRST (merges
+                consolidate rows, so the flip lists recompute against the grid
+                that ships), THEN the flips, THEN Dictionary. */}
+            <button className={`${agentStep === 5 ? 'primary' : 'ghost'} sm`} disabled={noRows}
+                    onClick={() => document.getElementById('rv-detection-group')
+                      ?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
+                    title="Run FIFTH — after the duplicate clusters are resolved, because merges consolidate rows and the flip lists recompute live against the settled grid. Not AI: deterministic readiness rules. In the DETECTION toolbar group, flip the starred name-anchored measures to Auto, then declare the shapeless mapping-only. Then approve the pending vocabulary on Dictionary.">
+              5 · Detection flips
             </button>
             {anySuggestedNames && (
               <button className="ghost sm" disabled={locked} onClick={useAllNames}
@@ -2137,7 +2163,7 @@ export default function ReviewPage({ onNavigate }) {
               Find similar
             </button>
             <span className="rv-sep" aria-hidden="true" />
-            <span className="lbl">DETECTION</span>
+            <span className="lbl" id="rv-detection-group">DETECTION</span>
             <DetectionFlips rows={rows} />
             <span className="rv-grow" />
             <button className="ghost sm" disabled={!snapRef.current || locked} onClick={resetAll}
@@ -2344,7 +2370,7 @@ function ReviewGuide({ onNavigate }) {
       <summary>How to review — the working order</summary>
       <div className="rv-wfwrap">
         <svg className="rv-wf" viewBox="0 0 950 240"
-             aria-label="Working order: 1 prune the rows — keys and noise arrive already un-kept; 2 run AI categories — one seeded schema-wide call proposing a handful of business subjects, landing as Category pills; 3 Approve categories — the keystone: names and saves an unnamed glossary, syncs the Dictionary's pending vocabulary, and everything downstream keys off it; 4 run the AI pass — definitions, purposes, names and tags proposed against the settled taxonomy; 5 resolve duplicates one cluster at a time from each header's recommendation, with AI advise as step 4 on the strip escalating the groups marked check; 6 Review complete stamps the review, then approve the pending vocabulary on the Dictionary page and continue to Govern. The Dictionary and Govern boxes navigate; the agent chips highlight the AI toolbar.">
+             aria-label="Working order: 1 prune the rows — keys and noise arrive already un-kept; 2 run AI categories — one seeded schema-wide call proposing a handful of business subjects, landing as Category pills; 3 Approve categories — the keystone: names and saves an unnamed glossary, syncs the Dictionary's pending vocabulary, and everything downstream keys off it; 4 run the AI pass — definitions, purposes, names and tags proposed against the settled taxonomy; 5 resolve duplicates one cluster at a time from each header's recommendation, with AI advise as step 4 on the strip escalating the groups marked check; 6 Detection flips — after the clusters, because merges consolidate rows: flip the starred name-anchored measures to Auto and declare the shapeless mapping-only (deterministic rules, not AI); 7 Review complete stamps the review, then approve the pending vocabulary on the Dictionary page and continue to Govern. The Dictionary and Govern boxes navigate; the agent chips highlight the AI toolbar.">
           <defs>
             <marker id="rv-wfhead" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="8" markerHeight="8"
                     markerUnits="userSpaceOnUse" orient="auto-start-reverse">
@@ -2390,14 +2416,20 @@ function ReviewGuide({ onNavigate }) {
           {/* wrap connector into row 3 */}
           <path className="rv-wfarrow" d="M60 144 V162" markerEnd="url(#rv-wfhead)" />
 
-          {/* row 3: stamp the review, approve the vocabulary once, govern */}
-          <RvNode x={4} y={168} w={206} h={46} title="⑥ ✓ Review complete" sub="stamps the review · warns, never blocks" />
-          <path className="rv-wfarrow" d="M214 191 H232" markerEnd="url(#rv-wfhead)" />
-          <RvNode role="button" x={236} y={168} w={250} h={46} title="⑦ Approve pending vocabulary" sub="Dictionary ↗ · synced at the keystone"
+          {/* row 3: the flips AFTER the clusters (merges consolidate rows, so
+              the flip lists recompute against the grid that ships — W7), then
+              stamp the review, approve the vocabulary once, govern */}
+          <RvNode role="button" x={4} y={168} w={196} h={46} title="⑥ 5 · Detection flips" sub="deterministic · ★ Auto · shapeless → mapping-only"
+                  onActivate={flashAgents}
+                  aria="Detection flips — after the clusters are resolved, flip the starred name-anchored measures to Auto and declare the shapeless mapping-only in the DETECTION toolbar group; deterministic readiness rules, not AI" />
+          <path className="rv-wfarrow" d="M204 191 H218" markerEnd="url(#rv-wfhead)" />
+          <RvNode x={222} y={168} w={190} h={46} title="⑦ ✓ Review complete" sub="stamps the review · warns, never blocks" />
+          <path className="rv-wfarrow" d="M416 191 H430" markerEnd="url(#rv-wfhead)" />
+          <RvNode role="button" x={434} y={168} w={250} h={46} title="⑧ Approve pending vocabulary" sub="Dictionary ↗ · synced at the keystone"
                   onActivate={() => onNavigate('dictionary')}
                   aria="Go to the Dictionary page — the pending vocabulary already carries your accepted edits; approve or retire it there" />
-          <path className="rv-wfarrow" d="M490 191 H508" markerEnd="url(#rv-wfhead)" />
-          <RvNode x={512} y={168} w={140} h={46} title="Govern ↗" sub="set stewardship"
+          <path className="rv-wfarrow" d="M688 191 H702" markerEnd="url(#rv-wfhead)" />
+          <RvNode x={706} y={168} w={140} h={46} title="Govern ↗" sub="set stewardship"
                   onActivate={() => onNavigate('govern')} aria="Go to the Govern page to set stewardship" />
         </svg>
       </div>
