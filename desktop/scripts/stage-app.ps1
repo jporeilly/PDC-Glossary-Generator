@@ -116,6 +116,18 @@ if ($LASTEXITCODE -ge 8) { throw "robocopy failed staging the UI (exit $LASTEXIT
 # import api.py whatever working directory it is given. See desktop/boot.py.
 Copy-Item -LiteralPath (Join-Path $desktopDir "boot.py") -Destination (Join-Path $stageDir "boot.py") -Force
 
+# The documentation corpus - the docs chat ("Ask the docs") answers ONLY from
+# these files, indexed at startup relative to the app dir. 1.40.0 shipped the
+# chat WITHOUT them, so the packaged index was empty and every question came
+# back "the documentation doesn't appear to cover this" (field: "not much good
+# if it cant even answer this question"). diagrams/ stays repo-only (1.4 MB of
+# artwork the app never serves).
+$srcDocs = Join-Path $repoRoot "docs"
+& robocopy $srcDocs (Join-Path $stageDir "docs") "/E" "/NFL" "/NDL" "/NJH" "/NJS" "/NP" `
+    "/XD" "diagrams" | Out-Null
+if ($LASTEXITCODE -ge 8) { throw "robocopy failed staging the docs (exit $LASTEXITCODE)" }
+Copy-Item -LiteralPath (Join-Path $repoRoot "README.md") -Destination (Join-Path $stageDir "README.md") -Force
+
 # pdc_client lives at the REPO ROOT and is pip-installed into the dev venv, so
 # nothing in glossary_generator/ points at it. Miss it and api.py raises
 # ModuleNotFoundError at import time - after the installer has shipped.

@@ -167,10 +167,20 @@ ANSWER:"""
 def answer(question, page=None, ai=True, model=None, version=""):
     """Retrieve, then (when a model is reachable) compose a grounded, cited
     answer — or degrade to search results, stated honestly."""
+    idx = get_index(version)
     hits = search(question, page=page, k=6, version=version)
     out = {"hits": hits, "grounded": False, "used_llm": False,
            "cited": [{"doc": h["doc"], "heading": h["heading"]} for h in hits[:3]],
            "index_version": version}
+    if not idx["chunks"]:
+        # an EMPTY corpus is a packaging defect, never a docs gap — 1.40.0
+        # shipped the chat without the docs and every question read as "the
+        # documentation doesn't cover this", which slanders a corpus that
+        # was never consulted
+        out["answer"] = ("No documentation shipped with this build — the docs "
+                         "index is empty. This is an installation defect, not "
+                         "a gap in the documentation; please report it.")
+        return out
     if not hits:
         out["answer"] = ("The documentation doesn't appear to cover this — "
                          "no section matched the question.")

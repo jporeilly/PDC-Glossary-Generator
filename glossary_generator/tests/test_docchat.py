@@ -70,3 +70,31 @@ class TestGroundedOrRefuse:
         idx = docchat.get_index("9.9.9-test")
         assert idx["version"] == "9.9.9-test"
         assert len(idx["chunks"]) > 100, "the shipped corpus should chunk richly"
+
+
+class TestPackagingGuards:
+    def test_categories_is_covered(self):
+        """Field 2026-08-24: "can you please explain categories?" refused in
+           the installed app - because the corpus never shipped, not because
+           the docs lack it. Pin that the corpus answers it."""
+        hits = docchat.search("can you please explain categories?", version="test")
+        assert hits, "the corpus must cover categories"
+        assert any("categor" in (h["heading"] + h["text"]).lower() for h in hits)
+
+    def test_empty_corpus_says_packaging_not_docs(self, monkeypatch):
+        """An empty index is an installation defect and must SAY so - never
+           'the documentation doesn't cover this', which slanders a corpus
+           that was never consulted."""
+        monkeypatch.setattr(docchat, "DOCS", [])
+        monkeypatch.setattr(docchat, "_INDEX", None)
+        out = docchat.answer("anything at all", ai=False, version="empty-test")
+        assert "installation defect" in out["answer"]
+        docchat._INDEX = None   # rebuild for later tests
+
+    def test_stage_script_ships_the_corpus(self):
+        """The chat is only as good as what the installer stages."""
+        import pathlib
+        stage = (pathlib.Path(docchat._ROOT) / "desktop" / "scripts"
+                 / "stage-app.ps1").read_text(encoding="utf-8")
+        assert 'Join-Path $repoRoot "docs"' in stage
+        assert 'README.md' in stage
