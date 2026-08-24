@@ -1,5 +1,42 @@
 # Changelog
 
+## [1.40.0] - 2026-08-24
+
+The backlog-closing release: the last three open Glossary items (3, 4, 12)
+in one pass, ahead of the clean walkthrough.
+
+### Added - the per-row Map override finally has a control (backlog 3)
+
+The docs promised "a per-row Map = Y/N always wins" for two releases with
+no way to set it outside hand-editing the saved JSON. The Review row
+editor gains a MAP segment (Policy decides / Y / N), and the Apply page's
+held-back list gains a Map = Y button per term - it patches every row
+bearing the term (the duplicate-sibling lesson applied) and re-pulls the
+links. With Selective already auto-exempting mapping-only terms, the
+Map-everything workaround is now officially retired.
+
+### Added - AI-proposed label vocabularies, steward-adopted (backlog 4)
+
+For label families with NO scan signal - retention, regulatory-basis -
+where mapping a document class to a value is domain judgment. The model
+PROPOSES a vocabulary from the estate's own document classes and
+categories; deterministic guardrails ground it (at most 8 entries, at
+most 6 distinct values - more is a field, not a label); the steward edits
+and ADOPTS it into the domain pack, where the engine - which still
+refuses to invent retention - derives it on every scan thereafter. The
+Govern labels card carries the propose/edit/adopt panel; nothing
+auto-applies.
+
+### Fixed - the installer's bar moves during the delete phase (backlog 12)
+
+NSIS weights its gauge almost entirely by extraction bytes, so removing
+the previous version's vendored Python (thousands of files, most of an
+upgrade's wall time) parked the bar near 0% and upgrades read as hangs.
+The bar now runs as a marquee during the delete phases - the install's
+pre-clean and the whole uninstall - and returns to the honest
+byte-weighted bar for extraction. Ported to the Policy Generator's
+installer template in the same pass.
+
 ## [1.39.0] - 2026-08-24
 
 The backlog-clearing release: three items built, verified and shipped in
