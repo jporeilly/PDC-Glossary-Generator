@@ -838,3 +838,17 @@ Accounts all still carry their classifications despite this morning's
 none option), labelled as the source of the derived pii tag (W16's
 labelling), same pattern as the Detection and Map segments. Walk remedy:
 state surgery over the W5 list, app closed.
+
+## W18 · Flipping to Auto silently costs the term its link exemption
+
+Field: Selective held back 38 terms including every starred flip (Lead,
+Turbidity, pH...), Asset ID, Segment ID, the Status family and Payment
+Status (CBS). The mapping-only auto-exempt keys on
+Detection_Intent == mapping_only - so the star flip, which CLEARS that
+intent to mint a name-anchored method, also silently removes the link
+guarantee, and a Low-confidence flipped term lands held-back. A flip
+adds detection; it must never subtract linkage. Fix: should_map_link
+also exempts rows whose seed is name-anchored (identity=column_name) -
+"was mapping-only by nature" survives the flip. Walk remedy: switched to
+Map everything (defensible here: a fully reviewed 142-term glossary IS
+the relevance gate).
