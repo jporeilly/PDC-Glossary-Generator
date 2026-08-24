@@ -852,3 +852,12 @@ also exempts rows whose seed is name-anchored (identity=column_name) -
 "was mapping-only by nature" survives the flip. Walk remedy: switched to
 Map everything (defensible here: a fully reviewed 142-term glossary IS
 the relevance gate).
+
+W18 addendum: rename the policy options when the fix lands. "Map
+everything (legacy)" mislabels the correct choice for curated estates -
+the steward's review IS the relevance gate there ("so it is legacy as
+that includes LOW conf?"). Honest labels: "Map all kept terms - the
+review already decided relevance" vs "Selective - hold back
+low-confidence extras (large/noisy estates)"; neither is legacy, they
+serve different estate classes. The hint text says which class you are
+in.
