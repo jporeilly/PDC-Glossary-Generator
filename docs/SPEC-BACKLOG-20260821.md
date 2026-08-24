@@ -700,3 +700,21 @@ recommendation. Two fixes:
   source table is provenance, not classification, and the suggester
   should never propose it into the vocabulary (same treatment as the
   category echoes). Walk remedy: retired the 11 individually.
+
+## W9 · The fold advisor proposes folding numbered series into themselves
+
+Field: 30 fold candidates, EVERY one "fold Tier N X into Tier M X" /
+"Usage Tier N into Tier M" at 88-96% name similarity - a numbered SERIES
+misread as aliases, because string similarity does not know that a
+differing digit is semantically decisive. And the advice lands at the
+Dictionary gate when term identity was already settled at Review ("this
+should have been previously advised when approving the Terms").
+Three cuts:
+- SERIES GUARD: names identical except for a numeric token are a series,
+  never fold candidates - kills all 30 here deterministically;
+- the fold advisor's surviving candidates move INTO Review's advise
+  stage (one place where term identity is decided), leaving the
+  Dictionary gate to vocabulary approval only;
+- wholesale symmetry (W8's rule): wherever fold/approve lists render,
+  Dismiss all ships beside Fold/Approve all. Walk remedy: dismissed all
+  30 by hand.
