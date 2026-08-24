@@ -1641,6 +1641,41 @@ class TestHarvestCompletesEnumsFromSavedDb:
         assert rows[0]["Enum_Values"] == "Pima;Pinal"
 
 
+class TestExpertiseUniformityGuard:
+    """W11 (2026-08-24 walk): the model handed every roster member the same
+       keyword set, so auto-assign had no signal and whole categories went
+       unpicked. Identical answers for 3+ people are reverted with a note."""
+
+    def _people(self):
+        return [{"name": f"u{i}", "display_name": f"User {i}", "expertise": ""}
+                for i in range(4)]
+
+    def test_uniform_fills_are_reverted_with_a_note(self, monkeypatch):
+        from ai import llm
+        monkeypatch.setattr(llm, "status", lambda m=None: {"online": True})
+        monkeypatch.setattr(llm, "_expertise_llm",
+                            lambda p, c, model=None, num_gpu=None: "billing, water quality")
+        people, updated, _, note = llm.suggest_expertise(self._people())
+        assert updated == 0 and "uniform" in note
+        assert all(not p["expertise"] for p in people), "uniform fills must not stick"
+
+    def test_distinct_fills_stand(self, monkeypatch):
+        from ai import llm
+        monkeypatch.setattr(llm, "status", lambda m=None: {"online": True})
+        monkeypatch.setattr(llm, "_expertise_llm",
+                            lambda p, c, model=None, num_gpu=None: f"domain-{p['name']}")
+        people, updated, _, note = llm.suggest_expertise(self._people())
+        assert updated == 4 and note == ""
+        assert people[0]["expertise"] == "domain-u0"
+
+    def test_keycloak_title_reaches_the_prompt(self):
+        from ai import llm
+        import inspect
+        src = inspect.getsource(llm._expertise_llm)
+        assert 'person.get("title")' in src, \
+            "W10: the Keycloak title attribute must inform the expertise prompt"
+
+
 class TestSeedReadiness:
     def test_summary_buckets_and_shared_shapes(self, client):
         """Spec backlog 2: the evidence summary BEFORE anything is generated.

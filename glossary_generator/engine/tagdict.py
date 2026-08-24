@@ -245,6 +245,7 @@ def _seed():
         terms[n] = dict(v, layer="company", status="approved")
     return _normalize_doc(
         {"schema": SCHEMA, "domain": pack.get("domain") or "generic",
+         "company": pack.get("company") or "",
          "category_tags": cat, "rules": rules, "tags": tags, "terms": terms,
          "usage": {}, "term_usage": {}, "examples": {}, "sources": []})
 
@@ -314,6 +315,7 @@ def _merge_seed(d):
     _normalize_doc(d)                    # heal pre-1.8.1 mixed-case tag keys
     d.setdefault("schema", SCHEMA)
     d.setdefault("domain", seed["domain"])
+    d.setdefault("company", seed.get("company") or "")
     d.setdefault("category_tags", {})
     for k, v in seed["category_tags"].items():
         d["category_tags"].setdefault(k, v)
@@ -1168,6 +1170,7 @@ def summary():
                       "count": len(tusage.get(n) or ())})
     pend = pending()
     return {"schema": d.get("schema", SCHEMA), "domain": d.get("domain"),
+            "company": d.get("company") or "",
             "sources": d.get("sources", []),
             "tag_count": len(tags), "rule_count": len(d.get("rules", [])), "term_count": len(terms),
             "generic_tags": sum(1 for t in tags if t["layer"] == "generic"),

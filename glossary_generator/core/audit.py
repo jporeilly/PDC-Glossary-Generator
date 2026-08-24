@@ -82,7 +82,10 @@ def all_entries():
 def summary():
     """Compact record for embedding in the Registry."""
     e = _load()
-    return {"count": len(e),
+    # cap travels with the count so a maxed counter can label itself as a
+    # rolling window rather than sit frozen (W12: "not sure if this is
+    # refreshing" — it was, but a counter pinned at the cap looks dead)
+    return {"count": len(e), "cap": _CAP,
             "last_action_at": (e[-1]["ts"] if e else None),
             "actors": sorted({x.get("actor", "") for x in e if x.get("actor")}),
             "recent": e[-15:][::-1]}

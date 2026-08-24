@@ -85,7 +85,7 @@ def _abbrev_pairs(col, term):
     return out
 
 
-def build_pack(rows, base=None, resolutions=None):
+def build_pack(rows, base=None, resolutions=None, company=None):
     """Reviewed rows + governed dictionary -> a domain pack dict, merged over
     `base`. Returns (pack, report); report counts the learned additions per
     key and carries report["conflicts"] — every place the scan disagreed with
@@ -270,6 +270,11 @@ def build_pack(rows, base=None, resolutions=None):
     merge_map("curated_seeds", learned_seeds)
 
     base.setdefault("domain", d.get("domain") or "generic")
+    # W12: export-pack shipped domain=generic / company=None forever — the
+    # pack the flywheel is meant to carry never named whose data taught it.
+    # The settings company stamps in unless the pack already carries one.
+    if company and str(company).strip().lower() not in ("", "your organization"):
+        base.setdefault("company", str(company).strip())
     base["note"] = (str(base.get("note") or "").split(" [refreshed")[0]
                     + " [refreshed from scan results by the pack generator — review the additions, then commit]")
     report["conflicts"] = conflicts

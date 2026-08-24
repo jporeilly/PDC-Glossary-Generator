@@ -292,6 +292,11 @@ def _expertise_llm(person, categories, model=None, num_gpu=None):
        string, or "" on any failure (caller then uses the offline fallback)."""
     name = person.get("display_name") or person.get("name") or "this user"
     roles = ", ".join(person.get("roles") or []) or "unspecified"
+    # W10: a Keycloak title attribute ("Senior Billing Analyst") is the richest
+    # signal the roster carries — fold it into the role line when present
+    title = (person.get("title") or "").strip()
+    if title:
+        roles = f"{title} ({roles})" if roles != "unspecified" else title
     owns = (person.get("owns") or "").strip()
     community = (person.get("community") or "").strip()
     catline = ", ".join(categories) if categories else "(none provided)"
@@ -373,11 +378,13 @@ def suggest_expertise(people, categories=None, overwrite=False, model=None,
        LLM-first via local Ollama, with a deterministic offline fallback, so it
        always returns something usable. By default only people with no expertise
        are touched; pass overwrite=True to regenerate everyone.
-       Returns (people, count_updated, used_llm)."""
+       Returns (people, count_updated, used_llm, note) — note is non-empty when
+       a uniformity guard reverted the fills (W11)."""
     cats = [str(c).strip() for c in (categories or []) if str(c).strip()]
     online = status(model)["online"]
     updated = 0
     used_llm = False
+    filled = []                      # (person, kws) written this run
     for p in people:
         if not isinstance(p, dict):
             continue
@@ -392,8 +399,21 @@ def suggest_expertise(people, categories=None, overwrite=False, model=None,
             kws = _expertise_fallback(p, cats)
         if kws:
             p["expertise"] = kws
+            filled.append((p, kws))
             updated += 1
-    return people, updated, used_llm
+    # W11 (2026-08-24 walk): the model handed EVERY member the same keyword
+    # set, so auto-assign had no signal and whole categories went unpicked
+    # ("no-one picked up customer-management"). Identical answers for three or
+    # more people carry no information about any of them — revert the fills
+    # and say so, instead of quietly writing a uniform roster.
+    if len(filled) >= 3 and len({k.strip().lower() for _, k in filled}) == 1:
+        for p, _ in filled:
+            p["expertise"] = ""
+        return people, 0, used_llm, ("uniform: the model returned the same "
+            "keywords for all %d people — that carries no assignment signal, "
+            "so nothing was filled. Add role detail (Keycloak title/expertise "
+            "attributes, or Owns) and rerun." % len(filled))
+    return people, updated, used_llm, ""
 
 
 # --------------------------------------------------------------- model management

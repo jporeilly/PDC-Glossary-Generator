@@ -765,15 +765,29 @@ def keycloak_users(body: dict = Body(default={})):
                 return {"ok": False, "message": "Could not obtain admin token "
                         f"from realm '{auth_realm}'. Check the admin username/"
                         "password and that the admin realm is correct."}
-        users_url = f"{base}/admin/realms/{realm}/users?max=2000"
+        # briefRepresentation=false so each user carries `attributes` — the cast
+        # scripts stamp expertise/title there (W10: "when we add users to
+        # Keycloak we could add these attributes and get the app to pull them")
+        users_url = f"{base}/admin/realms/{realm}/users?max=2000&briefRepresentation=false"
         req = urllib.request.Request(users_url, headers={"Authorization": "Bearer " + token})
         with urllib.request.urlopen(req, timeout=20, context=ctx) as r:
             users = json.loads(r.read())
+
+        def _attr(u, key):
+            v = (u.get("attributes") or {}).get(key)
+            return str(v[0]).strip() if isinstance(v, list) and v else str(v or "").strip()
+
         roster = [{"name": u.get("username", ""),
                    "display_name": (f"{u.get('firstName','')} {u.get('lastName','')}".strip() or u.get("username", "")),
                    "email": u.get("email", ""), "id": u.get("id", ""),
-                   "roles": [], "stakeholder_role": "Steward", "community": "", "owns": "", "expertise": ""}
+                   "roles": [], "stakeholder_role": "Steward", "community": "",
+                   "owns": "",
+                   # a Keycloak attribute is the AUTHORED value — it wins over
+                   # carried edits and the LLM fallback alike
+                   "expertise": _attr(u, "expertise"),
+                   "title": _attr(u, "title")}
                   for u in users if u.get("id")]
+        from_kc = sum(1 for r_ in roster if r_["expertise"])
         # realm role-mappings per user, so stewardship can be assigned by role
         # (Business_Steward -> business steward, Data_Steward -> owner,
         #  Data_Storage_Administrator -> custodian). Best-effort + capped.
@@ -809,7 +823,8 @@ def keycloak_users(body: dict = Body(default={})):
         if b.get("save"):
             _save_people(roster)
         return {"ok": True, "people": roster, "count": len(roster),
-                "saved": bool(b.get("save")), "expertise_preserved": carried}
+                "saved": bool(b.get("save")), "expertise_preserved": carried,
+                "expertise_from_keycloak": from_kc}
     except urllib.error.HTTPError as e:
         detail = ""
         try:
@@ -1757,11 +1772,11 @@ def suggest_expertise_route(body: dict = Body(default={})):
     categories = body.get("categories") or []
     overwrite = bool(body.get("overwrite", False))
     model = body.get("model") or None
-    people, updated, used_llm = llm.suggest_expertise(
+    people, updated, used_llm, note = llm.suggest_expertise(
         people, categories=categories, overwrite=overwrite, model=model)
     if body.get("save"):
         _save_people(people)
-    return {"people": people, "updated": updated, "used_llm": used_llm,
+    return {"people": people, "updated": updated, "used_llm": used_llm, "note": note,
             "saved": bool(body.get("save")), "llm": llm.status(model)}
 
 @app.post("/api/resolve-fuzzy")
@@ -2617,6 +2632,7 @@ def api_governance_summary():
         "generated_at": audit._now(),
         "app_version": APP_VERSION,
         "domain": s.get("domain"),
+        "company": s.get("company") or "",
         "sources": s.get("sources", []),
         "vocabulary": {
             "tags": {"total": s["tag_count"], "generic": s["generic_tags"],
@@ -2709,7 +2725,8 @@ def api_export_pack(body: dict = Body(default={})):
             base = _json.load(f)
     except Exception:
         base = {}
-    pack, report = packgen.build_pack(rows, base=base, resolutions=resolutions)
+    pack, report = packgen.build_pack(rows, base=base, resolutions=resolutions,
+                                      company=_load_settings().get("company"))
     out = {"pack": pack, "report": report, "merged_over": bool(base),
            "learned": sum(v for k, v in report.items()
                           if isinstance(v, int) and k != "scan_overrides")}

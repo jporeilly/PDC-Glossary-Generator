@@ -413,6 +413,11 @@ export default function GovernPage({ onNavigate }) {
   const [people, setPeople] = useState(null)
   const [settings, setSettings] = useState(null)
   const [rosterDirty, setRosterDirty] = useState(false)
+  // W11 (2026-08-24 walk): "can this page save state" — expertise typed into
+  // the roster was lost on navigation unless Save roster was clicked. Edits
+  // now autosave debounced; a REMOVAL never autosaves (deleting a person is
+  // the one destructive roster act), so Save stays as its explicit confirm.
+  const [pendingRemoval, setPendingRemoval] = useState(false)
   // unbaked stewardship edits survive navigation (session cache) — the
   // seeding/hydration effects below already guard on existing values, so a
   // cached copy simply wins over re-seeding ("all pages should maintain
@@ -623,6 +628,7 @@ export default function GovernPage({ onNavigate }) {
   function rmPerson(idx) {
     setPeople((ps) => ps.filter((_, j) => j !== idx))
     setRosterDirty(true)
+    setPendingRemoval(true)
   }
 
   function addPerson(pf) {
@@ -641,11 +647,24 @@ export default function GovernPage({ onNavigate }) {
     try {
       const d = await apiPost('/api/people', { people })
       setRosterDirty(false)
+      setPendingRemoval(false)
       setRosterMsg(`Saved ${(d.people || []).length} people ✓`)
     } catch (err) {
       setRosterMsg(`Save failed: ${err.message}`)
     }
   }
+
+  // Debounced autosave for non-destructive roster edits (expertise typing,
+  // function toggles, adds). Removals wait for the explicit Save.
+  useEffect(() => {
+    if (!rosterDirty || pendingRemoval || !people) return undefined
+    const t = setTimeout(() => {
+      apiPost('/api/people', { people })
+        .then(() => { setRosterDirty(false); setRosterMsg('Autosaved ✓') })
+        .catch(() => {})   // a miss keeps dirty=true; the next edit or Save retries
+    }, 1500)
+    return () => clearTimeout(t)
+  }, [people, rosterDirty, pendingRemoval])
 
   // LLM expertise keywords per person (drives auto-assign); merges results
   // back by id → email → name, exactly like the old suggestExpertise.
@@ -678,9 +697,11 @@ export default function GovernPage({ onNavigate }) {
       if (d.updated) setRosterDirty(true)
       const via = d.used_llm ? 'the LLM'
         : `offline rules (${d.llm && d.llm.online ? 'LLM returned nothing' : 'Ollama offline'})`
-      setExpMsg(`⚡ Set expertise for ${d.updated || 0} people via ${via}.`
-        + (ecats.length ? '' : ' Scan a source first for sharper, category-aware keywords.')
-        + (d.updated ? ' Review, then Save roster.' : ''))
+      setExpMsg(d.note
+        ? `⚠ ${d.note}`
+        : `⚡ Set expertise for ${d.updated || 0} people via ${via}.`
+          + (ecats.length ? '' : ' Scan a source first for sharper, category-aware keywords.')
+          + (d.updated ? ' Review, then Save roster.' : ''))
       return next
     } catch (err) {
       setExpMsg(`Suggest failed: ${err.message}`)
@@ -721,7 +742,9 @@ export default function GovernPage({ onNavigate }) {
       setRosterDirty(!d.saved)
       const kept = d.expertise_preserved || 0
       const blanks = fetched.filter((p) => p.id && !(p.expertise || '').trim()).length
-      setKMsg(`✓ Fetched ${d.count} users${d.saved ? ' (saved to roster)' : ' — review and Save roster'}${kept ? ` · kept expertise for ${kept}` : ''}.`)
+      setKMsg(`✓ Fetched ${d.count} users${d.saved ? ' (saved to roster)' : ' — review and Save roster'}`
+        + (d.expertise_from_keycloak ? ` · expertise from Keycloak attributes for ${d.expertise_from_keycloak}` : '')
+        + (kept ? ` · kept expertise for ${kept}` : '') + '.')
       // No generate-at-fetch: expertise is for the people you KEEP, not every
       // account Keycloak holds — trim the roster first, then ⚡ Suggest
       // expertise below ("this option can be applied later", field-caught).
@@ -1437,7 +1460,11 @@ function RosterCard({ people, rosterDirty, rosterMsg, expMsg, expBusy, onToggleF
     <section className="card">
       <header>
         <h2>User roster <span>the accounts stewardship draws from</span></h2>
-        {rosterDirty && <span className="badge warning">unsaved changes — Save roster</span>}
+        {rosterDirty && (
+          <span className="badge warning">
+            {pendingRemoval ? 'removal pending — Save roster to confirm' : 'autosaving…'}
+          </span>
+        )}
       </header>
       <div className="actions" style={{ marginTop: 0, marginBottom: '.8rem' }}>
         <input type="text" className="text" placeholder="Filter roster (name, email, expertise)…"
@@ -1683,7 +1710,9 @@ function GovernanceSummaryCard() {
     { value: v.tags.governed, label: `governed tags (of ${v.tags.total})` },
     { value: v.tags.pending, label: 'tags pending review' },
     { value: v.rules, label: 'auto-tag rules' },
-    { value: sum.audit?.count ?? 0, label: 'audit trail entries' },
+    { value: sum.audit?.count ?? 0,
+      label: sum.audit?.cap && (sum.audit?.count ?? 0) >= sum.audit.cap
+        ? `audit trail entries (last ${sum.audit.cap} kept)` : 'audit trail entries' },
   ] : []
 
   return (
@@ -1706,6 +1735,7 @@ function GovernanceSummaryCard() {
           </div>
           <p className="hint-line">
             Domain: <b>{sum.domain || '—'}</b>
+            {sum.company && <> · Company: <b>{sum.company}</b></>}
             {sum.audit?.last_action_at && <> · last governance action {String(sum.audit.last_action_at).replace('T', ' ')}</>}
             {sum.audit?.actors?.length > 0 && <> · actors: {sum.audit.actors.join(', ')}</>}
           </p>
