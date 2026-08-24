@@ -659,3 +659,14 @@ columns (latitude/longitude/material = asset context; email/customer_id =
 person context), and the source type. A *_name column defaults to
 PERSONAL_NAME only in person context. Walk remedy: steward corrected the
 row (LOW, no PII, location tags).
+
+## W6 · Unit suffixes: always "(unit)" lowercase
+
+Convention (user, mid-walk): units in term names are lowercase in
+parentheses - (psi), (ppm), (ntu). This walk's namer emitted Title-Cased
+bare units instead: Chlorine Residual Ppm, Copper Ppm, Hardness Ppb,
+Lead Ppb, Total Dissolved Solids Ppm, Turbidity Ntu (while Flow (gpm) /
+Pressure (psi) came out right). Fix: the namer canonicalises a trailing
+unit token from the existing UNIT_NAME list (sug_shared) to " (unit)"
+lowercase at suggest time; pin with the six field cases. Walk remedy:
+steward renamed the six in the grid.
