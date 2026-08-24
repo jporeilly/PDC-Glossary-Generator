@@ -724,3 +724,17 @@ splitter expanded tier2/3/4_to_gallons to "Tier N To Gallons" but left
 tier1_to_gallons as "Tier1 To Gallons" (no space). Series-token splitting
 must be consistent across the series ("tier1" -> "Tier 1" like its
 siblings); pin with this case. Walk remedy: renamed the one term.
+
+## W10 · Roster expertise from Keycloak user attributes
+
+Field: "is there anywhere in Keycloak to augment the user with a
+description of their role that could be used to add expertise?" There is:
+USER ATTRIBUTES (Users -> user -> Attributes; on Keycloak ~24 enable
+Realm settings -> Unmanaged attributes first). Two halves:
+- the roster fetch reads attributes (expertise, title, department) and
+  prefills the Expertise column - hand-typing and the LLM suggestion stay
+  as fallbacks, an attribute always wins;
+- the lab cast script (PDC-Scenarios load-pdc-users.ps1) sets the
+  attributes at user-creation time so a fresh estate arrives with
+  expertise pre-filled. Groups-as-expertise noted as the alternative;
+  role descriptions rejected (authz semantics, wrong home).
