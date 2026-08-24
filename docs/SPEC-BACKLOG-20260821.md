@@ -784,8 +784,12 @@ Field: "dont really need to include the tables, etc?" - the 19 "no
 usable seed" terms were ALL expected cases, each saying so in its own
 reason text: table-level Record terms (9, glossary-by-design), document
 terms (5, vocabulary-dictionary governed), link-tagged identifiers (5).
-Actionable count: zero; badge: amber 19. Split the bucket the way the
-read-back split its verdicts: one calm summary line per expected
-population (collapsed), and the amber counts ONLY rows whose reason is a
-genuine evidence gap. An amber that is always amber trains stewards to
-ignore ambers (W13's rule, applied to its neighbour).
+Actionable count: zero; badge: amber 19. Design (user's refinement):
+GROUP the list BY REASON - each group headed by the explanation and its
+count ("table-level term - no physical column to identify (9)",
+"document term - identified by vocabulary dictionaries (5)", "tagged via
+the term-link (5)"), terms listed inside, groups collapsed by default -
+the reason is stated once instead of nineteen times. The amber badge
+counts ONLY the genuine-evidence-gap group; expected groups render
+neutral. An amber that is always amber trains stewards to ignore ambers
+(W13's rule, applied to its neighbour).
