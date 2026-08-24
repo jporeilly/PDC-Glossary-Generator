@@ -644,3 +644,18 @@ reconciliation as CLOSED-SET selection from the governed vocabulary only,
 (3) lands as pills, steward accepts, nothing auto-applies; (4) runs after
 Def/Purpose settle inside the AI pass. Payoff: cleaner applyBusinessTags
 on methods, cleaner steward stamps, honest label derivation.
+
+## W5 · Context-blind PII: an asset's street name is not PERSONAL_NAME
+
+Field: "Street Name" in Infrastructure and Assets (pipe/asset GIS data)
+classified PERSONAL_NAME, sensitivity HIGH, tags direct-identifier;
+privacy - "its not pii, its a street name". The PII heuristic keys on the
+column NAME with no context. Fix folds into W4, upgrading it from tag
+sync to CLASSIFICATION SYNC: the reconciliation agent judges tags + PII
+category + sensitivity together against the enriched Definition (which
+here plainly describes asset geography), and the deterministic half gains
+context signals the scanner already has - the settled category, sibling
+columns (latitude/longitude/material = asset context; email/customer_id =
+person context), and the source type. A *_name column defaults to
+PERSONAL_NAME only in person context. Walk remedy: steward corrected the
+row (LOW, no PII, location tags).
