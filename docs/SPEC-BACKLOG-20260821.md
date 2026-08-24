@@ -817,3 +817,11 @@ tag editor knows which tags are DERIVED - removing one either clears its
 source (with a confirm naming it: "also clears the FINANCIAL PII
 classification?") or refuses with the reason, never accepts an edit that
 the next Generate undoes.
+
+W16 addendum: the loop's root was FINANCIAL wearing two hats on one row -
+a tag named 'financial' and a PII classification named 'FINANCIAL'.
+"Clear FINANCIAL" removed the (correct) tag while the classification
+kept deriving 'pii'. The row editor should render the PII classification
+visibly AS the source of the derived pii tag (one control, labelled "PII
+classification - derives the pii tag"), so the two hats cannot be
+mistaken for each other.
