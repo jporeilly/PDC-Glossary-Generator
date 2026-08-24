@@ -598,3 +598,49 @@ installer template (tauri bundle.windows.nsis.template) that adds
 progress weight to the cleanup loop. Cosmetic; the streaming detail lines
 are the real liveness indicator meanwhile. Applies to all three suite
 apps (shared installer recipe).
+
+---
+
+# Walk-log — clean walkthrough, 2026-08-24 (1.40.0 / 1.10.17)
+
+Field catches from the walk, batched for 1.40.1 unless marked fixed.
+
+## W1 · The docs chat's corpus never shipped — FIXED (dd3eb21)
+
+The installer staged only the runtime; the packaged index was empty and
+every question answered "the documentation doesn't appear to cover this"
+("not much good if it cant even answer this question"). stage-app.ps1 now
+stages docs/ (minus diagrams/) + README.md; an empty index says
+"installation defect, not a docs gap"; three pins added.
+
+## W2 · Harvest-from-PDC does not complete enums
+
+PDC's stored profile serves SAMPLED values (sampleValues), so 13 of the
+walk's vocabularies landed short (Maricopa missing from both county
+columns, Fair/Good from the quality ratings, two systems from Service
+Area System...). The 1.38.39 completion (_complete_enum, SELECT DISTINCT
+<= 48) runs only on the DIRECT-scan path. Fix: when a saved DB connection
+covers the harvested source, the harvest path completes flagged enums the
+same way; when none does, the readiness panel should mark sampled enums
+as UNVERIFIED. Walk remedy: rows completed by hand from live DISTINCT
+(scripted, app closed, backup taken).
+
+## W3 · The direct scan cannot refresh evidence
+
+SourceConnections' scan('add') lands rows WITHOUT the refreshEvidence
+option, so evidence merges fill-only — a re-scan cannot overwrite a
+stale/short enum already on the grid. The Connect harvest has the
+"Refresh value evidence" checkbox; the Schema/Files scan needs the same.
+
+## W4 · Tag sync: the AI pass never revisits tags
+
+Definition and Purpose get enrichment; Suggested_Tags stay frozen
+scan-time heuristics — which is how Base Charge wore pii + compliance +
+water-quality-compliance + a category echo. Design (decided with the
+user mid-walk): (1) deterministic base — drop category-echo and
+off-vocabulary tags, keep evidence-earned ones (pii/cde); (2) AI
+reconciliation as CLOSED-SET selection from the governed vocabulary only,
+<= 4 tags, a stated reason per drop, judged against the NEW definition;
+(3) lands as pills, steward accepts, nothing auto-applies; (4) runs after
+Def/Purpose settle inside the AI pass. Payoff: cleaner applyBusinessTags
+on methods, cleaner steward stamps, honest label derivation.
