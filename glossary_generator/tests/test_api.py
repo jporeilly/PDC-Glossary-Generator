@@ -1596,3 +1596,34 @@ class TestSeedReadiness:
         assert d["no_seed_terms"][0]["term"] == "Notes"
         (sh,) = d["shared_shapes"]
         assert sh["terms"] == ["Billing ZIP", "Service ZIP"]
+
+
+class TestLabelVocabAdoption:
+    def test_adopt_writes_the_pack_and_the_engine_derives(self, client, fresh_dict):
+        """The steward's approval is the ONLY write path (backlog 4): adopt
+           lands labels.<family> in the domain pack with a backup, and the
+           labels engine - which refuses to invent retention - immediately
+           derives from it on the next suggest."""
+        import os as _os
+        r = client.post("/api/labels/adopt-vocab",
+                        json={"family": "retention",
+                              "mapping": {"compliance": "7y",
+                                          "correspondence": "3y"}}).json()
+        assert r["applied"] and r["entries"] == 2
+        assert _os.path.exists(r["pack_path"])
+        rows = [_row("EPA Report", "awc-documents/compliance/epa_2026",
+                     Source_Types={})]
+        d = client.post("/api/labels/suggest", json={"rows": rows}).json()
+        keys = {k["key"] for k in d["keys"]}
+        assert "retention" in keys, keys
+        assert not any("define labels.retention" in n for n in d.get("notes", []))
+
+    def test_adopt_refuses_what_the_guardrails_drop(self, client):
+        r = client.post("/api/labels/adopt-vocab",
+                        json={"family": "tier",
+                              "mapping": {str(i): f"v{i}" for i in range(8)}})
+        assert r.status_code == 400
+        assert "distinct" in r.json()["error"]
+
+    def test_propose_needs_rows(self, client):
+        assert client.post("/api/labels/propose-vocab", json={}).status_code == 400

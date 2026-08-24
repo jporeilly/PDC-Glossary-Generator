@@ -47,6 +47,78 @@ const isKept = (r) => ['y', 'yes', 'true', '1'].includes(String(r.Keep).toLowerC
 // Map a user's Keycloak realm roles to a governance function. PDC's model:
 // Business_Steward maintains glossaries; Data_Steward gives governance
 // ownership; Data_Storage_Administrator is the technical custodian.
+/* AI-proposed label vocabularies (spec backlog 4) — for families with NO
+   scan signal (retention, regulatory-basis), where mapping a document class
+   to a value is domain judgment. Contract: the LLM PROPOSES, deterministic
+   guardrails ground it (<= 8 entries, <= 6 distinct values), the steward
+   EDITS and ADOPTS into the domain pack — nothing auto-applies, and the
+   engine still refuses to invent (a family stays absent until adopted). */
+function VocabProposer({ rows, onAdopted }) {
+  const [family, setFamily] = useState('retention')
+  const [busy, setBusy] = useState(false)
+  const [prop, setProp] = useState(null)   // {family, proposal, rationale, problems}
+  const [msg, setMsg] = useState(null)
+
+  async function propose() {
+    setBusy(true); setMsg(null)
+    try {
+      setProp(await apiPost('/api/labels/propose-vocab', { rows, family }))
+    } catch (e) { setMsg({ warn: true, text: e.message }) } finally { setBusy(false) }
+  }
+
+  async function adopt() {
+    setBusy(true); setMsg(null)
+    try {
+      const d = await apiPost('/api/labels/adopt-vocab',
+        { family: prop.family, mapping: prop.proposal })
+      setMsg({ text: `✓ adopted labels.${d.family} into the domain pack (${d.entries} entries, backup taken) — the ${d.family} label now derives on every scan` })
+      setProp(null)
+      onAdopted?.()
+    } catch (e) { setMsg({ warn: true, text: e.message }) } finally { setBusy(false) }
+  }
+
+  return (
+    <div style={{ marginTop: '.8rem' }}>
+      <div className="actions">
+        <input className="text" style={{ maxWidth: '12rem' }} value={family}
+               onChange={(e) => setFamily(e.target.value)}
+               placeholder="family, e.g. retention"
+               title="A label family with no scan signal — retention, regulatory-basis. The AI proposes its vocabulary from the estate's own document classes and categories; you edit and adopt." />
+        <button className="ghost" onClick={propose} disabled={busy || !rows?.length}>
+          {busy && !prop ? 'Proposing…' : 'AI propose vocabulary'}
+        </button>
+      </div>
+      {prop && (
+        <div className="notes" style={{ marginTop: '.4rem' }}>
+          {prop.rationale && <p className="hint-line">{prop.rationale}</p>}
+          {Object.entries(prop.proposal || {}).map(([k, v]) => (
+            <span key={k} style={{ display: 'inline-flex', alignItems: 'center', gap: '.25rem', marginRight: '.6rem' }}>
+              <code>{k}</code>=
+              <input className="text" style={{ width: '6rem' }} value={v}
+                     aria-label={`value for ${k}`}
+                     onChange={(e) => setProp((p) => ({ ...p, proposal: { ...p.proposal, [k]: e.target.value } }))} />
+              <button className="ghost mini" title="Drop this entry"
+                      onClick={() => setProp((p) => {
+                        const m = { ...p.proposal }; delete m[k]
+                        return { ...p, proposal: m }
+                      })}>×</button>
+            </span>
+          ))}
+          {(prop.problems || []).map((p, i) => <div key={i} className="warn">⚠ {p}</div>)}
+          <div className="actions" style={{ marginTop: '.4rem' }}>
+            <button className="primary" onClick={adopt}
+                    disabled={busy || !Object.keys(prop.proposal || {}).length}>
+              {busy ? 'Adopting…' : `Adopt into the domain pack (labels.${prop.family})`}
+            </button>
+            <button className="ghost" onClick={() => setProp(null)}>Discard</button>
+          </div>
+        </div>
+      )}
+      {msg && <p className={`summary ${msg.warn ? 'warn' : 'ok'}`}>{msg.text}</p>}
+    </div>
+  )
+}
+
 function roleFns(roles) {
   const R = (roles || []).map((x) => String(x).toLowerCase())
   const any = (...ks) => R.some((r) => ks.some((k) => r.includes(k)))
@@ -1143,6 +1215,7 @@ export default function GovernPage({ onNavigate }) {
             {labels.notes.map((n) => <li key={n} className="notes">{n}</li>)}
           </ul>
         )}
+        <VocabProposer rows={rows} onAdopted={() => apiPost('/api/labels/suggest', { rows }).then(setLabels).catch(() => {})} />
         {labelKeys.length > 0 && (
           <p className="summary ok">
             {labelKeys.length} label key(s) kept — they ride the governance, are recorded in

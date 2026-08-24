@@ -2697,6 +2697,23 @@ function ExpandedRow({ row: r, index, prop, onAcceptProp, onField, onEvidence, o
                     : '→ no value shape: Registry leaves detection open, so Policy will request a seed'}
               </span>
             </span>
+            {/* The per-row Map override the docs promised for two releases
+                with NO control anywhere in the frontend (backlog 3 — the
+                documented override was reachable only by hand-editing the
+                saved JSON). Three states: blank = the mapping policy
+                decides; Y / N always win, above every policy. */}
+            <span className="rv-detseg"
+                  title="Should Apply link this term to its columns? Blank = the mapping policy on the Apply page decides (Selective already exempts mapping-only terms). Y forces the link; N withholds it — a steward's Map always beats the policy.">
+              <span className="rv-expevk">MAP</span>
+              <span className="seg" role="group" aria-label="Map override">
+                <button className={!String(r.Map || '').trim() ? 'on' : ''}
+                        onClick={() => onField(index, 'Map', '')}>Policy</button>
+                <button className={String(r.Map || '').trim().toUpperCase() === 'Y' ? 'on' : ''}
+                        onClick={() => onField(index, 'Map', 'Y')}>Y</button>
+                <button className={String(r.Map || '').trim().toUpperCase() === 'N' ? 'on' : ''}
+                        onClick={() => onField(index, 'Map', 'N')}>N</button>
+              </span>
+            </span>
             <span className="rv-grow" />
             <button className="primary sm" disabled={aiBusy} onClick={() => onAiReview(index)}
                     title="Run the pass on this row alone — richest evidence, and the model's whole attention on one term. The full sweep uses this exact prompt when Settings → Batch size is 1. Proposals land as pills on this row; nothing changes until you accept one.">

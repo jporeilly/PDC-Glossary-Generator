@@ -839,11 +839,21 @@ function DataElementsCard({ rows, glossaryName, governance, de, setDe }) {
             {actionable.length > 0 && (
               <details>
                 <summary>
-                  <b>{actionable.length}</b> term(s) held back by the mapping policy — set <b>Map</b> = Y (or raise confidence) to link them
+                  <b>{actionable.length}</b> term(s) held back by the mapping policy — Map = Y links one right here (backlog 3: the list used to TELL you to set Map with no control anywhere)
                 </summary>
                 <ul className="bucket-list">
                   {actionable.slice(0, 300).map((x, i) => (
-                    <li key={i}><b>{x.term}</b> <span className="notes">({x.category || '—'})</span> — {x.reason}</li>
+                    <li key={i}>
+                      <b>{x.term}</b> <span className="notes">({x.category || '—'})</span> — {x.reason}{' '}
+                      <button className="ghost mini"
+                              title="Set Map = Y on every row bearing this term (a steward's Map always beats the policy), then re-pull the links"
+                              onClick={() => {
+                                rows.forEach((r, j) => {
+                                  if (String(r.Term || '').trim() === x.term) patchRow(j, { Map: 'Y' })
+                                })
+                                pull()
+                              }}>Map = Y</button>
+                    </li>
                   ))}
                 </ul>
               </details>

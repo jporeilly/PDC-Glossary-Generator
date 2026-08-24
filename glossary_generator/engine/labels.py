@@ -146,6 +146,46 @@ def suggest_labels(rows, pack=None):
             "vocabulary": {k["key"]: [v["value"] for v in k["values"]] for k in out}}
 
 
+def validate_vocab(family, mapping):
+    """Guardrails for a label-vocabulary proposal — AI-proposed or
+    hand-written, the SAME rules (spec backlog 4: LLM proposes, the
+    deterministic core grounds, the steward approves; nothing invented gets
+    past this gate). Returns (clean_mapping, problems).
+
+    Rules: the family is a short lower-case key; at most 8 entries; matcher
+    keys are short lower-case words (a document class or a term keyword);
+    values are short strings (a retention period like "7y", a tier name);
+    at most 6 DISTINCT non-blank values — more than that is a field, not a
+    label (the engine's own constraint)."""
+    problems = []
+    fam = str(family or "").strip().lower()
+    if not re.fullmatch(r"[a-z][a-z0-9_-]{1,31}", fam):
+        return {}, [f"family {family!r} is not a short lower-case key"]
+    if not isinstance(mapping, dict) or not mapping:
+        return {}, ["the proposal is not a key -> value mapping"]
+    clean = {}
+    for k, v in list(mapping.items())[:24]:
+        key = str(k).strip().lower()
+        val = str(v).strip()
+        if not key or len(key) > 40:
+            problems.append(f"dropped matcher key {k!r} (empty or too long)")
+            continue
+        if len(val) > 24:
+            problems.append(f"dropped {key!r}: value too long ({val[:24]!r}…)")
+            continue
+        clean[key] = val
+    if len(clean) > 8:
+        problems.append(f"kept the first 8 of {len(clean)} entries")
+        clean = dict(list(clean.items())[:8])
+    distinct = {v for v in clean.values() if v}
+    if len(distinct) > 6:
+        return {}, problems + [
+            f"{len(distinct)} distinct values — a label needs <= 6 or it is a field"]
+    if not clean:
+        problems.append("nothing survived the guardrails")
+    return clean, problems
+
+
 def labels_for_row(row, keys, pack=None):
     """The {key: value} a single row would carry for the ENABLED keys — used at
     export/apply time so the written labels always match the current grid."""

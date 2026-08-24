@@ -4138,6 +4138,86 @@ def _labels_stamp_impl(body, progress=None):
             "unresolved": unresolved[:40], "results": results[:400]}
 
 
+@app.post("/api/labels/propose-vocab")
+def api_labels_propose_vocab(body: dict = Body(default={})):
+    """AI-proposed label vocabulary for a family with NO scan signal —
+    retention, regulatory-basis (spec backlog 4). The model PROPOSES a
+    matcher-key -> value mapping from the estate's own evidence (document
+    classes, categories, term names); the deterministic guardrails in
+    labels.validate_vocab ground it; the steward edits and adopts (or not).
+    Nothing is written here. Body: {rows, family?, model?}."""
+    from engine import labels as labels_engine
+    body = body or {}
+    rows = [r for r in (body.get("rows") or []) if isinstance(r, dict)]
+    family = (body.get("family") or "retention").strip().lower()
+    if not rows:
+        return _err("no rows — scan and review first, the proposal is grounded in them", 400)
+    classes = sorted({labels_engine._doc_class(r) for r in rows} - {""})
+    cats = sorted({str(r.get("Category") or "").strip() for r in rows} - {""})
+    terms = sorted({str(r.get("Term") or "").strip() for r in rows} - {""})[:40]
+    prompt = (
+        f"Propose a '{family}' label vocabulary for a data-governance catalog.\n"
+        "Output JSON: {\"mapping\": {<matcher>: <value>}, \"rationale\": <one sentence>}.\n"
+        "Rules:\n"
+        "- A matcher is a short lower-case word taken from the DOCUMENT CLASSES or\n"
+        "  CATEGORIES below (plus optionally \"default\").\n"
+        "- At most 8 entries and at most 6 DISTINCT values.\n"
+        f"- Values are short (max 24 chars). For retention use durations like \"7y\", \"3y\".\n"
+        "- Propose only what the evidence supports; this is a PROPOSAL a data steward\n"
+        "  will review — do not pad.\n\n"
+        f"DOCUMENT CLASSES: {', '.join(classes) or '(none)'}\n"
+        f"CATEGORIES: {', '.join(cats) or '(none)'}\n"
+        f"SAMPLE TERMS: {', '.join(terms) or '(none)'}\n")
+    try:
+        from ai import llm
+        out = llm._complete_json(prompt, model=body.get("model"), timeout=120)
+    except Exception:
+        out = None
+    if not isinstance(out, dict):
+        return _err("no local model reachable — define the vocabulary by hand in the "
+                    "domain pack (labels." + family + "), or configure Ollama on Settings", 503)
+    mapping = out.get("mapping") if isinstance(out.get("mapping"), dict) else out
+    clean, problems = labels_engine.validate_vocab(family, mapping)
+    return {"family": family, "proposal": clean, "problems": problems,
+            "rationale": str(out.get("rationale") or "")[:300], "used_llm": True}
+
+
+@app.post("/api/labels/adopt-vocab")
+def api_labels_adopt_vocab(body: dict = Body(default={})):
+    """The steward's approval: write an edited vocabulary into the installed
+    domain pack (labels.<family>), where the labels engine — and every future
+    scan — reads it. Same guardrails as the proposal; backup taken; the AI
+    never reaches this endpoint on its own. Body: {family, mapping}."""
+    from engine import labels as labels_engine
+    body = body or {}
+    clean, problems = labels_engine.validate_vocab(body.get("family"),
+                                                   body.get("mapping"))
+    if not clean:
+        return _err("; ".join(problems) or "nothing to adopt", 400)
+    family = str(body.get("family")).strip().lower()
+    import shutil
+    pack = {}
+    try:
+        with open(paths.domain_pack_path(), encoding="utf-8") as f:
+            pack = json.load(f)
+    except Exception:
+        pack = {}
+    path = paths.domain_pack_write_path()
+    backup = None
+    try:
+        if os.path.exists(path):
+            backup = path + ".backup-" + time.strftime("%Y%m%d-%H%M%S")
+            shutil.copy2(path, backup)
+    except Exception:
+        backup = None
+    pack.setdefault("labels", {})[family] = clean
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(pack, f, indent=2, ensure_ascii=False)
+    _receipt("labels-vocab", family=family, entries=len(clean))
+    return {"applied": True, "family": family, "entries": len(clean),
+            "problems": problems, "pack_path": path, "pack_backup": backup}
+
+
 @app.post("/api/labels/suggest")
 def api_labels_suggest(body: dict = Body(default={})):
     """Suggest PDC labels (key/value custom properties) from what the scan

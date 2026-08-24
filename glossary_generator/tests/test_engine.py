@@ -1291,3 +1291,23 @@ class TestSampledEnumsAreCompleted:
         col = {"column": "notes", "profile": {"kind": "value"}}
         _complete_enum(cur, None, "postgresql", "s", "t", col)
         assert not cur.asked, "one DISTINCT per ENUM column, not per column"
+
+
+class TestLabelVocabGuardrails:
+    def test_validate_vocab_grounds_a_proposal(self):
+        """Spec backlog 4: LLM proposes, the deterministic core grounds. The
+           same gate judges AI and hand-written vocabularies - short lower
+           keys, <= 8 entries, values <= 24 chars, <= 6 distinct values (more
+           is a field, not a label - the engine's own constraint)."""
+        from engine.labels import validate_vocab
+        clean, probs = validate_vocab("retention", {
+            "Compliance": "7y", "correspondence": "3y", "default": "",
+            "x" * 60: "1y", "scada": "y" * 40})
+        assert clean == {"compliance": "7y", "correspondence": "3y", "default": ""}
+        assert len(probs) == 2
+        # too many distinct values = a field, refused outright
+        clean, probs = validate_vocab("tier", {str(i): f"v{i}" for i in range(8)})
+        assert clean == {} and any("distinct" in p for p in probs)
+        # a family must be a short lower-case key
+        clean, probs = validate_vocab("Not A Key!", {"a": "b"})
+        assert clean == {} and "family" in probs[0]
