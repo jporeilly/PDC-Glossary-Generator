@@ -263,6 +263,68 @@ const rowLLM = (r) => r.LLM_Enriched === 'Yes' || LLM_FIELD_FLAGS.some((f) => r[
 // only the Policy Generator banner's "Show these terms" sets it.
 const EMPTY_FILTERS = { q: '', cat: '', sev: '', conf: '', tag: '', det: '', pii: false, kept: false, names: null }
 
+/* The flip workflow's home since the Draft-policies surface retired
+   (backlog 1, user decision 2026-08-23: "Review panel seems the best fit").
+   The seed ladder — not a draft run — names the recommendations:
+   ★ flippable = mapping-only bounded measures whose name carries their unit
+   (pH, lead ppb): flipping to Auto mints a name-anchored rule at Generate.
+   quiet = shapeless free-text skips that should be DECLARED mapping-only so
+   they read as governed-by-link instead of as missing evidence. Both apply
+   through the same autosaving patchRow the grid's own editors use; the
+   per-row Detection toggle in each row editor still decides individually. */
+function DetectionFlips({ rows }) {
+  const [sum, setSum] = useState(null)
+  const [msg, setMsg] = useState(null)
+
+  useEffect(() => {
+    let dead = false
+    if (!rows?.length) { setSum(null); return undefined }
+    apiPost('/api/seed-readiness', { rows })
+      .then((d) => { if (!dead) setSum(d) })
+      .catch(() => {})
+    return () => { dead = true }
+  }, [rows])
+
+  function flipAll(terms, intent, label) {
+    // patch EVERY row bearing the term, not the first — duplicate-named rows
+    // exist (same Term in two tables) and findIndex kept flipping the wrong
+    // sibling while the recommended one stayed put (caught on the live grid:
+    // 17 → 7 → 7 forever)
+    const want = new Set(terms)
+    let n = 0
+    rows.forEach((r, i) => {
+      if (!want.has(String(r.Term || '').trim())) return
+      if (String(r.Detection_Intent || '') === intent) return
+      patchRow(i, { Detection_Intent: intent })
+      n += 1
+    })
+    setMsg(`${n} row(s) ${label}`)
+  }
+
+  if (!sum) return null
+  const star = sum.flippable_terms || []
+  const quiet = sum.quiet_candidates || []
+  return (
+    <>
+      <button className="ghost sm" disabled={!star.length}
+              title={star.length
+                ? `Flip to Auto: ${star.join(', ')} — bounded measures whose name carries the unit; Generate then seeds a name-anchored rule (column-name identity + sanity shape)`
+                : 'No recommended flips — no mapping-only bounded measure with a unit-bearing name'}
+              onClick={() => flipAll(star, '', 'flipped to Auto — Generate seeds their name-anchored rules')}>
+        ★ Flip {star.length} recommended
+      </button>
+      <button className="ghost sm" disabled={!quiet.length}
+              title={quiet.length
+                ? `Declare mapping-only: ${quiet.join(', ')} — shapeless free text; governed via the term↔column link (approved tags reach the columns at Apply)`
+                : 'No shapeless skips to declare — every no-seed term has a structural reason'}
+              onClick={() => flipAll(quiet, 'mapping_only', 'declared mapping-only — governed via their links')}>
+        {quiet.length} shapeless → Mapping-only
+      </button>
+      {msg && <span className="notes">{msg}</span>}
+    </>
+  )
+}
+
 export default function ReviewPage({ onNavigate }) {
   const ws = useWorkspace()
   const rows = ws.rows
@@ -2074,6 +2136,9 @@ export default function ReviewPage({ onNavigate }) {
                     title="Score the shown terms pairwise and suggest same-concept names to merge (e.g. Phone / Customer Phone / Cust Phone No).">
               Find similar
             </button>
+            <span className="rv-sep" aria-hidden="true" />
+            <span className="lbl">DETECTION</span>
+            <DetectionFlips rows={rows} />
             <span className="rv-grow" />
             <button className="ghost sm" disabled={!snapRef.current || locked} onClick={resetAll}
                     title="Undo all review actions and edits — back to the raw scan.">

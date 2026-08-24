@@ -680,33 +680,33 @@ class TestDictionarySyncOnEntry:
         assert "terms" in d and "tags" in d
 
 
-class TestDraftPoliciesJob:
-    def test_job_narrates_and_serves_the_bundle(self, client, fresh_dict):
-        """The AI polish ran for minutes behind a silent "Drafting…" (field:
-           "could do with some feedback"). The job twin narrates phases and
-           keeps the finished zip on the job — and the poll must NEVER leak
-           the raw bytes (underscore keys stay server-side)."""
-        import time
+class TestDqExpectationsExport:
+    def test_zip_carries_quality_rules_only(self, client, fresh_dict):
+        """When the Draft-policies surface retired (backlog 1), the DQ
+           expectations kept their own export: Quality/*.json + INDEX +
+           README, derived from the same profile. No patterns, no
+           dictionaries - Author in the Policy Generator owns those."""
+        import io as _io
+        import zipfile as _zip
         rows = [_row("Meter Size", "awc.meters.meter_size",
                      Value_Pattern="^[0-9]{2}$")]
-        job = client.post("/api/jobs/draft-policies",
-                          json={"rows": rows, "glossary_name": "G"}).json()["job"]
-        for _ in range(100):
-            j = client.get(f"/api/jobs/{job}").json()
-            if j["status"] != "running":
-                break
-            time.sleep(0.05)
-        assert j["status"] == "done", j.get("detail")
-        assert "_zip" not in j, "underscore keys must not travel in the poll"
-        r = j["result"]
-        assert {"patterns", "dictionaries", "quality", "skipped"} <= set(r)
-        z = client.get(f"/api/jobs/{job}/zip")
+        z = client.post("/api/dq-expectations",
+                        json={"rows": rows, "glossary_name": "G"})
         assert z.status_code == 200
-        assert z.content[:2] == b"PK", "the stored bundle must be a real zip"
+        assert z.content[:2] == b"PK"
+        zf = _zip.ZipFile(_io.BytesIO(z.content))
+        names = zf.namelist()
+        assert any(n.startswith("Quality/") for n in names)
+        assert "INDEX.csv" in names and "README.txt" in names
+        assert not any(n.startswith(("Patterns/", "Dictionaries/", "Labels/"))
+                       for n in names)
+        assert client.post("/api/dq-expectations", json={}).status_code == 400
 
-    def test_zip_404s_for_jobs_without_a_bundle(self, client):
-        r = client.get("/api/jobs/nonexistent/zip")
-        assert r.status_code == 404
+    def test_draft_routes_are_gone(self, client):
+        """Author is the only place methods are authored - the drafting
+           surface must not quietly return."""
+        assert client.post("/api/draft-policies", json={}).status_code in (404, 405)
+        assert client.post("/api/jobs/draft-policies", json={}).status_code in (404, 405)
 
 
 class TestPdcProfilingRealShapes:
@@ -1170,35 +1170,6 @@ class TestLabelsStampFlow:
         assert res["missing_families"] == ["Regulatory Scope"]
         assert res["unresolved"] == ["awc.customers.email"]
         assert res["stamped"] == 0 and assigned == []
-
-
-class TestDraftBundleCoversLabels:
-    def test_labels_json_rides_the_draft_zip(self, client):
-        """"Does this cover labels?" It does now: the derived keys, the
-           steward's kept set, per-term assignments and the vocabulary ship
-           as Labels/labels.json in the bundle - the Policy Generator's
-           labels contract. (Writing labels INTO PDC stays gated on
-           capturing the real endpoint.)"""
-        import io as _io
-        import zipfile as _zip
-        rows = [_row("Customer Email", "awc.customers.email",
-                     Category="Customer Management", Sensitivity="HIGH",
-                     PII_Category="CONTACT_INFO", Critical_Data_Element="Yes",
-                     Value_Kind="email"),
-                _row("Meter Size", "awc.meters.meter_size",
-                     Category="Asset Management", Sensitivity="LOW",
-                     PII_Category="", Critical_Data_Element="No")]
-        d = client.post("/api/draft-policies",
-                        json={"rows": rows, "glossary_name": "AWC",
-                              "label_keys": ["PII Type", "domain"]}).json()
-        assert d["labels"]["kept"] == ["PII Type", "domain"]
-        assert "PII Type" in d["labels"]["keys"]
-        z = client.post("/api/draft-policies-zip",
-                        json={"rows": rows, "glossary_name": "AWC",
-                              "label_keys": ["handling"]})
-        if z.status_code == 200 and z.headers.get("content-type", "").startswith("application/zip"):
-            zf = _zip.ZipFile(_io.BytesIO(z.content))
-            assert "Labels/labels.json" in zf.namelist()
 
 
 class TestFileRecordCarriesSizeAndDate:

@@ -20,7 +20,23 @@ only what was left undone.
 
 ---
 
-## 1 · Remove Draft policies from the Glossary app  — Glossary spec
+## 1 · Remove Draft policies — RESOLVED (built 2026-08-24, rides the next release)
+
+Executed to the plan below. The card, /api/draft-policies, the job twin,
+the job-zip route and the drafted-policies lab export are gone; Author is
+the only place methods are authored. The flip workflow lives on the
+REVIEW page (DETECTION toolbar group): "star Flip N recommended" flips
+every row bearing a recommended term to Auto (duplicate-named rows
+included - findIndex flipped the wrong sibling, caught live), "M
+shapeless -> Mapping-only" declares free-text skips quiet; both driven by
+/api/seed-readiness's flippable_terms / quiet_candidates, no draft run
+needed. DQ expectations kept their own export: POST /api/dq-expectations
+(Quality/*.json + INDEX + README) with a button on the Generate card.
+The "Drafted policies bundle" left the estate-report contract.
+engine/policy_draft.py retained for dq_rules_from_rows and the report's
+detection-coverage block. Original decision + plan kept below.
+
+## (original) 1 · Remove Draft policies from the Glossary app  — Glossary spec
 
 **DECIDED 2026-08-23 (user): the flip workflow moves to the REVIEW page.**
 Execution plan, sized a careful half-day — the draft card is not just a

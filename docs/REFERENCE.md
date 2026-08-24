@@ -357,7 +357,8 @@ nudge per run.
 | `POST /api/recommend-resolutions` | advise Merge / Disambiguate / Keep separate per duplicate group (evidence -> live value probe -> AI adjudicator) |
 | `POST /api/qa-definitions`  | lint + AI-judge definitions (stamps QA_Issues / QA_Suggestion) |
 | `POST /api/ai-categorize`   | AI files uncategorized terms into known categories |
-| `POST /api/draft-policies`  | draft PDC pattern/dictionary rules from detection seeds (`format=zip` downloads the bundle) |
+| `POST /api/dq-expectations` | data-quality expectations zip (format / allowed-values / completeness / uniqueness checks from the same profile) for your DQ runner |
+| `POST /api/seed-readiness`  | detection-evidence summary: seeded / mapping-only (with flippable + quiet recommendation lists) / no-seed, shared shapes surfaced |
 | `POST /api/pdc/labels-apply` | create the kept label families in PDC as data labels (custom properties over `/graphql`) — idempotent by name |
 | `POST /api/jobs/labels-stamp` | stamp label values onto column entities from the reviewed grid (dry_run default; read-merge-write PATCH per entity; poll `/api/jobs/{id}`) |
 | `POST /api/glossaries/{id}/snapshot` | archive a live glossary's stored state as an immutable timestamped version (copy-on-write — called at the first edit after a load; last 10 kept) |
@@ -367,7 +368,7 @@ nudge per run.
 | `POST /api/resolve-fuzzy`   | match outstanding (renamed) term names against PDC's real terms — similarity + AI adjudication |
 | `POST /api/export-pack`     | generate a domain pack from the reviewed scan results (merges over the installed pack; curated_seeds from induced patterns/enums) |
 | `POST /api/discovery-progress` | terminal-aware Data Discovery progress: per-entity profiled map + the discovery job's own status, so the Apply watcher stops when the worker finishes |
-| `POST /api/lab-export`      | upload a just-generated artifact (import JSONL / drafted-policies zip) to the lab MinIO over a saved **write-capable** MinIO/S3 connection — bucket `pdc-exports`, timestamped key |
+| `POST /api/lab-export`      | upload a just-generated artifact (import JSONL) to the lab MinIO over a saved **write-capable** MinIO/S3 connection — bucket `pdc-exports`, timestamped key |
 
 PDC API version: the app speaks v1/v2/v3 (selector on Apply & harvest; default **v3**, PDC 11's native version). Every request shape is validated against the official v3 OpenAPI spec by the committed pytest suite (`pytest -q tests/test_v3_shapes.py`) — see docs/REVIEW.md §1 for the audit table.
 

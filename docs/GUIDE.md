@@ -877,8 +877,8 @@ A few aids make the pipeline easier to follow:
   profiled ✓ / no-DQ-from-PDC (expected for the type) / failed — plus
   elapsed time. Hitting the watch budget says so explicitly ("Watch budget
   reached (10 min)…"); **Stop watching** stays.
-- **⇪ Send to lab (MinIO).** The Generate card's JSONL and the
-  drafted-policies zip each carry a ghost **Send to lab (MinIO)** button
+- **⇪ Send to lab (MinIO).** The Generate card's JSONL carries a ghost
+  **Send to lab (MinIO)** button
   that uploads the just-generated artifact to the lab MinIO over one of the
   app's saved MinIO/S3 connections (a picker appears when several are
   saved), via `POST /api/lab-export`. The export lands in bucket
@@ -1048,8 +1048,7 @@ Confidential; ZIP / city / demographic quasi-identifiers → Internal). The
 `/graphql` (custom properties, `isDataLabel: true`) — idempotent **by
 name**: a family PDC already holds is skipped, never overwritten, so if
 you hand-edited one into a drifted state, delete it in PDC and let the
-card recreate it complete. The drafted-policies bundle ships the same
-contract as `Labels/labels.json`.
+card recreate it complete.
 
 Assignment — putting a *value on a column* — is not GraphQL at all: it is
 the same public entities API the term-link apply path already uses,

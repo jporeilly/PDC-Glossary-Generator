@@ -216,7 +216,7 @@ export default function ApplyPage({ onNavigate }) {
   )
 }
 
-/* ---------- step 0: generate the import JSONL (+ Registry) and draft policies ---------- */
+/* ---------- step 0: generate the import JSONL (+ Registry) + DQ expectations ---------- */
 
 function GenerateCard({ rows, glossaryName, governance, settings, onNavigate, authBody }) {
   const keptRows = rows.filter((r) => truthy(r.Keep))
@@ -266,32 +266,10 @@ function GenerateCard({ rows, glossaryName, governance, settings, onNavigate, au
       setTreeBusy(false)
     }
   }
-  const [draft, setDraft] = usePersistentState('apply.draft', null)
-  const [draftBusy, setDraftBusy] = useState(false)
-  // live narration while the draft job runs — {phase, done, total, detail}
-  const [draftProg, setDraftProg] = useState(null)
-  const [draftAi, setDraftAi] = usePersistentState('apply.draftAi', true)
-  // the draft runs as a RESUMABLE job: navigate away mid-draft and the poll
-  // re-attaches on return, the result landing in the session-cached `draft`
-  const draftJob = useResumableJob('apply.draftJob', {
-    onBusy: (b) => setDraftBusy(b),
-    onTick: (j) => setDraftProg(j),
-    onDone: (result, job) => { setDraft({ ...result, _job: job.id }); setDraftProg(null) },
-    onError: (e) => { setError(e); setDraftProg(null) },
-    onLost: () => setDraftProg(null),
-  })
-  // In-place detection flips — "is there an easy way to flip without having
-  // to go back and forth between pages?" The draft's own mapping-only and
-  // skip lists carry the flip button, the row updates right here (same
-  // autosaving mutation Review uses), and the next Draft honours it.
-  const [flipped, setFlipped] = usePersistentState('apply.flipped', {})   // {term: '' (Auto) | 'mapping_only'}
-  function flipTerm(term, intent) {
-    const i = rows.findIndex((r) => String(r.Term || '').trim() === term)
-    if (i < 0) return
-    patchRow(i, { Detection_Intent: intent })
-    setFlipped((f) => ({ ...f, [term]: intent }))
-  }
-  const flipCount = Object.keys(flipped).length
+  // (the Draft policies surface retired 2026-08-23 — Author in the Policy
+  // Generator is the only place methods are authored; the flip workflow
+  // lives on the Review page and DQ expectations export below)
+  const [dqBusy, setDqBusy] = useState(false)
   // "Send to lab": upload the artifact to the lab MinIO over a saved connection
   const [labConns, setLabConns] = useState([])
   const [labConn, setLabConn] = usePersistentState('pdc.labConn', '')
@@ -331,28 +309,9 @@ function GenerateCard({ rows, glossaryName, governance, settings, onNavigate, au
     setLabBusy(true)
     setLabMsg(null)
     try {
-      let payload
-      if (kind === 'jsonl') {
-        payload = {
-          filename: `${gen.stats?.glossary || 'glossary-import'}.jsonl`,
-          text: gen.jsonl, content_type: 'application/x-ndjson',
-        }
-      } else {
-        // the policies bundle is binary — stream it from the draft job when
-        // one ran (it carries the AI polish; re-drafting here would lose it),
-        // else regenerate deterministically, then base64 it over
-        const res = draft?._job
-          ? await fetch(`/api/jobs/${draft._job}/zip`)
-          : await fetch('/api/draft-policies', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ rows, glossary_name: glossaryName, format: 'zip' }),
-            })
-        if (!res.ok) throw new Error(res.statusText)
-        const buf = new Uint8Array(await res.arrayBuffer())
-        let bin = ''
-        for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode(...buf.subarray(i, i + 0x8000))
-        payload = { filename: 'drafted-policies.zip', b64: btoa(bin), content_type: 'application/zip' }
+      const payload = {
+        filename: `${gen.stats?.glossary || 'glossary-import'}.jsonl`,
+        text: gen.jsonl, content_type: 'application/x-ndjson',
       }
       const d = await apiPost('/api/lab-export', { ...payload, connection: labConn })
       setLabMsg(
@@ -443,45 +402,24 @@ function GenerateCard({ rows, glossaryName, governance, settings, onNavigate, au
     }
   }
 
-  async function draftPolicies() {
+  // DQ expectations kept their own export when the Draft surface retired —
+  // format / allowed-values / completeness / uniqueness checks derived from
+  // the same profile, for the user's DQ runner (never a PDC import).
+  async function downloadDqZip() {
     setError(null)
-    setFlipped({})   // the new draft reads the flipped rows — staged marks are spent
-    setDraftProg({ phase: 'starting', done: 0, total: 0, detail: '' })
+    setDqBusy(true)
     try {
-      // Resumable job, not an awaited poll: the AI polish is one model call
-      // per rule and can run for minutes — leave the page and the poll
-      // re-attaches on return, the result landing in the cached draft. The
-      // job id rides along so the bundle downloads from the job WITH the
-      // polish.
-      await draftJob.start('draft-policies', {
-        rows, glossary_name: glossaryName, ai: draftAi,
-        // the steward's kept label keys ride into the bundle's labels.json
-        label_keys: governance?.labelKeys || [],
-        model: settings?.model || null, compute: settings?.compute,
+      const res = await fetch('/api/dq-expectations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rows, glossary_name: glossaryName }),
       })
-    } catch (e) {
-      setError(e.message)
-      setDraftProg(null)
-    }
-  }
-
-  // the zip bundle is binary, so this one download bypasses the JSON wrapper.
-  // A job-drafted bundle streams from the job — it carries the AI polish;
-  // re-POSTing would re-draft deterministically and silently lose the hints.
-  async function downloadDraftZip() {
-    setError(null)
-    try {
-      const res = draft?._job
-        ? await fetch(`/api/jobs/${draft._job}/zip`)
-        : await fetch('/api/draft-policies', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ rows, glossary_name: glossaryName, format: 'zip' }),
-          })
       if (!res.ok) throw new Error(res.statusText)
-      downloadBlob(await res.blob(), 'drafted-policies.zip', 'application/zip')
+      downloadBlob(await res.blob(), 'dq-expectations.zip', 'application/zip')
     } catch (e) {
-      setError(`Draft bundle failed: ${e.message}`)
+      setError(`DQ expectations failed: ${e.message}`)
+    } finally {
+      setDqBusy(false)
     }
   }
 
@@ -575,135 +513,13 @@ function GenerateCard({ rows, glossaryName, governance, settings, onNavigate, au
       )}
       {gen?.check && <CheckBlock check={gen.check} />}
 
-      <h3 className="subhead">Draft policies (AI)</h3>
-      <p className="hint-line">
-        The Policy Generator's first mile: induced value patterns become PDC Data Patterns,
-        profiled reference lists become Dictionaries (+ values CSV). Deterministic core; with AI
-        on, the local LLM polishes each rule's column regex and tag pick (guard-railed).
-        The bundle is <b>evidence to review, not an import package</b> — every decision in it
-        travels to the Policy Generator inside the Registry, and the zip PDC imports is
-        authored there.
-      </p>
-      <div className="actions">
-        <button className="ghost" onClick={draftPolicies} disabled={draftBusy || rows.length === 0}>
-          {draftBusy ? 'Drafting…' : 'Draft policies'}
+      <div className="actions" style={{ marginTop: '.6rem' }}>
+        <button className="ghost" onClick={downloadDqZip} disabled={dqBusy || rows.length === 0}
+                title="Data-quality expectations derived from the same profile: format = the induced value regex, allowed_values = the profiled reference list, completeness/uniqueness thresholds = the measured baselines. For your DQ runner - never a PDC import.">
+          {dqBusy ? 'Deriving…' : '⬇ DQ expectations (zip)'}
         </button>
-        <label className="check">
-          <input type="checkbox" checked={draftAi} onChange={(e) => setDraftAi(e.target.checked)} />
-          AI polish (local LLM)
-        </label>
-        {draftProg && (
-          <span className="notes" aria-live="polite">
-            {draftProg.phase === 'polish'
-              ? <>AI polish · rule <b>{draftProg.done}</b> of <b>{draftProg.total}</b>
-                  {draftProg.detail ? <> — {draftProg.detail}</> : null}</>
-              : draftProg.phase === 'seeds' ? 'collecting detection seeds…'
-              : draftProg.phase === 'assemble' ? 'assembling rules & bundle…'
-              : 'starting…'}
-          </span>
-        )}
-        {draft && (
-          <button className="ghost" onClick={downloadDraftZip}>⬇ Download bundle (zip)</button>
-        )}
-        {draft && labExportControls('zip')}
       </div>
       {labMsg && <p className="summary">{labMsg}</p>}
-      {draft && (
-        <div className="summary">
-          <b>{draft.patterns.length}</b> data pattern(s), <b>{draft.dictionaries.length}</b>{' '}
-          dictionar{draft.dictionaries.length === 1 ? 'y' : 'ies'}
-          {(() => {
-            const all = [...draft.patterns, ...draft.dictionaries]
-            const cur = all.filter((x) => x.seed === 'curated').length
-            const prof = all.filter((x) => x.seed !== 'curated').length
-            return <> · <b>{prof}</b> custom (profiled){cur ? <> · <b>{cur}</b> from curated pack seeds</> : ''}</>
-          })()}
-          {draft.used_llm ? ' · AI-polished' : draftAi ? ' · Ollama offline — deterministic only' : ''}
-          {draft.patterns.map((p) => (
-            <div key={p.filename}>· pattern <code>{p.filename}</code> — {p.term} ({p.seed})</div>
-          ))}
-          {draft.dictionaries.map((d) => (
-            <div key={d.filename}>· dictionary <code>{d.filename}</code> — {d.term} ({d.seed || 'profiled'}, values: <code>{d.values}</code>)</div>
-          ))}
-          {(draft.quality || []).length > 0 && (
-            <div style={{ marginTop: '.35rem' }}>
-              <b>{draft.quality.length}</b> DQ expectation rule{draft.quality.length !== 1 ? 's' : ''}
-              <span className="muted"> — format / allowed-values / completeness / uniqueness checks derived from the same profile (Quality/ in the bundle); feed them to your DQ runner</span>
-            </div>
-          )}
-          {(draft.quality || []).map((q) => (
-            <div key={q.filename}>· dq <code>{q.filename}</code> — {q.term} ({q.checks} check{q.checks !== 1 ? 's' : ''})</div>
-          ))}
-          {(draft.mapping_only || []).length > 0 && (() => {
-            const recs = draft.mapping_only.filter((m) => m.auto_candidate && flipped[m.term] === undefined)
-            const sorted = [...draft.mapping_only].sort((a, b) => (b.auto_candidate ? 1 : 0) - (a.auto_candidate ? 1 : 0))
-            return (
-              <div className="notes" style={{ marginTop: '.5rem' }}>
-                <b>{draft.mapping_only.length} term(s) mapping-only by design</b> — governed via
-                their term↔column links; no detection method expected (dates, names, free numbers,
-                flags). Flip one to <b>Auto</b> and the next draft mints a name-anchored rule
-                (column-name identity + sanity shape; the range stays in DQ).
-                {recs.length > 0 && (
-                  <> ★ = a <b>recommended</b> flip — a bounded measure whose name carries its unit:{' '}
-                    <button className="ghost mini"
-                            title="Flip every starred term to Auto in one click — bounded measures with unit-bearing names (pH, lead ppb, turbidity ntu). The flip is still yours: this stages it, the next draft mints it."
-                            onClick={() => recs.forEach((m) => flipTerm(m.term, ''))}>
-                      ★ Flip all recommended ({recs.length})
-                    </button>
-                  </>
-                )}
-                <div style={{ marginTop: '.25rem' }}>
-                  {sorted.map((m) => (
-                    <span key={m.term} style={{ display: 'inline-flex', alignItems: 'center', gap: '.2rem', marginRight: '.55rem', whiteSpace: 'nowrap' }}>
-                      {m.auto_candidate ? <span title="Recommended: bounded measure, unit-bearing name">★</span> : null}{m.term}
-                      {flipped[m.term] === ''
-                        ? <b title="Flipped — run Draft policies again to mint its rule">Auto ✓</b>
-                        : <button className="ghost mini" title="Flip this term to Auto detection — the next draft mints a name-anchored rule."
-                                  onClick={() => flipTerm(m.term, '')}>→ Auto</button>}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )
-          })()}
-          {(draft.skipped || []).length > 0 && (
-            <div className="notes" style={{ marginTop: '.5rem' }}>
-              <b>{draft.skipped.length} term(s) skipped</b> — a rule needs a value <i>shape</i> (a
-              profiled value pattern or a reference-value list), not just tags. Grouped by reason:
-              {Object.entries((draft.skipped || []).reduce((m, s) => {
-                const why = typeof s === 'string' ? s : (s.why || 'no detection seed on the row')
-                const term = typeof s === 'string' ? s : s.term
-                ;(m[why] = m[why] || []).push(term)
-                return m
-              }, {})).map(([why, terms]) => {
-                // free-text / shapeless columns can go QUIET in place — the
-                // structural groups (table-level, document, link-expected)
-                // have nothing to flip
-                const flippable = /induce no shape|no stable shape/.test(why)
-                return (
-                  <div key={why} style={{ marginTop: '.25rem' }}>· <b>{why}</b> —{' '}
-                    {terms.map((t) => (
-                      <span key={t} style={{ display: 'inline-flex', alignItems: 'center', gap: '.2rem', marginRight: '.55rem', whiteSpace: 'nowrap' }}>
-                        {t}
-                        {flippable && (flipped[t] === 'mapping_only'
-                          ? <b title="Flipped — run Draft policies again and it moves to the quiet mapping-only line">Mapping-only ✓</b>
-                          : <button className="ghost mini" title="Declare this term mapping-only — governed via its term↔column links; the next draft lists it quietly instead of as a skip."
-                                    onClick={() => flipTerm(t, 'mapping_only')}>→ Mapping-only</button>)}
-                      </span>
-                    ))}
-                  </div>
-                )
-              })}
-            </div>
-          )}
-          {flipCount > 0 && (
-            <p className="summary" style={{ marginTop: '.4rem' }}>
-              <b>{flipCount} flip(s) staged</b> and saved to the grid — run <b>Draft policies</b> again
-              to honour them, then send the fresh bundle to the lab.
-            </p>
-          )}
-        </div>
-      )}
     </section>
   )
 }

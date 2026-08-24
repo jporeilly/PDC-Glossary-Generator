@@ -223,8 +223,9 @@ those with one click.)
 > record of every term-to-column mapping this review settled, which is what
 > makes the next scan of this estate deterministic."*
 
-- [ ] **Draft policies** (AI polish on) — the line under the button narrates
-      *seeds → polish (rule n of m) → assemble*.
+- [ ] **Seed readiness** (Apply, above Generate) — the evidence summary:
+      seeded / mapping-only / no-usable-seed, with any shared content
+      shape surfaced loudly.
 
   **Pass-check:** dictionaries minted for your reference-data columns; the
   skip list holds only the honest cases — numerics/free text ("profiled,
@@ -235,13 +236,14 @@ those with one click.)
 
 - [ ] *(Optional, 1.38.16)* **Flip a measure to Auto — right on the draft
       results**: starred terms (★) on the mapping-only line are the
-      recommended flips (bounded measures with unit-bearing names — pH,
-      lead ppb, turbidity ntu). Click **★ Flip all recommended**, then
-      **Draft policies** again: each mints a **name-anchored rule**
-      (column-name identity + sanity shape at 0.5/0.5, range still in the
-      DQ rule) instead of sitting in the mapping-only list. Free-text
-      skips flip the other way (**→ Mapping-only**) to go quiet. The
-      Review page's Detection filter remains for grid-side review.
+      recommended flips live on the REVIEW page now (DETECTION group
+      in the toolbar): **★ Flip N recommended** flips bounded measures
+      with unit-bearing names (pH, lead ppb) to Auto — Generate then
+      seeds each a **name-anchored rule** (column-name identity +
+      sanity shape at 0.5/0.5, range still in the DQ expectations);
+      **M shapeless → Mapping-only** declares free-text skips quiet.
+      The per-row Detection toggle in each row editor still decides
+      individually.
 
 > **Talk track** — *"Watch what the flip does: the engine defaulted pH to
 > mapping-only because a 0–14 shape would match every small number in the

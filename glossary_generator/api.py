@@ -17,6 +17,7 @@ Run:  python -m uvicorn api:app          (from glossary_generator/, port 5000
 import io
 import json
 import os
+import re
 import time
 import threading
 import queue as _queue_mod
@@ -2177,95 +2178,40 @@ def api_recommend_resolutions(body: dict = Body(default={})):
     /api/jobs/recommend-resolutions — same work with live narration."""
     return _recommend_resolutions_run(body)
 
-def _draft_policies_run(body, progress=None):
-    """The drafting pipeline, shared by the sync route and the job twin.
-    Returns (draft, summary_json). `progress` narrates: seeds → polish (one
-    model call per rule — the slow stretch) → assemble."""
+@app.post("/api/dq-expectations")
+def api_dq_expectations(body: dict = Body(default={})):
+    """Data-quality expectations as their own export (kept when the Draft
+    policies surface retired, 2026-08-23 — backlog 1's "do not lose them
+    silently"): the induced value regex re-expressed as a format check, the
+    profiled reference list as allowed_values, and the measured completeness/
+    uniqueness baselines as thresholds (a later run below its baseline is a
+    regression). Deterministic, derived from the same rows; feed the zip to
+    your DQ runner. Body: {rows, glossary_name?, prefix?}."""
     body = body or {}
-    rows = body.get("rows") or []
-    gname = body.get("glossary_name") or "Business Glossary"
-    gov = sorted(tagdict.governed_tags())
-    hints, used_llm = {}, False
-    if body.get("ai"):
-        if progress:
-            progress({"phase": "seeds", "detail": "collecting detection seeds"})
-        concepts = []
-        for r in rows:
-            if not isinstance(r, dict):
-                continue
-            term = (r.get("Term") or "").strip()
-            vp = (r.get("Value_Pattern") or "").strip()
-            ev = (r.get("Enum_Values") or "").strip()
-            if term and (vp or ";" in ev):
-                concepts.append({"term": term,
-                                 "columns": r.get("Source_Column", ""),
-                                 "evidence": vp or ("values: " + ev[:120])})
-        if concepts:
-            hints, used_llm = llm.policy_hints_rows(
-                concepts, allow_tags=gov, model=body.get("model"),
-                compute=body.get("compute"), progress=progress)
-    if progress:
-        progress({"phase": "assemble", "detail": "assembling rules & bundle"})
-    draft = policy_draft.draft_from_rows(rows, glossary_name=gname,
-                                         prefix=body.get("prefix"),
-                                         hints=hints, governed_tags=gov)
-    # DQ expectations ride the same bundle: the induced pattern / reference list
-    # / profiled baselines re-expressed as conformance checks (custom-only).
-    draft["quality"] = policy_draft.dq_rules_from_rows(rows, glossary_name=gname,
-                                                       prefix=body.get("prefix"))
-    # labels ride the bundle too ("does this cover labels?"): the derived
-    # keys, the steward's kept set from governance, per-term assignments and
-    # the vocabulary - the Policy Generator's labels contract. Writing them
-    # INTO PDC stays gated on capturing the real endpoint; shipping the
-    # evidence is not.
-    from engine import labels as labels_engine
-    _pack = {}
-    try:
-        with open(paths.domain_pack_path(), encoding="utf-8") as f:
-            _pack = json.load(f)
-    except Exception:
-        _pack = {}
-    lab = labels_engine.suggest_labels(rows, pack=_pack)
-    kept_keys = [str(k) for k in (body.get("label_keys") or [])]
-    draft["labels"] = {"kept_keys": kept_keys, "keys": lab["keys"],
-                       "vocabulary": lab["vocabulary"], "notes": lab["notes"]}
-    summary = {"patterns": [{"filename": p["filename"], "term": p["term"],
-                             "seed": p.get("seed", "profiled"),
-                             "name": p["rule"][0]["name"]} for p in draft["patterns"]],
-               "dictionaries": [{"filename": d["filename"], "term": d["term"],
-                                 "seed": d.get("seed", "profiled"),
-                                 "name": d["rule"][0]["name"],
-                                 "values": d["values_filename"]} for d in draft["dictionaries"]],
-               "quality": [{"filename": q["filename"], "term": q["term"],
-                            "name": q["rule"]["name"], "checks": q["checks"]}
-                           for q in draft["quality"]],
-               "skipped": draft["skipped"],
-               "mapping_only": draft.get("mapping_only") or [],
-               "used_llm": used_llm,
-               "labels": {"keys": [k["key"] for k in draft["labels"]["keys"]],
-                          "kept": draft["labels"]["kept_keys"]}}
-    return draft, summary
-
-
-@app.post("/api/draft-policies")
-def api_draft_policies(body: dict = Body(default={})):
-    """The Policy Generator's first mile: draft PDC Data Identification rules from
-    the scan's detection seeds — an induced value regex becomes a Data Pattern,
-    a profiled reference list becomes a Dictionary (+ values CSV), in the exact
-    JSON shapes the Technical Track teaches. Deterministic core; with ai=true the
-    LLM agent polishes each rule's column-name regex and tag pick (guard-railed:
-    regex must compile, tags stay governed). format=zip streams the bundle.
-    Body: {rows, glossary_name?, prefix?, ai?, model?, compute?, format?}.
-    For ai=true prefer the job twin /api/jobs/draft-policies — same work with
-    live progress instead of minutes of silence."""
-    body = body or {}
-    draft, summary = _draft_policies_run(body)
-    if (body.get("format") or "").lower() == "zip":
-        data = policy_draft.to_zip_bytes(draft)
-        return Response(data, media_type="application/zip",
-                        headers={"Content-Disposition":
-                                 "attachment; filename=drafted-policies.zip"})
-    return summary
+    rows = [r for r in (body.get("rows") or []) if isinstance(r, dict)]
+    if not rows:
+        return _err("no rows to derive expectations from", 400)
+    gname = (body.get("glossary_name") or "Business Glossary").strip()
+    quality = policy_draft.dq_rules_from_rows(rows, glossary_name=gname,
+                                              prefix=body.get("prefix"))
+    import zipfile as _zipfile
+    buf = io.BytesIO()
+    index = ["kind,name,file,term"]
+    with _zipfile.ZipFile(buf, "w", _zipfile.ZIP_DEFLATED) as z:
+        for q in quality:
+            z.writestr("Quality/" + q["filename"], json.dumps(q["rule"], indent=2) + "\n")
+            index.append(f"quality,{q['rule']['name']},Quality/{q['filename']},{q['term']}")
+        z.writestr("INDEX.csv", "\n".join(index) + "\n")
+        z.writestr("README.txt",
+                   "Data-quality expectations derived by the Glossary Generator from the\n"
+                   "same scan profile the glossary was reviewed from. format = the induced\n"
+                   "value regex; allowed_values = the profiled reference list;\n"
+                   "completeness/uniqueness thresholds = the measured baselines (a later\n"
+                   "run below its baseline is a regression). Feed these to your DQ runner\n"
+                   "- they are expectations to evaluate, not PDC import artifacts.\n")
+    return Response(buf.getvalue(), media_type="application/zip",
+                    headers={"Content-Disposition":
+                             "attachment; filename=dq-expectations.zip"})
 
 @app.post("/api/qa-definitions")
 def api_qa_definitions(body: dict = Body(default={})):
@@ -3899,16 +3845,20 @@ def api_seed_readiness(body: dict = Body(default={})):
         curated = bridge._curated_seeds()
     except Exception:
         curated = {}
-    pats = dicts = map_nature = map_flippable = 0
+    pats = dicts = map_nature = 0
     no_seed = []
     shape_claims = {}
+    flippable_terms, quiet_candidates = [], []
     for r in kept:
         seeds, skip, mapping = policy_seed.seeds_for_row(r, curated)
         if mapping is not None:
-            # a declaration, not a failure — and a starred one is the drafter's
-            # "the NAME is authoritative" recommendation, worth its own count
+            # a declaration, not a failure — and a starred one is the seed
+            # ladder's "the NAME is authoritative" recommendation. These two
+            # lists drive the Review page's bulk-flip actions, the home the
+            # flip workflow moved to when Draft policies retired (backlog 1,
+            # user decision 2026-08-23).
             if mapping.get("auto_candidate"):
-                map_flippable += 1
+                flippable_terms.append(r.get("Term") or "")
             else:
                 map_nature += 1
             continue
@@ -3922,14 +3872,22 @@ def api_seed_readiness(body: dict = Body(default={})):
             else:
                 dicts += 1
         else:
-            no_seed.append({"term": r.get("Term") or "", "why": skip or ""})
+            why = skip or ""
+            no_seed.append({"term": r.get("Term") or "", "why": why})
+            # free-text / shapeless columns can go QUIET in place — the
+            # structural reasons (table-level, document, link-expected)
+            # have nothing to flip (same test the draft skip-groups used)
+            if re.search(r"induce no shape|no stable shape", why):
+                quiet_candidates.append(r.get("Term") or "")
     shared = [{"regex": rx, "terms": sorted(t for t in terms if t)}
               for rx, terms in sorted(shape_claims.items())
               if len({t for t in terms if t}) > 1]
     return {"terms": len(kept),
             "seeded": pats + dicts, "patterns": pats, "dictionaries": dicts,
-            "mapping_only": map_nature + map_flippable,
-            "flippable": map_flippable,
+            "mapping_only": map_nature + len(flippable_terms),
+            "flippable": len(flippable_terms),
+            "flippable_terms": sorted(t for t in flippable_terms if t),
+            "quiet_candidates": sorted(t for t in quiet_candidates if t),
             "no_seed": len(no_seed), "no_seed_terms": no_seed[:60],
             "shared_shapes": shared}
 
@@ -4682,17 +4640,9 @@ def api_estate_report(body: dict = Body(default={})):
          else "not generated yet (Apply page → Generate JSONL)",
          at=gen.get("at"), stale=gen_stale)
 
-    dr = receipts.get("draft") or {}
-    dr_ok = bool(dr)
-    dr_stale = bool(dr_ok and saved_at and str(dr.get("at", "")) < saved_at)
-    item("policies", "Drafted policies bundle", dr_ok,
-         (f"{dr.get('patterns', 0)} pattern(s), {dr.get('dictionaries', 0)} "
-          f"dictionar(ies), {dr.get('quality', 0)} DQ rule(s), "
-          f"{dr.get('skipped', 0)} skip(s)"
-          + (" · REGENERATE: the review was saved after this draft"
-             if dr_stale else "")) if dr_ok
-         else "not drafted yet (Apply page → Draft policies)",
-         at=dr.get("at"), stale=dr_stale)
+    # (the Drafted-policies bundle left the contract when the Draft surface
+    # retired, 2026-08-23 — every decision it carried travels inside the
+    # Registry, which is already the contract's first artifact)
 
     rs = receipts.get("resolve") or {}
     item("resolve", "Resolve receipt", bool(rs),
@@ -4924,36 +4874,6 @@ def api_job_labels_stamp(body: dict = Body(default={})):
     return _start_job("labels-stamp", _runner)
 
 
-@app.post("/api/jobs/draft-policies")
-def api_job_draft_policies(body: dict = Body(default={})):
-    """Job twin of /api/draft-policies: the AI polish is one model call per
-       rule and ran for minutes in total silence (field: "could do with some
-       feedback when generating the draft policies"). Poll /api/jobs/{id} —
-       phase walks seeds → polish (done/total + the term just polished, via
-       events) → assemble; `result` is the same summary the sync route
-       returns. The full draft is kept on the job so the bundle downloads
-       from /api/jobs/{id}/zip WITH the polish baked in — the old zip path
-       re-drafted without the hints the panel had just shown."""
-    body = body or {}
-    def _runner(job):
-        cb = _job_progress(job)
-        def _p(ev):
-            if isinstance(ev, dict) and ev.get("detail"):
-                job["detail"] = ev["detail"]
-            if isinstance(ev, dict) and ev.get("term"):
-                job["detail"] = ev["term"]
-            cb(ev)
-        draft, summary = _draft_policies_run(body, progress=_p)
-        job["_zip"] = policy_draft.to_zip_bytes(draft)
-        job["result"] = summary
-        _receipt("draft", glossary=body.get("glossary_name"),
-                 patterns=len(summary.get("patterns") or []),
-                 dictionaries=len(summary.get("dictionaries") or []),
-                 quality=len(summary.get("quality") or []),
-                 skipped=len(summary.get("skipped") or []),
-                 used_llm=summary.get("used_llm"))
-    return _start_job("draft-policies", _runner)
-
 @app.post("/api/jobs/ai-categories")
 def api_job_ai_categories(body: dict = Body(default={})):
     """Job twin of /api/ai-categories. The schema-wide call runs for minutes
@@ -4968,20 +4888,6 @@ def api_job_ai_categories(body: dict = Body(default={})):
         job["result"] = _ai_categories_run(body)
     return _start_job("ai-categories", _runner)
 
-
-@app.get("/api/jobs/{job_id}/zip")
-def api_job_zip(job_id: str):
-    """Stream the bundle a finished job stored (draft-policies keeps its zip
-       on the job so downloads carry the AI polish instead of re-drafting)."""
-    job = _JOBS.get(job_id)
-    if job is None:
-        return _err("unknown job", 404)
-    data = job.get("_zip")
-    if not data:
-        return _err("this job holds no bundle", 404)
-    return Response(data, media_type="application/zip",
-                    headers={"Content-Disposition":
-                             "attachment; filename=drafted-policies.zip"})
 
 @app.post("/api/jobs/recommend-resolutions")
 def api_job_recommend_resolutions(body: dict = Body(default={})):
