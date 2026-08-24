@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useState } from 'react'
 import Markdown from './components/Markdown.jsx'
 import ThemeSelect from './components/ThemeSelect.jsx'
+import DocsChat from './components/DocsChat.jsx'
 import HomePage from './pages/HomePage.jsx'
 import ConnectPage from './pages/ConnectPage.jsx'
 import SchemaPage from './pages/SchemaPage.jsx'
@@ -222,6 +223,7 @@ export default function App() {
             <b>{crumbs[crumbs.length - 1]}</b>
           </div>
           <div className="topbar-spacer" />
+          <DocsChat page={page} />
         </header>
 
         <div className="content">

@@ -2178,6 +2178,24 @@ def api_recommend_resolutions(body: dict = Body(default={})):
     /api/jobs/recommend-resolutions — same work with live narration."""
     return _recommend_resolutions_run(body)
 
+@app.post("/api/ask")
+def api_ask(body: dict = Body(default={})):
+    """The docs-grounded chat (spec backlog 10): answer product questions
+    FROM the shipped documentation. Grounded-or-refuse — the model answers
+    only from retrieved doc sections and cites them; with no model reachable
+    the same call degrades to a cited doc search rather than vanishing.
+    Body: {question, page?, ai?, model?}. `page` is the asking page's id
+    (review, apply, govern…) and boosts its own sections."""
+    from engine import docchat
+    body = body or {}
+    q = (body.get("question") or "").strip()
+    if not q:
+        return _err("ask a question", 400)
+    return docchat.answer(q, page=(body.get("page") or "").strip() or None,
+                          ai=bool(body.get("ai", True)),
+                          model=body.get("model"), version=APP_VERSION)
+
+
 @app.post("/api/dq-expectations")
 def api_dq_expectations(body: dict = Body(default={})):
     """Data-quality expectations as their own export (kept when the Draft

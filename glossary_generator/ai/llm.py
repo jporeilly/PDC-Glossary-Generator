@@ -136,24 +136,30 @@ def status(model=None):
         return {"online": False, "backend": "ollama", "model": model,
                 "url": OLLAMA_URL, "error": str(e)}
 
-def _complete(prompt, model=None, num_gpu=None):
+def _complete(prompt, model=None, num_gpu=None, timeout=None):
     """Single completion. Returns text or None on any failure.
 
        Every agent in the app reaches the model through here (or _complete_json
        below), so this is the one place that has to know about providers: a
        hosted provider is delegated to llm_providers, and the Ollama path below
-       is unchanged."""
+       is unchanged.
+
+       `timeout` overrides the configured per-call budget for INTERACTIVE
+       one-shot callers: the configured TIMEOUT is sized for batch enrichment
+       (many short calls), and the docs chat's single composed answer on a
+       12B model blew straight through 30s and silently degraded to search
+       (field 2026-08-24)."""
     model = model or MODEL
     if not llm_providers.is_local():
         return llm_providers.complete(prompt, SYSTEM, json_mode=False,
-                                      model=model, timeout=TIMEOUT)
+                                      model=model, timeout=timeout or TIMEOUT)
     options = {"temperature": 0.2}
     if num_gpu is not None:
         options["num_gpu"] = num_gpu
     try:
         out = _post(OLLAMA_URL + "/api/generate",
                     {"model": model, "system": SYSTEM, "prompt": prompt,
-                     "stream": False, "options": options})
+                     "stream": False, "options": options}, timeout=timeout)
         return (out.get("response") or "").strip()
     except Exception:
         return None
