@@ -686,3 +686,17 @@ settle names), THEN flip the starred measures to Auto and declare
 shapeless skips mapping-only (the recommendation lists recompute live, so
 post-settlement counts match the grid that ships), THEN Dictionary.
 In-app guidance, GUIDE and WALKTHROUGH all updated together.
+
+## W8 · The Tags panel offers Approve all but no Retire all
+
+Field: 11 pending tags, ALL table-name echoes that should die - and the
+only wholesale control is "Approve all" ("pretty misleading as there's a
+tendency to approve all"). An asymmetric wholesale control IS a
+recommendation. Two fixes:
+- Retire all beside Approve all, with the same respect for the core six
+  (they refuse individually and must refuse wholesale, saying so);
+- the deeper cut, folded into W4's deterministic rule: STOP MINTING
+  table-name echo tags as candidates at all - a tag that repeats the
+  source table is provenance, not classification, and the suggester
+  should never propose it into the vocabulary (same treatment as the
+  category echoes). Walk remedy: retired the 11 individually.
