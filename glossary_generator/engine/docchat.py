@@ -41,7 +41,15 @@ _MAX_CHUNK = 2400   # characters; long sections split so one chunk = one idea
 
 
 def _tokens(text):
-    return _WORD.findall(str(text).lower())
+    # naive plural fold so "pattern" meets "Data Patterns" (field-caught on
+    # 1.40.0: the singular question missed every plural heading). Applied to
+    # index and query alike, so the fold is always symmetric.
+    out = []
+    for t in _WORD.findall(str(text).lower()):
+        if len(t) > 3 and t.endswith("s") and not t.endswith("ss"):
+            t = t[:-1]
+        out.append(t)
+    return out
 
 
 def _chunk_doc(name, path):
@@ -121,6 +129,17 @@ def search(query, page=None, k=6, version=""):
     chunks, df, avg = idx["chunks"], idx["df"], idx["avg_len"]
     n = max(1, len(chunks))
     q = _tokens(query)
+    # question scaffolding carries no topic: "what is a pattern" must rank by
+    # "pattern", not by which sections happen to say "what" most. Dropped only
+    # when substance remains, so a stopword-only query still searches.
+    # tokens arrive plural-folded, so "does"→"doe"; short words don't fold
+    _STOP = {"what", "is", "are", "how", "doe", "do", "a", "an", "the", "it",
+             "in", "of", "to", "for", "on", "and", "or", "can", "cant",
+             "where", "when", "why", "which", "who", "should", "would",
+             "explain", "tell", "me", "about", "mean", "i", "my", "you"}
+    sub = [t for t in q if t not in _STOP]
+    if sub:
+        q = sub
     page_toks = set(_tokens(page or ""))
     scored = []
     for c in chunks:
@@ -137,6 +156,12 @@ def search(query, page=None, k=6, version=""):
         head_toks = set(_tokens(c["heading"]))
         if any(t in head_toks for t in q):
             score *= 1.3
+        # the CHANGELOG is a record, not teaching material — for a conceptual
+        # question the GUIDE/REFERENCE section must outrank the release notes
+        # that merely mention the same words ("what is a pattern" surfaced
+        # three changelog entries above the concept section, field-caught)
+        if c["doc"] == "CHANGELOG":
+            score *= 0.6
         if page_toks and (page_toks & head_toks or page_toks & set(_tokens(c["doc"]))):
             score *= 1.15
         scored.append((score, c))

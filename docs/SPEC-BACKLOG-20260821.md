@@ -877,3 +877,55 @@ ORPHANED assignment no UI renders. Three cuts:
 - a cleanup pass (or the stamp's merge) strips assignments whose
   definition id no longer resolves. Walk remedy: re-create + re-stamp +
   scripted orphan sweep.
+
+## W20 · The delete marquee should be a determinate deletion bar — RESOLVED (repo, rides the next build)
+
+Field (2026-08-24, installing 1.41.0): "you dont need to display every
+file being deleted, cant the progress bar just show the progress of the
+deletion instead of pulsing across, same as install progress." The
+1.41.0 marquee was honest about NSIS's weightless deletes but showed no
+progress. Fix (both cuts, installer.nsi template):
+- SetDetailsPrint textonly around the delete phases - the "Delete file:"
+  torrent stays out of the details list; the log records one line and
+  the status line counts;
+- StepDeleteChildren macro replaces the marquee: the bulk of the tree
+  (python\Lib\site-packages, one directory per package) deletes one
+  child per instruction while the macro drives the bar itself - count
+  children, take the bar (range 0..count), step per deletion, hand it
+  back to NSIS's 0..30000 scale after. NSIS's own updates round to no
+  message during the phase, so the takeover holds; degrades harmlessly
+  if the control lookup fails. Port to Policy's template with the next
+  Policy batch; Insights when its marquee port happens.
+
+## W21 · Upload a file to the docs chat — check my JSONL for errors
+
+Field (2026-08-24): "it would be great to be able to upload documents to
+the chat. lets say i want to check my JSONL for errors." Design, two
+cuts, deterministic first:
+- a "Check a file" upload on the Ask-the-docs drawer: an uploaded .jsonl
+  runs the IMPORT-CONTRACT VALIDATOR - per-line JSON parse (line number
+  on failure), required keys, duplicate _ids, term->category integrity,
+  ampersand names (the PDC search killer), category drift vs the current
+  grid - a findings list with line references, no LLM required;
+- the chat then answers questions ABOUT the file: the validator's
+  findings plus the offending lines join the doc excerpts as context,
+  grounded-or-refuse retained (the model cites [YOUR FILE line N] like
+  it cites [GUIDE - section]). CSV/json variants follow the same shape.
+Note: Generate's preflight already validates what THIS app exports; the
+upload covers hand-edited or foreign files before they hit PDC.
+
+## W22 · Docs-chat retrieval: hybrid embeddings YES, RAG database NO (decision)
+
+Field question (2026-08-24): "would it be better to add a RAG database
+and embed all documents there?" Decision: the corpus is 627 chunks
+across five markdown files (<1MB) rebuilding in memory at startup - a
+vector DATABASE adds a dependency, a store to version and build/index
+drift for zero gain at this scale. The miss class embeddings actually
+fix (vocabulary mismatch: "pattern" vs "Data Patterns") was mostly
+closed deterministically alongside this note (plural fold, question-word
+strip, CHANGELOG deweight x0.6). IF quality still disappoints on the
+installed build: HYBRID, NO DB - embed the chunks via the existing
+Ollama (nomic-embed-text) at startup, vectors in memory, cosine fused
+with BM25 (reciprocal-rank), and MANDATORY degrade to pure BM25 when
+Ollama is offline (the packaged app must answer without a model).
+Uploaded-file checking (W21) stays deterministic either way.
