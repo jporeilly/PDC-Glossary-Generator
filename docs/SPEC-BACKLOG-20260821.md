@@ -793,3 +793,16 @@ the reason is stated once instead of nineteen times. The amber badge
 counts ONLY the genuine-evidence-gap group; expected groups render
 neutral. An amber that is always amber trains stewards to ignore ambers
 (W13's rule, applied to its neighbour).
+
+## W15 · The Generate card wears the previous run's success after the grid changes
+
+Field: five row fixes then "regenerated" - but the registry mtime never
+moved: the card was still showing the earlier generation's stats/archive
+line, which reads exactly like a fresh success, and the second Generate
+was never actually clicked (or its absence was invisible). The estate
+report already solves this shape with per-artifact STALE banners
+("REGENERATE: the review was saved after this export"). The Generate
+card gets the same: when the workspace's savedAt is newer than the shown
+generation, banner the result as stale and re-label the button
+("Regenerate - the grid changed"). Same treatment for the DQ
+expectations button's implicit currency.
