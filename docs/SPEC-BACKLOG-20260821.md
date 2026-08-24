@@ -718,3 +718,9 @@ Three cuts:
 - wholesale symmetry (W8's rule): wherever fold/approve lists render,
   Dismiss all ships beside Fold/Approve all. Walk remedy: dismissed all
   30 by hand.
+
+W9 addendum: the 88% oddballs traced to a NAMER inconsistency - the
+splitter expanded tier2/3/4_to_gallons to "Tier N To Gallons" but left
+tier1_to_gallons as "Tier1 To Gallons" (no space). Series-token splitting
+must be consistent across the series ("tier1" -> "Tier 1" like its
+siblings); pin with this case. Walk remedy: renamed the one term.
