@@ -670,3 +670,16 @@ Pressure (psi) came out right). Fix: the namer canonicalises a trailing
 unit token from the existing UNIT_NAME list (sug_shared) to " (unit)"
 lowercase at suggest time; pin with the six field cases. Walk remedy:
 steward renamed the six in the grid.
+
+## W7 · The Detection flips are missing from the flow explanations
+
+Field: "do I now click on Flip 17 recommended then shapeless
+Mapping-only? if so these steps need to be added to the flowchart
+explanations". The flips moved to Review (backlog 1) but the page's flow
+story never learned: the numbered AI AGENTS strip ends at 4 - AI advise,
+the "How terms are defined & built" explainer and the Home flowchart
+don't mention the DETECTION toolbar group. Fix: a "5 - Detection" entry
+on the strip (deterministic, not AI - say so) or an explicit line in the
+explainer + Home card: after advise, flip the starred measures to Auto
+and declare shapeless skips mapping-only, THEN Dictionary. In-app
+guidance, GUIDE and WALKTHROUGH all updated together.
