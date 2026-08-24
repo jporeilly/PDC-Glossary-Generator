@@ -681,8 +681,12 @@ function SeedReadinessCard({ rows }) {
             <span className="badge neutral" title="Governed by the term↔column link by declaration — names, addresses, dates, free text">
               {sum.mapping_only} mapping-only{sum.flippable ? ` (★ ${sum.flippable} flippable)` : ''}
             </span>{' '}
-            <span className={`badge ${sum.no_seed ? 'warning' : 'neutral'}`}>
-              {sum.no_seed} no usable seed
+            <span className={`badge ${sum.no_seed_actionable ? 'warning' : 'neutral'}`}
+                  title="Amber counts only genuine evidence gaps — table-level records, document terms and link-tagged identifiers are expected populations, listed calmly below">
+              {sum.no_seed_actionable ?? sum.no_seed} evidence gap(s)
+              {sum.no_seed > (sum.no_seed_actionable ?? 0)
+                ? ` · ${sum.no_seed - (sum.no_seed_actionable ?? 0)} expected`
+                : ''}
             </span>
           </p>
           {sum.shared_shapes?.length > 0 && (
@@ -696,16 +700,17 @@ function SeedReadinessCard({ rows }) {
               {sum.shared_shapes.length > 3 ? '…' : ''}
             </p>
           )}
-          {sum.no_seed > 0 && (
-            <details>
-              <summary className="notes">the {sum.no_seed} term(s) with no usable evidence</summary>
-              <ul className="notes">
-                {sum.no_seed_terms.map((t) => (
-                  <li key={t.term}><b>{t.term}</b> — {t.why}</li>
-                ))}
-              </ul>
+          {(sum.no_seed_groups || []).map((g) => (
+            <details key={g.why}>
+              <summary className={g.expected ? 'notes' : 'warn'}>
+                {g.expected ? '' : '⚠ '}{g.why} ({g.terms.length})
+                {g.expected ? ' — expected, nothing to fix' : ''}
+              </summary>
+              <p className="notes" style={{ margin: '.25rem 0 .5rem .9rem' }}>
+                {g.terms.join(' · ')}
+              </p>
             </details>
-          )}
+          ))}
         </>
       )}
     </section>

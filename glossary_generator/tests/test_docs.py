@@ -222,6 +222,12 @@ def test_row_identity_is_evidence_not_labels():
     assert "rowKey" not in cp, "the Category|Term row key must not survive"
     sc = _read(os.path.join(base, "components", "SourceConnections.jsx"))
     assert "landScanRows" in sc, "direct scans must land through the guarded merge"
+    # W3 (2026-08-24 walk): the harvest card had Refresh-value-evidence but the
+    # direct scan did not — the one remedy for stale enums was unreachable when
+    # the source was a database. The scan card must offer and forward it.
+    assert "refreshEvidence: refreshEv" in sc, \
+        "the direct scan must forward Refresh value evidence to the landing"
+    assert "Refresh value evidence" in sc
     rv = _read(os.path.join(base, "pages", "ReviewPage.jsx"))
     assert "selfFold" in rv and "SILENT auto-heal" in rv, \
         "Review must heal old-key damage behind the scenes"

@@ -287,10 +287,22 @@ EXPAND = {
 }
 EXPAND.update(_PACK.get("abbreviations", {}))
 
+# Units render lowercase in parentheses — (psi), (ppm), (ntu) — the user's
+# convention (walk-log W6: the namer emitted "Chlorine Residual Ppm" while
+# "Pressure (psi)" sat beside it). Trailing token only: a unit mid-name is
+# part of the phrase ("Rate Per 1000 Gallons"), a unit at the end is a unit.
+_UNIT_SUFFIX = re.compile(r"^(.*\S)\s+(ppm|ppb|ntu|psi|gpm|kwh|mgd|pct|percent)$",
+                          re.I)
+
+
 def humanize(col):
     """Turn a snake_case identifier into a human-readable Title Case label, expanding
        well-known abbreviations (see EXPAND) so cryptic column names still read well."""
     s = re.sub(r"\s+", " ", re.sub(r"[_]+", " ", col).strip())
+    # series tokens split CONSISTENTLY: tier1_to_gallons must name like its
+    # tier2/3/4 siblings — "Tier1" beside "Tier 2" bred 88%-similar fold
+    # bait and a lone misnamed term (walk-log W9 addendum)
+    s = re.sub(r"\b([A-Za-z]{2,})(\d{1,2})\b", r"\1 \2", s)
     out = []
     for w in s.split():
         rep = EXPAND.get(w.lower())
@@ -298,7 +310,12 @@ def humanize(col):
             out.append(rep)                 # already-cased expansion, inserted verbatim
         else:
             out.append(w if w.isupper() else w.capitalize())
-    return " ".join(out)
+    name = " ".join(out)
+    m = _UNIT_SUFFIX.match(name)
+    if m:
+        unit = m.group(2).lower()
+        name = f"{m.group(1)} ({'percent' if unit == 'pct' else unit})"
+    return name
 
 def _abbrev(name):
     """Derive a short uppercase abbreviation from a term name."""
@@ -450,8 +467,15 @@ def suggest_tags(category, sens, pii, cde, is_key, base_tags=None, name="", term
         if rx.search(hay):
             t += tags
 
+    # Curated category→tags mappings apply; the old fallback — slugging the
+    # category (or, at scan time, the table pseudo-category) into a tag — is
+    # gone. A tag that repeats the category duplicates the domain label, and
+    # a tag that repeats the table is provenance the source column already
+    # records; both polluted the vocabulary gate as pending junk every scan
+    # (walk-log W4/W8: eleven table echoes, "tendency to approve all").
     cat_tags = tagdict.category_tags().get(category)
-    t += cat_tags if cat_tags else ([_slug(category)] if category else [])
+    if cat_tags:
+        t += cat_tags
 
     if sens == "HIGH":                              t.append("maskable")
     if str(cde).lower() == "yes" or cde is True:    t.append("cde")
@@ -840,6 +864,20 @@ def suggest(tables, schema=None):
         # and letting a column override there would file `customer_id` in
         # `water_systems` under Customer.
         _is_document = bool(_FILE_EXT.search(tname or ""))
+        # PERSON CONTEXT, judged once per table from its own columns: a table
+        # with email/phone/customer/name-part columns holds people; one with
+        # latitude/material/asset columns holds things. Context-dependent PII
+        # classes only stand in person context — an asset's street_name is
+        # WHERE A PIPE IS, not someone's address (walk-log W5: Street Name,
+        # Site Name, water_systems.county and an aggregate unpaid_accounts
+        # all shipped as PII).
+        _PERSON_SIGNALS = re.compile(
+            r"email|phone|ssn|social|dob|birth|customer_id|account_number|"
+            r"customer_?name|full_?name|first_?name|last_?name|salutation|contact", re.I)
+        _person_ctx = any(_PERSON_SIGNALS.search(str(c.get("column") or ""))
+                          for c in cols)
+        _CTX_PII = {"PERSONAL_NAME", "ADDRESS_INFO", "FINANCIAL"}
+
         for c in cols:
             if SKIP.match(c["column"]):
                 continue
@@ -861,6 +899,10 @@ def suggest(tables, schema=None):
             if _canon:
                 name = _canon
             pii, sens, tags = classify(c["column"])
+            if pii in _CTX_PII and not _person_ctx:
+                # the name matched a person-PII pattern in a table that holds
+                # no people — geography/asset data wearing person words
+                pii, sens, tags = None, "LOW", []
             prof = c.get("profile") or {}
             if prof.get("pii"):         pii = prof["pii"]
             if prof.get("sensitivity"): sens = prof["sensitivity"]

@@ -3563,6 +3563,66 @@ def pdc_source_config(body: dict = Body(default={})):
         out.append(row)
     return {"sources": out, "count": len(out)}
 
+def _complete_enums_from_saved_db(rows):
+    """W2: PDC's stored profile serves SAMPLED values, so a harvest lands
+    vocabularies that are missing members (Maricopa was absent from both
+    county columns on the 2026-08-24 walk; 13 of that grid's enums were
+    short). The direct-scan path completes enums via SELECT DISTINCT
+    (1.38.39); this gives the HARVEST path the same completion whenever a
+    saved database connection can reach the table. Mirrors _complete_enum's
+    semantics: <= 48 distinct replaces the sample, more drops the enum (a
+    field, not a vocabulary). Failures skip silently — completion is a
+    bonus, never a blocker. Returns how many rows were completed."""
+    from sources import dbconn
+    db_cfgs = [c.get("config") or {} for c in _load_connections()
+               if str(c.get("type") or "").lower() == "db"]
+    if not db_cfgs:
+        return 0
+    done = 0
+    conns = {}
+    try:
+        for r in rows:
+            ev = [v.strip() for v in str(r.get("Enum_Values") or "").split(";") if v.strip()]
+            if len(ev) < 2:
+                continue
+            src = str(r.get("Source_Column") or "").split(";")[0].strip()
+            parts = src.split(".")
+            if len(parts) != 3 or "/" in src:
+                continue
+            _, tbl, col = parts
+            live = None
+            for i, cfg in enumerate(db_cfgs):
+                try:
+                    if i not in conns:
+                        conns[i] = dbconn._connect(cfg)
+                    cur = conns[i].cursor()
+                    schema = (cfg.get("schema") or "public").replace('"', '""')
+                    cur.execute(f'SELECT DISTINCT "{col}" FROM "{schema}"."{tbl}" '
+                                f'WHERE "{col}" IS NOT NULL LIMIT 60')
+                    live = sorted({str(x[0]).strip() for x in cur.fetchall()
+                                   if str(x[0]).strip()})
+                    cur.close()
+                    break
+                except Exception:
+                    continue
+            if live is None:
+                continue
+            if len(live) > 48:
+                r["Enum_Values"] = ""
+            elif set(live) != set(ev):
+                r["Enum_Values"] = ";".join(live)
+            else:
+                continue
+            done += 1
+    finally:
+        for c in conns.values():
+            try:
+                c.close()
+            except Exception:
+                pass
+    return done
+
+
 @app.post("/api/pdc/harvest")
 def pdc_harvest(body: dict = Body(default={})):
     """Harvest a glossary straight from PDC's catalog: read the COLUMN entities PDC
@@ -3607,6 +3667,7 @@ def pdc_harvest(body: dict = Body(default={})):
         if cur and cur.get("governed"):
             governed += 1
             r["PDC_Current"] = cur            # {sensitivity, trust, terms, governed}
+    enums_completed = _complete_enums_from_saved_db(rows)
     # Build the scan summary so scan_check picks the right mode: table/column counts for
     # a database harvest, an object count for a document harvest.
     scn = {"already_governed": governed, "source": summary["source"]}
@@ -3621,7 +3682,10 @@ def pdc_harvest(body: dict = Body(default={})):
     if summary.get("files"):
         parts.append(f"{summary['files']} file(s)")
     sig = (f"Harvested {' + '.join(parts)} from PDC "
-           f"· {governed} already governed in PDC")
+           f"· {governed} already governed in PDC"
+           + (f" · {enums_completed} vocabular{'y' if enums_completed == 1 else 'ies'} "
+              "completed from the live database (PDC profiles are sampled)"
+              if enums_completed else ""))
 
     # Build the SAME discovery payload a direct scan produces, from what PDC
     # returned — so the Schema page's per-table panels and the Files page's
@@ -3885,7 +3949,12 @@ def api_seed_readiness(body: dict = Body(default={})):
             if best.get("type") == "pattern":
                 pats += 1
                 rx = (best.get("regex") or "").strip()
-                if rx:
+                # a name-anchored seed's content regex is only the SANITY half
+                # of a name-AND-shape conjunction — ten flipped measures
+                # legitimately share the numeric shape, and flagging them
+                # taught stewards to ignore the amber (walk-log W13). Only
+                # shape-IDENTIFIED seeds compete for a claim.
+                if rx and best.get("identity") != "column_name":
                     shape_claims.setdefault(rx, set()).add(r.get("Term") or "")
             else:
                 dicts += 1
@@ -3900,6 +3969,20 @@ def api_seed_readiness(body: dict = Body(default={})):
     shared = [{"regex": rx, "terms": sorted(t for t in terms if t)}
               for rx, terms in sorted(shape_claims.items())
               if len({t for t in terms if t}) > 1]
+    # W14: group the no-seed list BY REASON, the reason stated once — and the
+    # amber counts only genuine evidence gaps. Table-level records, document
+    # terms and link-tagged identifiers are EXPECTED populations (each reason
+    # text says so itself); an amber that is always amber trains stewards to
+    # ignore ambers.
+    groups = {}
+    for item in no_seed:
+        groups.setdefault(item["why"], []).append(item["term"])
+    _EXPECTED = re.compile(r"table-level|document term|term↔column link|"
+                           r"tagged via the term", re.I)
+    no_seed_groups = [{"why": why, "terms": sorted(ts),
+                      "expected": bool(_EXPECTED.search(why))}
+                      for why, ts in sorted(groups.items(), key=lambda kv: -len(kv[1]))]
+    actionable = sum(len(g["terms"]) for g in no_seed_groups if not g["expected"])
     return {"terms": len(kept),
             "seeded": pats + dicts, "patterns": pats, "dictionaries": dicts,
             "mapping_only": map_nature + len(flippable_terms),
@@ -3907,6 +3990,7 @@ def api_seed_readiness(body: dict = Body(default={})):
             "flippable_terms": sorted(t for t in flippable_terms if t),
             "quiet_candidates": sorted(t for t in quiet_candidates if t),
             "no_seed": len(no_seed), "no_seed_terms": no_seed[:60],
+            "no_seed_groups": no_seed_groups, "no_seed_actionable": actionable,
             "shared_shapes": shared}
 
 

@@ -223,6 +223,20 @@ def should_map_link(row, policy=None):
     # everything). A steward's per-row Map=N above still wins.
     if str(row.get("Detection_Intent", "")).strip().lower() == "mapping_only":
         return True, "mapping-only — the link is this term's only governance"
+    # A ★-flipped row was mapping-only BY NATURE before the steward flipped
+    # it to mint a name-anchored method. The flip ADDS detection; it must
+    # never subtract the link (field 2026-08-24: Selective held back every
+    # flipped chemistry measure, Asset ID and the Status family because the
+    # flip clears the mapping_only intent the exemption keyed on). The seed
+    # ladder is the one authority on what the row mints — ask it.
+    try:
+        from engine.policy_seed import seeds_for_row
+        seeds, _skip, _mapping = seeds_for_row(row)
+        if any(s.get("identity") == "column_name" for s in seeds or []):
+            return True, ("name-anchored flip — was mapping-only by nature, "
+                          "the link stays guaranteed")
+    except Exception:
+        pass
     conf = str(row.get("Confidence", "Low")).strip().lower()
     floor = str(pol.get("min_confidence", "medium")).strip().lower()
     if CONF_RANK.get(conf, 0) >= CONF_RANK.get(floor, 1):

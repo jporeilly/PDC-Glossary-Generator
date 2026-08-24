@@ -368,6 +368,7 @@ function ConnCard({ conn, onEdit, onChanged, onDiscoverDb, onDiscoverDocs, onNav
   const [status, setStatus] = useState(null)   // {tone, text}
   const [check, setCheck] = useState(null)
   const [busy, setBusy] = useState(false)
+  const [refreshEv, setRefreshEv] = useState(false)
   const c = conn
 
   const say = (tone, text) => setStatus({ tone, text })
@@ -399,7 +400,7 @@ function ConnCard({ conn, onEdit, onChanged, onDiscoverDb, onDiscoverDocs, onNav
       // — and a landing on an EMPTY grid while a saved glossary exists asks
       // to fold into it first (the fresh-scan fork made a raw twin of the
       // settled glossary and stole auto-resume). landScanRows owns both.
-      const res = await landScanRows(d.rows || [])
+      const res = await landScanRows(d.rows || [], { refreshEvidence: refreshEv })
       if (res.mode === 'fresh') {
         say('good', `Scanned — ${res.added} candidate term(s). Review and prune them next.`)
         setCheck(d.check || null)
@@ -539,6 +540,10 @@ ${shown}
         <button className="primary connect-sm" disabled={busy || exportOnly} onClick={() => scan('add')}
                 title={exportOnly ? exportOnlyWhy
                   : 'The ONE action that writes the review grid: scans this source and merges its terms in — the first source starts the glossary, later sources join it, and no source ever touches another source\'s rows. Working order: Test → Discover → Add.'}>Add to glossary</button>
+        <label className="check" title="Overwrite each merged row's VALUE evidence (patterns, vocabularies, ranges) with this scan's — the fix when the grid holds stale or sampled enums. Steward fields and Detection flips are never touched. Without it, evidence only fills gaps.">
+          <input type="checkbox" checked={refreshEv} onChange={(e) => setRefreshEv(e.target.checked)} />
+          Refresh value evidence
+        </label>
         {c.type === 'db' && (
           <button className="ghost connect-sm" disabled={busy} onClick={seed}
                   title="Populate empty/all tables with realistic sample data (writes rows).">Seed data</button>

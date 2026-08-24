@@ -1567,6 +1567,66 @@ class TestHarvestCarriesPdcProfiling:
 
 
 
+class TestHarvestCompletesEnumsFromSavedDb:
+    """W2 (2026-08-24 walk): PDC's stored profile serves SAMPLED values, so a
+       harvest landed 13 short vocabularies — Maricopa was missing from both
+       county columns. When a saved database connection can reach the table,
+       harvest now completes each enum from a live SELECT DISTINCT, exactly
+       like the direct-scan path."""
+
+    class _Cur:
+        def __init__(self, values): self._v = values
+        def execute(self, sql): self.sql = sql
+        def fetchall(self): return [(v,) for v in self._v]
+        def close(self): pass
+
+    class _Conn:
+        def __init__(self, values): self._v = values; self.closed = False
+        def cursor(self): return TestHarvestCompletesEnumsFromSavedDb._Cur(self._v)
+        def close(self): self.closed = True
+
+    def _patch(self, monkeypatch, values, conns=None):
+        import api
+        from sources import dbconn  # noqa — resolved via the client fixture's env
+        if conns is None:
+            conns = [{"name": "pg", "type": "db", "config": {"schema": "public"}}]
+        monkeypatch.setattr(api, "_load_connections", lambda: conns)
+        made = []
+        def fake_connect(cfg):
+            c = self._Conn(values); made.append(c); return c
+        monkeypatch.setattr(dbconn, "_connect", fake_connect)
+        return api, made
+
+    def test_short_sample_is_completed_from_the_live_table(self, client, monkeypatch):
+        api, made = self._patch(monkeypatch, ["Maricopa", "Pima", "Pinal"])
+        rows = [_row("County", "awc.sites.county", Enum_Values="Pima;Pinal")]
+        assert api._complete_enums_from_saved_db(rows) == 1
+        assert rows[0]["Enum_Values"] == "Maricopa;Pima;Pinal"
+        assert all(c.closed for c in made), "connections must be released"
+
+    def test_a_true_field_loses_its_enum(self, client, monkeypatch):
+        api, _ = self._patch(monkeypatch, [f"S{i:03d}" for i in range(60)])
+        rows = [_row("Site Code", "awc.sites.site_code", Enum_Values="S001;S002")]
+        assert api._complete_enums_from_saved_db(rows) == 1
+        assert rows[0]["Enum_Values"] == "", ">48 distinct is a field, not a vocabulary"
+
+    def test_complete_samples_and_non_enum_rows_are_untouched(self, client, monkeypatch):
+        api, _ = self._patch(monkeypatch, ["Pima", "Pinal"])
+        rows = [_row("County", "awc.sites.county", Enum_Values="Pinal;Pima"),
+                _row("Notes", "awc.sites.notes", Enum_Values=""),
+                _row("Doc Term", "policies/manual.pdf", Enum_Values="A;B")]
+        assert api._complete_enums_from_saved_db(rows) == 0
+        assert rows[0]["Enum_Values"] == "Pinal;Pima"
+        assert rows[2]["Enum_Values"] == "A;B", "document rows have no table to query"
+
+    def test_no_saved_db_connection_is_a_quiet_no_op(self, client, monkeypatch):
+        api, _ = self._patch(monkeypatch, ["x"], conns=[{"name": "m", "type": "minio",
+                                                        "config": {}}])
+        rows = [_row("County", "awc.sites.county", Enum_Values="Pima;Pinal")]
+        assert api._complete_enums_from_saved_db(rows) == 0
+        assert rows[0]["Enum_Values"] == "Pima;Pinal"
+
+
 class TestSeedReadiness:
     def test_summary_buckets_and_shared_shapes(self, client):
         """Spec backlog 2: the evidence summary BEFORE anything is generated.

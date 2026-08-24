@@ -1311,3 +1311,44 @@ class TestLabelVocabGuardrails:
         # a family must be a short lower-case key
         clean, probs = validate_vocab("Not A Key!", {"a": "b"})
         assert clean == {} and "family" in probs[0]
+
+
+class TestFlipKeepsLinkExemption:
+    def test_name_anchored_flip_still_maps_under_selective(self):
+        """W18: the star flip clears the mapping_only intent to mint a
+           name-anchored method - and thereby silently lost the link
+           exemption, so Selective held back every flipped chemistry
+           measure. A flip adds detection; it must never subtract the
+           link."""
+        from engine.sug_links import should_map_link
+        flipped = _row("Lead (ppb)", "awc.water_quality_reports.lead_ppb",
+                       Confidence="Low", Critical_Data_Element="No",
+                       PII_Category="", Detection_Intent="",
+                       Value_Range="0-15")
+        ok, why = should_map_link(flipped)
+        assert ok, why
+        assert "name-anchored" in why
+        # a plain low-confidence seeded row is still held back
+        plain = _row("Notes", "awc.customers.notes",
+                     Confidence="Low", Critical_Data_Element="No",
+                     PII_Category="", Detection_Intent="")
+        ok, why = should_map_link(plain)
+        assert not ok, why
+
+
+class TestNamerConventions:
+    def test_unit_suffixes_and_series_tokens(self):
+        """W6 + W9 addendum, pinned with the walk's own six field cases plus
+           the tier1 splitter."""
+        from engine.sug_suggest import humanize
+        assert humanize("chlorine_residual_ppm") == "Chlorine Residual (ppm)"
+        assert humanize("copper_ppm") == "Copper (ppm)"
+        assert humanize("hardness_ppm") == "Hardness (ppm)"
+        assert humanize("lead_ppb") == "Lead (ppb)"
+        assert humanize("total_dissolved_solids_ppm") == "Total Dissolved Solids (ppm)"
+        assert humanize("turbidity_ntu") == "Turbidity (ntu)"
+        assert humanize("pressure_psi") == "Pressure (psi)"
+        assert humanize("tier1_to_gallons") == "Tier 1 To Gallons"
+        # a unit mid-name is part of the phrase, not a suffix
+        assert humanize("tier1_rate_per_1000g") != ""
+        assert "(" not in humanize("gallons_per_day_note")

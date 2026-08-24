@@ -56,7 +56,7 @@ class TestSuggestDocumentColumns:
         assert rows, "columns must become candidate terms"
         by_term = {r["Term"]: r for r in rows}
         # leaf naming: a dotted document path reads as a business term
-        assert "Flow Gpm" in by_term, sorted(by_term)
+        assert "Flow (gpm)" in by_term, sorted(by_term)
         # the SAME deterministic profiler as a SQL column: the coded asset id
         # carries an induced value pattern
         aid = next((r for r in rows if "asset_id" in str(r.get("Source_Column", ""))), None)
