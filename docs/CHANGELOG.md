@@ -1,5 +1,86 @@
 # Changelog
 
+## [1.41.0] - 2026-08-24
+
+The walk-log release: every fix the 2026-08-24 clean walkthrough logged
+(W2-W19 in docs/SPEC-BACKLOG-20260821.md), shipped as one batch before
+the Policy half of the walk.
+
+### Fixed - harvested enums complete themselves from the live database (W2, W3)
+
+PDC's stored profile serves SAMPLED values, so a harvest landed 13 short
+vocabularies (Maricopa missing from both county columns). When a saved
+database connection can reach the table, harvest now finishes each enum
+with a live SELECT DISTINCT - up to 48 distinct values replace the
+sample, more drops the enum (a field, not a vocabulary) - and the direct
+scan gains the same Refresh value evidence option the harvest card had.
+
+### Changed - the AI pass reconciles classification, not just language (W4, W5)
+
+Tags were add-only scan-time heuristics (Base Charge wore pii +
+compliance + a category echo forever). The pass now returns the FINAL
+tag set - closed governed vocabulary, at most 4, judged against the
+definition it just wrote, a stated reason per drop - and may correct the
+PII class and sensitivity when the enriched definition contradicts the
+scan's name heuristic (a Street Name on a pipe asset identifies no
+person). Deterministic halves: person-context guard on PII minting,
+category/table echo tags never proposed, a standing PII class keeps its
+pii tag. Everything lands as pills; the steward accepts.
+
+### Added - the PII classification has an editor (W16, W17)
+
+The pii tag and PII Type label are DERIVED from the row's PII class at
+every generate - deleting the tag alone just re-minted it, and the class
+itself had no editor anywhere (the walk cleared six rows by state
+surgery). The expanded Review row gains a PII CLASSIFICATION selector
+(None + the six classes), labelled as the thing that derives the tag.
+
+### Added - the flips join the flow story (W7)
+
+"5 - Detection flips" on the AI AGENTS strip - deterministic and saying
+so - plus a flowchart node, an explainer paragraph and GUIDE/WALKTHROUGH
+updates, all teaching the order: clusters first (merges consolidate
+rows, the flip lists recompute live), then the flips, then Dictionary.
+
+### Added - Retire all, and a fold advisor that respects series (W8, W9)
+
+Both pending queues gain Retire all beside Approve all (the safe bulk
+verdict was the laborious one; load-bearing core tags are skipped with
+the reason stated). The fold advisor never proposes folding a numbered
+series into itself (Tier 1/2/3, Address Line1/2 - siblings by
+construction), and gains Dismiss all.
+
+### Added - Keycloak attributes drive expertise; the roster keeps itself (W10, W11)
+
+The Keycloak fetch reads user attributes: an expertise attribute
+prefills the roster and always wins; a title attribute enriches the
+LLM prompt. A uniformity guard reverts identical LLM suggestions for
+3+ people with a note (identical answers carry no assignment signal).
+Roster edits autosave debounced; removals still wait for the explicit
+Save.
+
+### Fixed - honest counters and a stamped-in company (W12, W13, W14, W15)
+
+The audit counter labels itself "(last N kept)" at the cap instead of
+sitting frozen; export-pack stamps the settings company into the domain
+pack and the governance summary shows it. Seed readiness stops crying
+wolf: name-anchored seeds are exempt from the shared-shape amber, and
+the no-seed list groups by reason with only the genuine evidence-gap
+group counting toward the badge. The Generate card marks its success
+line STALE the moment the grid changes after an export - the button
+becomes "Regenerate - the grid changed".
+
+### Fixed - flips keep their links; label re-mints are managed (W18, W19)
+
+A name-anchored Detection flip no longer costs a term its mapping-only
+link exemption under Selective (the flip ADDS detection; the link stays
+guaranteed). Label families whose PDC vocabulary drifted are reported
+with a one-button managed re-mint (delete + recreate, no manual race);
+the stamp re-validates every definition id at write time and refuses
+dead families; and each stamp's merge sweeps assignments whose
+definition no longer exists - the walk's ~160 invisible orphans cannot
+recur.
+
 ## [1.40.0] - 2026-08-24
 
 The backlog-closing release: the last three open Glossary items (3, 4, 12)

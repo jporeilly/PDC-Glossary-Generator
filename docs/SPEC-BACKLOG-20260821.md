@@ -613,7 +613,7 @@ every question answered "the documentation doesn't appear to cover this"
 stages docs/ (minus diagrams/) + README.md; an empty index says
 "installation defect, not a docs gap"; three pins added.
 
-## W2 · Harvest-from-PDC does not complete enums
+## W2 · Harvest-from-PDC does not complete enums — RESOLVED (1.41.0)
 
 PDC's stored profile serves SAMPLED values (sampleValues), so 13 of the
 walk's vocabularies landed short (Maricopa missing from both county
@@ -625,14 +625,14 @@ same way; when none does, the readiness panel should mark sampled enums
 as UNVERIFIED. Walk remedy: rows completed by hand from live DISTINCT
 (scripted, app closed, backup taken).
 
-## W3 · The direct scan cannot refresh evidence
+## W3 · The direct scan cannot refresh evidence — RESOLVED (1.41.0)
 
 SourceConnections' scan('add') lands rows WITHOUT the refreshEvidence
 option, so evidence merges fill-only — a re-scan cannot overwrite a
 stale/short enum already on the grid. The Connect harvest has the
 "Refresh value evidence" checkbox; the Schema/Files scan needs the same.
 
-## W4 · Tag sync: the AI pass never revisits tags
+## W4 · Tag sync: the AI pass never revisits tags — RESOLVED (1.41.0)
 
 Definition and Purpose get enrichment; Suggested_Tags stay frozen
 scan-time heuristics — which is how Base Charge wore pii + compliance +
@@ -645,7 +645,7 @@ reconciliation as CLOSED-SET selection from the governed vocabulary only,
 Def/Purpose settle inside the AI pass. Payoff: cleaner applyBusinessTags
 on methods, cleaner steward stamps, honest label derivation.
 
-## W5 · Context-blind PII: an asset's street name is not PERSONAL_NAME
+## W5 · Context-blind PII: an asset's street name is not PERSONAL_NAME — RESOLVED (1.41.0)
 
 Field: "Street Name" in Infrastructure and Assets (pipe/asset GIS data)
 classified PERSONAL_NAME, sensitivity HIGH, tags direct-identifier;
@@ -660,7 +660,7 @@ person context), and the source type. A *_name column defaults to
 PERSONAL_NAME only in person context. Walk remedy: steward corrected the
 row (LOW, no PII, location tags).
 
-## W6 · Unit suffixes: always "(unit)" lowercase
+## W6 · Unit suffixes: always "(unit)" lowercase — RESOLVED (1.41.0)
 
 Convention (user, mid-walk): units in term names are lowercase in
 parentheses - (psi), (ppm), (ntu). This walk's namer emitted Title-Cased
@@ -671,7 +671,7 @@ unit token from the existing UNIT_NAME list (sug_shared) to " (unit)"
 lowercase at suggest time; pin with the six field cases. Walk remedy:
 steward renamed the six in the grid.
 
-## W7 · The Detection flips are missing from the flow explanations
+## W7 · The Detection flips are missing from the flow explanations — RESOLVED (1.41.0)
 
 Field: "do I now click on Flip 17 recommended then shapeless
 Mapping-only? if so these steps need to be added to the flowchart
@@ -687,7 +687,7 @@ shapeless skips mapping-only (the recommendation lists recompute live, so
 post-settlement counts match the grid that ships), THEN Dictionary.
 In-app guidance, GUIDE and WALKTHROUGH all updated together.
 
-## W8 · The Tags panel offers Approve all but no Retire all
+## W8 · The Tags panel offers Approve all but no Retire all — RESOLVED (1.41.0)
 
 Field: 11 pending tags, ALL table-name echoes that should die - and the
 only wholesale control is "Approve all" ("pretty misleading as there's a
@@ -701,7 +701,7 @@ recommendation. Two fixes:
   should never propose it into the vocabulary (same treatment as the
   category echoes). Walk remedy: retired the 11 individually.
 
-## W9 · The fold advisor proposes folding numbered series into themselves
+## W9 · The fold advisor proposes folding numbered series into themselves — RESOLVED (1.41.0)
 
 Field: 30 fold candidates, EVERY one "fold Tier N X into Tier M X" /
 "Usage Tier N into Tier M" at 88-96% name similarity - a numbered SERIES
@@ -725,7 +725,7 @@ tier1_to_gallons as "Tier1 To Gallons" (no space). Series-token splitting
 must be consistent across the series ("tier1" -> "Tier 1" like its
 siblings); pin with this case. Walk remedy: renamed the one term.
 
-## W10 · Roster expertise from Keycloak user attributes
+## W10 · Roster expertise from Keycloak user attributes — RESOLVED (1.41.0)
 
 Field: "is there anywhere in Keycloak to augment the user with a
 description of their role that could be used to add expertise?" There is:
@@ -739,7 +739,7 @@ Realm settings -> Unmanaged attributes first). Two halves:
   expertise pre-filled. Groups-as-expertise noted as the alternative;
   role descriptions rejected (authz semantics, wrong home).
 
-## W11 · Uniform expertise suggestions carry no information; the roster wants autosave
+## W11 · Uniform expertise suggestions carry no information; the roster wants autosave — RESOLVED (1.41.0)
 
 Field, on Govern: Suggest expertise (LLM) gave every person the IDENTICAL
 expertise string, so auto-assign had nothing to distinguish stewards and
@@ -755,7 +755,7 @@ expertise string, so auto-assign had nothing to distinguish stewards and
   patch; same debounced treatment here (Save stays as the explicit act
   for removals).
 
-## W12 · Governance summary: the frozen-looking cap and the generic pack
+## W12 · Governance summary: the frozen-looking cap and the generic pack — RESOLVED (1.41.0)
 
 Field: "not sure if this is refreshing" - it was (disk newest == card),
 but two displays undermine trust:
@@ -767,7 +767,7 @@ but two displays undermine trust:
   company name from settings into build_pack and the adopt path, and
   show it on the summary card.
 
-## W13 · The readiness shared-shape amber cries wolf on name-anchored seeds
+## W13 · The readiness shared-shape amber cries wolf on name-anchored seeds — RESOLVED (1.41.0)
 
 Field: the card flagged ^-?[0-9]+(\.[0-9]+)?$ x10 - the ten flipped
 measures sharing the numeric SANITY shape, which is by design: a
@@ -778,7 +778,7 @@ them separately as "shared sanity shape - name-anchored, safe"),
 reserving the warning for genuinely ambiguous content claims like the
 ZIP pair.
 
-## W14 · The readiness no-seed bucket counts expected populations as amber
+## W14 · The readiness no-seed bucket counts expected populations as amber — RESOLVED (1.41.0)
 
 Field: "dont really need to include the tables, etc?" - the 19 "no
 usable seed" terms were ALL expected cases, each saying so in its own
@@ -794,7 +794,7 @@ counts ONLY the genuine-evidence-gap group; expected groups render
 neutral. An amber that is always amber trains stewards to ignore ambers
 (W13's rule, applied to its neighbour).
 
-## W15 · The Generate card wears the previous run's success after the grid changes
+## W15 · The Generate card wears the previous run's success after the grid changes — RESOLVED (1.41.0)
 
 Field: five row fixes then "regenerated" - but the registry mtime never
 moved: the card was still showing the earlier generation's stats/archive
@@ -807,7 +807,7 @@ generation, banner the result as stale and re-label the button
 ("Regenerate - the grid changed"). Same treatment for the DQ
 expectations button's implicit currency.
 
-## W16 · Editing a derived tag silently reverts
+## W16 · Editing a derived tag silently reverts — RESOLVED (1.41.0)
 
 Field: the steward removed 'pii' from both Base Charge rows twice; the
 Registry re-minted it each Generate because the rows still carried
@@ -826,7 +826,7 @@ visibly AS the source of the derived pii tag (one control, labelled "PII
 classification - derives the pii tag"), so the two hats cannot be
 mistaken for each other.
 
-## W17 · The PII classification cannot be edited - the Map cell all over again
+## W17 · The PII classification cannot be edited - the Map cell all over again — RESOLVED (1.41.0)
 
 Field, after two futile correction loops on Base Charge: PII_Category
 renders as a read-only badge under Sensitivity; its only writer is
@@ -839,7 +839,7 @@ none option), labelled as the source of the derived pii tag (W16's
 labelling), same pattern as the Detection and Map segments. Walk remedy:
 state surgery over the W5 list, app closed.
 
-## W18 · Flipping to Auto silently costs the term its link exemption
+## W18 · Flipping to Auto silently costs the term its link exemption — RESOLVED (1.41.0)
 
 Field: Selective held back 38 terms including every starred flip (Lead,
 Turbidity, pH...), Asset ID, Segment ID, the Status family and Payment
@@ -862,7 +862,7 @@ low-confidence extras (large/noisy estates)"; neither is legacy, they
 serve different estate classes. The hint text says which class you are
 in.
 
-## W19 · A drifted label family needs a managed re-mint, not a manual dance
+## W19 · A drifted label family needs a managed re-mint, not a manual dance — RESOLVED (1.41.0)
 
 Field: the domain taxonomy changed ('&' -> 'and', +Billing and Revenue),
 and the correct-by-docs remedy - delete the family in PDC, re-Create -

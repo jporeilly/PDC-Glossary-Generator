@@ -2739,7 +2739,7 @@ function ExpandedRow({ row: r, index, prop, onAcceptProp, onField, onEvidence, o
             <span className="rv-detseg"
                   title="The engine's PII call for this column. It DERIVES the pii tag and the PII Type label on every generate — removing the pii tag from Tags alone just re-mints it. Set None if this column doesn't identify a person (an amount, a status, a place with no people attached).">
               <span className="rv-expevk">PII CLASSIFICATION</span>
-              <select className={`rv-sev sev-${sev}`} value={r.PII_Category || ''}
+              <select className={`rv-sev sev-${r.Sensitivity || 'LOW'}`} value={r.PII_Category || ''}
                       onChange={(e) => onField(index, 'PII_Category', e.target.value)}
                       aria-label="PII classification — derives the pii tag">
                 <option value="">None</option>
