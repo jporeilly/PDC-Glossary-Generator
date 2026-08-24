@@ -29,6 +29,11 @@ const ws = {
   saving: false,
   savedAt: null,
   saveError: null,
+  revision: 0,       // bumps on EVERY grid mutation (markDirty) — session-only.
+                     // The Generate card compares it against the revision it
+                     // captured at generate time, so a success line can never
+                     // outlive the grid it described (W15: "regenerated" was
+                     // claimed twice on the walk while the old export stood).
   pdcSession: null,  // session-only PDC connectivity: {connected, base, user, at}
                      // — set by pages after a real authenticated PDC round-trip,
                      // shown as the sidebar's "PDC ·" status dot. NEVER persisted
@@ -260,6 +265,7 @@ let snapshotPending = false
 
 export function markDirty() {
   ws.dirty = true
+  ws.revision = (ws.revision || 0) + 1
   // Copy-on-write versioning: the FIRST change after loading a saved
   // glossary archives the loaded state as a timestamped version, BEFORE the
   // debounced autosave can overwrite it ("the old Glossary is just

@@ -154,6 +154,20 @@ class TestStateAndGovernance:
         assert any(p["fold"] == "Mbr Rating" and p["keep"] == "Member Rating"
                    and p["confidence"] == "high" for p in fa.get("pairs", []))
 
+    def test_fold_advisor_never_folds_a_series(self, client, fresh_dict):
+        """W9 (2026-08-24 walk): Tier 1/2/3 scored ~90% and the advisor
+           proposed folding a series into one member — names identical except
+           a numeric token are siblings by construction, never duplicates."""
+        tagdict = fresh_dict
+        tagdict.accrete([_row("Tier 1 Rate", "s.r.tier1_rate"),
+                         _row("Tier 2 Rate", "s.r.tier2_rate"),
+                         _row("Address Line1", "s.c.address_line1"),
+                         _row("Address Line2", "s.c.address_line2")], persist=True)
+        tagdict.review("term", ["Tier 1 Rate", "Tier 2 Rate",
+                                "Address Line1", "Address Line2"], "approve")
+        fa = client.post("/api/tagdict/fold-advisor", json={}).json()
+        assert fa.get("pairs") == [], fa
+
     def test_governance_summary_cors(self, client):
         r = client.get("/api/governance-summary")
         assert r.headers.get("access-control-allow-origin") == "*"

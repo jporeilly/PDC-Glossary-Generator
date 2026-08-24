@@ -2511,11 +2511,35 @@ def api_tagdict_fold_advisor(body: dict = Body(default={})):
         used = len((d.get("term_usage") or {}).get(n) or ())   # distinct source columns
         return (unabbrev, used, len(str(n)))
 
+    def is_series_pair(a, b):
+        """W9 (2026-08-24 walk): Tier 1 / Tier 2 / Tier 3 scored ~90% and the
+        advisor proposed folding a SERIES into one member — but names that are
+        identical except for a numeric token are siblings by construction
+        (tiers, zones, phases, address lines), never duplicates. Each token
+        splits into (alpha, number); if every alpha part matches and any
+        numeric part differs, the pair is a series and never folds."""
+        sa, sb = a.split(), b.split()
+        if len(sa) != len(sb):
+            return False
+        def split(t):
+            m = _re.match(r"^([a-z]*)(\d*)$", t)
+            return m.groups() if m else (t, "")
+        differ = False
+        for ta, tb in zip(sa, sb):
+            aa, na = split(ta); ab_, nb = split(tb)
+            if aa != ab_:
+                return False
+            if na != nb:
+                differ = True
+        return differ
+
     pairs = []
     for i in range(len(gov)):
         for j in range(i + 1, len(gov)):
             na, nb = gov[i][0], gov[j][0]
             ea, eb = expand(na), expand(nb)
+            if is_series_pair(ea, eb):
+                continue
             if ea == eb:
                 conf, why = "high", "identical after abbreviation expansion ('%s')" % ea
             else:

@@ -2697,6 +2697,30 @@ function ExpandedRow({ row: r, index, prop, onAcceptProp, onField, onEvidence, o
                     : '→ no value shape: Registry leaves detection open, so Policy will request a seed'}
               </span>
             </span>
+            {/* W16/W17 (2026-08-24 walk): the pii tag is DERIVED from this
+                classification at every bridge, so deleting the tag in the
+                Tags field only sees it re-minted on generate — and until now
+                the classification itself had no editor anywhere (the badge
+                by Sensitivity is read-only; the walk cleared six rows by
+                state surgery). This selector is the one place to change or
+                clear the call. */}
+            <span className="rv-detseg"
+                  title="The engine's PII call for this column. It DERIVES the pii tag and the PII Type label on every generate — removing the pii tag from Tags alone just re-mints it. Set None if this column doesn't identify a person (an amount, a status, a place with no people attached).">
+              <span className="rv-expevk">PII CLASSIFICATION</span>
+              <select className={`rv-sev sev-${sev}`} value={r.PII_Category || ''}
+                      onChange={(e) => onField(index, 'PII_Category', e.target.value)}
+                      aria-label="PII classification — derives the pii tag">
+                <option value="">None</option>
+                <option>PERSONAL_NAME</option><option>CONTACT_INFO</option>
+                <option>ADDRESS_INFO</option><option>GOVERNMENT_ID</option>
+                <option>FINANCIAL</option><option>DEMOGRAPHIC</option>
+              </select>
+              <span className="rv-msg rv-detwhy">
+                {r.PII_Category
+                  ? '→ derives the pii tag and the PII Type label on generate'
+                  : '→ no PII: no pii tag, no PII Type label'}
+              </span>
+            </span>
             {/* The per-row Map override the docs promised for two releases
                 with NO control anywhere in the frontend (backlog 3 — the
                 documented override was reachable only by hand-editing the

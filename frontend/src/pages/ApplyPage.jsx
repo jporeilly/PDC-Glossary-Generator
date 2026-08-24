@@ -9,7 +9,7 @@
 // legacy SSE streams.
 import { useEffect, useRef, useState } from 'react'
 import { apiGet, apiPost, runJob } from './../api.js'
-import { patchRow, setPdcSession, usePersistentState, useResumableJob, useWorkspace } from './../state.js'
+import { getWorkspace, patchRow, setPdcSession, usePersistentState, useResumableJob, useWorkspace } from './../state.js'
 import './apply.css'
 
 const truthy = (v) => ['y', 'yes', 'true', '1'].includes(String(v ?? 'Y').toLowerCase())
@@ -239,6 +239,17 @@ function GenerateCard({ rows, glossaryName, governance, settings, onNavigate, au
   const [gen, setGen] = usePersistentState('apply.gen', null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
+  // W15 (2026-08-24 walk): the success line outlived the grid it described —
+  // "regenerated" was claimed twice while the old export still stood, and only
+  // the registry mtime gave it away. Capture the workspace revision at
+  // generate; any later grid mutation makes the card say so. Session-only
+  // (revision resets on reload), so genRev=null after a reload means
+  // "unknown" — then ANY post-load edit is by definition newer than the
+  // export and the banner still fires.
+  const ws = useWorkspace()
+  const [genRev, setGenRev] = useState(undefined)   // undefined until a generate this session
+  const genStale = gen && (genRev != null ? (ws.revision || 0) > genRev
+                                          : (ws.revision || 0) > 0)
   // versioned backups: archive each generation to the lab MinIO (on when a
   // lab connection exists); the result line names the key it landed under
   const [archiveLab, setArchiveLab] = usePersistentState('apply.archiveLab', true)
@@ -377,6 +388,7 @@ function GenerateCard({ rows, glossaryName, governance, settings, onNavigate, au
         ...(governance ? { governance } : {}),
       })
       setGen(d)
+      setGenRev(getWorkspace().revision || 0)
       // versioned backup: each generation ships to the lab MinIO under a
       // per-glossary prefix, its already-timestamped name as the key —
       // "i want to keep backed up versions in minIO". Failure is reported
@@ -470,10 +482,18 @@ function GenerateCard({ rows, glossaryName, governance, settings, onNavigate, au
         </div>
       )}
       {error && <div className="error">{error}</div>}
+      {genStale && (
+        <div className="notice-warn">
+          <b>The grid changed after this export was generated.</b> The success line and
+          download below describe the OLD grid — a fix made on Review is not in them until
+          you regenerate. (The filename is the version: a fresh generate stamps a new
+          “Archived as” name.)
+        </div>
+      )}
       <div className="actions">
         <button className="primary" onClick={generate} disabled={busy || kept === 0}
                 title={kept ? 'Export the kept terms as PDC-importable JSONL' : 'Keep at least one term on the Review page first'}>
-          {busy ? 'Generating…' : `Generate JSONL (${kept})`}
+          {busy ? 'Generating…' : genStale ? `Regenerate — the grid changed (${kept})` : `Generate JSONL (${kept})`}
         </button>
         {gen && (
           <button className="ghost"
@@ -491,6 +511,7 @@ function GenerateCard({ rows, glossaryName, governance, settings, onNavigate, au
       </div>
       {gen?.archived && (
         <p className="notes">
+          {genStale && <span className="warn">STALE · </span>}
           Archived as <code>{gen.archived}</code>
           {genArch?.ok && <> · backed up to MinIO <code>{genArch.key}</code></>}
           {genArch && !genArch.ok && <> · <span className="warn">MinIO backup failed: {genArch.error}</span></>}

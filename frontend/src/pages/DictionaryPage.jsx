@@ -178,6 +178,30 @@ export default function DictionaryPage({ onNavigate }) {
       `Approved ${names.length} ${kind}${names.length > 1 ? 's' : ''}.`)
   }
 
+  // W8 (2026-08-24 walk): "can we have a Retire all option as well. This is
+  // pretty misleading as there's a tendency to approve all." The queue offered
+  // bulk approve but only per-item retire — the safe bulk verdict (reject the
+  // noise; real concepts re-propose with evidence) was the laborious one.
+  function retireAll(kind) {
+    const items = kind === 'term' ? dict.terms || [] : dict.tags || []
+    const pending = items.filter((t) => t.status === 'pending')
+    const core = pending.filter((t) => t.core)
+    const names = pending.filter((t) => !t.core).map((t) => (kind === 'term' ? t.term : t.tag))
+    if (!names.length) {
+      if (core.length) setMsg('Nothing retirable — every pending entry is load-bearing.')
+      return
+    }
+    if (!window.confirm(
+      `Retire ALL ${names.length} pending ${kind}${names.length === 1 ? '' : 's'}?\n\n` +
+      'Durable: tombstones keep them retired through reloads and Reseeds, and Export domain ' +
+      'pack will offer to remove them from the installed pack. This is the SAFE bulk verdict — ' +
+      'a real concept re-proposes itself on the next scan, with evidence, and approving it then ' +
+      'lifts the tombstone. Mistakes can also be undone per item.' +
+      (core.length ? `\n\n${core.length} load-bearing entr${core.length === 1 ? 'y is' : 'ies are'} skipped — engine code paths stand on them.` : ''))) return
+    review(kind, names, 'reject', undefined,
+      `Retired ${names.length} ${kind}${names.length > 1 ? 's' : ''}.${core.length ? ` ${core.length} load-bearing skipped.` : ''}`)
+  }
+
   async function alias(name, target) {
     const d = await review('term', [name], 'alias', target,
       `"${name}" folded into "${target}" as an alias.`)
@@ -692,6 +716,10 @@ export default function DictionaryPage({ onNavigate }) {
                         title="Approve every pending term at once — a confirm lists the consequences first.">
                   ✓ Approve all
                 </button>{' '}
+                <button className="ghost mini" onClick={() => retireAll('term')}
+                        title="Retire every pending term at once — the safe bulk verdict: durable tombstones, and a real concept re-proposes itself with evidence on the next scan.">
+                  ✕ Retire all
+                </button>{' '}
                 {staleTerms.length > 0 && (
                   <>
                     <button className="ghost mini"
@@ -772,6 +800,10 @@ export default function DictionaryPage({ onNavigate }) {
                 <button className="ghost mini" onClick={() => approveAll('tag')}
                         title="Approve every pending tag at once — a confirm lists the consequences first.">
                   ✓ Approve all
+                </button>{' '}
+                <button className="ghost mini" onClick={() => retireAll('tag')}
+                        title="Retire every pending tag at once — the safe bulk verdict: durable tombstones; load-bearing core tags are skipped and say so.">
+                  ✕ Retire all
                 </button>{' '}
                 {staleTags.length > 0 && (
                   <button className="ghost mini"
@@ -878,7 +910,12 @@ export default function DictionaryPage({ onNavigate }) {
                             title="Fold every HIGH-confidence pair (identical after abbreviation expansion) in one pass. Review-band suggestions are never included. Glance at the canonical names first — fold-all trusts the advisor's pick of which spelling survives; dismiss (✕) any pair whose canonical looks wrong before clicking.">
                       Fold all {fold.pairs.filter((p) => p.confidence === 'high').length} high-confidence
                     </button>
-                  )}
+                  )}{' '}
+                  <button className="ghost mini"
+                          onClick={() => setFold((f) => ({ ...f, pairs: [] }))}
+                          title="Dismiss every suggestion at once — nothing folds, nothing is recorded. The advisor is advice only; if the settled vocabulary is right as it stands, clear the list in one click.">
+                    ✕ Dismiss all
+                  </button>
                 </p>
                 {fold.pairs.map((p, i) => (
                   <div className="fold-row" key={`${p.fold}→${p.keep}`}>
