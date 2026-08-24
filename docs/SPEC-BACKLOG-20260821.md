@@ -90,7 +90,16 @@ Would have shown the 2026-08-20 defect loudly: eight concepts backed by one
 identical regex is visible in that summary, where "Draft policies produced 88
 patterns" reads like success.
 
-## 3 · Make the held-back mapping list actionable  — Glossary spec
+## 3 · Make the held-back mapping list actionable — RESOLVED (1.40.0)
+
+Both halves shipped: the Review row editor gained a MAP segment
+(Policy decides / Y / N — the documented always-wins override finally has
+a control), and the Apply held-back list gained a per-term Map = Y button
+that patches every row bearing the term and re-pulls. With 1.38.41's
+Selective auto-exempt (the policy half), the Map-everything workaround is
+retired. Original note kept below.
+
+## (original) 3 · Make the held-back mapping list actionable  — Glossary spec
 
 `ApplyPage.jsx:946` renders the held-back terms as a read-only `<li>` list and
 tells the steward to "set **Map** = Y on the rows you want linked" — with no
@@ -126,7 +135,17 @@ completeness — a misconception worth a line in the docs. It affects the
 term-column links and which concepts get term_id backfill; seeded concepts
 map under Selective anyway because profiled evidence earns the confidence.)
 
-## 4 · AI-proposed label vocabularies  — Glossary spec (NOT the PG spec)
+## 4 · AI-proposed label vocabularies — RESOLVED (1.40.0)
+
+Built to the decided contract: POST /api/labels/propose-vocab (the model
+proposes from the estate's own document classes/categories, grounded by
+labels.validate_vocab — <= 8 entries, <= 6 distinct values), the steward
+edits and POST /api/labels/adopt-vocab writes labels.<family> into the
+domain pack (backup taken), where the engine — which still refuses to
+invent retention — derives it on every scan. Govern labels card carries
+the propose/edit/adopt panel. Original note kept below.
+
+## (original) 4 · AI-proposed label vocabularies  — Glossary spec (NOT the PG spec)
 
 Decided 2026-08-21: labels are created and stamped by the Glossary app, so this
 does not belong in `SPEC-policy-advisor.md`. (The Advisor spec's doctrine 3
@@ -366,7 +385,17 @@ measured, false ten minutes later. A point-in-time read of state the app also
 writes is not a settled fact. Re-check after any steward action that touches
 the same store.
 
-## 9 · FUTURE PROJECT — PDC Query: questions answered through the catalogue
+## 9 · PDC Query — AT PROTOTYPE (0.2.0, 2026-08-24)
+
+github.com/jporeilly/PDC-Query. --ask resolves a natural question against
+the Registry (terms + dictionary-VALUE phrase filters), joins ONLY on
+identifying shared-term edges, refuses with reasons, and --run executes
+read-only. Proven on the live Arizona registry (customers <-> billing
+summary on Account Number, 'At Risk' filter); execution pends the estate
+VM. Next: profile-cardinality into the classifier (settles UNCLASSIFIED),
+synonym grounding via the docs-chat pattern. Original vision kept below.
+
+## (original) 9 · FUTURE PROJECT — PDC Query: questions answered through the catalogue
 
 Raised 2026-08-22, parked deliberately: finish the three-app pipeline first.
 This is a NEW TOOL, not a fix to an existing one.
@@ -546,7 +575,16 @@ CAPTURE/REFRESH rule, but it did not collapse the copies. Every one of today's
 staleness bugs lived in the gap between them. Architectural, bigger than a
 spec item — raise with the user before proposing anything.
 
-## 12 · Install/uninstall progress bar sits still during the delete phase
+## 12 · Install/uninstall progress bar — RESOLVED (Glossary 1.40.0 + Policy 1.10.17)
+
+The bar runs as a MARQUEE during the delete phases (install pre-clean of
+the old vendored Python + the whole uninstall) and returns to the honest
+byte-weighted bar for extraction — a determinate bar cannot be honest
+about a phase NSIS gives no weight. Implemented in both apps' custom NSIS
+templates; degrades harmlessly if the control lookup fails. Insights
+still pending the same port. Original diagnosis kept below.
+
+## (original) 12 · Install/uninstall progress bar sits still during the delete phase
 
 Field-caught 2026-08-23, twice (uninstall, then the 1.38.40 upgrade with a
 screenshot). CORRECTED DIAGNOSIS: the detail pane DOES stream one
