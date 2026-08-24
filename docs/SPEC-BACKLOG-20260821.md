@@ -806,3 +806,14 @@ card gets the same: when the workspace's savedAt is newer than the shown
 generation, banner the result as stale and re-label the button
 ("Regenerate - the grid changed"). Same treatment for the DQ
 expectations button's implicit currency.
+
+## W16 · Editing a derived tag silently reverts
+
+Field: the steward removed 'pii' from both Base Charge rows twice; the
+Registry re-minted it each Generate because the rows still carried
+PII_Category=FINANCIAL and the bridge derives the tag from the
+classification. Correct derivation, invisible mechanics. Fix: the grid's
+tag editor knows which tags are DERIVED - removing one either clears its
+source (with a confirm naming it: "also clears the FINANCIAL PII
+classification?") or refuses with the reason, never accepts an edit that
+the next Generate undoes.
