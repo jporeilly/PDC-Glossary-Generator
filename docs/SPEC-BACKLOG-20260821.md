@@ -738,3 +738,19 @@ Realm settings -> Unmanaged attributes first). Two halves:
   attributes at user-creation time so a fresh estate arrives with
   expertise pre-filled. Groups-as-expertise noted as the alternative;
   role descriptions rejected (authz semantics, wrong home).
+
+## W11 · Uniform expertise suggestions carry no information; the roster wants autosave
+
+Field, on Govern: Suggest expertise (LLM) gave every person the IDENTICAL
+expertise string, so auto-assign had nothing to distinguish stewards and
+"no-one picked up customer-management". Two cuts:
+- UNIFORMITY GUARD: when the model's suggestions are (near-)identical
+  across people it has learned nothing - detectable deterministically;
+  say "no distinguishing evidence - set expertise by hand or via
+  Keycloak attributes (W10)" instead of pasting the category list onto
+  everyone. With W10's attributes present, the attribute wins and the
+  LLM never runs for that person.
+- ROSTER AUTOSAVE ("can this page save state"): the roster edits sit
+  behind a manual Save roster banner while the grid autosaves on every
+  patch; same debounced treatment here (Save stays as the explicit act
+  for removals).
