@@ -680,6 +680,9 @@ story never learned: the numbered AI AGENTS strip ends at 4 - AI advise,
 the "How terms are defined & built" explainer and the Home flowchart
 don't mention the DETECTION toolbar group. Fix: a "5 - Detection" entry
 on the strip (deterministic, not AI - say so) or an explicit line in the
-explainer + Home card: after advise, flip the starred measures to Auto
-and declare shapeless skips mapping-only, THEN Dictionary. In-app
-guidance, GUIDE and WALKTHROUGH all updated together.
+explainer + Home card: the ORDER matters and must be taught: resolve
+the duplicate clusters FIRST (merges consolidate rows, disambiguations
+settle names), THEN flip the starred measures to Auto and declare
+shapeless skips mapping-only (the recommendation lists recompute live, so
+post-settlement counts match the grid that ships), THEN Dictionary.
+In-app guidance, GUIDE and WALKTHROUGH all updated together.
