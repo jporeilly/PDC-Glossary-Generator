@@ -979,3 +979,26 @@ moot. Fix: the banner names the concept and says which case it is -
 "the unresolved concept is link-governed - no method affected" (neutral).
 Also surface WHICH concept, so the steward can decide whether its
 term->column links matter (Apply-side integrity), instead of hunting.
+
+## P3 · Deploy needs a progress indicator
+
+Field (2026-08-25): "would be good to have a progress indicator when
+deploying." The button says "Working..." while a four-phase pipeline
+runs (zip import -> poll PDC's import workers -> verify every method
+landed -> re-stamp minted term ids into each binding). Fix: narrate like
+the labels stamp - phase + counter ("importing", "waiting on PDC import
+workers", "verifying 49 methods", "re-stamping term ids... 31/49"),
+via the same job/progress plumbing the identification job already uses.
+
+## P4 · The no-term-id banner survived the reconcile that resolved it
+
+Field (2026-08-25, screenshot): the GIS concept's term id resolved at
+Reconcile (user-confirmed), yet the Deploy card still wore "1 concept(s)
+still have no term id - those methods bind by name only" during the
+deploy. Either (a) the banner renders from page-load state and never
+refreshed after Reconcile (the W15 stale-card disease), or (b) the
+reconcile's resolution was never persisted into the registry file the
+Deploy card reads - which would ALSO mean the next session reloads an
+unresolved registry. Diagnose: reload the app; banner gone = (a),
+banner stays = (b) and the resolve must write back to the registry.
+Deploy itself unaffected on this walk (the concept authors no method).
