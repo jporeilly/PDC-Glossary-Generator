@@ -1072,3 +1072,17 @@ Two cuts:
 - RESOLUTION (investigate): if PDC's discovery mints entities for JSON
   nested fields, efficacy should try the nested path before giving up -
   probe a snapshot file's child entities on the live estate to decide.
+
+## P8 · The uninstall's stepped delete bar flashes — RESOLVED (both templates, rides next builds)
+
+Field (2026-08-25, Policy 1.11.0 uninstall): "the green bar flashes far
+too quickly across. when uninstalling, the install is fine." Root cause
+is ordering + weighting, not speed: the uninstall's templated per-file
+deletes have ALREADY emptied most of site-packages before the stepped
+loop runs, so it sweeps near-empty folders in a blink - and uninstall
+progress weighs every instruction equally, so the native bar already
+moves honestly across the per-file torrent. Fix: the W20 takeover is
+now INSTALL-pre-clean only (where the whole old tree deletes under a
+byte-weighted bar that would never move); the uninstall keeps the
+silenced details and the native bar. Both templates (Glossary +
+Policy); Insights inherits the corrected recipe when its port happens.
