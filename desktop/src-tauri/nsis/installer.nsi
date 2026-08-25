@@ -1101,9 +1101,11 @@ Section Uninstall
   !insertmacro CheckIfAppIsRunning "${MAINBINARYNAME}.exe" "${PRODUCTNAME}"
 
   DetailPrint "Removing ${PRODUCTNAME} from $INSTDIR"
-  ; the whole uninstall is deletes - weightless in NSIS's gauge - so the
-  ; python bulk drives the bar itself (W20) and the per-file torrent stays
-  ; out of the details list
+  ; the whole uninstall is deletes - weightless in NSIS's gauge - but
+  ; uninstall progress weighs every INSTRUCTION equally, so the native bar
+  ; already moves honestly across the per-file torrent below (the note at
+  ; the vendored-tree RMDirs has the field history). Just silence the
+  ; per-file lines.
   SetDetailsPrint textonly
 
   ; Delete the app directory and its content from disk
