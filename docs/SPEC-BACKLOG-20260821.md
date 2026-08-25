@@ -1002,3 +1002,26 @@ Deploy card reads - which would ALSO mean the next session reloads an
 unresolved registry. Diagnose: reload the app; banner gone = (a),
 banner stays = (b) and the resolve must write back to the registry.
 Deploy itself unaffected on this walk (the concept authors no method).
+
+## P5 · Deploy misdiagnoses a never-started import as "stopped at the first member"
+
+Field (2026-08-25, walk-blocking): deploy reported "DataPattern import
+stopped at Arizona Segment ID... PDC abandons the rest of the archive at
+the first member it cannot parse" + failed 49 - but a live probe showed
+BOTH import workers still ACCEPTED / progress 0 / statistics {} eleven
+minutes on, queue otherwise idle, zero Arizona methods in PDC: the
+importer never READ the archives at all (VM-side manager consumers
+wedged), so nothing was parsed and nothing was abandoned. The
+stopped-at-first-member inference (1.10.12) assumed the worker reached a
+terminal state; a worker still ACCEPTED at verify time is a DIFFERENT
+failure and the red box sent the steward hunting a content bug that
+does not exist. Fix, two cuts:
+- wait_worker's timeout outcome must carry the last-seen status; when it
+  is ACCEPTED/queued the deploy reports "PDC never started processing
+  the import (worker <id> still queued after Ns) - the VM's
+  DATA_PATTERN_MANAGER / DICTIONARY_MANAGER consumers are not picking up
+  work; check the containers" and SKIPS the stopped-at inference;
+- the verify table's per-method result then reads "import never ran",
+  not "not found after import".
+Walk remedy: VM-side container check/restart, then redeploy - the app's
+reconcile makes the retry safe (create/update plan recomputed).
