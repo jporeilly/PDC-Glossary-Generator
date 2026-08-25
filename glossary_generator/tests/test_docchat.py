@@ -98,3 +98,81 @@ class TestPackagingGuards:
                  / "stage-app.ps1").read_text(encoding="utf-8")
         assert 'Join-Path $repoRoot "docs"' in stage
         assert 'README.md' in stage
+
+
+class TestFileCheck:
+    """W21: 'lets say i want to check my JSONL for errors' - the uploaded-file
+       validator against the contract Generate itself writes. Deterministic:
+       the app's own export must round-trip clean, and each field-caught trap
+       (ampersand names, uppercase tags, BOM, orphans) must be named."""
+
+    def _own_export(self):
+        from engine import sug_generate
+        from conftest import make_row
+        rows = [make_row("Customer Name", "awc.customers.customer_name",
+                         Category="Customer Management",
+                         Definition="The account holder's name.",
+                         Suggested_Tags="pii;privacy",
+                         Critical_Data_Element="No", Sensitivity="HIGH"),
+                make_row("Turbidity (ntu)", "awc.samples.turbidity_ntu",
+                         Category="Water Quality and Compliance",
+                         Definition="Measured water turbidity.",
+                         Critical_Data_Element="No", Sensitivity="LOW")]
+        recs = sug_generate.to_jsonl_records(rows, "AWC Check")
+        return sug_generate.records_to_jsonl(recs)
+
+    def test_the_apps_own_export_round_trips_clean(self):
+        from engine import filecheck
+        res = filecheck.check_glossary_jsonl(self._own_export(), name="own.jsonl")
+        errs = [f for f in res["findings"] if f["severity"] != "warn"]
+        assert errs == [], errs
+        assert res["repaired"] is None
+        assert res["counts"]["term"] == 2 and res["counts"]["glossary"] == 1
+        assert "IMPORTABLE as-is" in res["summary"]
+
+    def test_broken_line_reports_its_number_and_traps_are_named(self):
+        from engine import filecheck
+        import json as _json
+        lines = self._own_export().splitlines()
+        # sabotage: malformed line, '&' name, UPPER tag, blank line, BOM
+        rec = _json.loads(lines[-1])
+        rec["name"] = "Water Quality & Compliance"
+        rec["attributes"]["tags"] = [{"name": "PII"}]
+        lines[-1] = _json.dumps(rec)
+        text = "﻿" + "\n".join(lines[:2] + ["{not json"] + [""] + lines[2:])
+        res = filecheck.check_glossary_jsonl(text, name="bad.jsonl")
+        codes = {f["code"] for f in res["findings"]}
+        assert {"bom", "parse", "blank-line", "ampersand", "tag-case"} <= codes, codes
+        parse = next(f for f in res["findings"] if f["code"] == "parse")
+        assert parse["line"] == 3 and parse["severity"] == "error"
+        assert res["repaired"] is not None
+        # the repaired file has only the non-mechanical problems left
+        again = filecheck.check_glossary_jsonl(res["repaired"], name="r.jsonl")
+        codes2 = {f["code"] for f in again["findings"]}
+        assert "bom" not in codes2 and "tag-case" not in codes2 \
+            and "blank-line" not in codes2
+        assert "parse" in codes2 and "ampersand" in codes2, \
+            "identity and true breakage are never silently rewritten"
+
+    def test_duplicate_ids_and_orphan_terms_are_errors(self):
+        from engine import filecheck
+        import json as _json
+        lines = self._own_export().splitlines()
+        term = _json.loads(lines[-1])
+        dup = dict(term); dup["name"] = "Twin"
+        orphan = dict(term); orphan["_id"] = "ffffffffffffffffffffffff"
+        orphan["parentId"] = "eeeeeeeeeeeeeeeeeeeeeeee"; orphan["name"] = "Orphan"
+        text = "\n".join(lines + [_json.dumps(dup), _json.dumps(orphan)]) + "\n"
+        res = filecheck.check_glossary_jsonl(text, name="dup.jsonl")
+        codes = {f["code"] for f in res["findings"]}
+        assert {"duplicate-id", "orphan-term"} <= codes, codes
+        assert "NOT importable" in res["summary"]
+
+    def test_check_file_endpoint_serves_findings_and_context(self, client):
+        res = client.post("/api/check-file",
+                          json={"name": "x.jsonl", "content": self._own_export()})
+        d = res.json()
+        assert d["summary"].startswith("x.jsonl:")
+        assert d["context_note"].startswith("[YOUR FILE - x.jsonl]")
+        bad = client.post("/api/check-file", json={"content": ""})
+        assert bad.status_code == 400

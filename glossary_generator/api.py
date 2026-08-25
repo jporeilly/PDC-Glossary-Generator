@@ -2206,9 +2206,32 @@ def api_ask(body: dict = Body(default={})):
     q = (body.get("question") or "").strip()
     if not q:
         return _err("ask a question", 400)
+    history = [h for h in (body.get("history") or [])
+               if isinstance(h, dict) and h.get("q")][-3:]
     return docchat.answer(q, page=(body.get("page") or "").strip() or None,
                           ai=bool(body.get("ai", True)),
-                          model=body.get("model"), version=APP_VERSION)
+                          model=body.get("model"), version=APP_VERSION,
+                          history=history,
+                          extra=str(body.get("file_context") or "")[:6000] or None)
+
+
+@app.post("/api/check-file")
+def api_check_file(body: dict = Body(default={})):
+    """W21: deterministic check (and mechanical repair) of an uploaded
+    glossary-import JSONL against the contract Generate writes. No model —
+    findings carry line numbers; `repaired` is the corrected file when only
+    mechanical fixes were needed; `context_note` feeds the docs chat so
+    questions about the file stay grounded."""
+    from engine import filecheck
+    body = body or {}
+    name = (body.get("name") or "upload.jsonl").strip()
+    content = body.get("content")
+    if not isinstance(content, str) or not content.strip():
+        return _err("send the file's text as `content`", 400)
+    res = filecheck.check_glossary_jsonl(content, name=name)
+    res["context_note"] = filecheck.findings_as_context(name, res)
+    audit.record("filecheck", detail=res["summary"][:200])
+    return res
 
 
 @app.post("/api/dq-expectations")

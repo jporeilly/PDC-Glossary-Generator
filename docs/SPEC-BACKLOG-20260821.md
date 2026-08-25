@@ -878,7 +878,7 @@ ORPHANED assignment no UI renders. Three cuts:
   definition id no longer resolves. Walk remedy: re-create + re-stamp +
   scripted orphan sweep.
 
-## W20 · The delete marquee should be a determinate deletion bar — RESOLVED (repo, rides the next build)
+## W20 · The delete marquee should be a determinate deletion bar — RESOLVED (1.42.0)
 
 Field (2026-08-24, installing 1.41.0): "you dont need to display every
 file being deleted, cant the progress bar just show the progress of the
@@ -897,7 +897,7 @@ progress. Fix (both cuts, installer.nsi template):
   if the control lookup fails. Port to Policy's template with the next
   Policy batch; Insights when its marquee port happens.
 
-## W21 · Upload a file to the docs chat — check my JSONL for errors
+## W21 · Upload a file to the docs chat — check my JSONL for errors — RESOLVED (1.42.0)
 
 Field (2026-08-24): "it would be great to be able to upload documents to
 the chat. lets say i want to check my JSONL for errors." Design, two
@@ -929,3 +929,25 @@ Ollama (nomic-embed-text) at startup, vectors in memory, cosine fused
 with BM25 (reciprocal-rank), and MANDATORY degrade to pure BM25 when
 Ollama is offline (the packaged app must answer without a model).
 Uploaded-file checking (W21) stays deterministic either way.
+
+## W23 · Docs chat reaches academy.pentaho.com + docs.pentaho.com (GitBook MCP)
+
+Field (2026-08-24): "can we hook it into the academy.pentaho.com &
+docs.pentaho.com Gitbook MCP server." Design: the chat becomes an MCP
+CLIENT over streamable HTTP - GitBook auto-hosts an MCP endpoint per
+published site - calling each site's search tool and folding the top
+results into the excerpt list as [docs.pentaho.com - <title>](url),
+cited like any doc section. Constraints that shape it:
+- OPT-IN per source on Settings (External documentation sources), OFF by
+  default - the packaged app must stay fully functional air-gapped;
+- hard timeout (~3s) and silent degrade to the local corpus when the
+  site is unreachable - never a hung answer;
+- external excerpts are clearly labelled in citations (the steward must
+  see which facts came from the product docs vs this app's own);
+- responses cached per question for the session (GitBook search is
+  rate-limited);
+- the grounded-or-refuse contract is unchanged - more excerpts, same
+  rules. Implementation: a ~60-line JSON-RPC client in engine/docchat.py
+  (initialize -> tools/list -> tools/call search), no SDK dependency.
+  Verify the exact MCP endpoints from a machine with internet before
+  building (GitBook's URL shape has changed once already).

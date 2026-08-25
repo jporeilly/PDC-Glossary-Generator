@@ -1,5 +1,50 @@
 # Changelog
 
+## [1.42.0] - 2026-08-25
+
+The docs-chat-grows-up release, shaped by three field verdicts delivered
+while 1.41.0 was still installing.
+
+### Changed - the answer starts instantly ("takes far too long to respond")
+
+The drawer showed nothing until a 12B local model had chewed an
+11,000-character prompt. Now it answers in two phases: the retrieved doc
+sections appear immediately ("composing from these sections..."), and the
+composed answer replaces them when the model returns - which is itself
+roughly twice as fast, because the compose prompt slimmed from 6x1800 to
+4x1100 characters of excerpt. Retrieval quality rose in the same pass:
+the tokenizer folds plurals ("pattern" now meets "Data Patterns"),
+question scaffolding ("what is a...") no longer outranks the topic, and
+the CHANGELOG is de-weighted so concept sections beat release notes.
+
+### Added - upload a glossary JSONL: check, repair, then ask about it (W21)
+
+"Check a file" on the chat drawer runs the uploaded file against the
+import contract Generate itself writes - deterministic, line-numbered
+findings: malformed lines, missing keys, duplicate ids, orphaned terms,
+root drift, ampersand names (the PDC search killer), uppercase tags,
+missing definitions. What is mechanical comes back repaired as a
+download (BOM, blank lines, tag casing, fqdn drift, resourceId);
+identity is never rewritten - the deterministic ids derive from the
+names, so those findings say what to fix at the source instead. The
+findings then ride along as chat context: "what is wrong with my file?"
+answers from them, cited [YOUR FILE], with the docs explaining the fixes.
+
+### Added - the conversation persists, feeds follow-ups, and can be deleted
+
+The thread survives page hops and drawer reopenings, the last exchanges
+travel with each question so follow-ups can say "it" and be understood,
+and a Clear button deletes the conversation deliberately.
+
+### Changed - the installer's delete phase shows real progress (W20)
+
+1.41.0's marquee was honest about NSIS's weightless deletes but showed no
+progress ("cant the progress bar just show the progress of the deletion").
+The old vendored-Python tree now deletes one package at a time while the
+installer drives the bar itself - a true 0-to-done deletion bar - and the
+per-file "Delete file:" torrent stays out of the details list. Visible on
+this very upgrade: the pre-clean of 1.41.0's files runs under the new bar.
+
 ## [1.41.0] - 2026-08-24
 
 The walk-log release: every fix the 2026-08-24 clean walkthrough logged

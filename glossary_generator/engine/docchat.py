@@ -173,6 +173,11 @@ def search(query, page=None, k=6, version=""):
 _PROMPT = """You answer questions about the PDC Glossary Generator from the documentation
 excerpts below. Rules:
 - Use ONLY facts stated in the excerpts. Never invent behaviour, endpoints or defaults.
+- An excerpt headed [YOUR FILE - <name>] holds the VALIDATION FINDINGS for a
+  file the user uploaded. Questions about "my file", "the file", its errors,
+  or how to fix it ANSWER FROM that block — walk the findings in plain
+  language, most severe first, and cite [YOUR FILE]. The documentation
+  excerpts then explain HOW to fix what the findings name.
 - The excerpts were retrieved FOR this question — if one explains the topic the
   question asks about, ANSWER from it in plain language, citing the section
   like [GUIDE - Factory reset]. An excerpt does not need to repeat the
@@ -189,14 +194,18 @@ QUESTION: {question}
 ANSWER:"""
 
 
-def answer(question, page=None, ai=True, model=None, version=""):
+def answer(question, page=None, ai=True, model=None, version="",
+           history=None, extra=None):
     """Retrieve, then (when a model is reachable) compose a grounded, cited
-    answer — or degrade to search results, stated honestly."""
+    answer — or degrade to search results, stated honestly. `history` (last
+    few {q, a} pairs) lets follow-ups resolve their pronouns; `extra` is an
+    uploaded file's findings block (W21) — both are CONTEXT, the excerpts
+    remain the only source of facts."""
     idx = get_index(version)
     hits = search(question, page=page, k=6, version=version)
     out = {"hits": hits, "grounded": False, "used_llm": False,
            "cited": [{"doc": h["doc"], "heading": h["heading"]} for h in hits[:3]],
-           "index_version": version}
+           "file_used": bool(extra), "index_version": version}
     if not idx["chunks"]:
         # an EMPTY corpus is a packaging defect, never a docs gap — 1.40.0
         # shipped the chat without the docs and every question read as "the
@@ -206,7 +215,7 @@ def answer(question, page=None, ai=True, model=None, version=""):
                          "index is empty. This is an installation defect, not "
                          "a gap in the documentation; please report it.")
         return out
-    if not hits:
+    if not hits and not extra:
         out["answer"] = ("The documentation doesn't appear to cover this — "
                          "no section matched the question.")
         return out
@@ -214,10 +223,21 @@ def answer(question, page=None, ai=True, model=None, version=""):
         return out
     try:
         from ai import llm
+        # 4 excerpts x 1100 chars, not 6 x 1800: the composed answer's wait is
+        # dominated by PROMPT PROCESSING on a local model, and the walk verdict
+        # on the fat prompt was "takes far too long to respond" — the trim
+        # roughly halves time-to-answer while the drawer already shows the
+        # retrieved sections instantly
         context = "\n\n".join(
-            f"[{h['doc']} - {h['heading']}]\n{h['text'][:1800]}" for h in hits)
-        # a single composed answer is worth waiting for — the configured
-        # timeout is sized for batch enrichment and a 12B model needs longer
+            f"[{h['doc']} - {h['heading']}]\n{h['text'][:1100]}" for h in hits[:4])
+        if extra:
+            context = extra + ("\n\n" + context if context else "")
+        if history:
+            context += ("\n\nPRIOR CONVERSATION (context for pronouns only — "
+                        "facts still come from the excerpts above):\n"
+                        + "\n".join(f"Q: {str(h.get('q'))[:200]}\n"
+                                    f"A: {str(h.get('a') or '')[:300]}"
+                                    for h in history))
         text = (llm._complete(_PROMPT.format(context=context, question=question),
                               model=model, timeout=120) or "").strip()
     except Exception:
