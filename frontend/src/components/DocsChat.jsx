@@ -165,14 +165,26 @@ export default function DocsChat({ page }) {
                     {!m.out.error && m.out.answer && (
                       <p className="summary" style={{ whiteSpace: 'pre-wrap' }}>{m.out.answer}</p>
                     )}
-                    {!m.out.error && !m.out.answer && (
+                    {!m.out.error && !m.out.answer && m.composing && (
+                      /* while composing, NAME the sections — the field verdict
+                         on showing their bodies was "dont need to show the
+                         detailed request"; the answer that replaces this is
+                         the readable version of the same material */
                       <>
-                        {m.composing
-                          ? <p className="notes">composing from these sections…</p>
-                          : <p className="notes">
-                              No local model reachable — showing the matching sections instead
-                              (configure Ollama on Settings for composed answers).
-                            </p>}
+                        <p className="notes">composing the answer from:</p>
+                        {(m.out.hits || []).slice(0, 3).map((h, j) => (
+                          <p key={j} className="notes" style={{ margin: '.15rem 0' }}>
+                            <code>{h.doc} § {h.heading}</code>
+                          </p>
+                        ))}
+                      </>
+                    )}
+                    {!m.out.error && !m.out.answer && !m.composing && (
+                      <>
+                        <p className="notes">
+                          No local model reachable — showing the matching sections instead
+                          (configure Ollama on Settings for composed answers).
+                        </p>
                         {(m.out.hits || []).slice(0, 3).map((h, j) => (
                           <div key={j} className="notes" style={{ margin: '.35rem 0' }}>
                             <b>{h.doc} — {h.heading}</b>
@@ -181,7 +193,7 @@ export default function DocsChat({ page }) {
                         ))}
                       </>
                     )}
-                    {!m.out.error && (m.out.cited || []).length > 0 && (
+                    {!m.out.error && !m.composing && (m.out.cited || []).length > 0 && (
                       <p className="notes" style={{ marginTop: '.3rem' }}>
                         sources: {m.out.cited.map((c, j) => (
                           <code key={j} style={{ marginRight: '.35rem' }}>{c.doc} § {c.heading}</code>
