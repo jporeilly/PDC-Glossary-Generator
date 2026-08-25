@@ -1025,3 +1025,32 @@ does not exist. Fix, two cuts:
   not "not found after import".
 Walk remedy: VM-side container check/restart, then redeploy - the app's
 reconcile makes the retry safe (create/update plan recomputed).
+
+## P6 · Cross-fire verdict: substring hints and vocabulary twins (the headline check)
+
+Field (2026-08-25, Identify read-back on the redeployed estate): 109
+columns clean single-term; the nine flipped measures cross-fired NOWHERE
+(name-anchoring held); but 5 columns carry cross-fire, all from generic
+substring hints over shared vocabularies:
+- customers.account_status += Status (Tiered Rates) + Status (Account
+  Alerts); water_systems.system_status += the same pair;
+  customers.service_county += County - the substring hints (?i)(status)
+  / (?i)(county) "agree" with any column CONTAINING the token, so the
+  0.5/0.5 tightening never disambiguated within the family;
+- account_alerts.status <-> tiered_rates.status claim each other: both
+  columns named exactly "status", both vocabularies shared - name AND
+  values indistinguishable, and PDC's metadataHints carry no table scope.
+Fix ladder, two cuts:
+1. AUTHOR: a hint derived from a generic single-token column name
+   anchors - (?i)^status$, (?i)^county$ - while multi-token names keep
+   the substring form (account_?status can only match its column
+   anyway). Clears the account_status / system_status / service_county
+   rows, the ones where a column's OWN specific term exists.
+2. DOCTRINE, glossary-side: table-qualified vocabulary twins (Status
+   (Tiered Rates) vs Status (Account Alerts)) are undetectable
+   distinctly BY CONSTRUCTION - the conversion note/readiness card
+   should recommend mapping-only for a dictionary whose vocabulary is
+   shared AND whose column name is a bare generic token; their term
+   links already govern the right tables. The residual twin cross-fire
+   stands until the steward declares them, and the app should say so
+   rather than leave it to a read-back probe.
