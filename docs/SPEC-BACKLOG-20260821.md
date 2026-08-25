@@ -966,3 +966,16 @@ name-anchored, safe (9)" line; the red warning is reserved for shapes
 shared by methods with NO name anchor to disambiguate them. Verify
 whether the ZIP pair carries name hints; if so it moves to the neutral
 line too and the red block disappears on this estate entirely.
+
+## P2 · The unresolved-ids banner prescribes action when no method is affected
+
+Field (2026-08-25, Author card): "1 concept(s) have no term id yet -
+methods for them bind by name only. Import the glossary into PDC, then
+Reconcile" - but the Author list showed EVERY method bound by id: the
+unresolved concept is one of the 93 mapping-only concepts, which author
+no method at all, so nothing binds weakly and the prescribed remedy is
+moot. Fix: the banner names the concept and says which case it is -
+"N authorable concept(s) bind by name - import + Reconcile" (red) vs
+"the unresolved concept is link-governed - no method affected" (neutral).
+Also surface WHICH concept, so the steward can decide whether its
+term->column links matter (Apply-side integrity), instead of hunting.
