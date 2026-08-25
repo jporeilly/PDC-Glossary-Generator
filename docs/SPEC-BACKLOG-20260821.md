@@ -951,3 +951,18 @@ cited like any doc section. Constraints that shape it:
   (initialize -> tools/list -> tools/call search), no SDK dependency.
   Verify the exact MCP endpoints from a machine with internet before
   building (GitBook's URL shape has changed once already).
+
+## P1 · Policy authoring's shared-shape warning cries wolf on name-anchored methods
+
+Field (2026-08-25, Policy half of the clean walk, Author card): the red
+"2 content shape(s) are claimed by more than one method" block led with
+the 9 flipped measures sharing the numeric sanity shape - which is BY
+DESIGN: name-anchored rules match column name AND shape, so the shared
+sanity half identifies nothing on its own and the warning's own small
+print already says so. W13's rule, unapplied on the Policy side: an
+always-amber trains stewards to ignore ambers. Fix: split the block -
+name-anchored claimants render as a NEUTRAL "shared sanity shape -
+name-anchored, safe (9)" line; the red warning is reserved for shapes
+shared by methods with NO name anchor to disambiguate them. Verify
+whether the ZIP pair carries name hints; if so it moves to the neutral
+line too and the red block disappears on this estate entirely.
