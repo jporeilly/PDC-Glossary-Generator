@@ -1054,3 +1054,21 @@ Fix ladder, two cuts:
    links already govern the right tables. The residual twin cross-fire
    stands until the steward declares them, and the app should say so
    rather than leave it to a read-back probe.
+
+## P7 · Efficacy's "no physical source in the Registry" mis-describes JSON-nested sources
+
+Field (2026-08-25, efficacy on the redeployed estate: 45 live / 0 dead /
+4 unresolved): the four unresolved (Reservoir Level Percent, Pressure
+(psi), Flow (gpm), Pump Status) each carry sources in the registry - but
+ONLY nested JSON document paths (public.<file>.json.<node>.<column>,
+5 dotted parts), which the efficacy resolver cannot map to a column
+entity; the JSON snapshots are also outside the 11 identification
+targets. Turbidity (ntu) resolved because it also has database sources.
+Two cuts:
+- HONESTY: the note must say "document-nested source (JSON path) - not
+  resolvable to a profiled column" instead of "no physical source in
+  the Registry", which sends the steward hunting a registry gap that
+  is not there;
+- RESOLUTION (investigate): if PDC's discovery mints entities for JSON
+  nested fields, efficacy should try the nested path before giving up -
+  probe a snapshot file's child entities on the live estate to decide.
