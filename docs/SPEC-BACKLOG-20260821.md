@@ -952,7 +952,7 @@ cited like any doc section. Constraints that shape it:
   Verify the exact MCP endpoints from a machine with internet before
   building (GitBook's URL shape has changed once already).
 
-## P1 · Policy authoring's shared-shape warning cries wolf on name-anchored methods
+## P1 · Policy authoring's shared-shape warning cries wolf on name-anchored methods — RESOLVED (Policy 1.11.0)
 
 Field (2026-08-25, Policy half of the clean walk, Author card): the red
 "2 content shape(s) are claimed by more than one method" block led with
@@ -967,7 +967,7 @@ shared by methods with NO name anchor to disambiguate them. Verify
 whether the ZIP pair carries name hints; if so it moves to the neutral
 line too and the red block disappears on this estate entirely.
 
-## P2 · The unresolved-ids banner prescribes action when no method is affected
+## P2 · The unresolved-ids banner prescribes action when no method is affected — RESOLVED (Policy 1.11.0)
 
 Field (2026-08-25, Author card): "1 concept(s) have no term id yet -
 methods for them bind by name only. Import the glossary into PDC, then
@@ -980,7 +980,7 @@ moot. Fix: the banner names the concept and says which case it is -
 Also surface WHICH concept, so the steward can decide whether its
 term->column links matter (Apply-side integrity), instead of hunting.
 
-## P3 · Deploy needs a progress indicator
+## P3 · Deploy needs a progress indicator — RESOLVED (Policy 1.11.0)
 
 Field (2026-08-25): "would be good to have a progress indicator when
 deploying." The button says "Working..." while a four-phase pipeline
@@ -990,7 +990,7 @@ the labels stamp - phase + counter ("importing", "waiting on PDC import
 workers", "verifying 49 methods", "re-stamping term ids... 31/49"),
 via the same job/progress plumbing the identification job already uses.
 
-## P4 · The no-term-id banner survived the reconcile that resolved it
+## P4 · The no-term-id banner survived the reconcile that resolved it — RESOLVED (Policy 1.11.0: banners recompute from the split summary and name the concept; the stamp-before-deploy nudge is explicit)
 
 Field (2026-08-25, screenshot): the GIS concept's term id resolved at
 Reconcile (user-confirmed), yet the Deploy card still wore "1 concept(s)
@@ -1003,7 +1003,7 @@ unresolved registry. Diagnose: reload the app; banner gone = (a),
 banner stays = (b) and the resolve must write back to the registry.
 Deploy itself unaffected on this walk (the concept authors no method).
 
-## P5 · Deploy misdiagnoses a never-started import as "stopped at the first member"
+## P5 · Deploy misdiagnoses a never-started import as "stopped at the first member" — RESOLVED (Policy 1.11.0)
 
 Field (2026-08-25, walk-blocking): deploy reported "DataPattern import
 stopped at Arizona Segment ID... PDC abandons the rest of the archive at
@@ -1026,7 +1026,7 @@ does not exist. Fix, two cuts:
 Walk remedy: VM-side container check/restart, then redeploy - the app's
 reconcile makes the retry safe (create/update plan recomputed).
 
-## P6 · Cross-fire verdict: substring hints and vocabulary twins (the headline check)
+## P6 · Cross-fire verdict: substring hints and vocabulary twins (the headline check) — RESOLVED (Policy 1.11.0: hints anchor + twins named at Author with mapping-only advice)
 
 Field (2026-08-25, Identify read-back on the redeployed estate): 109
 columns clean single-term; the nine flipped measures cross-fired NOWHERE
@@ -1055,7 +1055,7 @@ Fix ladder, two cuts:
    stands until the steward declares them, and the app should say so
    rather than leave it to a read-back probe.
 
-## P7 · Efficacy's "no physical source in the Registry" mis-describes JSON-nested sources
+## P7 · Efficacy's "no physical source in the Registry" mis-describes JSON-nested sources — RESOLVED (Policy 1.11.0, honesty cut; nested-entity probe still open)
 
 Field (2026-08-25, efficacy on the redeployed estate: 45 live / 0 dead /
 4 unresolved): the four unresolved (Reservoir Level Percent, Pressure
