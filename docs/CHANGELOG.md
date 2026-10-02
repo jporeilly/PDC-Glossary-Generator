@@ -1,5 +1,30 @@
 # Changelog
 
+## [1.42.1] - 2026-10-02
+
+### Fixed - links that open a new tab did nothing in the desktop app
+
+In the installed app, a link in a rendered document or an AI answer went
+nowhere: no browser, no error. The desktop shell's opener plugin intercepts
+every click on a link that opens a new tab and asks the shell to hand it to
+the system browser, but the shell only granted that to its own start-up
+page - once the window had moved on to the app at `http://127.0.0.1:<port>`
+the request was refused, silently, after the click had already been
+cancelled. A second capability (`desktop/src-tauri/capabilities/served-app.json`)
+now lets the app's pages open web, mailto and tel links in the default
+handler, and nothing else: the shell's own commands and the file opener
+still answer only to the splash. Found in the OpenSight shell and confirmed
+on the installed Policy Generator over the WebView2 debug port; the browser
+build was never affected.
+
+### Changed - the Files page offers "Open in new tab" only where one exists
+
+`window.open()` returns nothing in the desktop window - it has no second
+window to give - and the preview is a `blob:` URL that only this page can
+read, so the system browser could not show it either. The button was dead
+there. It is now shown in a browser only; in the desktop app the inline
+preview and Download cover it.
+
 ## [1.42.0] - 2026-08-25
 
 The docs-chat-grows-up release, shaped by three field verdicts delivered

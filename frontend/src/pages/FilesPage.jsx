@@ -255,6 +255,12 @@ async function objectBlobUrl(conn, key) {
   return URL.createObjectURL(await res.blob())
 }
 
+// The desktop window cannot open another one (the call below returns null there),
+// and a blob: URL belongs to this page, so the system browser could not show it
+// either. The preview below and Download cover it; "Open in new tab" is offered
+// only where a new tab exists (a browser).
+const IN_DESKTOP_WINDOW = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
+
 function FileModal({ file, conn, onClose }) {
   const [detail, setDetail] = useState(null)
   const [error, setError] = useState(null)
@@ -313,7 +319,7 @@ function FileModal({ file, conn, onClose }) {
           )}
           <div className="actions">
             <button className="ghost" onClick={download}>Download</button>
-            {['pdf', 'image'].includes(kind) && blobUrl && (
+            {['pdf', 'image'].includes(kind) && blobUrl && !IN_DESKTOP_WINDOW && (
               <button className="ghost" onClick={() => window.open(blobUrl, '_blank')}>Open in new tab</button>
             )}
           </div>

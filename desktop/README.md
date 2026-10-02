@@ -50,6 +50,17 @@ but a crash or a Task Manager kill would otherwise leak `uvicorn` — still
 holding the port and the state files, so the *next* launch fails for a reason
 the user cannot see. The job object covers that; see `server.rs`.
 
+## Links and new tabs
+
+The window is a webview on `http://127.0.0.1:<port>`, and two things about it
+do not show in a browser. A link that opens a new tab is cancelled by the
+opener plugin and handed to the system browser, which the shell must allow:
+`src-tauri/capabilities/served-app.json` grants the app's pages exactly that
+(web, mailto and tel links) and nothing else, while `default.json` keeps the
+shell's commands and the file opener for the splash. And `window.open()`
+returns null there, so UI code uses a link, never a second window.
+`glossary_generator/tests/test_desktop_links.py` holds both in place.
+
 ## Where state goes
 
 `GLOSSARY_STATE_DIR` is set explicitly to the per-user data directory
